@@ -6,7 +6,7 @@ O MVP abre um XML em Big5, monta os elementos com as texturas DDS, permite selec
 
 ## Baixar para Windows
 
-[![Baixar instalador para Windows](https://img.shields.io/badge/Baixar_para_Windows-Instalador_.exe-176a88?style=for-the-badge&logo=windows)](https://github.com/starzynhobr/gf-ui-editor/releases/latest/download/GF-UI-Editor-Setup-0.1.2.exe)
+[![Baixar instalador para Windows](https://img.shields.io/badge/Baixar_para_Windows-Instalador_.exe-176a88?style=for-the-badge&logo=windows)](https://github.com/starzynhobr/gf-ui-editor/releases/latest/download/GF-UI-Editor-Setup.exe)
 
 Baixe e execute o instalador. Não é necessário instalar Python. O editor não inclui o jogo nem seus arquivos; abra um XML da instalação do Grand Fantasia Violet para carregar as texturas.
 
@@ -103,6 +103,8 @@ Com o ambiente virtual criado, instale as ferramentas de build e execute o scrip
 ```
 
 O executável fica em `dist\GF-UI-Editor\` e o instalador em `dist\installer\`. O script requer o Inno Setup 6 instalado. O jogo e seus arquivos não são incluídos: o editor lê as texturas DDS na pasta do XML aberto.
+
+Ao publicar uma release, envie o instalador também com o nome `GF-UI-Editor-Setup.exe` para manter o botão de download apontando para a versão mais recente.
 
 ## Cores da interface
 
