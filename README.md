@@ -4,6 +4,20 @@ Editor visual para os XMLs de interface do Grand Fantasia Violet.
 
 O MVP abre um XML em Big5, monta os elementos com as texturas DDS, permite selecionar pela tela ou pela árvore, mover por arraste ou pelas setas e editar posição/tamanho numericamente. Ao salvar, cria um backup exato e altera somente os atributos modificados no XML original.
 
+## Baixar para Windows
+
+[![Baixar instalador para Windows](https://img.shields.io/badge/Baixar_para_Windows-Instalador_.exe-176a88?style=for-the-badge&logo=windows)](https://github.com/starzynhobr/gf-ui-editor/releases/latest/download/GF-UI-Editor-Setup-0.1.2.exe)
+
+Baixe e execute o instalador. Não é necessário instalar Python. O editor não inclui o jogo nem seus arquivos; abra um XML da instalação do Grand Fantasia Violet para carregar as texturas.
+
+## Imagens do editor
+
+![Editor com a interface Radar.xml aberta e painel de propriedades](docs/images/editor-radar.png)
+
+| Tela inicial | Atlas de textura DDS |
+| --- | --- |
+| <img src="docs/images/editor-inicial.png" alt="Editor antes de abrir um XML" width="440"> | <img src="docs/images/atlas-dds.png" alt="Atlas DDS com seleção de recorte" width="440"> |
+
 ## Executar
 
 Requer Python 3.11 ou superior. Na primeira execução, instale as dependências em um ambiente virtual:
