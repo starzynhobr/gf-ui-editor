@@ -42,6 +42,31 @@ class TextureCache:
             return
         self._images.pop(texture_path.resolve(), None)
 
+    def prepare_source(self, texture_name: str) -> tuple[Path, tuple[int, int, Image.Image]] | None:
+        """Decodifica uma DDS sem criar objetos Qt; pode rodar em outra thread."""
+        texture_path = self.path_for(texture_name)
+        if texture_path is None:
+            return None
+        resolved = texture_path.resolve()
+        stat = resolved.stat()
+        with Image.open(resolved) as source:
+            image = source.convert("RGBA")
+        return resolved, (stat.st_mtime_ns, stat.st_size, image)
+
+    def install_source(self, source: tuple[Path, tuple[int, int, Image.Image]]) -> None:
+        path, cached = source
+        self._images[path] = cached
+
+    def has_source(self, texture_name: str) -> bool:
+        path = self.path_for(texture_name)
+        if path is None:
+            return False
+        cached = self._images.get(path.resolve())
+        if cached is None:
+            return False
+        stat = path.stat()
+        return cached[:2] == (stat.st_mtime_ns, stat.st_size)
+
     def source_pixmap(self, texture_name: str) -> QPixmap | None:
         texture_path = self.path_for(texture_name)
         if texture_path is None:

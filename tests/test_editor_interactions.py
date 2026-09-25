@@ -33,6 +33,14 @@ def create_window(tmp_path: Path) -> tuple[QApplication, EditorWindow]:
     return application, window
 
 
+def wait_for_textures(window: EditorWindow) -> None:
+    for _ in range(100):
+        if not window._textures_pending:
+            return
+        QTest.qWait(20)
+    raise AssertionError("As texturas não terminaram de carregar")
+
+
 def test_numeric_property_updates_canvas_immediately(tmp_path: Path) -> None:
     application, window = create_window(tmp_path)
 
@@ -316,6 +324,8 @@ def test_external_dds_save_refreshes_preview(tmp_path: Path) -> None:
     xml_path = tmp_path / "Atlas.xml"
     xml_path.write_bytes(xml.encode("big5"))
     window = EditorWindow(xml_path)
+    assert window.items[0].texture_item is None
+    wait_for_textures(window)
     pixmap_item = window.items[0].texture_item
     assert pixmap_item is not None
     assert pixmap_item.pixmap().toImage().pixelColor(2, 2).red() > 200
@@ -361,6 +371,7 @@ def test_opening_another_xml_reuses_unchanged_decoded_texture(
 
     monkeypatch.setattr(Image, "open", tracked_open)
     window = EditorWindow(first_path)
+    wait_for_textures(window)
     window.open_document(second_path)
     application.processEvents()
 
@@ -368,6 +379,7 @@ def test_opening_another_xml_reuses_unchanged_decoded_texture(
 
     Image.new("RGBA", (8, 8), (15, 60, 230, 255)).save(texture_path)
     window.open_document(first_path)
+    wait_for_textures(window)
     application.processEvents()
 
     assert opened == [texture_path, texture_path]
@@ -393,7 +405,7 @@ def test_progress_preview_applies_runtime_offset_layer(tmp_path: Path) -> None:
     xml_path.write_bytes(xml.encode("big5"))
 
     window = EditorWindow(xml_path)
-    application.processEvents()
+    wait_for_textures(window)
     pixmap_item = window.items[0].texture_item
 
     assert pixmap_item is not None

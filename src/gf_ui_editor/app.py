@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from queue import Empty, SimpleQueue
 import sys
+from threading import Thread
 
 from PySide6.QtCore import QFileSystemWatcher, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
@@ -397,6 +399,13 @@ class EditorWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.document: UIDocument | None = None
         self.texture_cache: TextureCache | None = None
+        self._texture_generation = 0
+        self._texture_results: SimpleQueue = SimpleQueue()
+        self._textures_pending: set[str] = set()
+        self._texture_total = 0
+        self._texture_timer = QTimer(self)
+        self._texture_timer.setInterval(50)
+        self._texture_timer.timeout.connect(self._apply_loaded_textures)
         self.items: dict[int, ElementItem] = {}
         self.tree_items: dict[int, QTreeWidgetItem] = {}
         self.selected_index: int | None = None
@@ -719,11 +728,9 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, "Não foi possível abrir", str(exc))
             return
         self.document = document
+        self._texture_generation += 1
         ui_directory = document.path.parent.resolve()
-        if (
-            self.texture_cache is None
-            or self.texture_cache.ui_directory != ui_directory
-        ):
+        if self.texture_cache is None or self.texture_cache.ui_directory != ui_directory:
             self.texture_cache = TextureCache(ui_directory)
         else:
             self.texture_cache.missing.clear()
@@ -734,25 +741,27 @@ class EditorWindow(QMainWindow):
         self.isolated_index = None
         self.search_edit.clear()
         self.properties.set_element(None)
-        self._rebuild_scene()
+        self._rebuild_scene(load_textures=False)
         self._rebuild_tree()
         self.save_action.setEnabled(True)
         self.reload_textures_action.setEnabled(True)
         self._watch_texture_files()
         self._update_element_actions()
         self._update_title()
-        missing = len(self.texture_cache.missing)
-        suffix = f" · {missing} textura(s) ausente(s)" if missing else ""
-        self.statusBar().showMessage(f"{len(document.elements)} elementos carregados{suffix}")
         self.fit_scene()
+        self._start_texture_loading()
 
-    def _rebuild_scene(self) -> None:
+    def _rebuild_scene(self, *, load_textures: bool = True) -> None:
         assert self.document is not None and self.texture_cache is not None
         self.view.set_interaction_priority(None)
         self.scene.clear()
         self.items.clear()
         for element in self.document.elements:
-            pixmap = self.texture_cache.pixmap_for(element)
+            pixmap = (
+                self.texture_cache.pixmap_for(element)
+                if load_textures or (element.texture_name and self.texture_cache.has_source(element.texture_name))
+                else None
+            )
             item = ElementItem(
                 element, pixmap, self._canvas_selection_changed, self.elements_dragged
             )
@@ -762,6 +771,60 @@ class EditorWindow(QMainWindow):
             self.items[element.index] = item
         bounds = self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50)
         self.scene.setSceneRect(bounds)
+
+    def _start_texture_loading(self) -> None:
+        assert self.document is not None and self.texture_cache is not None
+        names = sorted({
+            element.texture_name for element in self.document.elements
+            if element.texture_name and element.uv
+            and not self.texture_cache.has_source(element.texture_name)
+        })
+        self._textures_pending = set(names)
+        self._texture_total = len(names)
+        if not names:
+            self.statusBar().showMessage(f"{len(self.document.elements)} elementos carregados")
+            return
+        generation = self._texture_generation
+        directory = self.texture_cache.ui_directory
+        self.statusBar().showMessage(f"Elementos prontos · carregando texturas (0/{len(names)})…")
+        self._texture_timer.start()
+
+        def load() -> None:
+            cache = TextureCache(directory)
+            for name in names:
+                try:
+                    source = cache.prepare_source(name)
+                except Exception:
+                    source = None
+                self._texture_results.put((generation, name, source))
+
+        Thread(target=load, name="gf-ui-textures", daemon=True).start()
+
+    def _apply_loaded_textures(self) -> None:
+        while True:
+            try:
+                generation, name, source = self._texture_results.get_nowait()
+            except Empty:
+                break
+            if generation != self._texture_generation or name not in self._textures_pending:
+                continue
+            assert self.document is not None and self.texture_cache is not None
+            self._textures_pending.remove(name)
+            if source is None:
+                self.texture_cache.missing.add(name)
+            else:
+                self.texture_cache.install_source(source)
+                for element in self.document.elements:
+                    if element.texture_name == name:
+                        self._refresh_element_texture(element.index)
+            done = self._texture_total - len(self._textures_pending)
+            if self._textures_pending:
+                self.statusBar().showMessage(f"Elementos prontos · carregando texturas ({done}/{self._texture_total})…")
+            else:
+                missing = len(self.texture_cache.missing)
+                suffix = f" · {missing} textura(s) ausente(s)" if missing else ""
+                self.statusBar().showMessage(f"{len(self.document.elements)} elementos carregados{suffix}")
+                self._texture_timer.stop()
 
     def _rebuild_tree(self) -> None:
         assert self.document is not None
@@ -975,6 +1038,9 @@ class EditorWindow(QMainWindow):
         self._update_title()
 
     def open_selected_atlas(self) -> None:
+        if self._textures_pending:
+            self.statusBar().showMessage("Aguarde o carregamento das texturas para abrir o atlas.", 4000)
+            return
         if (
             self.document is None
             or self.texture_cache is None
@@ -1019,10 +1085,15 @@ class EditorWindow(QMainWindow):
         if self.document is None or self.texture_cache is None:
             return
         element = self.document.elements[index]
+        if element.texture_name in self._textures_pending:
+            return
         self.items[index].set_pixmap(self.texture_cache.pixmap_for(element))
 
     def reload_all_textures(self) -> None:
         if self.document is None or self.texture_cache is None:
+            return
+        if self._textures_pending:
+            self.statusBar().showMessage("Aguarde o carregamento das texturas.", 4000)
             return
         self.texture_cache.invalidate()
         for index in self.items:
