@@ -91,3 +91,5 @@ O executável fica em `dist\GF-UI-Editor\` e o instalador em `dist\installer\`. 
 ## Cores da interface
 
 A paleta fica em `src/gf_ui_editor/theme.py`. O stylesheet e os desenhos do canvas/atlas usam os mesmos tokens; altere os valores ali para ajustar as cores sem procurar por literais espalhados pelo código.
+
+As decisões de hierarquia visual e os critérios para avaliar novas mudanças estão em [`docs/ui-review.md`](docs/ui-review.md).

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGraphicsScene,
     QHBoxLayout,
     QLabel,
@@ -29,11 +30,13 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QStyle,
     QTreeWidget,
     QTreeWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -73,6 +76,8 @@ class PropertyPanel(QWidget):
         self.kind_value = QLabel("—")
         self.parent_value = QLabel("—")
         self.ctrl_value = QLabel("—")
+        for value in (self.id_value, self.kind_value, self.parent_value, self.ctrl_value):
+            value.setObjectName("fieldValue")
         self.text_value = QLineEdit()
         self.text_value.setReadOnly(True)
         self.texture_value = QLineEdit()
@@ -91,6 +96,19 @@ class PropertyPanel(QWidget):
         self.visible_value = QCheckBox()
         self.visible_value.setEnabled(False)
 
+        self.lock_button = QToolButton()
+        self.hide_button = QToolButton()
+        self.isolate_button = QToolButton()
+        self.actions_row = QWidget()
+        actions_layout = QHBoxLayout(self.actions_row)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(6)
+        for button in (self.lock_button, self.hide_button, self.isolate_button):
+            button.setObjectName("inspectorAction")
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            actions_layout.addWidget(button)
+        self.actions_row.setVisible(False)
+
         self.x_spin = self._spinbox()
         self.y_spin = self._spinbox()
         self.width_spin = self._spinbox(minimum=0)
@@ -98,20 +116,30 @@ class PropertyPanel(QWidget):
         for spin in (self.x_spin, self.y_spin, self.width_spin, self.height_spin):
             spin.valueChanged.connect(self._emit_geometry)
 
-        form = QFormLayout()
-        form.addRow("WindowID", self.id_value)
-        form.addRow("Tipo", self.kind_value)
-        form.addRow("ParentNode", self.parent_value)
-        form.addRow("CtrlType", self.ctrl_value)
-        form.addRow("X / WindowLeft", self.x_spin)
-        form.addRow("Y / WindowTop", self.y_spin)
-        form.addRow("Largura / WindowHeight", self.width_spin)
-        form.addRow("Altura / WindowWidth", self.height_spin)
-        form.addRow("Visível no XML", self.visible_value)
-        form.addRow("Texto", self.text_value)
-        form.addRow("Textura", texture_row)
-        form.addRow("Recorte DDS", self.uv_value)
-        form.addRow("Fonte", self.font_value)
+        details_form = QFormLayout()
+        geometry_form = QFormLayout()
+        appearance_form = QFormLayout()
+        for form in (details_form, geometry_form, appearance_form):
+            form.setHorizontalSpacing(12)
+            form.setVerticalSpacing(8)
+
+        self._add_field(details_form, "WindowID", self.id_value)
+        self._add_field(details_form, "Tipo", self.kind_value)
+        self._add_field(details_form, "ParentNode", self.parent_value)
+        self._add_field(details_form, "CtrlType", self.ctrl_value)
+        self._add_field(geometry_form, "Posição X", self.x_spin)
+        self._add_field(geometry_form, "Posição Y", self.y_spin)
+        self._add_field(geometry_form, "Largura", self.width_spin)
+        self._add_field(geometry_form, "Altura", self.height_spin)
+        self._add_field(appearance_form, "Visível no XML", self.visible_value)
+        self._add_field(appearance_form, "Texto", self.text_value)
+        self._add_field(appearance_form, "Textura", texture_row)
+        self._add_field(appearance_form, "Recorte DDS", self.uv_value)
+        self._add_field(appearance_form, "Fonte", self.font_value)
+        self.x_spin.setToolTip("WindowLeft no XML")
+        self.y_spin.setToolTip("WindowTop no XML")
+        self.width_spin.setToolTip("WindowHeight no XML")
+        self.height_spin.setToolTip("WindowWidth no XML")
 
         explanation = QLabel(
             "O formato do jogo usa WindowHeight como largura visual e WindowWidth como altura visual."
@@ -121,13 +149,44 @@ class PropertyPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(self.selection_title)
         layout.addWidget(self.selection_subtitle)
-        layout.addLayout(form)
-        layout.addWidget(explanation)
+        layout.addWidget(self.actions_row)
+        self.details_container = QWidget()
+        details_layout = QVBoxLayout(self.details_container)
+        details_layout.setContentsMargins(0, 12, 0, 0)
+        details_layout.setSpacing(8)
+        for title, form in (
+            ("IDENTIFICAÇÃO", details_form),
+            ("GEOMETRIA", geometry_form),
+            ("APARÊNCIA", appearance_form),
+        ):
+            section = QLabel(title)
+            section.setObjectName("sectionLabel")
+            details_layout.addWidget(section)
+            details_layout.addLayout(form)
+            details_layout.addSpacing(10)
+        details_layout.addWidget(explanation)
+        layout.addWidget(self.details_container)
         layout.addStretch(1)
+        self.details_container.setVisible(False)
         self.set_enabled(False)
+
+    @staticmethod
+    def _add_field(form: QFormLayout, label: str, value: QWidget) -> None:
+        form.addRow(label, value)
+        form.labelForField(value).setObjectName("fieldLabel")
+
+    def set_context_actions(
+        self, lock_action: QAction, hide_action: QAction, isolate_action: QAction
+    ) -> None:
+        for button, action in zip(
+            (self.lock_button, self.hide_button, self.isolate_button),
+            (lock_action, hide_action, isolate_action),
+            strict=True,
+        ):
+            button.setDefaultAction(action)
 
     @staticmethod
     def _spinbox(minimum: int = -100000) -> QSpinBox:
@@ -144,6 +203,8 @@ class PropertyPanel(QWidget):
         self._loading = True
         try:
             if element is None:
+                self.actions_row.setVisible(False)
+                self.details_container.setVisible(False)
                 self.selection_title.setText("Nenhum elemento selecionado")
                 self.selection_subtitle.setText(
                     "Selecione um item no canvas ou na lista para editar sua geometria."
@@ -161,6 +222,8 @@ class PropertyPanel(QWidget):
                 self.set_enabled(False)
                 return
             self.selection_title.setText(f"WindowID {element.window_id}")
+            self.actions_row.setVisible(True)
+            self.details_container.setVisible(True)
             self.selection_subtitle.setText(element.kind)
             self.id_value.setText(element.window_id)
             self.kind_value.setText(element.kind)
@@ -288,6 +351,7 @@ class EditorWindow(QMainWindow):
         self.undo_stack = QUndoStack(self)
         self.scene = QGraphicsScene(self)
         self.view = EditorView(self.move_selected)
+        self.view.setFrameShape(QFrame.Shape.NoFrame)
         self.view.setScene(self.scene)
         self.cursor_position_label = QLabel("Mouse: X — · Y —")
         self.cursor_position_label.setMinimumWidth(150)
@@ -321,6 +385,12 @@ class EditorWindow(QMainWindow):
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
         self.properties.atlas_requested.connect(self.open_selected_atlas)
+        properties_scroll = QScrollArea()
+        properties_scroll.setObjectName("propertiesScroll")
+        properties_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        properties_scroll.setWidgetResizable(True)
+        properties_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        properties_scroll.setWidget(self.properties)
 
         canvas_panel = QWidget()
         canvas_panel.setObjectName("canvasPanel")
@@ -334,9 +404,13 @@ class EditorWindow(QMainWindow):
         canvas_title = QLabel("CANVAS")
         canvas_title.setObjectName("sectionLabel")
         canvas_hint = QLabel(
-            "Ctrl + clique: selecionar vários  •  arraste: mover  •  alça: redimensionar  •  meio: pan  •  roda: zoom"
+            "Arraste para mover  •  roda para zoom"
         )
         canvas_hint.setObjectName("canvasHint")
+        canvas_hint.setToolTip(
+            "Ctrl + clique: seleção múltipla • alça: redimensionar • "
+            "botão do meio: navegar pelo canvas"
+        )
         canvas_header_layout.addWidget(canvas_title)
         canvas_header_layout.addStretch(1)
         canvas_header_layout.addWidget(canvas_hint)
@@ -346,14 +420,17 @@ class EditorWindow(QMainWindow):
         splitter = QSplitter()
         splitter.addWidget(tree_panel)
         splitter.addWidget(canvas_panel)
-        splitter.addWidget(self.properties)
+        splitter.addWidget(properties_scroll)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes([350, 830, 320])
+        splitter.setSizes([300, 900, 300])
         self.setCentralWidget(splitter)
 
         self._create_actions()
+        self.properties.set_context_actions(
+            self.lock_action, self.hide_action, self.isolate_action
+        )
         self._create_menus_and_toolbar()
         self._apply_theme()
         self.resize(1500, 900)
@@ -370,12 +447,16 @@ class EditorWindow(QMainWindow):
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
         )
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.open_action.setIconText("Abrir")
+        self.open_action.setToolTip("Abrir XML (Ctrl+O)")
         self.open_action.triggered.connect(self.choose_document)
         self.save_action = QAction("Salvar com backup", self)
         self.save_action.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
         )
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_action.setIconText("Salvar")
+        self.save_action.setToolTip("Salvar com backup (Ctrl+S)")
         self.save_action.setEnabled(False)
         self.save_action.triggered.connect(self.save_document)
         self.undo_action = self.undo_stack.createUndoAction(self, "Desfazer")
@@ -411,14 +492,17 @@ class EditorWindow(QMainWindow):
         self.watch_textures_action.toggled.connect(self._watch_texture_files)
         self.lock_action = QAction("Bloquear selecionado", self)
         self.lock_action.setShortcut("Ctrl+Shift+L")
+        self.lock_action.setIconText("Bloquear")
         self.lock_action.setEnabled(False)
         self.lock_action.triggered.connect(self.toggle_selected_lock)
         self.hide_action = QAction("Ocultar selecionado", self)
         self.hide_action.setShortcut("Ctrl+Shift+H")
+        self.hide_action.setIconText("Ocultar")
         self.hide_action.setEnabled(False)
         self.hide_action.triggered.connect(self.toggle_selected_hidden)
         self.isolate_action = QAction("Isolar selecionado", self)
         self.isolate_action.setShortcut("Ctrl+Shift+I")
+        self.isolate_action.setIconText("Isolar")
         self.isolate_action.setEnabled(False)
         self.isolate_action.triggered.connect(self.toggle_isolation)
 
@@ -450,12 +534,7 @@ class EditorWindow(QMainWindow):
         toolbar.addAction(self.redo_action)
         toolbar.addSeparator()
         toolbar.addAction(self.fit_action)
-        toolbar.addAction(self.atlas_action)
         toolbar.addAction(self.reload_textures_action)
-        toolbar.addSeparator()
-        toolbar.addAction(self.lock_action)
-        toolbar.addAction(self.hide_action)
-        toolbar.addAction(self.isolate_action)
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(
@@ -496,6 +575,18 @@ class EditorWindow(QMainWindow):
             }
             QLabel#panelTitle { color: ${TEXT_TITLE}; font-size: 17px; font-weight: 700; }
             QLabel#panelSubtitle, QLabel#canvasHint { color: ${TEXT_SUBTITLE}; }
+            QLabel#fieldLabel { color: ${TEXT_SUBTITLE}; }
+            QLabel#fieldValue { color: ${TEXT_BRIGHT}; font-weight: 600; }
+            QToolButton#inspectorAction {
+                background: ${INPUT_BG};
+                color: ${TEXT_PRIMARY};
+                border: 1px solid ${BORDER_PANEL};
+                border-radius: 5px;
+                padding: 6px 4px;
+            }
+            QToolButton#inspectorAction:hover { background: ${BUTTON_HOVER_BG}; border-color: ${BUTTON_HOVER_BORDER}; }
+            QToolButton#inspectorAction:pressed { background: ${BUTTON_PRESSED_BG}; }
+            QToolButton#inspectorAction:focus { border-color: ${FOCUS_BLUE}; }
             QLineEdit, QSpinBox, QPlainTextEdit {
                 background: ${INPUT_BG};
                 color: ${TEXT_BRIGHT};
@@ -505,7 +596,7 @@ class EditorWindow(QMainWindow):
                 selection-background-color: ${SELECTION_BLUE};
             }
             QLineEdit:focus, QSpinBox:focus { border-color: ${FOCUS_BLUE}; }
-            QLineEdit:read-only { color: ${TEXT_READONLY}; background: ${INPUT_READONLY_BG}; }
+            QLineEdit:read-only { color: ${TEXT_READONLY}; background: transparent; border-color: transparent; }
             QTreeWidget {
                 background: ${PANEL_BG};
                 alternate-background-color: ${TREE_ALTERNATE_BG};
@@ -1004,8 +1095,11 @@ class EditorWindow(QMainWindow):
         self.atlas_action.setEnabled(atlas_enabled)
         if not enabled:
             self.lock_action.setText("Bloquear selecionado")
+            self.lock_action.setIconText("Bloquear")
             self.hide_action.setText("Ocultar selecionado")
+            self.hide_action.setIconText("Ocultar")
             self.isolate_action.setText("Isolar selecionado")
+            self.isolate_action.setIconText("Isolar")
             return
         assert self.selected_index is not None
         self.lock_action.setText(
@@ -1013,13 +1107,22 @@ class EditorWindow(QMainWindow):
             if self.selected_index in self.locked_indexes
             else "Bloquear selecionado"
         )
+        self.lock_action.setIconText(
+            "Desbloquear" if self.selected_index in self.locked_indexes else "Bloquear"
+        )
         self.hide_action.setText(
             "Mostrar selecionado"
             if self.selected_index in self.hidden_indexes
             else "Ocultar selecionado"
         )
+        self.hide_action.setIconText(
+            "Mostrar" if self.selected_index in self.hidden_indexes else "Ocultar"
+        )
         self.isolate_action.setText(
             "Mostrar todos" if self.isolated_index is not None else "Isolar selecionado"
+        )
+        self.isolate_action.setIconText(
+            "Mostrar todos" if self.isolated_index is not None else "Isolar"
         )
 
     def filter_tree(self, text: str) -> None:
