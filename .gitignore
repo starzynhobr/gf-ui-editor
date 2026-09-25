@@ -1,6 +1,6 @@
 __pycache__/
+.venv/
 .pytest_cache/
 *.py[cod]
 *.before-gf-ui-editor-*.xml
 *.gf-ui-editor.tmp
-

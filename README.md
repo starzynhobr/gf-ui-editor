@@ -6,18 +6,26 @@ O MVP abre um XML em Big5, monta os elementos com as texturas DDS, permite selec
 
 ## Executar
 
-No PowerShell:
+Requer Python 3.11 ou superior. Na primeira execução, instale as dependências em um ambiente virtual:
 
 ```powershell
-cd C:\Users\tz\Documents\PROJETOSGIT\gf-ui-editor
-.\run.ps1
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+No PowerShell, execute:
+
+```powershell
+.\.venv\Scripts\python.exe -m gf_ui_editor
 ```
 
 Também é possível abrir um arquivo diretamente:
 
 ```powershell
-.\run.ps1 "C:\Violet Games\Grand Fantasia Violet\UI\Channel.xml"
+.\.venv\Scripts\python.exe -m gf_ui_editor "C:\Violet Games\Grand Fantasia Violet\UI\Channel.xml"
 ```
+
+O script `run.ps1` também funciona quando as dependências já estão instaladas no Python usado pelo comando `python`.
 
 ## Controles
 
@@ -26,7 +34,6 @@ Também é possível abrir um arquivo diretamente:
 - Arrastar qualquer item selecionado move toda a seleção como uma única ação de desfazer.
 - Ao selecionar pela árvore, o elemento recebe prioridade no próximo arraste, mesmo sob outros controles; o rótulo selecionado também pode ser arrastado.
 - `Alt` + clique: percorre os elementos sobrepostos naquele ponto.
-- Arrastar: move o elemento.
 - O movimento encaixa na grade de 1 pixel durante todo o arraste.
 - Alça dourada no canto inferior direito: redimensiona o elemento.
 - `Shift` ao mover: trava no eixo horizontal ou vertical dominante.
@@ -45,7 +52,9 @@ Também é possível abrir um arquivo diretamente:
 - `F5`: recarrega todas as texturas manualmente.
 - Texturas DDS referenciadas pelo XML são recarregadas automaticamente quando outro programa as salva.
 - `Ctrl+S`: salva com backup.
+- `Ctrl+O`: abre um XML.
 - `Ctrl+Z` / `Ctrl+Y`: desfaz/refaz.
+- `Ctrl+Shift+L` / `Ctrl+Shift+H` / `Ctrl+Shift+I`: bloqueia, oculta ou isola a seleção.
 - `F`: enquadra toda a interface.
 - `I`: mostra ou oculta todos os identificadores. O elemento selecionado sempre mostra o próprio identificador.
 - `T`: mostra ou oculta as texturas.
