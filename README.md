@@ -76,3 +76,14 @@ O script `run.ps1` também funciona quando as dependências já estão instalada
 - `WindowHeight` é a largura visual e `WindowWidth` é a altura visual no formato do jogo.
 
 O recorte pode apontar para qualquer região válida do DDS. A primeira versão do editor de atlas altera `NorUV`; controles com estados adicionais podem usar outras estruturas UV que ainda não são editadas visualmente.
+
+## Gerar o aplicativo para Windows
+
+Com o ambiente virtual criado, instale as ferramentas de build e execute o script:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[build]"
+.\build.ps1
+```
+
+O executável fica em `dist\GF-UI-Editor\` e o instalador em `dist\installer\`. O script requer o Inno Setup 6 instalado. O jogo e seus arquivos não são incluídos: o editor lê as texturas DDS na pasta do XML aberto.
