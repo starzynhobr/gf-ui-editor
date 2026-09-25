@@ -1,5 +1,4 @@
 #define AppName "GF UI Editor"
-#define AppVersion "0.1.1"
 #define AppExeName "GF-UI-Editor.exe"
 
 [Setup]
@@ -14,6 +13,7 @@ OutputBaseFilename=GF-UI-Editor-Setup-{#AppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=app-icon.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 
 [Languages]

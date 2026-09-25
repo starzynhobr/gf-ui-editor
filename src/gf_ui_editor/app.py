@@ -4,12 +4,15 @@ import argparse
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QFileSystemWatcher, QSignalBlocker, QTimer, Qt, Signal
+from PySide6.QtCore import QFileSystemWatcher, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
+    QDesktopServices,
     QFontDatabase,
+    QIcon,
     QKeySequence,
+    QPixmap,
     QUndoCommand,
     QUndoStack,
 )
@@ -41,6 +44,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from . import __version__
 from .editor_widgets import EditorView, ElementItem
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
@@ -55,6 +59,61 @@ from .xml_document import (
 
 
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
+APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
+GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
+
+
+class AboutDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Sobre o GF UI Editor")
+        self.setMinimumWidth(360)
+
+        icon = QLabel()
+        icon.setPixmap(
+            QPixmap(str(APP_ICON_PATH)).scaled(
+                56,
+                56,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        title = QLabel("GF UI Editor")
+        title.setObjectName("panelTitle")
+        version = QLabel(f"Versão {__version__}")
+        version.setObjectName("panelSubtitle")
+        description = QLabel("Editor visual de interfaces XML do Grand Fantasia Violet.")
+        description.setWordWrap(True)
+
+        github_button = QPushButton("Ver outros projetos no GitHub")
+        github_button.setObjectName("githubButton")
+        github_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(GITHUB_REPOSITORIES_URL))
+        )
+        close_button = QPushButton("Fechar")
+        close_button.clicked.connect(self.accept)
+
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        header.addWidget(icon)
+        heading = QVBoxLayout()
+        heading.setSpacing(2)
+        heading.addWidget(title)
+        heading.addWidget(version)
+        header.addLayout(heading)
+        header.addStretch(1)
+
+        actions = QHBoxLayout()
+        actions.addWidget(github_button)
+        actions.addStretch(1)
+        actions.addWidget(close_button)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+        layout.addLayout(header)
+        layout.addWidget(description)
+        layout.addLayout(actions)
 
 
 class PropertyPanel(QWidget):
@@ -335,6 +394,7 @@ class UVCommand(QUndoCommand):
 class EditorWindow(QMainWindow):
     def __init__(self, initial_path: Path | None = None):
         super().__init__()
+        self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.document: UIDocument | None = None
         self.texture_cache: TextureCache | None = None
         self.items: dict[int, ElementItem] = {}
@@ -524,6 +584,10 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
         view_menu.addAction(self.isolate_action)
+        help_menu = self.menuBar().addMenu("Ajuda")
+        self.about_action = QAction("Sobre o GF UI Editor…", self)
+        self.about_action.triggered.connect(self.show_about)
+        help_menu.addAction(self.about_action)
         toolbar = self.addToolBar("Principal")
         toolbar.setMovable(False)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -535,6 +599,9 @@ class EditorWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.fit_action)
         toolbar.addAction(self.reload_textures_action)
+
+    def show_about(self) -> None:
+        AboutDialog(self).exec()
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(
@@ -587,6 +654,15 @@ class EditorWindow(QMainWindow):
             QToolButton#inspectorAction:hover { background: ${BUTTON_HOVER_BG}; border-color: ${BUTTON_HOVER_BORDER}; }
             QToolButton#inspectorAction:pressed { background: ${BUTTON_PRESSED_BG}; }
             QToolButton#inspectorAction:focus { border-color: ${FOCUS_BLUE}; }
+            QPushButton#githubButton {
+                background: ${TREE_SELECTED_BG};
+                color: ${WHITE};
+                border: 1px solid ${FOCUS_BLUE};
+                border-radius: 6px;
+                padding: 7px 12px;
+            }
+            QPushButton#githubButton:hover { background: ${SELECTION_BLUE}; }
+            QPushButton#githubButton:focus { border-color: ${TEXT_BRIGHT}; }
             QLineEdit, QSpinBox, QPlainTextEdit {
                 background: ${INPUT_BG};
                 color: ${TEXT_BRIGHT};
@@ -1250,6 +1326,7 @@ def main(argv: list[str] | None = None) -> int:
     application = QApplication(sys.argv[:1])
     application.setApplicationName("GF UI Editor")
     application.setOrganizationName("Local")
+    application.setWindowIcon(QIcon(str(APP_ICON_PATH)))
     window = EditorWindow(args.xml)
     window.show()
     return application.exec()

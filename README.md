@@ -59,6 +59,8 @@ O script `run.ps1` também funciona quando as dependências já estão instalada
 - `I`: mostra ou oculta todos os identificadores. O elemento selecionado sempre mostra o próprio identificador.
 - `T`: mostra ou oculta as texturas.
 
+O menu **Ajuda → Sobre o GF UI Editor** mostra a versão instalada e oferece um botão para conhecer [outros projetos de StarzynhoBR](https://github.com/starzynhobr?tab=repositories).
+
 ## Segurança do salvamento
 
 - O backup fica ao lado do XML, no formato `Nome.before-gf-ui-editor-AAAAmmdd-HHMMSS.xml`.
