@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 from .editor_widgets import EditorView, ElementItem
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
+from .theme import COLORS, stylesheet
 from .xml_document import (
     DocumentError,
     ExternalModificationError,
@@ -116,7 +117,7 @@ class PropertyPanel(QWidget):
             "O formato do jogo usa WindowHeight como largura visual e WindowWidth como altura visual."
         )
         explanation.setWordWrap(True)
-        explanation.setStyleSheet("color: #9ca3af")
+        explanation.setStyleSheet(f"color: {COLORS['TEXT_MUTED']}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
@@ -458,21 +459,22 @@ class EditorWindow(QMainWindow):
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(
-            """
+            stylesheet(
+                """
             QMainWindow, QWidget {
-                background: #171b23;
-                color: #d8dee9;
+                background: ${WINDOW_BG};
+                color: ${TEXT_PRIMARY};
                 font-size: 12px;
             }
             QMenuBar, QMenu, QToolBar, QStatusBar {
-                background: #141820;
-                color: #d8dee9;
+                background: ${CHROME_BG};
+                color: ${TEXT_PRIMARY};
             }
-            QMenuBar { border-bottom: 1px solid #2b3340; }
-            QMenuBar::item:selected, QMenu::item:selected { background: #2b3442; }
+            QMenuBar { border-bottom: 1px solid ${BORDER_CHROME}; }
+            QMenuBar::item:selected, QMenu::item:selected { background: ${MENU_HOVER_BG}; }
             QToolBar {
                 border: 0;
-                border-bottom: 1px solid #2b3340;
+                border-bottom: 1px solid ${BORDER_CHROME};
                 spacing: 4px;
                 padding: 5px 7px;
             }
@@ -481,55 +483,56 @@ class EditorWindow(QMainWindow):
                 border-radius: 5px;
                 padding: 5px 8px;
             }
-            QToolButton:hover { background: #252c38; border-color: #394455; }
-            QToolButton:pressed { background: #303a49; }
-            QToolButton:disabled { color: #687386; }
-            QWidget#treePanel, QWidget#propertiesPanel { background: #1b2029; }
-            QWidget#canvasHeader { background: #1b2029; border-bottom: 1px solid #303846; }
+            QToolButton:hover { background: ${BUTTON_HOVER_BG}; border-color: ${BUTTON_HOVER_BORDER}; }
+            QToolButton:pressed { background: ${BUTTON_PRESSED_BG}; }
+            QToolButton:disabled { color: ${TEXT_DISABLED}; }
+            QWidget#treePanel, QWidget#propertiesPanel { background: ${PANEL_BG}; }
+            QWidget#canvasHeader { background: ${PANEL_BG}; border-bottom: 1px solid ${BORDER_PANEL}; }
             QLabel#sectionLabel {
-                color: #8fa3bd;
+                color: ${TEXT_SECTION};
                 font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 1px;
             }
-            QLabel#panelTitle { color: #f3f6fa; font-size: 17px; font-weight: 700; }
-            QLabel#panelSubtitle, QLabel#canvasHint { color: #8491a3; }
+            QLabel#panelTitle { color: ${TEXT_TITLE}; font-size: 17px; font-weight: 700; }
+            QLabel#panelSubtitle, QLabel#canvasHint { color: ${TEXT_SUBTITLE}; }
             QLineEdit, QSpinBox, QPlainTextEdit {
-                background: #222934;
-                color: #edf2f7;
-                border: 1px solid #364151;
+                background: ${INPUT_BG};
+                color: ${TEXT_BRIGHT};
+                border: 1px solid ${BORDER_INPUT};
                 border-radius: 5px;
                 padding: 5px 7px;
-                selection-background-color: #3b82f6;
+                selection-background-color: ${SELECTION_BLUE};
             }
-            QLineEdit:focus, QSpinBox:focus { border-color: #60a5fa; }
-            QLineEdit:read-only { color: #aab4c3; background: #1d232c; }
+            QLineEdit:focus, QSpinBox:focus { border-color: ${FOCUS_BLUE}; }
+            QLineEdit:read-only { color: ${TEXT_READONLY}; background: ${INPUT_READONLY_BG}; }
             QTreeWidget {
-                background: #1b2029;
-                alternate-background-color: #1e242e;
-                border: 1px solid #303846;
+                background: ${PANEL_BG};
+                alternate-background-color: ${TREE_ALTERNATE_BG};
+                border: 1px solid ${BORDER_PANEL};
                 border-radius: 6px;
                 outline: 0;
             }
             QTreeWidget::item { min-height: 23px; }
-            QTreeWidget::item:selected { background: #2563a9; color: white; }
-            QTreeWidget::item:hover:!selected { background: #252d39; }
+            QTreeWidget::item:selected { background: ${TREE_SELECTED_BG}; color: ${WHITE}; }
+            QTreeWidget::item:hover:!selected { background: ${TREE_HOVER_BG}; }
             QHeaderView::section {
-                background: #222934;
-                color: #9facbd;
+                background: ${INPUT_BG};
+                color: ${TEXT_HEADER};
                 border: 0;
-                border-bottom: 1px solid #364151;
+                border-bottom: 1px solid ${BORDER_INPUT};
                 padding: 6px;
                 font-weight: 600;
             }
-            QSplitter::handle { background: #303846; }
+            QSplitter::handle { background: ${BORDER_PANEL}; }
             QSplitter::handle:horizontal { width: 1px; }
-            QScrollBar:vertical, QScrollBar:horizontal { background: #171b23; border: 0; }
-            QScrollBar::handle { background: #465164; border-radius: 4px; min-height: 24px; min-width: 24px; }
+            QScrollBar:vertical, QScrollBar:horizontal { background: ${WINDOW_BG}; border: 0; }
+            QScrollBar::handle { background: ${SCROLLBAR_HANDLE}; border-radius: 4px; min-height: 24px; min-width: 24px; }
             QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
-            QStatusBar { border-top: 1px solid #2b3340; color: #93a0b2; }
-            QToolTip { background: #11151b; color: #edf2f7; border: 1px solid #445066; }
-            """
+            QStatusBar { border-top: 1px solid ${BORDER_CHROME}; color: ${TEXT_STATUS}; }
+            QToolTip { background: ${TOOLTIP_BG}; color: ${TEXT_BRIGHT}; border: 1px solid ${BORDER_TOOLTIP}; }
+                """
+            )
         )
 
     def choose_document(self) -> None:

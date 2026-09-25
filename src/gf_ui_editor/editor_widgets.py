@@ -5,7 +5,6 @@ import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QColor,
     QKeyEvent,
     QPainter,
     QPainterPath,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
 )
 
+from .theme import qcolor
 from .xml_document import UIElement
 
 
@@ -47,8 +47,8 @@ class ResizeHandle(QGraphicsRectItem):
         self.owner = owner
         self._dragging = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
-        self.setBrush(QColor(255, 190, 30))
-        self.setPen(QPen(QColor(24, 28, 36), 1))
+        self.setBrush(qcolor("SELECTION_GOLD"))
+        self.setPen(QPen(qcolor("HANDLE_BORDER"), 1))
         self.setCursor(Qt.CursorShape.SizeFDiagCursor)
         self.setZValue(20)
 
@@ -128,9 +128,9 @@ class ElementItem(QGraphicsRectItem):
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
         self.setCursor(Qt.CursorShape.SizeAllCursor)
-        self.setBrush(QColor(40, 150, 220, 8))
-        self._normal_pen = QPen(QColor(90, 190, 255, 110), 0, Qt.PenStyle.DashLine)
-        self._selected_pen = QPen(QColor(255, 190, 30), 0, Qt.PenStyle.SolidLine)
+        self.setBrush(qcolor("ELEMENT_OVERLAY", 8))
+        self._normal_pen = QPen(qcolor("ELEMENT_OUTLINE", 110), 0, Qt.PenStyle.DashLine)
+        self._selected_pen = QPen(qcolor("SELECTION_GOLD"), 0, Qt.PenStyle.SolidLine)
         self.setPen(self._normal_pen)
 
         self.texture_item: QGraphicsPixmapItem | None = None
@@ -143,12 +143,12 @@ class ElementItem(QGraphicsRectItem):
         if element.window_text:
             label += f" · {element.window_text}"
         self.label_item = QGraphicsSimpleTextItem(label, self)
-        self.label_item.setBrush(QColor(255, 235, 120))
+        self.label_item.setBrush(qcolor("LABEL_YELLOW"))
         self.label_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
         self.label_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.label_item.setPos(2, 1)
         self.drag_position_item = QGraphicsSimpleTextItem("", self)
-        self.drag_position_item.setBrush(QColor(110, 230, 255))
+        self.drag_position_item.setBrush(qcolor("POSITION_CYAN"))
         self.drag_position_item.setFlag(
             QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations
         )
@@ -430,7 +430,7 @@ class EditorView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
-        self.setBackgroundBrush(QColor(36, 39, 46))
+        self.setBackgroundBrush(qcolor("CANVAS_BG"))
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
 
     @staticmethod

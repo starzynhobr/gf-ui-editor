@@ -4,7 +4,7 @@ from collections.abc import Callable
 import math
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QWheelEvent
+from PySide6.QtGui import QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from .theme import qcolor
 from .xml_document import UVRect
 
 
@@ -33,17 +34,17 @@ class AtlasView(QGraphicsView):
         self.setMouseTracking(True)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.setBackgroundBrush(QColor(28, 33, 42))
+        self.setBackgroundBrush(qcolor("ATLAS_BG"))
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
         self._pixmap_item = QGraphicsPixmapItem()
         self._scene.addItem(self._pixmap_item)
         self._selection_item = QGraphicsRectItem()
-        selection_pen = QPen(QColor(255, 190, 30))
+        selection_pen = QPen(qcolor("SELECTION_GOLD"))
         selection_pen.setWidthF(1.0)
         selection_pen.setCosmetic(True)
         self._selection_item.setPen(selection_pen)
-        self._selection_item.setBrush(QColor(255, 190, 30, 18))
+        self._selection_item.setBrush(qcolor("SELECTION_GOLD", 18))
         self._selection_item.setZValue(10)
         self._scene.addItem(self._selection_item)
         self._resize_handles: dict[str, QGraphicsRectItem] = {}
@@ -52,19 +53,19 @@ class AtlasView(QGraphicsView):
             handle.setFlag(
                 QGraphicsRectItem.GraphicsItemFlag.ItemIgnoresTransformations
             )
-            handle.setBrush(QColor(255, 190, 30))
-            handle.setPen(QPen(QColor(24, 28, 36), 1))
+            handle.setBrush(qcolor("SELECTION_GOLD"))
+            handle.setPen(QPen(qcolor("HANDLE_BORDER"), 1))
             handle.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             handle.setZValue(11)
             self._scene.addItem(handle)
             self._resize_handles[corner] = handle
         self._progress_item = QGraphicsRectItem()
-        progress_pen = QPen(QColor(65, 220, 255))
+        progress_pen = QPen(qcolor("PROGRESS_CYAN"))
         progress_pen.setWidthF(1.0)
         progress_pen.setCosmetic(True)
         progress_pen.setStyle(Qt.PenStyle.DashLine)
         self._progress_item.setPen(progress_pen)
-        self._progress_item.setBrush(QColor(65, 220, 255, 18))
+        self._progress_item.setBrush(qcolor("PROGRESS_CYAN", 18))
         self._progress_item.setZValue(9)
         self._progress_item.setVisible(False)
         self._scene.addItem(self._progress_item)
