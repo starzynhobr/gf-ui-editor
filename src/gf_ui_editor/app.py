@@ -6,9 +6,10 @@ from queue import Empty, SimpleQueue
 import sys
 from threading import Thread
 
-from PySide6.QtCore import QFileSystemWatcher, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
+    QActionGroup,
     QCloseEvent,
     QDesktopServices,
     QFontDatabase,
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -48,6 +50,8 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .editor_widgets import EditorView, ElementItem
+from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, install_language, kind_label
+from .interaction import install_pointer_cursors
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
@@ -68,7 +72,7 @@ GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
 class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Sobre o GF UI Editor")
+        self.setWindowTitle(self.tr("Sobre o GF UI Editor"))
         self.setMinimumWidth(360)
 
         icon = QLabel()
@@ -82,17 +86,17 @@ class AboutDialog(QDialog):
         )
         title = QLabel("GF UI Editor")
         title.setObjectName("panelTitle")
-        version = QLabel(f"Versão {__version__}")
+        version = QLabel(self.tr("Versão {version}").format(version=__version__))
         version.setObjectName("panelSubtitle")
-        description = QLabel("Editor visual de interfaces XML do Grand Fantasia Violet.")
+        description = QLabel(self.tr("Editor visual de interfaces XML do Grand Fantasia Violet."))
         description.setWordWrap(True)
 
-        github_button = QPushButton("Ver outros projetos no GitHub")
+        github_button = QPushButton(self.tr("Ver outros projetos no GitHub"))
         github_button.setObjectName("githubButton")
         github_button.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(GITHUB_REPOSITORIES_URL))
         )
-        close_button = QPushButton("Fechar")
+        close_button = QPushButton(self.tr("Fechar"))
         close_button.clicked.connect(self.accept)
 
         header = QHBoxLayout()
@@ -116,6 +120,7 @@ class AboutDialog(QDialog):
         layout.addLayout(header)
         layout.addWidget(description)
         layout.addLayout(actions)
+        install_pointer_cursors(self)
 
 
 class PropertyPanel(QWidget):
@@ -126,10 +131,10 @@ class PropertyPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("propertiesPanel")
         self._loading = False
-        self.selection_title = QLabel("Nenhum elemento selecionado")
+        self.selection_title = QLabel(self.tr("Nenhum elemento selecionado"))
         self.selection_title.setObjectName("panelTitle")
         self.selection_subtitle = QLabel(
-            "Selecione um item no canvas ou na lista para editar sua geometria."
+            self.tr("Selecione um item no canvas ou na lista para editar sua geometria.")
         )
         self.selection_subtitle.setObjectName("panelSubtitle")
         self.selection_subtitle.setWordWrap(True)
@@ -143,7 +148,7 @@ class PropertyPanel(QWidget):
         self.text_value.setReadOnly(True)
         self.texture_value = QLineEdit()
         self.texture_value.setReadOnly(True)
-        self.atlas_button = QPushButton("Abrir atlas…")
+        self.atlas_button = QPushButton(self.tr("Abrir atlas…"))
         self.atlas_button.setEnabled(False)
         self.atlas_button.clicked.connect(self.atlas_requested.emit)
         texture_row = QWidget()
@@ -185,25 +190,25 @@ class PropertyPanel(QWidget):
             form.setVerticalSpacing(8)
 
         self._add_field(details_form, "WindowID", self.id_value)
-        self._add_field(details_form, "Tipo", self.kind_value)
+        self._add_field(details_form, self.tr("Tipo"), self.kind_value)
         self._add_field(details_form, "ParentNode", self.parent_value)
         self._add_field(details_form, "CtrlType", self.ctrl_value)
-        self._add_field(geometry_form, "Posição X", self.x_spin)
-        self._add_field(geometry_form, "Posição Y", self.y_spin)
-        self._add_field(geometry_form, "Largura", self.width_spin)
-        self._add_field(geometry_form, "Altura", self.height_spin)
-        self._add_field(appearance_form, "Visível no XML", self.visible_value)
-        self._add_field(appearance_form, "Texto", self.text_value)
-        self._add_field(appearance_form, "Textura", texture_row)
-        self._add_field(appearance_form, "Recorte DDS", self.uv_value)
-        self._add_field(appearance_form, "Fonte", self.font_value)
-        self.x_spin.setToolTip("WindowLeft no XML")
-        self.y_spin.setToolTip("WindowTop no XML")
-        self.width_spin.setToolTip("WindowHeight no XML")
-        self.height_spin.setToolTip("WindowWidth no XML")
+        self._add_field(geometry_form, self.tr("Posição X"), self.x_spin)
+        self._add_field(geometry_form, self.tr("Posição Y"), self.y_spin)
+        self._add_field(geometry_form, self.tr("Largura"), self.width_spin)
+        self._add_field(geometry_form, self.tr("Altura"), self.height_spin)
+        self._add_field(appearance_form, self.tr("Visível no XML"), self.visible_value)
+        self._add_field(appearance_form, self.tr("Texto"), self.text_value)
+        self._add_field(appearance_form, self.tr("Textura"), texture_row)
+        self._add_field(appearance_form, self.tr("Recorte DDS"), self.uv_value)
+        self._add_field(appearance_form, self.tr("Fonte"), self.font_value)
+        self.x_spin.setToolTip(self.tr("WindowLeft no XML"))
+        self.y_spin.setToolTip(self.tr("WindowTop no XML"))
+        self.width_spin.setToolTip(self.tr("WindowHeight no XML"))
+        self.height_spin.setToolTip(self.tr("WindowWidth no XML"))
 
         explanation = QLabel(
-            "O formato do jogo usa WindowHeight como largura visual e WindowWidth como altura visual."
+            self.tr("O formato do jogo usa WindowHeight como largura visual e WindowWidth como altura visual.")
         )
         explanation.setWordWrap(True)
         explanation.setStyleSheet(f"color: {COLORS['TEXT_MUTED']}")
@@ -219,9 +224,9 @@ class PropertyPanel(QWidget):
         details_layout.setContentsMargins(0, 12, 0, 0)
         details_layout.setSpacing(8)
         for title, form in (
-            ("IDENTIFICAÇÃO", details_form),
-            ("GEOMETRIA", geometry_form),
-            ("APARÊNCIA", appearance_form),
+            (self.tr("IDENTIFICAÇÃO"), details_form),
+            (self.tr("GEOMETRIA"), geometry_form),
+            (self.tr("APARÊNCIA"), appearance_form),
         ):
             section = QLabel(title)
             section.setObjectName("sectionLabel")
@@ -266,9 +271,9 @@ class PropertyPanel(QWidget):
             if element is None:
                 self.actions_row.setVisible(False)
                 self.details_container.setVisible(False)
-                self.selection_title.setText("Nenhum elemento selecionado")
+                self.selection_title.setText(self.tr("Nenhum elemento selecionado"))
                 self.selection_subtitle.setText(
-                    "Selecione um item no canvas ou na lista para editar sua geometria."
+                    self.tr("Selecione um item no canvas ou na lista para editar sua geometria.")
                 )
                 self.id_value.setText("—")
                 self.kind_value.setText("—")
@@ -285,9 +290,9 @@ class PropertyPanel(QWidget):
             self.selection_title.setText(f"WindowID {element.window_id}")
             self.actions_row.setVisible(True)
             self.details_container.setVisible(True)
-            self.selection_subtitle.setText(element.kind)
+            self.selection_subtitle.setText(kind_label(element.kind, element.ctrl_type))
             self.id_value.setText(element.window_id)
-            self.kind_value.setText(element.kind)
+            self.kind_value.setText(kind_label(element.kind, element.ctrl_type))
             self.parent_value.setText(element.parent_id or "—")
             self.ctrl_value.setText(element.ctrl_type or "—")
             self.text_value.setText(element.window_text)
@@ -336,7 +341,7 @@ class GeometryCommand(QUndoCommand):
         old: tuple[int, int, int, int],
         new: tuple[int, int, int, int],
     ):
-        super().__init__(f"Mover/redimensionar WindowID {window.document.elements[index].window_id}")
+        super().__init__(QCoreApplication.translate("EditorWindow", "Mover/redimensionar WindowID {id}").format(id=window.document.elements[index].window_id))
         self.window = window
         self.index = index
         self.old = old
@@ -357,7 +362,7 @@ class GeometryBatchCommand(QUndoCommand):
             int, tuple[tuple[int, int, int, int], tuple[int, int, int, int]]
         ],
     ):
-        super().__init__(f"Mover {len(changes)} elementos")
+        super().__init__(QCoreApplication.translate("EditorWindow", "Mover {count} elementos").format(count=len(changes)))
         self.window = window
         self.changes = changes
 
@@ -379,7 +384,7 @@ class UVCommand(QUndoCommand):
         new: UVRect,
     ):
         super().__init__(
-            f"Alterar recorte DDS do WindowID {window.document.elements[index].window_id}"
+            QCoreApplication.translate("EditorWindow", "Alterar recorte DDS do WindowID {id}").format(id=window.document.elements[index].window_id)
         )
         self.window = window
         self.index = index
@@ -394,8 +399,9 @@ class UVCommand(QUndoCommand):
 
 
 class EditorWindow(QMainWindow):
-    def __init__(self, initial_path: Path | None = None):
+    def __init__(self, initial_path: Path | None = None, *, language: str = "pt_BR"):
         super().__init__()
+        self.language = language
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.document: UIDocument | None = None
         self.texture_cache: TextureCache | None = None
@@ -422,20 +428,20 @@ class EditorWindow(QMainWindow):
         self.view = EditorView(self.move_selected)
         self.view.setFrameShape(QFrame.Shape.NoFrame)
         self.view.setScene(self.scene)
-        self.cursor_position_label = QLabel("Mouse: X — · Y —")
+        self.cursor_position_label = QLabel(self.tr("Mouse: X — · Y —"))
         self.cursor_position_label.setMinimumWidth(150)
         self.view.cursor_scene_moved.connect(
             lambda x, y: self.cursor_position_label.setText(
-                f"Mouse: X {x} · Y {y}"
+                self.tr("Mouse: X {x} · Y {y}").format(x=x, y=y)
             )
         )
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Pesquisar WindowID, tipo, texto ou textura…")
+        self.search_edit.setPlaceholderText(self.tr("Pesquisar WindowID, tipo, texto ou textura…"))
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self.filter_tree)
         self.tree = QTreeWidget()
         self.tree.setObjectName("elementTree")
-        self.tree.setHeaderLabels(["WindowID", "Tipo", "ParentNode", "Estado"])
+        self.tree.setHeaderLabels(["WindowID", self.tr("Tipo"), "ParentNode", self.tr("Estado")])
         self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection
@@ -446,7 +452,7 @@ class EditorWindow(QMainWindow):
         tree_layout = QVBoxLayout(tree_panel)
         tree_layout.setContentsMargins(12, 12, 12, 12)
         tree_layout.setSpacing(8)
-        tree_title = QLabel("ELEMENTOS")
+        tree_title = QLabel(self.tr("ELEMENTOS"))
         tree_title.setObjectName("sectionLabel")
         tree_layout.addWidget(tree_title)
         tree_layout.addWidget(self.search_edit)
@@ -470,15 +476,14 @@ class EditorWindow(QMainWindow):
         canvas_header.setObjectName("canvasHeader")
         canvas_header_layout = QHBoxLayout(canvas_header)
         canvas_header_layout.setContentsMargins(14, 7, 14, 7)
-        canvas_title = QLabel("CANVAS")
+        canvas_title = QLabel(self.tr("CANVAS"))
         canvas_title.setObjectName("sectionLabel")
         canvas_hint = QLabel(
-            "Arraste para mover  •  roda para zoom"
+            self.tr("Arraste para mover  •  roda para zoom")
         )
         canvas_hint.setObjectName("canvasHint")
         canvas_hint.setToolTip(
-            "Ctrl + clique: seleção múltipla • alça: redimensionar • "
-            "botão do meio: navegar pelo canvas"
+            self.tr("Ctrl + clique: seleção múltipla • alça: redimensionar • botão do meio: navegar pelo canvas")
         )
         canvas_header_layout.addWidget(canvas_title)
         canvas_header_layout.addStretch(1)
@@ -502,87 +507,89 @@ class EditorWindow(QMainWindow):
         )
         self._create_menus_and_toolbar()
         self._apply_theme()
+        install_pointer_cursors(self)
         self.resize(1500, 900)
         self.setWindowTitle("GF UI Editor")
-        self.statusBar().showMessage("Abra um XML da pasta UI para começar.")
+        self.statusBar().showMessage(self.tr("Abra um XML da pasta UI para começar."))
         self.statusBar().addPermanentWidget(self.cursor_position_label)
 
         if initial_path is not None:
             self.open_document(initial_path)
 
     def _create_actions(self) -> None:
-        self.open_action = QAction("Abrir XML…", self)
+        self.open_action = QAction(self.tr("Abrir XML…"), self)
         self.open_action.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
         )
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.open_action.setIconText("Abrir")
-        self.open_action.setToolTip("Abrir XML (Ctrl+O)")
+        self.open_action.setIconText(self.tr("Abrir"))
+        self.open_action.setToolTip(self.tr("Abrir XML (Ctrl+O)"))
         self.open_action.triggered.connect(self.choose_document)
-        self.save_action = QAction("Salvar com backup", self)
+        self.save_action = QAction(self.tr("Salvar com backup"), self)
         self.save_action.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
         )
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.save_action.setIconText("Salvar")
-        self.save_action.setToolTip("Salvar com backup (Ctrl+S)")
+        self.save_action.setIconText(self.tr("Salvar"))
+        self.save_action.setToolTip(self.tr("Salvar com backup (Ctrl+S)"))
         self.save_action.setEnabled(False)
         self.save_action.triggered.connect(self.save_document)
-        self.undo_action = self.undo_stack.createUndoAction(self, "Desfazer")
+        self.undo_action = self.undo_stack.createUndoAction(self, self.tr("Desfazer"))
         self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
-        self.redo_action = self.undo_stack.createRedoAction(self, "Refazer")
+        self.redo_action = self.undo_stack.createRedoAction(self, self.tr("Refazer"))
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
-        self.fit_action = QAction("Enquadrar", self)
+        self.fit_action = QAction(self.tr("Enquadrar"), self)
         self.fit_action.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon)
         )
         self.fit_action.setShortcut("F")
+        self.fit_action.setEnabled(False)
         self.fit_action.triggered.connect(self.fit_scene)
-        self.labels_action = QAction("Mostrar identificadores", self)
+        self.labels_action = QAction(self.tr("Mostrar identificadores"), self)
         self.labels_action.setCheckable(True)
         self.labels_action.setChecked(False)
         self.labels_action.setShortcut("I")
         self.labels_action.toggled.connect(self.set_labels_visible)
-        self.textures_action = QAction("Mostrar texturas", self)
+        self.textures_action = QAction(self.tr("Mostrar texturas"), self)
         self.textures_action.setCheckable(True)
         self.textures_action.setChecked(True)
         self.textures_action.setShortcut("T")
         self.textures_action.toggled.connect(self.set_textures_visible)
-        self.atlas_action = QAction("Abrir atlas DDS…", self)
+        self.atlas_action = QAction(self.tr("Abrir atlas DDS…"), self)
         self.atlas_action.setEnabled(False)
         self.atlas_action.triggered.connect(self.open_selected_atlas)
-        self.reload_textures_action = QAction("Recarregar texturas", self)
+        self.reload_textures_action = QAction(self.tr("Recarregar texturas"), self)
         self.reload_textures_action.setShortcut(QKeySequence.StandardKey.Refresh)
         self.reload_textures_action.setEnabled(False)
         self.reload_textures_action.triggered.connect(self.reload_all_textures)
-        self.watch_textures_action = QAction("Atualizar DDS automaticamente", self)
+        self.watch_textures_action = QAction(self.tr("Atualizar DDS automaticamente"), self)
         self.watch_textures_action.setCheckable(True)
         self.watch_textures_action.setChecked(True)
         self.watch_textures_action.toggled.connect(self._watch_texture_files)
-        self.lock_action = QAction("Bloquear selecionado", self)
+        self.lock_action = QAction(self.tr("Bloquear selecionado"), self)
         self.lock_action.setShortcut("Ctrl+Shift+L")
-        self.lock_action.setIconText("Bloquear")
+        self.lock_action.setIconText(self.tr("Bloquear"))
         self.lock_action.setEnabled(False)
         self.lock_action.triggered.connect(self.toggle_selected_lock)
-        self.hide_action = QAction("Ocultar selecionado", self)
+        self.hide_action = QAction(self.tr("Ocultar selecionado"), self)
         self.hide_action.setShortcut("Ctrl+Shift+H")
-        self.hide_action.setIconText("Ocultar")
+        self.hide_action.setIconText(self.tr("Ocultar"))
         self.hide_action.setEnabled(False)
         self.hide_action.triggered.connect(self.toggle_selected_hidden)
-        self.isolate_action = QAction("Isolar selecionado", self)
+        self.isolate_action = QAction(self.tr("Isolar selecionado"), self)
         self.isolate_action.setShortcut("Ctrl+Shift+I")
-        self.isolate_action.setIconText("Isolar")
+        self.isolate_action.setIconText(self.tr("Isolar"))
         self.isolate_action.setEnabled(False)
         self.isolate_action.triggered.connect(self.toggle_isolation)
 
     def _create_menus_and_toolbar(self) -> None:
-        file_menu = self.menuBar().addMenu("Arquivo")
+        file_menu = self.menuBar().addMenu(self.tr("Arquivo"))
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
-        edit_menu = self.menuBar().addMenu("Editar")
+        edit_menu = self.menuBar().addMenu(self.tr("Editar"))
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
-        view_menu = self.menuBar().addMenu("Visualização")
+        view_menu = self.menuBar().addMenu(self.tr("Visualização"))
         view_menu.addAction(self.fit_action)
         view_menu.addAction(self.labels_action)
         view_menu.addAction(self.textures_action)
@@ -593,8 +600,23 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
         view_menu.addAction(self.isolate_action)
-        help_menu = self.menuBar().addMenu("Ajuda")
-        self.about_action = QAction("Sobre o GF UI Editor…", self)
+        help_menu = self.menuBar().addMenu(self.tr("Ajuda"))
+        self.language_button = QToolButton(self.menuBar())
+        self.language_button.setObjectName("languageButton")
+        self.language_button.setText(self.tr("Idioma"))
+        self.language_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        language_menu = QMenu(self.language_button)
+        language_actions = QActionGroup(self)
+        language_actions.setExclusive(True)
+        for code, label in LANGUAGE_NAMES:
+            action = language_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(code == self.language)
+            language_actions.addAction(action)
+            action.triggered.connect(lambda _checked, selected=code: self._choose_language(selected))
+        self.language_button.setMenu(language_menu)
+        self.menuBar().setCornerWidget(self.language_button, Qt.Corner.TopRightCorner)
+        self.about_action = QAction(self.tr("Sobre o GF UI Editor…"), self)
         self.about_action.triggered.connect(self.show_about)
         help_menu.addAction(self.about_action)
         toolbar = self.addToolBar("Principal")
@@ -612,6 +634,17 @@ class EditorWindow(QMainWindow):
     def show_about(self) -> None:
         AboutDialog(self).exec()
 
+    def _choose_language(self, language: str) -> None:
+        if language == self.language or language not in LANGUAGES:
+            return
+        QSettings("Local", "GF UI Editor").setValue("language", language)
+        self.language = language
+        QMessageBox.information(
+            self,
+            self.tr("Idioma alterado"),
+            self.tr("Reinicie o GF UI Editor para aplicar o novo idioma."),
+        )
+
     def _apply_theme(self) -> None:
         self.setStyleSheet(
             stylesheet(
@@ -627,6 +660,11 @@ class EditorWindow(QMainWindow):
             }
             QMenuBar { border-bottom: 1px solid ${BORDER_CHROME}; }
             QMenuBar::item:selected, QMenu::item:selected { background: ${MENU_HOVER_BG}; }
+            QMenu::item:disabled, QMenu::item:selected:disabled,
+            QMenuBar::item:disabled, QMenuBar::item:selected:disabled {
+                color: ${TEXT_DISABLED};
+                background: transparent;
+            }
             QToolBar {
                 border: 0;
                 border-bottom: 1px solid ${BORDER_CHROME};
@@ -641,6 +679,12 @@ class EditorWindow(QMainWindow):
             QToolButton:hover { background: ${BUTTON_HOVER_BG}; border-color: ${BUTTON_HOVER_BORDER}; }
             QToolButton:pressed { background: ${BUTTON_PRESSED_BG}; }
             QToolButton:disabled { color: ${TEXT_DISABLED}; }
+            QToolButton#languageButton {
+                background: ${INPUT_BG};
+                border-color: ${BORDER_PANEL};
+                margin: 2px 8px 2px 0;
+            }
+            QPushButton:disabled, QCheckBox:disabled { color: ${TEXT_DISABLED}; }
             QWidget#treePanel, QWidget#propertiesPanel { background: ${PANEL_BG}; }
             QWidget#canvasHeader { background: ${PANEL_BG}; border-bottom: 1px solid ${BORDER_PANEL}; }
             QLabel#sectionLabel {
@@ -716,7 +760,7 @@ class EditorWindow(QMainWindow):
             return
         initial = DEFAULT_UI_DIRECTORY if DEFAULT_UI_DIRECTORY.exists() else Path.home()
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Abrir XML de interface", str(initial), "XML (*.xml);;Todos os arquivos (*)"
+            self, self.tr("Abrir XML de interface"), str(initial), self.tr("XML (*.xml);;Todos os arquivos (*)")
         )
         if filename:
             self.open_document(Path(filename))
@@ -725,7 +769,7 @@ class EditorWindow(QMainWindow):
         try:
             document = UIDocument.load(path)
         except DocumentError as exc:
-            QMessageBox.critical(self, "Não foi possível abrir", str(exc))
+            QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(exc))
             return
         self.document = document
         self._texture_generation += 1
@@ -744,6 +788,7 @@ class EditorWindow(QMainWindow):
         self._rebuild_scene(load_textures=False)
         self._rebuild_tree()
         self.save_action.setEnabled(True)
+        self.fit_action.setEnabled(True)
         self.reload_textures_action.setEnabled(True)
         self._watch_texture_files()
         self._update_element_actions()
@@ -782,11 +827,11 @@ class EditorWindow(QMainWindow):
         self._textures_pending = set(names)
         self._texture_total = len(names)
         if not names:
-            self.statusBar().showMessage(f"{len(self.document.elements)} elementos carregados")
+            self.statusBar().showMessage(self.tr("{count} elementos carregados").format(count=len(self.document.elements)))
             return
         generation = self._texture_generation
         directory = self.texture_cache.ui_directory
-        self.statusBar().showMessage(f"Elementos prontos · carregando texturas (0/{len(names)})…")
+        self.statusBar().showMessage(self.tr("Elementos prontos · carregando texturas ({done}/{total})…").format(done=0, total=len(names)))
         self._texture_timer.start()
 
         def load() -> None:
@@ -819,11 +864,11 @@ class EditorWindow(QMainWindow):
                         self._refresh_element_texture(element.index)
             done = self._texture_total - len(self._textures_pending)
             if self._textures_pending:
-                self.statusBar().showMessage(f"Elementos prontos · carregando texturas ({done}/{self._texture_total})…")
+                self.statusBar().showMessage(self.tr("Elementos prontos · carregando texturas ({done}/{total})…").format(done=done, total=self._texture_total))
             else:
                 missing = len(self.texture_cache.missing)
-                suffix = f" · {missing} textura(s) ausente(s)" if missing else ""
-                self.statusBar().showMessage(f"{len(self.document.elements)} elementos carregados{suffix}")
+                suffix = self.tr(" · texturas ausentes: {count}").format(count=missing) if missing else ""
+                self.statusBar().showMessage(self.tr("{count} elementos carregados").format(count=len(self.document.elements)) + suffix)
                 self._texture_timer.stop()
 
     def _rebuild_tree(self) -> None:
@@ -834,7 +879,7 @@ class EditorWindow(QMainWindow):
         pending: list[tuple[UIElement, QTreeWidgetItem]] = []
         for element in self.document.elements:
             item = QTreeWidgetItem(
-                [element.window_id, element.kind, element.parent_id or "", ""]
+                [element.window_id, kind_label(element.kind, element.ctrl_type), element.parent_id or "", ""]
             )
             item.setData(0, Qt.ItemDataRole.UserRole, element.index)
             self.tree_items[element.index] = item
@@ -884,9 +929,11 @@ class EditorWindow(QMainWindow):
             self._refresh_tree_state(previous_isolated_index)
             self._refresh_tree_state(index)
         self._update_element_actions()
-        suffix = f" · {selection_count} selecionados" if selection_count > 1 else ""
+        suffix = self.tr(" · {count} selecionados").format(count=selection_count) if selection_count > 1 else ""
         self.statusBar().showMessage(
-            f"WindowID {self.document.elements[index].window_id} · índice {index}{suffix}"
+            self.tr("WindowID {id} · índice {index}").format(
+                id=self.document.elements[index].window_id, index=index
+            ) + suffix
         )
 
     def _canvas_selection_changed(self, changed_index: int) -> None:
@@ -970,7 +1017,7 @@ class EditorWindow(QMainWindow):
         if self.document is None or self.selected_index is None:
             return
         if self.selected_index in self.locked_indexes:
-            self.statusBar().showMessage("O elemento selecionado está bloqueado.", 3000)
+            self.statusBar().showMessage(self.tr("O elemento selecionado está bloqueado."), 3000)
             self.properties.set_element(self.document.elements[self.selected_index])
             self.properties.set_enabled(False)
             return
@@ -996,7 +1043,7 @@ class EditorWindow(QMainWindow):
         if changes:
             self.undo_stack.push(GeometryBatchCommand(self, changes))
         else:
-            self.statusBar().showMessage("Os elementos selecionados estão bloqueados.", 3000)
+            self.statusBar().showMessage(self.tr("Os elementos selecionados estão bloqueados."), 3000)
 
     def apply_geometry(self, index: int, geometry: tuple[int, int, int, int]) -> None:
         assert self.document is not None
@@ -1010,7 +1057,7 @@ class EditorWindow(QMainWindow):
         if self.document is None:
             return
         if index in self.locked_indexes:
-            self.statusBar().showMessage("O elemento selecionado está bloqueado.", 3000)
+            self.statusBar().showMessage(self.tr("O elemento selecionado está bloqueado."), 3000)
             return
         element = self.document.elements[index]
         if element.uv is None:
@@ -1020,7 +1067,7 @@ class EditorWindow(QMainWindow):
         geometry_changed = resize_element and element.geometry != geometry
         if not uv_changed and not geometry_changed:
             return
-        self.undo_stack.beginMacro(f"Alterar atlas do WindowID {element.window_id}")
+        self.undo_stack.beginMacro(self.tr("Alterar atlas do WindowID {id}").format(id=element.window_id))
         if uv_changed:
             self.undo_stack.push(UVCommand(self, index, element.uv, uv))
         if geometry_changed:
@@ -1039,7 +1086,7 @@ class EditorWindow(QMainWindow):
 
     def open_selected_atlas(self) -> None:
         if self._textures_pending:
-            self.statusBar().showMessage("Aguarde o carregamento das texturas para abrir o atlas.", 4000)
+            self.statusBar().showMessage(self.tr("Aguarde o carregamento das texturas para abrir o atlas."), 4000)
             return
         if (
             self.document is None
@@ -1051,13 +1098,13 @@ class EditorWindow(QMainWindow):
         element = self.document.elements[index]
         if not element.texture_name or element.uv is None:
             self.statusBar().showMessage(
-                "Este elemento não possui uma textura NorUV editável.", 4000
+                self.tr("Este elemento não possui uma textura NorUV editável."), 4000
             )
             return
         pixmap = self.texture_cache.source_pixmap(element.texture_name)
         if pixmap is None:
             self.statusBar().showMessage(
-                f"Não foi possível abrir {element.texture_name}.", 5000
+                self.tr("Não foi possível abrir {name}.").format(name=element.texture_name), 5000
             )
             return
         if self.atlas_dialog is not None:
@@ -1093,13 +1140,13 @@ class EditorWindow(QMainWindow):
         if self.document is None or self.texture_cache is None:
             return
         if self._textures_pending:
-            self.statusBar().showMessage("Aguarde o carregamento das texturas.", 4000)
+            self.statusBar().showMessage(self.tr("Aguarde o carregamento das texturas."), 4000)
             return
         self.texture_cache.invalidate()
         for index in self.items:
             self._refresh_element_texture(index)
         self._reload_open_atlas()
-        self.statusBar().showMessage("Texturas recarregadas do disco.", 4000)
+        self.statusBar().showMessage(self.tr("Texturas recarregadas do disco."), 4000)
 
     def _watch_texture_files(self, enabled: bool | None = None) -> None:
         watched = self.texture_watcher.files()
@@ -1138,7 +1185,7 @@ class EditorWindow(QMainWindow):
             else:
                 self._watch_texture_files()
                 self.statusBar().showMessage(
-                    f"A textura {texture_path.name} não está disponível.", 5000
+                    self.tr("A textura {name} não está disponível.").format(name=texture_path.name), 5000
                 )
             return
         resolved = texture_path.resolve()
@@ -1154,7 +1201,7 @@ class EditorWindow(QMainWindow):
         self._reload_open_atlas()
         self._watch_texture_files()
         self.statusBar().showMessage(
-            f"{texture_path.name} atualizado automaticamente · {refreshed} elemento(s).",
+            self.tr("{name} atualizado automaticamente · elementos: {count}.").format(name=texture_path.name, count=refreshed),
             5000,
         )
 
@@ -1223,11 +1270,11 @@ class EditorWindow(QMainWindow):
             return
         states: list[str] = []
         if index in self.locked_indexes:
-            states.append("Bloqueado")
+            states.append(self.tr("Bloqueado"))
         if index in self.hidden_indexes:
-            states.append("Oculto")
+            states.append(self.tr("Oculto"))
         if index == self.isolated_index:
-            states.append("Isolado")
+            states.append(self.tr("Isolado"))
         tree_item.setText(3, ", ".join(states))
 
     def _update_element_actions(self) -> None:
@@ -1241,35 +1288,35 @@ class EditorWindow(QMainWindow):
             atlas_enabled = element.texture_name is not None and element.uv is not None
         self.atlas_action.setEnabled(atlas_enabled)
         if not enabled:
-            self.lock_action.setText("Bloquear selecionado")
-            self.lock_action.setIconText("Bloquear")
-            self.hide_action.setText("Ocultar selecionado")
-            self.hide_action.setIconText("Ocultar")
-            self.isolate_action.setText("Isolar selecionado")
-            self.isolate_action.setIconText("Isolar")
+            self.lock_action.setText(self.tr("Bloquear selecionado"))
+            self.lock_action.setIconText(self.tr("Bloquear"))
+            self.hide_action.setText(self.tr("Ocultar selecionado"))
+            self.hide_action.setIconText(self.tr("Ocultar"))
+            self.isolate_action.setText(self.tr("Isolar selecionado"))
+            self.isolate_action.setIconText(self.tr("Isolar"))
             return
         assert self.selected_index is not None
         self.lock_action.setText(
-            "Desbloquear selecionado"
+            self.tr("Desbloquear selecionado")
             if self.selected_index in self.locked_indexes
-            else "Bloquear selecionado"
+            else self.tr("Bloquear selecionado")
         )
         self.lock_action.setIconText(
-            "Desbloquear" if self.selected_index in self.locked_indexes else "Bloquear"
+            self.tr("Desbloquear") if self.selected_index in self.locked_indexes else self.tr("Bloquear")
         )
         self.hide_action.setText(
-            "Mostrar selecionado"
+            self.tr("Mostrar selecionado")
             if self.selected_index in self.hidden_indexes
-            else "Ocultar selecionado"
+            else self.tr("Ocultar selecionado")
         )
         self.hide_action.setIconText(
-            "Mostrar" if self.selected_index in self.hidden_indexes else "Ocultar"
+            self.tr("Mostrar") if self.selected_index in self.hidden_indexes else self.tr("Ocultar")
         )
         self.isolate_action.setText(
-            "Mostrar todos" if self.isolated_index is not None else "Isolar selecionado"
+            self.tr("Mostrar todos") if self.isolated_index is not None else self.tr("Isolar selecionado")
         )
         self.isolate_action.setIconText(
-            "Mostrar todos" if self.isolated_index is not None else "Isolar"
+            self.tr("Mostrar todos") if self.isolated_index is not None else self.tr("Isolar")
         )
 
     def filter_tree(self, text: str) -> None:
@@ -1285,7 +1332,7 @@ class EditorWindow(QMainWindow):
                 searchable = " ".join(
                     (
                         element.window_id,
-                        element.kind,
+                        kind_label(element.kind, element.ctrl_type),
                         element.parent_id or "",
                         element.window_text,
                         element.texture_name or "",
@@ -1314,34 +1361,34 @@ class EditorWindow(QMainWindow):
         if self.document is None:
             return
         if not self.document.is_dirty:
-            self.statusBar().showMessage("Nenhuma alteração para salvar.", 4000)
+            self.statusBar().showMessage(self.tr("Nenhuma alteração para salvar."), 4000)
             return
         if not self._confirm_diff_preview():
             return
         try:
             backup = self.document.save()
         except ExternalModificationError as exc:
-            QMessageBox.warning(self, "Arquivo alterado externamente", str(exc))
+            QMessageBox.warning(self, self.tr("Arquivo alterado externamente"), document_error_text(exc))
             return
         except DocumentError as exc:
-            QMessageBox.critical(self, "Falha ao salvar", str(exc))
+            QMessageBox.critical(self, self.tr("Falha ao salvar"), document_error_text(exc))
             return
         self.undo_stack.clear()
         self._update_title()
-        self.statusBar().showMessage(f"Salvo. Backup: {backup.name}", 10000)
+        self.statusBar().showMessage(self.tr("Salvo. Backup: {name}").format(name=backup.name), 10000)
         QMessageBox.information(
             self,
-            "XML salvo",
-            f"As alterações foram salvas.\n\nBackup exato:\n{backup}",
+            self.tr("XML salvo"),
+            self.tr("As alterações foram salvas.\n\nBackup exato:\n{path}").format(path=backup),
         )
 
     def _confirm_diff_preview(self) -> bool:
         assert self.document is not None
         dialog = QDialog(self)
-        dialog.setWindowTitle("Confirmar alterações no XML")
+        dialog.setWindowTitle(self.tr("Confirmar alterações no XML"))
         dialog.resize(1000, 650)
         explanation = QLabel(
-            "Confira as linhas que serão alteradas. O backup exato será criado antes da gravação."
+            self.tr("Confira as linhas que serão alteradas. O backup exato será criado antes da gravação.")
         )
         diff_view = QPlainTextEdit()
         diff_view.setReadOnly(True)
@@ -1352,6 +1399,8 @@ class EditorWindow(QMainWindow):
             QDialogButtonBox.StandardButton.Save
             | QDialogButtonBox.StandardButton.Cancel
         )
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText(self.tr("Salvar"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(self.tr("Cancelar"))
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         layout = QVBoxLayout(dialog)
@@ -1372,8 +1421,8 @@ class EditorWindow(QMainWindow):
             return True
         result = QMessageBox.question(
             self,
-            "Descartar alterações?",
-            "Existem alterações não salvas. Deseja descartá-las?",
+            self.tr("Descartar alterações?"),
+            self.tr("Existem alterações não salvas. Deseja descartá-las?"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1389,6 +1438,7 @@ class EditorWindow(QMainWindow):
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Editor visual dos XMLs de UI do Grand Fantasia")
     parser.add_argument("xml", nargs="?", type=Path, help="XML que será aberto ao iniciar")
+    parser.add_argument("--lang", choices=LANGUAGES, help="Idioma da interface nesta execução")
     return parser.parse_args(argv)
 
 
@@ -1398,7 +1448,11 @@ def main(argv: list[str] | None = None) -> int:
     application.setApplicationName("GF UI Editor")
     application.setOrganizationName("Local")
     application.setWindowIcon(QIcon(str(APP_ICON_PATH)))
-    window = EditorWindow(args.xml)
+    language = args.lang or QSettings("Local", "GF UI Editor").value("language", "pt_BR")
+    if language not in LANGUAGES:
+        language = "pt_BR"
+    application._ui_translator = install_language(application, language)
+    window = EditorWindow(args.xml, language=language)
     window.show()
     return application.exec()
 

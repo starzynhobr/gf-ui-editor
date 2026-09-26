@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from .theme import qcolor
+from .interaction import install_pointer_cursors
 from .xml_document import UVRect
 
 
@@ -275,7 +276,7 @@ class AtlasDialog(QDialog):
         super().__init__(parent)
         self.texture_name = texture_name
         self._apply_callback = apply_callback
-        self.setWindowTitle(f"Atlas DDS — {texture_name}")
+        self.setWindowTitle(self.tr("Atlas DDS — {name}").format(name=texture_name))
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.resize(1180, 820)
 
@@ -283,21 +284,21 @@ class AtlasDialog(QDialog):
         self.title.setObjectName("panelTitle")
         self.details = QLabel()
         self.details.setObjectName("panelSubtitle")
-        self.cursor_label = QLabel("Cursor: —")
+        self.cursor_label = QLabel(self.tr("Cursor: —"))
         self.cursor_label.setObjectName("panelSubtitle")
 
         self.view = AtlasView()
         self.view.setMinimumSize(760, 560)
         self.view.selection_changed.connect(self._selection_changed)
         self.view.cursor_moved.connect(
-            lambda x, y: self.cursor_label.setText(f"Cursor: X {x} · Y {y}")
+            lambda x, y: self.cursor_label.setText(self.tr("Cursor: X {x} · Y {y}").format(x=x, y=y))
         )
-        self.focus_button = QPushButton("Centralizar seleção")
+        self.focus_button = QPushButton(self.tr("Centralizar seleção"))
         self.focus_button.setToolTip(
-            "Aproxima e enquadra o recorte NorUV selecionado atualmente."
+            self.tr("Aproxima e enquadra o recorte NorUV selecionado atualmente.")
         )
         self.focus_button.clicked.connect(self.view.focus_selection)
-        self.full_atlas_button = QPushButton("Ver atlas inteiro")
+        self.full_atlas_button = QPushButton(self.tr("Ver atlas inteiro"))
         self.full_atlas_button.clicked.connect(self.view.fit_texture)
         view_buttons = QHBoxLayout()
         view_buttons.addWidget(self.focus_button)
@@ -318,13 +319,15 @@ class AtlasDialog(QDialog):
         form = QFormLayout()
         form.addRow("X / NorUVLeft", self.left_spin)
         form.addRow("Y / NorUVTop", self.top_spin)
-        form.addRow("Largura / NorUVWidth", self.width_spin)
-        form.addRow("Altura / NorUVHeight", self.height_spin)
-        self.resize_element = QCheckBox("Ajustar o tamanho do elemento ao recorte")
+        form.addRow(self.tr("Largura / NorUVWidth"), self.width_spin)
+        form.addRow(self.tr("Altura / NorUVHeight"), self.height_spin)
+        self.resize_element = QCheckBox(self.tr("Ajustar o tamanho do elemento ao recorte"))
         explanation = QLabel(
-            "Arraste sobre a imagem para marcar o recorte ou use as alças nos cantos "
-            "para ajustar a seleção atual. As coordenadas começam em "
-            "(0, 0) no canto superior esquerdo. O botão do meio navega e a roda aplica zoom."
+            self.tr(
+                "Arraste sobre a imagem para marcar o recorte ou use as alças nos cantos "
+                "para ajustar a seleção atual. As coordenadas começam em "
+                "(0, 0) no canto superior esquerdo. O botão do meio navega e a roda aplica zoom."
+            )
         )
         explanation.setWordWrap(True)
         explanation.setObjectName("panelSubtitle")
@@ -334,8 +337,7 @@ class AtlasDialog(QDialog):
         if progress_offset is not None:
             offset_x, offset_y = progress_offset
             self.progress_explanation.setText(
-                "Progresso em 100%: amarelo = textura-base; ciano = camada "
-                f"preenchida aplicada pelo jogo (offset X {offset_x}, Y {offset_y})."
+                self.tr("Progresso em 100%: amarelo = textura-base; ciano = camada preenchida aplicada pelo jogo (offset X {x}, Y {y}).").format(x=offset_x, y=offset_y)
             )
         else:
             self.progress_explanation.hide()
@@ -344,8 +346,8 @@ class AtlasDialog(QDialog):
             QDialogButtonBox.StandardButton.Apply
             | QDialogButtonBox.StandardButton.Close
         )
-        buttons.button(QDialogButtonBox.StandardButton.Apply).setText("Aplicar recorte")
-        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Fechar")
+        buttons.button(QDialogButtonBox.StandardButton.Apply).setText(self.tr("Aplicar recorte"))
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText(self.tr("Fechar"))
         buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
             self._apply
         )
@@ -373,6 +375,7 @@ class AtlasDialog(QDialog):
         self.reload_pixmap(pixmap, fit=True)
         self.view.set_progress_offset(progress_offset)
         self.set_uv(uv)
+        install_pointer_cursors(self)
 
     @staticmethod
     def _spinbox(minimum: int = 0) -> QSpinBox:

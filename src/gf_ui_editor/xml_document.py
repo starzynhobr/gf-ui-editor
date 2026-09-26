@@ -18,6 +18,11 @@ NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 class DocumentError(RuntimeError):
     """Erro legível ao abrir ou salvar um documento."""
 
+    def __init__(self, message: str, *, code: str = "", details: dict[str, object] | None = None):
+        super().__init__(message)
+        self.code = code
+        self.details = details or {}
+
 
 class ExternalModificationError(DocumentError):
     """O arquivo mudou no disco depois de ser aberto."""
@@ -162,24 +167,24 @@ def _kind_for(base: ET.Element, ctrl_type: str | None) -> str:
     # de Container_Node pertencem a outros elementos da interface.
     tags = {child.tag for child in list(base)}
     if "MultiEditNode" in tags:
-        return "Texto multilinha"
+        return "multiline_text"
     if "SingleEditNode" in tags:
-        return "Campo de texto"
+        return "text_field"
     if "ButtonNode" in tags:
-        return "Botão"
+        return "button"
     if "TextNode" in tags:
-        return "Texto"
+        return "text"
     if "SlotNode" in tags:
-        return "Slot"
+        return "slot"
     if "ProgressNode" in tags:
-        return "Progresso"
+        return "progress"
     if "TrackNode" in tags:
-        return "Controle deslizante"
+        return "slider"
     if "PictureNode" in tags:
-        return "Imagem"
+        return "image"
     if ctrl_type == "268435456":
-        return "Painel"
-    return f"Controle {ctrl_type}" if ctrl_type else "Janela"
+        return "panel"
+    return "control" if ctrl_type else "window"
 
 
 class UIDocument:
@@ -197,13 +202,17 @@ class UIDocument:
         if len(self._start_tags) != len(self.elements):
             raise DocumentError(
                 "Não foi possível relacionar todos os elementos ao texto original "
-                f"({len(self.elements)} elementos, {len(self._start_tags)} tags)."
+                f"({len(self.elements)} elementos, {len(self._start_tags)} tags).",
+                code="element_count",
+                details={"elements": len(self.elements), "tags": len(self._start_tags)},
             )
         uv_count = sum(element.uv is not None for element in self.elements)
         if len(self._uv_start_tags) != uv_count:
             raise DocumentError(
                 "Não foi possível relacionar todos os recortes NorUV ao texto original "
-                f"({uv_count} recortes, {len(self._uv_start_tags)} tags)."
+                f"({uv_count} recortes, {len(self._uv_start_tags)} tags).",
+                code="uv_count",
+                details={"cuts": uv_count, "tags": len(self._uv_start_tags)},
             )
 
     @classmethod
@@ -212,17 +221,17 @@ class UIDocument:
         try:
             raw = xml_path.read_bytes()
         except OSError as exc:
-            raise DocumentError(f"Não foi possível ler {xml_path}: {exc}") from exc
+            raise DocumentError(f"Não foi possível ler {xml_path}: {exc}", code="read", details={"path": xml_path, "error": exc}) from exc
         try:
             text = raw.decode(cls.encoding)
         except UnicodeDecodeError as exc:
-            raise DocumentError(f"O arquivo não pôde ser decodificado como Big5: {exc}") from exc
+            raise DocumentError(f"O arquivo não pôde ser decodificado como Big5: {exc}", code="decode", details={"error": exc}) from exc
         if text.encode(cls.encoding) != raw:
-            raise DocumentError("A leitura Big5 não preserva exatamente os bytes do arquivo.")
+            raise DocumentError("A leitura Big5 não preserva exatamente os bytes do arquivo.", code="roundtrip")
         try:
             root = ET.fromstring(text)
         except ET.ParseError as exc:
-            raise DocumentError(f"XML inválido: {exc}") from exc
+            raise DocumentError(f"XML inválido: {exc}", code="invalid_xml", details={"error": exc}) from exc
         return cls(xml_path, raw, text, root)
 
     @property
@@ -354,11 +363,12 @@ class UIDocument:
         try:
             current_raw = self.path.read_bytes()
         except OSError as exc:
-            raise DocumentError(f"Não foi possível reler o arquivo antes de salvar: {exc}") from exc
+            raise DocumentError(f"Não foi possível reler o arquivo antes de salvar: {exc}", code="reread", details={"error": exc}) from exc
         if current_raw != self.raw:
             raise ExternalModificationError(
                 "O XML foi alterado por outro programa desde que foi aberto. "
-                "Reabra o arquivo para não sobrescrever mudanças externas."
+                "Reabra o arquivo para não sobrescrever mudanças externas.",
+                code="external_change",
             )
 
         new_text = self.render_text()
@@ -366,7 +376,7 @@ class UIDocument:
             ET.fromstring(new_text)
             new_raw = new_text.encode(self.encoding)
         except (ET.ParseError, UnicodeEncodeError) as exc:
-            raise DocumentError(f"A versão editada não passou pela validação: {exc}") from exc
+            raise DocumentError(f"A versão editada não passou pela validação: {exc}", code="validation", details={"error": exc}) from exc
 
         backup = self._backup_path()
         try:
@@ -387,7 +397,7 @@ class UIDocument:
                     pass
                 raise
         except OSError as exc:
-            raise DocumentError(f"Falha ao criar backup ou gravar o XML: {exc}") from exc
+            raise DocumentError(f"Falha ao criar backup ou gravar o XML: {exc}", code="write", details={"error": exc}) from exc
 
         self.raw = new_raw
         self.text = new_text

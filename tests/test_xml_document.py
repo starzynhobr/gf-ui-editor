@@ -41,7 +41,7 @@ def test_parses_geometry_hierarchy_and_texture(tmp_path: Path) -> None:
     assert root.geometry == (0, 0, 300, 120)
     assert text.geometry == (10, 20, 80, 16)
     assert text.parent_id == "1"
-    assert text.kind == "Texto"
+    assert text.kind == "text"
     assert text.texture_name == "main.dds"
     assert text.uv is not None and text.uv.width == 80
 
@@ -132,5 +132,5 @@ def test_parses_progress_texture_offset(tmp_path: Path) -> None:
 
     element = UIDocument.load(path).elements[0]
 
-    assert element.kind == "Progresso"
+    assert element.kind == "progress"
     assert element.progress_offset == (2, 6)

@@ -9,7 +9,7 @@ from PIL import Image
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QGraphicsScene
+from PySide6.QtWidgets import QApplication, QGraphicsScene, QToolBar
 
 from gf_ui_editor.app import EditorWindow
 from gf_ui_editor.atlas_dialog import AtlasDialog, AtlasView
@@ -22,6 +22,25 @@ SAMPLE = """<?xml version="1.0" ?>
   <BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80" />
 </Root_Node>
 """
+
+
+def test_clickable_cursor_tracks_action_availability(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    window = EditorWindow()
+    toolbar = window.findChild(QToolBar)
+    open_button = toolbar.widgetForAction(window.open_action)
+    fit_button = toolbar.widgetForAction(window.fit_action)
+    assert open_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    assert not window.fit_action.isEnabled()
+    assert fit_button.cursor().shape() == Qt.CursorShape.ArrowCursor
+
+    xml_path = tmp_path / "Teste.xml"
+    xml_path.write_bytes(SAMPLE.encode("big5"))
+    window.open_document(xml_path)
+    application.processEvents()
+    assert window.fit_action.isEnabled()
+    assert fit_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    window.deleteLater()
 
 
 def create_window(tmp_path: Path) -> tuple[QApplication, EditorWindow]:

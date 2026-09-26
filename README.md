@@ -111,3 +111,5 @@ Ao publicar uma release, envie o instalador também com o nome `GF-UI-Editor-Set
 A paleta fica em `src/gf_ui_editor/theme.py`. O stylesheet e os desenhos do canvas/atlas usam os mesmos tokens; altere os valores ali para ajustar as cores sem procurar por literais espalhados pelo código.
 
 As decisões de hierarquia visual e os critérios para avaliar novas mudanças estão em [`docs/ui-review.md`](docs/ui-review.md).
+
+O editor inclui português, inglês, espanhol e francês. Escolha pelo botão **Idioma** no canto superior direito e reinicie para aplicar. O fluxo para manter as traduções está em [`docs/internationalizacao.md`](docs/internationalizacao.md).

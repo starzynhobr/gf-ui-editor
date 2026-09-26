@@ -18,6 +18,9 @@ UninstallDisplayIcon={app}\{#AppExeName}
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
 Source: "..\dist\GF-UI-Editor\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion

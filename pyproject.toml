@@ -29,7 +29,7 @@ where = ["src"]
 version = {attr = "gf_ui_editor.__version__"}
 
 [tool.setuptools.package-data]
-gf_ui_editor = ["assets/*.png"]
+gf_ui_editor = ["assets/*.png", "translations/*.qm"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

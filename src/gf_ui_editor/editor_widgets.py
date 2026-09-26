@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QKeyEvent,
     QPainter,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from .theme import qcolor
+from .i18n import kind_label
 from .xml_document import UIElement
 
 
@@ -139,7 +140,7 @@ class ElementItem(QGraphicsRectItem):
             self.texture_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             self.texture_item.setZValue(-1)
 
-        label = f"{element.window_id} · {element.kind}"
+        label = f"{element.window_id} · {kind_label(element.kind, element.ctrl_type)}"
         if element.window_text:
             label += f" · {element.window_text}"
         self.label_item = QGraphicsSimpleTextItem(label, self)
@@ -158,16 +159,23 @@ class ElementItem(QGraphicsRectItem):
         self.resize_handle = ResizeHandle(self)
         self.resize_handle.setVisible(False)
         self._update_overlays()
-        details = [f"WindowID: {element.window_id}", f"Tipo: {element.kind}"]
+        details = [
+            f"WindowID: {element.window_id}",
+            QCoreApplication.translate("ElementItem", "Tipo: {kind}").format(
+                kind=kind_label(element.kind, element.ctrl_type)
+            ),
+        ]
         if element.window_text:
-            details.append(f"Texto: {element.window_text}")
+            details.append(QCoreApplication.translate("ElementItem", "Texto: {text}").format(text=element.window_text))
         if element.parent_id:
             details.append(f"ParentNode: {element.parent_id}")
         details.append(
-            f"Posição: ({element.x}, {element.y}) · Tamanho: {element.width} × {element.height}"
+            QCoreApplication.translate("ElementItem", "Posição: ({x}, {y}) · Tamanho: {width} × {height}").format(
+                x=element.x, y=element.y, width=element.width, height=element.height
+            )
         )
         if element.texture_name:
-            details.append(f"Textura: {element.texture_name}")
+            details.append(QCoreApplication.translate("ElementItem", "Textura: {name}").format(name=element.texture_name))
         self.setToolTip("\n".join(details))
 
     def set_labels_visible(self, visible: bool) -> None:
@@ -392,7 +400,11 @@ class ElementItem(QGraphicsRectItem):
         self.setRect(QRectF(0, 0, width, height))
         self._update_texture_transform()
         self._update_overlays()
-        self.drag_position_item.setText(f"L {width} · A {height}")
+        self.drag_position_item.setText(
+            QCoreApplication.translate("ElementItem", "L {width} · A {height}").format(
+                width=width, height=height
+            )
+        )
         self.drag_position_item.setVisible(True)
 
     def end_resize(self) -> None:
