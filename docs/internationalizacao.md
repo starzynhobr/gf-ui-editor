@@ -1,6 +1,6 @@
 # Idiomas da interface
 
-O editor usa português como idioma de origem e inclui traduções para inglês, espanhol e francês. A escolha fica no botão **Idioma** no canto superior direito e entra em vigor ao reiniciar o aplicativo. Para testar uma execução sem alterar a preferência salva, use `python -m gf_ui_editor --lang es_ES` (ou `en_US`, `fr_FR`, `pt_BR`).
+O editor usa português como idioma de origem e inclui traduções para inglês, espanhol e francês. A escolha fica no botão **Idioma** no canto superior direito; a troca é imediata (a janela é recriada no novo idioma). Para testar uma execução sem alterar a preferência salva, use `python -m gf_ui_editor --lang es_ES` (ou `en_US`, `fr_FR`, `pt_BR`).
 
 As frases da interface usam `tr()` ou `QCoreApplication.translate()`. Os catálogos editáveis ficam em `src/gf_ui_editor/translations/gf_ui_editor_<idioma>.ts`; os `.qm` compilados são carregados pelo aplicativo e incluídos no empacotamento. Após acrescentar ou alterar frases, execute `./translations.ps1`, complete as traduções novas no Qt Linguist e execute o script novamente. Ele bloqueia traduções pendentes em todos os idiomas registrados e usa `pyside6-lupdate` e `pyside6-lrelease` do `.venv` do projeto. O `build.ps1` também executa essa verificação antes do empacotamento.
 
