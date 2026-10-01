@@ -10,7 +10,7 @@ Você trabalha num **projeto** fora da pasta do jogo e testa com **F5**: o edito
 
 [![Baixar instalador para Windows](https://img.shields.io/badge/Baixar_para_Windows-Instalador_.exe-176a88?style=for-the-badge&logo=windows)](https://github.com/starzynhobr/gf-ui-editor/releases/latest/download/GF-UI-Editor-Setup.exe)
 
-Baixe e execute o instalador. Não é necessário instalar Python. O editor não inclui o jogo nem seus arquivos; abra um XML da instalação do Grand Fantasia Violet para carregar as texturas.
+Baixe e execute o instalador. Não é necessário instalar Python. A partir da 0.2.1, o editor avisa quando há versão nova e se atualiza sozinho (**Ajuda → Verificar atualizações**): baixa o instalador, confere o SHA-256 e reabre já atualizado. O editor não inclui o jogo nem seus arquivos; abra um XML da instalação do Grand Fantasia Violet para carregar as texturas.
 
 ## Imagens do editor
 

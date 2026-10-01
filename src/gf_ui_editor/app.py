@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
 import sys
+import time
 from threading import Thread
 
 from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
@@ -72,6 +73,7 @@ from .game_layout import (
 from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, switch_language
 from .icons import MONO_FONT, UI_FONT, icon, load_fonts
 from .interaction import install_pointer_cursors
+from . import updater
 from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
@@ -725,6 +727,9 @@ class EditorWindow(QMainWindow):
 
         self._refresh_files()
         self._update_title()
+        if restore_last_project:
+            # Só na janela principal de verdade (não em testes nem na troca de idioma).
+            QTimer.singleShot(2500, self._automatic_update_check)
         if initial_path is not None:
             self.open_document(initial_path)
         elif restore_last_project:
@@ -930,6 +935,19 @@ class EditorWindow(QMainWindow):
         self.menuBar().setCornerWidget(self.language_button, Qt.Corner.TopRightCorner)
         self.about_action = QAction(self.tr("Sobre o GF UI Editor…"), self)
         self.about_action.triggered.connect(self.show_about)
+        self.update_action = QAction(self.tr("Verificar atualizações…"), self)
+        self.update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
+        self.auto_update_action = QAction(self.tr("Verificar ao iniciar"), self)
+        self.auto_update_action.setCheckable(True)
+        self.auto_update_action.setChecked(
+            QSettings("Local", "GF UI Editor").value("auto_update_check", "true") == "true"
+        )
+        self.auto_update_action.toggled.connect(
+            lambda on: QSettings("Local", "GF UI Editor").setValue("auto_update_check", "true" if on else "false")
+        )
+        help_menu.addAction(self.update_action)
+        help_menu.addAction(self.auto_update_action)
+        help_menu.addSeparator()
         help_menu.addAction(self.about_action)
         toolbar = self.addToolBar("Principal")
         toolbar.setMovable(False)
@@ -960,6 +978,116 @@ class EditorWindow(QMainWindow):
             button.setObjectName(name)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.main_toolbar = toolbar
+
+    # ---- atualização ----------------------------------------------------------
+    def _automatic_update_check(self) -> None:
+        settings = QSettings("Local", "GF UI Editor")
+        if settings.value("auto_update_check", "true") != "true":
+            return
+        last = float(settings.value("last_update_check", 0) or 0)
+        if time.time() - last < 24 * 3600:
+            return
+        settings.setValue("last_update_check", time.time())
+        self.check_for_updates(manual=False)
+
+    def check_for_updates(self, manual: bool) -> None:
+        """Consulta a release mais recente sem travar a janela."""
+        results: SimpleQueue = SimpleQueue()
+
+        def run() -> None:
+            try:
+                results.put(("ok", updater.check_for_update()))
+            except updater.UpdateError as exc:
+                results.put(("error", exc))
+
+        Thread(target=run, name="gf-ui-update-check", daemon=True).start()
+        if manual:
+            self.statusBar().showMessage(self.tr("Verificando atualizações…"))
+        timer = QTimer(self)
+        timer.setInterval(150)
+
+        def poll() -> None:
+            try:
+                status, value = results.get_nowait()
+            except Empty:
+                return
+            timer.stop()
+            timer.deleteLater()
+            if status == "error":
+                if manual:
+                    QMessageBox.warning(
+                        self,
+                        self.tr("Atualizações"),
+                        self.tr("Não foi possível verificar atualizações.\n\n{error}").format(error=value),
+                    )
+                return
+            if value is None:
+                if manual:
+                    self.statusBar().clearMessage()
+                    QMessageBox.information(
+                        self,
+                        self.tr("Atualizações"),
+                        self.tr("Você já está na versão mais recente ({version}).").format(version=__version__),
+                    )
+                return
+            skipped = QSettings("Local", "GF UI Editor").value("skipped_update_version", "")
+            if not manual and skipped == value.version:
+                return
+            self._offer_update(value)
+
+        timer.timeout.connect(poll)
+        timer.start()
+
+    def _offer_update(self, info: "updater.UpdateInfo") -> None:
+        box = QMessageBox(self)
+        box.setWindowTitle(self.tr("Atualização disponível"))
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setText(
+            self.tr("A versão {new} do GF UI Editor está disponível (você tem a {current}).").format(
+                new=info.version, current=__version__
+            )
+        )
+        box.setInformativeText(
+            self.tr("O editor baixa o instalador, confere o arquivo e reabre já atualizado.")
+            if updater.is_installed_build()
+            else self.tr("Você está rodando pelo código-fonte; a página da release será aberta.")
+        )
+        if info.notes:
+            box.setDetailedText(info.notes)
+        update_button = box.addButton(self.tr("Atualizar agora"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(self.tr("Depois"), QMessageBox.ButtonRole.RejectRole)
+        skip_button = box.addButton(self.tr("Pular esta versão"), QMessageBox.ButtonRole.DestructiveRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is skip_button:
+            QSettings("Local", "GF UI Editor").setValue("skipped_update_version", info.version)
+        elif clicked is update_button:
+            self._install_update(info)
+
+    def _install_update(self, info: "updater.UpdateInfo") -> None:
+        if not updater.is_installed_build():
+            QDesktopServices.openUrl(QUrl(info.page_url))
+            return
+        if not self._save_before_project_action():
+            return
+        try:
+            installer = self._run_with_progress(
+                self.tr("Baixando a versão {version}…").format(version=info.version),
+                lambda progress: updater.download_installer(info, progress=progress),
+            )
+        except updater.UpdateError as exc:
+            QMessageBox.critical(
+                self, self.tr("Falha na atualização"), self.tr("A atualização foi cancelada.\n\n{error}").format(error=exc)
+            )
+            return
+        try:
+            updater.launch_installer(installer)
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Falha na atualização"), str(exc))
+            return
+        # O instalador fecha o que restar e reabre o editor ao terminar.
+        self._closing_for_language = True
+        QApplication.instance().quit()
 
     def show_about(self) -> None:
         AboutDialog(self).exec()

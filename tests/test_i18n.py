@@ -32,7 +32,7 @@ def test_english_catalog_localizes_ui_without_changing_xml_model(tmp_path: Path)
             label for _code, label in LANGUAGE_NAMES
         ]
         assert [action.text() for action in window.menuBar().actions()[-1].menu().actions()] == [
-            "About GF UI Editor…"
+            "Check for updates…", "Check on startup", "", "About GF UI Editor…"
         ]
         assert window.open_action.text() == "Open XML…"
         assert window.properties.selection_title.text() == "No element selected"
