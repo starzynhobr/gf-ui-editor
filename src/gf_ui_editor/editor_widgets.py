@@ -448,11 +448,19 @@ class GameScreenItem(QGraphicsRectItem):
         self.setPen(QPen(qcolor("GAME_SCREEN_BORDER"), 0, Qt.PenStyle.SolidLine))
         self.background_item: QGraphicsPixmapItem | None = None
         if background is not None and not background.isNull():
-            self.background_item = QGraphicsPixmapItem(background, self)
+            # Preenche a moldura sem distorcer: escala pelo maior fator e corta
+            # o excesso, centralizado (uma captura de outra proporção não estica).
+            clip = QGraphicsRectItem(QRectF(0, 0, width, height), self)
+            clip.setPen(QPen(Qt.PenStyle.NoPen))
+            clip.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape)
+            clip.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            self.background_item = QGraphicsPixmapItem(background, clip)
             self.background_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             self.background_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-            self.background_item.setTransform(
-                QTransform.fromScale(width / background.width(), height / background.height())
+            scale = max(width / background.width(), height / background.height())
+            self.background_item.setTransform(QTransform.fromScale(scale, scale))
+            self.background_item.setPos(
+                (width - background.width() * scale) / 2, (height - background.height() * scale) / 2
             )
         self.size_label = QGraphicsSimpleTextItem(f"{width} × {height}", self)
         self.size_label.setBrush(qcolor("GAME_SCREEN_BORDER"))

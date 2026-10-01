@@ -73,6 +73,7 @@ from .game_layout import (
 from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, switch_language
 from .icons import MONO_FONT, UI_FONT, icon, load_fonts
 from .interaction import install_pointer_cursors
+from . import backgrounds
 from . import updater
 from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects
 from .atlas_dialog import AtlasDialog
@@ -613,6 +614,10 @@ class EditorWindow(QMainWindow):
         )
         background = str(settings.value("game_background", ""))
         self.game_background_path = Path(background) if background else None
+        # "builtin": fundo do jogo embutido (padrão); "custom": captura própria; "none".
+        self.background_mode = str(
+            settings.value("background_mode", "custom" if self.game_background_path else "builtin")
+        )
         self.game_screen_item: GameScreenItem | None = None
 
         self.undo_stack = QUndoStack(self)
@@ -850,11 +855,18 @@ class EditorWindow(QMainWindow):
             self.tr("Janelas arrastadas no jogo ficam na posição gravada no User.ini da pasta do jogo")
         )
         self.saved_positions_action.toggled.connect(lambda _checked: self._place_game_screen())
-        self.background_action = QAction(self.tr("Escolher captura de tela do jogo…"), self)
+        self.background_actions = QActionGroup(self)
+        self.background_actions.setExclusive(True)
+        self.builtin_background_action = QAction(self.tr("Fundo do jogo (embutido)"), self)
+        self.builtin_background_action.triggered.connect(lambda: self.set_background_mode("builtin"))
+        self.background_action = QAction(self.tr("Captura própria…"), self)
         self.background_action.triggered.connect(self.choose_game_background)
-        self.clear_background_action = QAction(self.tr("Remover captura de fundo"), self)
-        self.clear_background_action.setEnabled(self.game_background_path is not None)
-        self.clear_background_action.triggered.connect(lambda: self.set_game_background(None))
+        self.no_background_action = QAction(self.tr("Sem fundo"), self)
+        self.no_background_action.triggered.connect(lambda: self.set_background_mode("none"))
+        for action in (self.builtin_background_action, self.background_action, self.no_background_action):
+            action.setCheckable(True)
+            self.background_actions.addAction(action)
+        self._sync_background_actions()
         self._sync_resolution_actions()
         self.lock_action = QAction(self.tr("Bloquear selecionado"), self)
         self.lock_action.setShortcut("Ctrl+Shift+L")
@@ -910,8 +922,9 @@ class EditorWindow(QMainWindow):
         resolution_menu.addSeparator()
         resolution_menu.addAction(self.saved_positions_action)
         resolution_menu.addSeparator()
+        resolution_menu.addAction(self.builtin_background_action)
         resolution_menu.addAction(self.background_action)
-        resolution_menu.addAction(self.clear_background_action)
+        resolution_menu.addAction(self.no_background_action)
         view_menu.addSeparator()
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
@@ -1442,13 +1455,16 @@ class EditorWindow(QMainWindow):
             self.game_screen_item = None
         if self.game_resolution is not None:
             background = None
-            if self.game_background_path is not None and self.game_background_path.is_file():
+            if self.background_mode == "custom" and self.game_background_path is not None and self.game_background_path.is_file():
                 background = QPixmap(str(self.game_background_path))
+            elif self.background_mode == "builtin":
+                builtin = backgrounds.pick(self.game_resolution)
+                if builtin is not None:
+                    background = QPixmap(str(builtin))
             width, height = self.game_resolution
             self.game_screen_item = GameScreenItem(width, height, background)
             self.scene.addItem(self.game_screen_item)
             self._place_game_screen()
-        self.clear_background_action.setEnabled(self.game_background_path is not None)
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
 
     def _place_game_screen(self) -> None:
@@ -1565,10 +1581,28 @@ class EditorWindow(QMainWindow):
         )
         if filename:
             self.set_game_background(Path(filename))
+        else:
+            self._sync_background_actions()
+
+    def _sync_background_actions(self) -> None:
+        {
+            "builtin": self.builtin_background_action,
+            "custom": self.background_action,
+            "none": self.no_background_action,
+        }.get(self.background_mode, self.builtin_background_action).setChecked(True)
+
+    def set_background_mode(self, mode: str) -> None:
+        self.background_mode = mode
+        QSettings("Local", "GF UI Editor").setValue("background_mode", mode)
+        self._sync_background_actions()
+        self._refresh_game_screen()
 
     def set_game_background(self, path: Path | None) -> None:
         self.game_background_path = path
         QSettings("Local", "GF UI Editor").setValue("game_background", str(path) if path else "")
+        self.background_mode = "custom" if path is not None else "builtin"
+        QSettings("Local", "GF UI Editor").setValue("background_mode", self.background_mode)
+        self._sync_background_actions()
         if path is not None:
             # A captura define a resolução: o jogo desenha a UI em pixels de
             # tela, então a moldura passa a ter exatamente o tamanho da imagem.
@@ -2322,8 +2356,9 @@ class EditorWindow(QMainWindow):
         self.resolution_button.setMenu(self.resolution_menu)
         self.resolution_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         background_menu = QMenu(self)
+        background_menu.addAction(self.builtin_background_action)
         background_menu.addAction(self.background_action)
-        background_menu.addAction(self.clear_background_action)
+        background_menu.addAction(self.no_background_action)
         self.background_button = bar_button(self.tr("Fundo"))
         self.background_button.setIcon(icon("image", size=15))
         self.background_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
