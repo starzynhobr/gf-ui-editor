@@ -214,7 +214,7 @@
     </message>
     <message>
         <location filename="../app.py" line="781"/>
-        <location filename="../app.py" line="2749"/>
+        <location filename="../app.py" line="2765"/>
         <source>Salvar</source>
         <translation>Enregistrer</translation>
     </message>
@@ -297,43 +297,43 @@
     </message>
     <message>
         <location filename="../app.py" line="871"/>
-        <location filename="../app.py" line="2111"/>
-        <location filename="../app.py" line="2122"/>
+        <location filename="../app.py" line="2115"/>
+        <location filename="../app.py" line="2126"/>
         <source>Bloquear selecionado</source>
         <translation>Verrouiller la sélection</translation>
     </message>
     <message>
         <location filename="../app.py" line="874"/>
-        <location filename="../app.py" line="2112"/>
-        <location filename="../app.py" line="2125"/>
+        <location filename="../app.py" line="2116"/>
+        <location filename="../app.py" line="2129"/>
         <source>Bloquear</source>
         <translation>Verrouiller</translation>
     </message>
     <message>
         <location filename="../app.py" line="877"/>
-        <location filename="../app.py" line="2113"/>
-        <location filename="../app.py" line="2130"/>
+        <location filename="../app.py" line="2117"/>
+        <location filename="../app.py" line="2134"/>
         <source>Ocultar selecionado</source>
         <translation>Masquer la sélection</translation>
     </message>
     <message>
         <location filename="../app.py" line="880"/>
-        <location filename="../app.py" line="2114"/>
-        <location filename="../app.py" line="2133"/>
+        <location filename="../app.py" line="2118"/>
+        <location filename="../app.py" line="2137"/>
         <source>Ocultar</source>
         <translation>Masquer</translation>
     </message>
     <message>
         <location filename="../app.py" line="883"/>
-        <location filename="../app.py" line="2115"/>
-        <location filename="../app.py" line="2136"/>
+        <location filename="../app.py" line="2119"/>
+        <location filename="../app.py" line="2140"/>
         <source>Isolar selecionado</source>
         <translation>Isoler la sélection</translation>
     </message>
     <message>
         <location filename="../app.py" line="886"/>
-        <location filename="../app.py" line="2116"/>
-        <location filename="../app.py" line="2139"/>
+        <location filename="../app.py" line="2120"/>
+        <location filename="../app.py" line="2143"/>
         <source>Isolar</source>
         <translation>Isoler</translation>
     </message>
@@ -364,7 +364,7 @@
     </message>
     <message>
         <location filename="../app.py" line="749"/>
-        <location filename="../app.py" line="2243"/>
+        <location filename="../app.py" line="2259"/>
         <source>Novo projeto</source>
         <translation>Nouveau projet</translation>
     </message>
@@ -381,7 +381,7 @@
     </message>
     <message>
         <location filename="../app.py" line="756"/>
-        <location filename="../app.py" line="2678"/>
+        <location filename="../app.py" line="2694"/>
         <source>Testar no jogo</source>
         <translation>Tester en jeu</translation>
     </message>
@@ -639,144 +639,144 @@
         <translation> · textures manquantes : {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1734"/>
+        <location filename="../app.py" line="1738"/>
         <source>O jogo posiciona esta janela sozinho; mover a raiz não muda onde ela aparece no jogo.</source>
         <translation>Le jeu positionne cette fenêtre lui-même ; déplacer la racine ne change pas sa place en jeu.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1751"/>
+        <location filename="../app.py" line="1755"/>
         <source> · {count} selecionados</source>
         <translation> · {count} sélectionnés</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1753"/>
+        <location filename="../app.py" line="1757"/>
         <source>WindowID {id} · índice {index}</source>
         <translation>WindowID {id} · index {index}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1839"/>
-        <location filename="../app.py" line="1881"/>
+        <location filename="../app.py" line="1843"/>
+        <location filename="../app.py" line="1885"/>
         <source>O elemento selecionado está bloqueado.</source>
         <translation>L’élément sélectionné est verrouillé.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1865"/>
+        <location filename="../app.py" line="1869"/>
         <source>Os elementos selecionados estão bloqueados.</source>
         <translation>Les éléments sélectionnés sont verrouillés.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1891"/>
+        <location filename="../app.py" line="1895"/>
         <source>Alterar atlas do WindowID {id}</source>
         <translation>Changer l’atlas de WindowID {id}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1910"/>
+        <location filename="../app.py" line="1914"/>
         <source>Aguarde o carregamento das texturas para abrir o atlas.</source>
         <translation>Attendez le chargement des textures pour ouvrir l’atlas.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1922"/>
+        <location filename="../app.py" line="1926"/>
         <source>Este elemento não possui uma textura NorUV editável.</source>
         <translation>Cet élément n’a pas de zone NorUV modifiable.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1928"/>
+        <location filename="../app.py" line="1932"/>
         <source>Não foi possível abrir {name}.</source>
         <translation>Impossible d’ouvrir {name}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1964"/>
+        <location filename="../app.py" line="1968"/>
         <source>Aguarde o carregamento das texturas.</source>
         <translation>Attendez le chargement des textures.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1970"/>
+        <location filename="../app.py" line="1974"/>
         <source>Texturas recarregadas do disco.</source>
         <translation>Textures rechargées depuis le disque.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2009"/>
+        <location filename="../app.py" line="2013"/>
         <source>A textura {name} não está disponível.</source>
         <translation>La texture {name} n’est pas disponible.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2024"/>
+        <location filename="../app.py" line="2028"/>
         <source>{name} atualizado automaticamente · elementos: {count}.</source>
         <translation>{name} a été actualisé automatiquement · éléments : {count}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2093"/>
+        <location filename="../app.py" line="2097"/>
         <source>Bloqueado</source>
         <translation>Verrouillé</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2095"/>
+        <location filename="../app.py" line="2099"/>
         <source>Oculto</source>
         <translation>Masqué</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2097"/>
+        <location filename="../app.py" line="2101"/>
         <source>Isolado</source>
         <translation>Isolé</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2120"/>
+        <location filename="../app.py" line="2124"/>
         <source>Desbloquear selecionado</source>
         <translation>Déverrouiller la sélection</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2125"/>
+        <location filename="../app.py" line="2129"/>
         <source>Desbloquear</source>
         <translation>Déverrouiller</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2128"/>
+        <location filename="../app.py" line="2132"/>
         <source>Mostrar selecionado</source>
         <translation>Afficher la sélection</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2133"/>
+        <location filename="../app.py" line="2137"/>
         <source>Mostrar</source>
         <translation>Afficher</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2136"/>
-        <location filename="../app.py" line="2139"/>
+        <location filename="../app.py" line="2140"/>
+        <location filename="../app.py" line="2143"/>
         <source>Mostrar todos</source>
         <translation>Tout afficher</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2190"/>
+        <location filename="../app.py" line="2206"/>
         <source>Nenhuma alteração para salvar.</source>
         <translation>Aucune modification à enregistrer.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2200"/>
+        <location filename="../app.py" line="2216"/>
         <source>Arquivo alterado externamente</source>
         <translation>Fichier modifié par un autre programme</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2203"/>
+        <location filename="../app.py" line="2219"/>
         <source>Falha ao salvar</source>
         <translation>Échec de l’enregistrement</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2211"/>
+        <location filename="../app.py" line="2227"/>
         <source>Salvo. Backup no histórico do projeto. F5 testa no jogo.</source>
         <translation>Enregistré. Sauvegarde dans l&apos;historique du projet. F5 pour tester en jeu.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2214"/>
+        <location filename="../app.py" line="2230"/>
         <source>Salvo. Backup: {name}</source>
         <translation>Enregistré. Sauvegarde : {name}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2217"/>
+        <location filename="../app.py" line="2233"/>
         <source>XML salvo</source>
         <translation>XML enregistré</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2218"/>
+        <location filename="../app.py" line="2234"/>
         <source>As alterações foram salvas.
 
 Backup exato:
@@ -787,177 +787,177 @@ Sauvegarde exacte :
 {path}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2321"/>
+        <location filename="../app.py" line="2337"/>
         <source>Escolha um XML na aba Arquivos para começar a editar. Os alterados aparecem no topo; F5 publica no jogo.</source>
         <translation>Choisissez un XML dans l&apos;onglet Fichiers pour commencer. Les fichiers modifiés sont en haut ; F5 publie dans le jeu.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2324"/>
+        <location filename="../app.py" line="2340"/>
         <source>Comece um projeto de UI</source>
         <translation>Commencez un projet d&apos;UI</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2326"/>
+        <location filename="../app.py" line="2342"/>
         <source>Você edita uma cópia fora da pasta do jogo. Quando quiser ver o resultado, aperte F5 para publicar e abrir o jogo.</source>
         <translation>Vous éditez une copie hors du dossier du jeu. Pour voir le résultat, appuyez sur F5 pour publier et ouvrir le jeu.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2243"/>
+        <location filename="../app.py" line="2259"/>
         <source>A partir da UI em uso, de uma UI do UICustom ou de outra pasta.</source>
         <translation>À partir de l&apos;UI utilisée, d&apos;une UI de UICustom ou d&apos;un autre dossier.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2244"/>
+        <location filename="../app.py" line="2260"/>
         <source>Abrir um XML solto</source>
         <translation>Ouvrir un XML isolé</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2244"/>
+        <location filename="../app.py" line="2260"/>
         <source>Edita direto no arquivo, sem projeto (o launcher pode sobrescrever).</source>
         <translation>Modifie le fichier directement, sans projet (le lanceur peut l&apos;écraser).</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2266"/>
+        <location filename="../app.py" line="2282"/>
         <source>RECENTES</source>
         <translation>RÉCENTS</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2275"/>
+        <location filename="../app.py" line="2291"/>
         <source>{a} novo projeto &amp;nbsp;&amp;nbsp;&amp;nbsp; {b} abrir projeto &amp;nbsp;&amp;nbsp;&amp;nbsp; {c} testar no jogo</source>
         <translation>{a} nouveau projet &amp;nbsp;&amp;nbsp;&amp;nbsp; {b} ouvrir un projet &amp;nbsp;&amp;nbsp;&amp;nbsp; {c} tester en jeu</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2306"/>
+        <location filename="../app.py" line="2322"/>
         <source>{count} arquivos · {path}</source>
         <translation>{count} fichiers · {path}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2362"/>
+        <location filename="../app.py" line="2378"/>
         <source>Fundo</source>
         <translation>Arrière-plan</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2380"/>
+        <location filename="../app.py" line="2396"/>
         <source>Diminuir zoom</source>
         <translation>Zoom arrière</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2389"/>
+        <location filename="../app.py" line="2405"/>
         <source>Aumentar zoom</source>
         <translation>Zoom avant</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2414"/>
+        <location filename="../app.py" line="2430"/>
         <source>{count} elementos</source>
         <translation>{count} éléments</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2417"/>
+        <location filename="../app.py" line="2433"/>
         <source>{count} alteração(ões) não salva(s)</source>
         <translation>{count} modification(s) non enregistrée(s)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2419"/>
+        <location filename="../app.py" line="2435"/>
         <source>{name} → UICustom</source>
         <translation>{name} → UICustom</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2448"/>
+        <location filename="../app.py" line="2464"/>
         <source>Pasta do Grand Fantasia Violet</source>
         <translation>Dossier de Grand Fantasia Violet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2459"/>
+        <location filename="../app.py" line="2475"/>
         <source>Copiando arquivos da UI para o projeto…</source>
         <translation>Copie des fichiers de l&apos;UI dans le projet…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2466"/>
+        <location filename="../app.py" line="2482"/>
         <source>Projeto já existe</source>
         <translation>Le projet existe déjà</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2466"/>
+        <location filename="../app.py" line="2482"/>
         <source>Já existe um projeto em {path}.</source>
         <translation>Un projet existe déjà dans {path}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2470"/>
+        <location filename="../app.py" line="2486"/>
         <source>Não foi possível criar o projeto</source>
         <translation>Impossible de créer le projet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2474"/>
+        <location filename="../app.py" line="2490"/>
         <source>Projeto criado com {count} arquivos.</source>
         <translation>Projet créé avec {count} fichiers.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2487"/>
+        <location filename="../app.py" line="2503"/>
         <source>Procurar pasta…</source>
         <translation>Parcourir…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2494"/>
+        <location filename="../app.py" line="2510"/>
         <source>Abrir projeto</source>
         <translation>Ouvrir un projet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2499"/>
+        <location filename="../app.py" line="2515"/>
         <source>Não é um projeto</source>
         <translation>Ce n&apos;est pas un projet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2499"/>
+        <location filename="../app.py" line="2515"/>
         <source>A pasta escolhida não tem project.json.</source>
         <translation>Le dossier choisi ne contient pas de project.json.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2507"/>
+        <location filename="../app.py" line="2523"/>
         <source>Não foi possível abrir o projeto</source>
         <translation>Impossible d&apos;ouvrir le projet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2540"/>
+        <location filename="../app.py" line="2556"/>
         <source>{count} arquivos XML · {modified} alterados</source>
         <translation>{count} fichiers XML · {modified} modifiés</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2548"/>
+        <location filename="../app.py" line="2564"/>
         <source>Sem projeto</source>
         <translation>Aucun projet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2550"/>
+        <location filename="../app.py" line="2566"/>
         <source>Crie um projeto para editar fora da pasta do jogo e testar com F5.</source>
         <translation>Créez un projet pour éditer hors du dossier du jeu et tester avec F5.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2565"/>
+        <location filename="../app.py" line="2581"/>
         <source>ALTERADOS · {count}</source>
         <translation>MODIFIÉS · {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2566"/>
+        <location filename="../app.py" line="2582"/>
         <source>TODOS · {count}</source>
         <translation>TOUS · {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2584"/>
+        <location filename="../app.py" line="2600"/>
         <source>alterado</source>
         <translation>modifié</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2657"/>
+        <location filename="../app.py" line="2673"/>
         <source>Salvar antes?</source>
         <translation>Enregistrer d&apos;abord ?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2658"/>
+        <location filename="../app.py" line="2674"/>
         <source>{name} tem alterações não salvas. Salvar antes de continuar?</source>
         <translation>{name} contient des modifications non enregistrées. Enregistrer avant de continuer ?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2680"/>
+        <location filename="../app.py" line="2696"/>
         <source>Isto vai:
 
 • atualizar {custom}
@@ -974,17 +974,17 @@ Outras UIs em UICustom não são alteradas. Continuar?</source>
 Les autres UI de UICustom ne sont pas modifiées. Continuer ?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2693"/>
+        <location filename="../app.py" line="2709"/>
         <source>Publicando no jogo…</source>
         <translation>Publication dans le jeu…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2698"/>
+        <location filename="../app.py" line="2714"/>
         <source>Falha ao publicar</source>
         <translation>Échec de la publication</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2699"/>
+        <location filename="../app.py" line="2715"/>
         <source>Não foi possível copiar os arquivos. Feche o jogo se ele estiver aberto e tente de novo.
 
 {error}</source>
@@ -993,57 +993,57 @@ Les autres UI de UICustom ne sont pas modifiées. Continuer ?</translation>
 {error}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2703"/>
+        <location filename="../app.py" line="2719"/>
         <source>Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.</source>
         <translation>Publié : {count} fichier(s) mis à jour dans le dossier UI. Lancez le jeu depuis le lanceur ou directement.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2716"/>
+        <location filename="../app.py" line="2732"/>
         <source>Exportar UI</source>
         <translation>Exporter l&apos;UI</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2716"/>
+        <location filename="../app.py" line="2732"/>
         <source>UI do launcher (*.zip)</source>
         <translation>UI du lanceur (*.zip)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2723"/>
+        <location filename="../app.py" line="2739"/>
         <source>Compactando a UI…</source>
         <translation>Compression de l&apos;UI…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2726"/>
+        <location filename="../app.py" line="2742"/>
         <source>Falha ao exportar</source>
         <translation>Échec de l&apos;export</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2729"/>
+        <location filename="../app.py" line="2745"/>
         <source>Exportado para {path}. No launcher: Adicionar UI Customizada.</source>
         <translation>Exporté vers {path}. Dans le lanceur : Ajouter une UI Perso.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2735"/>
+        <location filename="../app.py" line="2751"/>
         <source>Confirmar alterações no XML</source>
         <translation>Confirmer les modifications du XML</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2738"/>
+        <location filename="../app.py" line="2754"/>
         <source>Confira as linhas que serão alteradas. O backup exato será criado antes da gravação.</source>
         <translation>Vérifiez les lignes qui seront modifiées. Une sauvegarde exacte sera créée avant l’enregistrement.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2750"/>
+        <location filename="../app.py" line="2766"/>
         <source>Cancelar</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2775"/>
+        <location filename="../app.py" line="2791"/>
         <source>Descartar alterações?</source>
         <translation>Abandonner les modifications ?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2776"/>
+        <location filename="../app.py" line="2792"/>
         <source>Existem alterações não salvas. Deseja descartá-las?</source>
         <translation>Des modifications ne sont pas enregistrées. Voulez-vous les abandonner ?</translation>
     </message>

@@ -1724,6 +1724,10 @@ class EditorWindow(QMainWindow):
                 self.tree.setCurrentItem(tree_item)
                 self.tree.scrollToItem(tree_item)
             self._set_primary_selection(index, 1)
+            item_bounds = self.items[index].mapRectToScene(self.items[index].rect())
+            viewport_bounds = self.view.mapToScene(self.view.viewport().rect()).boundingRect()
+            if not viewport_bounds.intersects(item_bounds):
+                self.view.centerOn(item_bounds.center())
         finally:
             self._syncing_selection = False
 
@@ -2173,13 +2177,25 @@ class EditorWindow(QMainWindow):
             visit(self.tree.topLevelItem(top_index))
 
     def fit_scene(self) -> None:
-        if not self.scene.items():
+        if not self.items:
             return
-        bounds = QRectF()
-        for item in self.items.values():
-            bounds = bounds.united(item.sceneBoundingRect())
         if self.game_screen_item is not None:
-            bounds = bounds.united(self.game_screen_item.sceneBoundingRect())
+            # Preview frames the game screen, not controls parked off-screen by
+            # a custom UI. Ignore the caption, which ignores view transforms.
+            bounds = self.game_screen_item.mapRectToScene(self.game_screen_item.rect())
+        else:
+            root = self.items[0]
+            bounds = root.mapRectToScene(root.rect())
+            # Without a screen preview, include nearby layout (even outside the
+            # root panel) but not distant controls used to hide artwork in-game.
+            neighborhood = bounds.adjusted(
+                -max(1920, bounds.width()), -max(1080, bounds.height()),
+                max(1920, bounds.width()), max(1080, bounds.height()),
+            )
+            for item in self.items.values():
+                item_bounds = item.mapRectToScene(item.rect())
+                if item.isVisible() and neighborhood.intersects(item_bounds):
+                    bounds = bounds.united(item_bounds)
         self.view.fitInView(bounds.adjusted(-20, -20, 20, 20), Qt.AspectRatioMode.KeepAspectRatio)
         self.view.notify_zoom()
 
