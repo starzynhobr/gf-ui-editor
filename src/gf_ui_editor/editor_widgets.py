@@ -5,6 +5,7 @@ import math
 
 from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
+    QFont,
     QKeyEvent,
     QPainter,
     QPainterPath,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsSimpleTextItem,
     QGraphicsView,
+    QWidget,
 )
 
 from .theme import qcolor
@@ -120,6 +122,7 @@ class ElementItem(QGraphicsRectItem):
         self._resize_start_geometry = element.geometry
         self._labels_enabled = False
         self._textures_enabled = True
+        self._preview_mode = False
         self._base_z = float(element.index)
         self.setPos(element.x, element.y)
         self.setZValue(self._base_z)
@@ -213,6 +216,16 @@ class ElementItem(QGraphicsRectItem):
             self.resize_handle.mapFromScene(scene_position)
         )
 
+    def set_preview_mode(self, enabled: bool) -> None:
+        """Esconde contornos do editor para aproximar a visão do jogo."""
+        self._preview_mode = enabled
+        self.setBrush(Qt.BrushStyle.NoBrush if enabled else qcolor("ELEMENT_OVERLAY", 8))
+        if not self.isSelected():
+            self.setPen(self._idle_pen())
+
+    def _idle_pen(self) -> QPen:
+        return QPen(Qt.PenStyle.NoPen) if self._preview_mode else self._normal_pen
+
     def set_texture_visible(self, visible: bool) -> None:
         self._textures_enabled = visible
         if self.texture_item is not None:
@@ -257,7 +270,7 @@ class ElementItem(QGraphicsRectItem):
             self.setZValue(
                 self.SELECTION_Z_BASE + self._base_z if selected else self._base_z
             )
-            self.setPen(self._selected_pen if selected else self._normal_pen)
+            self.setPen(self._selected_pen if selected else self._idle_pen())
             self.label_item.setVisible(self._labels_enabled or selected)
             self.resize_handle.setVisible(selected and not self._locked)
             self._selected_callback(self.element_index)
@@ -423,8 +436,39 @@ class ElementItem(QGraphicsRectItem):
             )
 
 
+class GameScreenItem(QGraphicsRectItem):
+    """Moldura da tela do jogo, com captura opcional ao fundo; não interage."""
+
+    def __init__(self, width: int, height: int, background: QPixmap | None = None):
+        super().__init__(QRectF(0, 0, width, height))
+        self.setZValue(-1_000_000)
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setAcceptHoverEvents(False)
+        self.setBrush(qcolor("GAME_SCREEN_BG"))
+        self.setPen(QPen(qcolor("GAME_SCREEN_BORDER"), 0, Qt.PenStyle.SolidLine))
+        self.background_item: QGraphicsPixmapItem | None = None
+        if background is not None and not background.isNull():
+            self.background_item = QGraphicsPixmapItem(background, self)
+            self.background_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            self.background_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self.background_item.setTransform(
+                QTransform.fromScale(width / background.width(), height / background.height())
+            )
+        self.size_label = QGraphicsSimpleTextItem(f"{width} × {height}", self)
+        self.size_label.setBrush(qcolor("GAME_SCREEN_BORDER"))
+        self.size_label.setFont(QFont("IBM Plex Sans", 9))
+        self.size_label.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.size_label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.size_label.setPos(0, height + 4)
+
+    def set_caption(self, text: str) -> None:
+        self.size_label.setText(text)
+
+
 class EditorView(QGraphicsView):
     cursor_scene_moved = Signal(int, int)
+    zoom_changed = Signal(float)
+    DOT_SPACING = 16
 
     def __init__(self, move_selected: Callable[[int, int], None], parent=None):
         super().__init__(parent)
@@ -443,6 +487,9 @@ class EditorView(QGraphicsView):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self.setBackgroundBrush(qcolor("CANVAS_BG"))
+        self._overlays: list[tuple[QWidget, str]] = []
+        # Os pontos do fundo ficam fixos na tela; rolar exige redesenhar tudo.
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
 
     @staticmethod
@@ -545,8 +592,51 @@ class EditorView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+        self.zoom_by(1.15 if event.angleDelta().y() > 0 else 1 / 1.15)
+
+    def zoom_by(self, factor: float) -> None:
+        current = self.transform().m11()
+        factor = min(max(current * factor, 0.05), 32) / current
         self.scale(factor, factor)
+        self.notify_zoom()
+
+    def notify_zoom(self) -> None:
+        self.zoom_changed.emit(self.transform().m11())
+
+    def add_overlay(self, widget: QWidget, anchor: str) -> None:
+        """Widget flutuante sobre o canvas ("top" ou "bottom-left")."""
+        self._overlays.append((widget, anchor))
+        widget.show()
+        self._place_overlays()
+
+    def _place_overlays(self) -> None:
+        for widget, anchor in self._overlays:
+            widget.adjustSize()
+            if anchor == "top":
+                widget.move((self.width() - widget.width()) // 2, 14)
+            else:
+                widget.move(16, self.height() - widget.height() - 16)
+            widget.raise_()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._place_overlays()
+
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:  # noqa: N802
+        """Fundo pontilhado fixo na tela, independente do zoom."""
+        painter.fillRect(rect, qcolor("CANVAS_BG"))
+        painter.save()
+        painter.resetTransform()
+        viewport = self.viewport().rect()
+        step = self.DOT_SPACING
+        painter.setPen(QPen(qcolor("CANVAS_DOT"), 1.4))
+        points = [
+            QPointF(x, y)
+            for x in range(step // 2, viewport.width(), step)
+            for y in range(step // 2, viewport.height(), step)
+        ]
+        painter.drawPoints(points)
+        painter.restore()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         directions = {

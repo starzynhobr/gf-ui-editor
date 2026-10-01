@@ -28,6 +28,14 @@ def install_language(application: QCoreApplication, language: str) -> QTranslato
     return translator
 
 
+def switch_language(application: QCoreApplication, language: str) -> None:
+    """Troca o tradutor em uso; as janelas criadas depois já saem no novo idioma."""
+    previous = getattr(application, "_ui_translator", None)
+    if previous is not None:
+        application.removeTranslator(previous)
+    application._ui_translator = install_language(application, language)
+
+
 def kind_label(kind: str, ctrl_type: str | None = None) -> str:
     """Converte o código estável do modelo em um rótulo localizado."""
     labels = {

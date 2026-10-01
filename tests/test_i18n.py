@@ -22,7 +22,7 @@ def test_english_catalog_localizes_ui_without_changing_xml_model(tmp_path: Path)
     try:
         window = EditorWindow(language="en_US")
         assert [action.text() for action in window.menuBar().actions()] == [
-            "File", "Edit", "View", "Help"
+            "File", "Project", "Edit", "View", "Help"
         ]
         assert window.language_button.text() == "Language"
         assert window.menuBar().cornerWidget() is window.language_button
@@ -116,3 +116,33 @@ def test_all_translation_catalogs_are_complete_and_preserve_format_parameters() 
             source_fields = {name for _, name, _, _ in fields.parse(source) if name}
             translated_fields = {name for _, name, _, _ in fields.parse(translation) if name}
             assert source_fields == translated_fields, (language, source)
+
+
+def test_language_switch_rebuilds_window_without_restart(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    application = QApplication.instance() or QApplication([])
+    settings = QSettings("Local", "GF UI Editor")
+    saved = settings.value("language")
+    xml_path = tmp_path / "Teste.xml"
+    xml_path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Teste.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80" />\n</Root_Node>\n'
+    )
+    try:
+        window = EditorWindow(xml_path, language="pt_BR")
+        window._choose_language("en_US")
+        new_window = application._main_window
+        assert new_window is not window
+        assert new_window.menuBar().actions()[0].text() == "File"
+        assert new_window.document.path == xml_path
+        new_window._choose_language("pt_BR")
+        assert application._main_window.menuBar().actions()[0].text() == "Arquivo"
+    finally:
+        from gf_ui_editor.i18n import switch_language
+
+        switch_language(application, "pt_BR")
+        if saved is None:
+            settings.remove("language")
+        else:
+            settings.setValue("language", saved)

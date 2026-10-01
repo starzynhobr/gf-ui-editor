@@ -28,17 +28,17 @@ def test_clickable_cursor_tracks_action_availability(tmp_path: Path) -> None:
     application = QApplication.instance() or QApplication([])
     window = EditorWindow()
     toolbar = window.findChild(QToolBar)
-    open_button = toolbar.widgetForAction(window.open_action)
-    fit_button = toolbar.widgetForAction(window.fit_action)
+    open_button = toolbar.widgetForAction(window.open_project_action)
+    fit_button = toolbar.widgetForAction(window.reload_textures_action)
     assert open_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
-    assert not window.fit_action.isEnabled()
+    assert not window.reload_textures_action.isEnabled()
     assert fit_button.cursor().shape() == Qt.CursorShape.ArrowCursor
 
     xml_path = tmp_path / "Teste.xml"
     xml_path.write_bytes(SAMPLE.encode("big5"))
     window.open_document(xml_path)
     application.processEvents()
-    assert window.fit_action.isEnabled()
+    assert window.reload_textures_action.isEnabled()
     assert fit_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
     window.deleteLater()
 
@@ -381,14 +381,16 @@ def test_opening_another_xml_reuses_unchanged_decoded_texture(
     first_path.write_bytes(xml.encode("big5"))
     second_path.write_bytes(xml.encode("big5"))
 
-    original_open = Image.open
+    import gf_ui_editor.texture_cache as texture_cache_module
+
+    original_open = texture_cache_module.open_dds_rgba
     opened: list[Path] = []
 
-    def tracked_open(path, *args, **kwargs):
+    def tracked_open(path):
         opened.append(Path(path))
-        return original_open(path, *args, **kwargs)
+        return original_open(path)
 
-    monkeypatch.setattr(Image, "open", tracked_open)
+    monkeypatch.setattr(texture_cache_module, "open_dds_rgba", tracked_open)
     window = EditorWindow(first_path)
     wait_for_textures(window)
     window.open_document(second_path)
@@ -521,3 +523,52 @@ def test_atlas_dialog_has_native_maximize_button() -> None:
     assert dialog.windowFlags() & Qt.WindowType.WindowMaximizeButtonHint
 
     dialog.close()
+
+
+def test_game_screen_frame_and_preview_mode(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+    from gf_ui_editor.app import parse_resolution
+
+    settings = QSettings("Local", "GF UI Editor")
+    saved = {key: settings.value(key) for key in ("game_resolution", "game_background")}
+    try:
+        _check_game_screen_frame(tmp_path, parse_resolution)
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                settings.remove(key)
+            else:
+                settings.setValue(key, value)
+
+
+def _check_game_screen_frame(tmp_path: Path, parse_resolution) -> None:
+    assert parse_resolution("1366x768") == (1366, 768)
+    assert parse_resolution("1920 × 1080") == (1920, 1080)
+    assert parse_resolution("abc") is None
+
+    application = QApplication.instance() or QApplication([])
+    window = EditorWindow()
+    xml_path = tmp_path / "Teste.xml"
+    xml_path.write_bytes(SAMPLE.encode("big5"))
+    window.open_document(xml_path)
+    window.set_game_resolution((800, 600))
+    application.processEvents()
+    assert window.game_screen_item is not None
+    assert window.game_screen_item.rect() == QRectF(0, 0, 800, 600)
+    assert window.game_screen_item.zValue() < min(item.zValue() for item in window.items.values())
+
+    item = window.items[0]
+    window.preview_action.setChecked(True)
+    assert item.pen().style() == Qt.PenStyle.NoPen
+    window.preview_action.setChecked(False)
+    assert item.pen().style() == Qt.PenStyle.DashLine
+
+    background = tmp_path / "tela.png"
+    QPixmap(1280, 720).save(str(background))
+    window.set_game_background(background)
+    assert window.game_resolution == (1280, 720)
+    assert window.game_screen_item.background_item is not None
+
+    window.set_game_resolution(None)
+    assert window.game_screen_item is None
+    window.set_game_background(None)

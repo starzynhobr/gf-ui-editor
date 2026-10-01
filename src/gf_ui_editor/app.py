@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
 import sys
 from threading import Thread
 
-from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
     QCloseEvent,
+    QColor,
     QDesktopServices,
     QFontDatabase,
     QIcon,
@@ -23,38 +25,84 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QFrame,
     QGraphicsScene,
+    QHeaderView,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
     QMessageBox,
     QPlainTextEdit,
+    QProgressDialog,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
+    QGridLayout,
+    QTabWidget,
     QStyle,
     QTreeWidget,
     QTreeWidgetItem,
+    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from . import __version__
-from .editor_widgets import EditorView, ElementItem
-from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, install_language, kind_label
+from .editor_widgets import EditorView, ElementItem, GameScreenItem
+from .game_layout import (
+    client_resolution,
+    load_user_positions,
+    root_screen_position,
+    rule_for,
+    saved_position_applies,
+    saved_section_for,
+)
+from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, switch_language
+from .icons import MONO_FONT, UI_FONT, icon, load_fonts
 from .interaction import install_pointer_cursors
+from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
+GAME_RESOLUTIONS = (
+    (800, 600),
+    (1024, 768),
+    (1280, 720),
+    (1280, 1024),
+    (1366, 768),
+    (1600, 900),
+    (1920, 1080),
+    (2560, 1440),
+)
+
+
+def parse_resolution(text: str) -> tuple[int, int] | None:
+    """Aceita "1920x1080", "1920×1080" ou "1920 1080"."""
+    parts = text.lower().replace("×", "x").replace(" ", "x").split("x")
+    numbers = [part for part in parts if part]
+    if len(numbers) != 2:
+        return None
+    try:
+        width, height = int(numbers[0]), int(numbers[1])
+    except ValueError:
+        return None
+    if not (100 <= width <= 10000 and 100 <= height <= 10000):
+        return None
+    return width, height
+
+
 from .xml_document import (
     DocumentError,
     ExternalModificationError,
@@ -123,6 +171,66 @@ class AboutDialog(QDialog):
         install_pointer_cursors(self)
 
 
+class NewProjectDialog(QDialog):
+    """Nome do projeto e a UI que servirá de ponto de partida."""
+
+    def __init__(self, game_dir: Path | None, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Novo projeto de UI"))
+        self.setMinimumWidth(460)
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText(self.tr("Ex.: UI-Hero ajustada"))
+        self.source_combo = QComboBox()
+        if game_dir is not None:
+            for label, path in custom_ui_sources(game_dir):
+                text = self.tr("UI em uso no jogo (pasta UI)") if label == "UI" else label
+                self.source_combo.addItem(text, str(path))
+        self.source_combo.addItem(self.tr("Outra pasta…"), "")
+        self.assets_check = QCheckBox(
+            self.tr("Incluir ícones de itens, skills e telas de carregamento (~18 mil arquivos)")
+        )
+        self.assets_check.setToolTip(
+            self.tr("Pastas itemicon, skillicon, uiicon e loadingframe. Marque só se for editar esses ícones; deixa a cópia e o teste mais lentos.")
+        )
+        explanation = QLabel(
+            self.tr(
+                "Os arquivos serão copiados para {root}. Backups e cópias antigas ficam de fora; "
+                "a pasta do jogo não é alterada até você usar Testar no jogo."
+            ).format(root=PROJECTS_ROOT)
+        )
+        explanation.setWordWrap(True)
+        explanation.setObjectName("panelSubtitle")
+        form = QFormLayout()
+        form.addRow(self.tr("Nome"), self.name_edit)
+        form.addRow(self.tr("Começar a partir de"), self.source_combo)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr("Criar projeto"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(self.tr("Cancelar"))
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(self.assets_check)
+        layout.addWidget(explanation)
+        layout.addWidget(buttons)
+        self.source_dir: Path | None = None
+
+    def _accept(self) -> None:
+        if not self.name_edit.text().strip():
+            self.name_edit.setFocus()
+            return
+        data = self.source_combo.currentData()
+        if not data:
+            folder = QFileDialog.getExistingDirectory(self, self.tr("Pasta com os arquivos da UI"))
+            if not folder:
+                return
+            data = folder
+        self.source_dir = Path(data)
+        self.accept()
+
+
 class PropertyPanel(QWidget):
     geometry_edited = Signal(tuple)
     atlas_requested = Signal()
@@ -146,17 +254,13 @@ class PropertyPanel(QWidget):
             value.setObjectName("fieldValue")
         self.text_value = QLineEdit()
         self.text_value.setReadOnly(True)
+        self.text_value.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.texture_value = QLineEdit()
         self.texture_value.setReadOnly(True)
-        self.atlas_button = QPushButton(self.tr("Abrir atlas…"))
+        self.texture_value.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.atlas_button = QPushButton(self.tr("Abrir atlas DDS…"))
         self.atlas_button.setEnabled(False)
         self.atlas_button.clicked.connect(self.atlas_requested.emit)
-        texture_row = QWidget()
-        texture_layout = QHBoxLayout(texture_row)
-        texture_layout.setContentsMargins(0, 0, 0, 0)
-        texture_layout.setSpacing(6)
-        texture_layout.addWidget(self.texture_value, 1)
-        texture_layout.addWidget(self.atlas_button)
         self.uv_value = QLabel("—")
         self.font_value = QLabel("—")
         self.visible_value = QCheckBox()
@@ -171,7 +275,8 @@ class PropertyPanel(QWidget):
         actions_layout.setSpacing(6)
         for button in (self.lock_button, self.hide_button, self.isolate_button):
             button.setObjectName("inspectorAction")
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             actions_layout.addWidget(button)
         self.actions_row.setVisible(False)
 
@@ -199,8 +304,6 @@ class PropertyPanel(QWidget):
         self._add_field(geometry_form, self.tr("Altura"), self.height_spin)
         self._add_field(appearance_form, self.tr("Visível no XML"), self.visible_value)
         self._add_field(appearance_form, self.tr("Texto"), self.text_value)
-        self._add_field(appearance_form, self.tr("Textura"), texture_row)
-        self._add_field(appearance_form, self.tr("Recorte DDS"), self.uv_value)
         self._add_field(appearance_form, self.tr("Fonte"), self.font_value)
         self.x_spin.setToolTip(self.tr("WindowLeft no XML"))
         self.y_spin.setToolTip(self.tr("WindowTop no XML"))
@@ -211,33 +314,93 @@ class PropertyPanel(QWidget):
             self.tr("O formato do jogo usa WindowHeight como largura visual e WindowWidth como altura visual.")
         )
         explanation.setWordWrap(True)
-        explanation.setStyleSheet(f"color: {COLORS['TEXT_MUTED']}")
+        explanation.setObjectName("panelSubtitle")
+
+        self.kind_badge = QLabel()
+        self.kind_badge.setObjectName("badge")
+        self.id_caption = QLabel()
+        self.id_caption.setObjectName("monoCaption")
+        badge_row = QWidget()
+        badge_layout = QHBoxLayout(badge_row)
+        badge_layout.setContentsMargins(0, 0, 0, 0)
+        badge_layout.setSpacing(8)
+        badge_layout.addWidget(self.kind_badge)
+        badge_layout.addWidget(self.id_caption)
+        badge_layout.addStretch(1)
+        self.badge_row = badge_row
+        self.badge_row.setVisible(False)
+
+        for spin, prefix in (
+            (self.x_spin, "X   "),
+            (self.y_spin, "Y   "),
+            (self.width_spin, self.tr("L   ")),
+            (self.height_spin, self.tr("A   ")),
+        ):
+            spin.setPrefix(prefix)
+            spin.setObjectName("monoSpin")
+            spin.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+            spin.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            spin.setMinimumWidth(64)
+        geometry_grid = QGridLayout()
+        geometry_grid.setHorizontalSpacing(8)
+        geometry_grid.setVerticalSpacing(8)
+        geometry_grid.addWidget(self.x_spin, 0, 0)
+        geometry_grid.addWidget(self.y_spin, 0, 1)
+        geometry_grid.addWidget(self.width_spin, 1, 0)
+        geometry_grid.addWidget(self.height_spin, 1, 1)
+        self.anchor_hint = QLabel()
+        self.anchor_hint.setObjectName("hintBox")
+        self.anchor_hint.setWordWrap(True)
+        self.anchor_hint.setVisible(False)
+
+        self.atlas_button.setIcon(icon("image"))
+        texture_form = QFormLayout()
+        texture_form.setHorizontalSpacing(12)
+        texture_form.setVerticalSpacing(8)
+        self._add_field(texture_form, self.tr("Arquivo"), self.texture_value)
+        self._add_field(texture_form, self.tr("Recorte DDS"), self.uv_value)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        layout.addWidget(self.badge_row)
         layout.addWidget(self.selection_title)
         layout.addWidget(self.selection_subtitle)
-        layout.addWidget(self.actions_row)
         self.details_container = QWidget()
         details_layout = QVBoxLayout(self.details_container)
-        details_layout.setContentsMargins(0, 12, 0, 0)
-        details_layout.setSpacing(8)
-        for title, form in (
-            (self.tr("IDENTIFICAÇÃO"), details_form),
-            (self.tr("GEOMETRIA"), geometry_form),
-            (self.tr("APARÊNCIA"), appearance_form),
-        ):
-            section = QLabel(title)
-            section.setObjectName("sectionLabel")
-            details_layout.addWidget(section)
-            details_layout.addLayout(form)
-            details_layout.addSpacing(10)
-        details_layout.addWidget(explanation)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.setSpacing(12)
+        details_layout.addWidget(
+            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.anchor_hint)
+        )
+        details_layout.addWidget(self._card(self.tr("TEXTURA"), texture_form, self.atlas_button))
+        details_layout.addWidget(self._card(self.tr("IDENTIFICAÇÃO"), details_form))
+        details_layout.addWidget(self._card(self.tr("APARÊNCIA"), appearance_form, explanation))
+        details_layout.addWidget(self._card(self.tr("NO EDITOR"), None, self.actions_row))
         layout.addWidget(self.details_container)
         layout.addStretch(1)
         self.details_container.setVisible(False)
         self.set_enabled(False)
+
+    @staticmethod
+    def _card(title: str, inner_layout, *widgets: QWidget) -> QFrame:
+        card = QFrame()
+        card.setObjectName("card")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(12, 12, 12, 12)
+        card_layout.setSpacing(10)
+        label = QLabel(title)
+        label.setObjectName("sectionLabel")
+        card_layout.addWidget(label)
+        if inner_layout is not None:
+            card_layout.addLayout(inner_layout)
+        for widget in widgets:
+            card_layout.addWidget(widget)
+        return card
+
+    def set_anchor_hint(self, text: str | None) -> None:
+        self.anchor_hint.setText(text or "")
+        self.anchor_hint.setVisible(bool(text))
 
     @staticmethod
     def _add_field(form: QFormLayout, label: str, value: QWidget) -> None:
@@ -270,6 +433,8 @@ class PropertyPanel(QWidget):
         try:
             if element is None:
                 self.actions_row.setVisible(False)
+                self.badge_row.setVisible(False)
+                self.selection_subtitle.setVisible(True)
                 self.details_container.setVisible(False)
                 self.selection_title.setText(self.tr("Nenhum elemento selecionado"))
                 self.selection_subtitle.setText(
@@ -287,7 +452,13 @@ class PropertyPanel(QWidget):
                 self.visible_value.setChecked(False)
                 self.set_enabled(False)
                 return
-            self.selection_title.setText(f"WindowID {element.window_id}")
+            self.selection_title.setText(element.window_text or f"WindowID {element.window_id}")
+            self.kind_badge.setText(kind_label(element.kind, element.ctrl_type))
+            self.id_caption.setText(
+                self.tr("dentro de {parent}").format(parent=element.parent_id) if element.parent_id else self.tr("raiz")
+            )
+            self.badge_row.setVisible(True)
+            self.selection_subtitle.setVisible(False)
             self.actions_row.setVisible(True)
             self.details_container.setVisible(True)
             self.selection_subtitle.setText(kind_label(element.kind, element.ctrl_type))
@@ -399,11 +570,19 @@ class UVCommand(QUndoCommand):
 
 
 class EditorWindow(QMainWindow):
-    def __init__(self, initial_path: Path | None = None, *, language: str = "pt_BR"):
+    def __init__(
+        self,
+        initial_path: Path | None = None,
+        *,
+        language: str = "pt_BR",
+        restore_last_project: bool = False,
+    ):
         super().__init__()
+        load_fonts()
         self.language = language
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.document: UIDocument | None = None
+        self.project: Project | None = None
         self.texture_cache: TextureCache | None = None
         self._texture_generation = 0
         self._texture_results: SimpleQueue = SimpleQueue()
@@ -422,6 +601,17 @@ class EditorWindow(QMainWindow):
         self.atlas_dialog: AtlasDialog | None = None
         self.texture_watcher = QFileSystemWatcher(self)
         self.texture_watcher.fileChanged.connect(self._texture_file_changed)
+
+        settings = QSettings("Local", "GF UI Editor")
+        stored_resolution = str(settings.value("game_resolution", "game"))
+        # "game": acompanha o client.ini do jogo (padrão); senão, um tamanho fixo.
+        self.follow_game_resolution = stored_resolution == "game"
+        self.game_resolution = (
+            self._client_resolution() if self.follow_game_resolution else parse_resolution(stored_resolution)
+        )
+        background = str(settings.value("game_background", ""))
+        self.game_background_path = Path(background) if background else None
+        self.game_screen_item: GameScreenItem | None = None
 
         self.undo_stack = QUndoStack(self)
         self.scene = QGraphicsScene(self)
@@ -447,16 +637,51 @@ class EditorWindow(QMainWindow):
             QAbstractItemView.SelectionMode.ExtendedSelection
         )
         self.tree.itemSelectionChanged.connect(self._tree_selection_changed)
-        tree_panel = QWidget()
-        tree_panel.setObjectName("treePanel")
-        tree_layout = QVBoxLayout(tree_panel)
-        tree_layout.setContentsMargins(12, 12, 12, 12)
+        elements_page = QWidget()
+        elements_page.setObjectName("treePanel")
+        tree_layout = QVBoxLayout(elements_page)
+        tree_layout.setContentsMargins(10, 10, 10, 10)
         tree_layout.setSpacing(8)
-        tree_title = QLabel(self.tr("ELEMENTOS"))
-        tree_title.setObjectName("sectionLabel")
-        tree_layout.addWidget(tree_title)
         tree_layout.addWidget(self.search_edit)
         tree_layout.addWidget(self.tree)
+
+        self.project_label = QLabel()
+        self.project_label.setObjectName("panelTitle")
+        self.project_path_label = QLabel()
+        self.project_path_label.setObjectName("panelSubtitle")
+        self.project_path_label.setWordWrap(True)
+        self.file_filter_edit = QLineEdit()
+        self.file_filter_edit.setPlaceholderText(self.tr("Filtrar arquivos…"))
+        self.file_filter_edit.setClearButtonEnabled(True)
+        self.file_filter_edit.textChanged.connect(self._filter_files)
+        self.files_tree = QTreeWidget()
+        self.files_tree.setObjectName("filesTree")
+        self.files_tree.setHeaderHidden(True)
+        self.files_tree.setColumnCount(2)
+        self.files_tree.setRootIsDecorated(False)
+        self.files_tree.setIndentation(0)
+        self.files_tree.header().setStretchLastSection(False)
+        self.files_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.files_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.files_tree.itemClicked.connect(self._file_activated)
+        self.files_tree.itemActivated.connect(self._file_activated)
+        self.files_tree.setCursor(Qt.CursorShape.PointingHandCursor)
+        files_page = QWidget()
+        files_page.setObjectName("treePanel")
+        files_layout = QVBoxLayout(files_page)
+        files_layout.setContentsMargins(10, 10, 10, 10)
+        files_layout.setSpacing(6)
+        files_layout.addWidget(self.project_label)
+        files_layout.addWidget(self.project_path_label)
+        files_layout.addWidget(self.file_filter_edit)
+        files_layout.addWidget(self.files_tree)
+
+        self.side_tabs = QTabWidget()
+        self.side_tabs.setObjectName("sideTabs")
+        self.side_tabs.setDocumentMode(True)
+        self.side_tabs.addTab(files_page, self.tr("Arquivos"))
+        self.side_tabs.addTab(elements_page, self.tr("Elementos"))
+        tree_panel = self.side_tabs
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
         self.properties.atlas_requested.connect(self.open_selected_atlas)
@@ -467,29 +692,11 @@ class EditorWindow(QMainWindow):
         properties_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         properties_scroll.setWidget(self.properties)
 
-        canvas_panel = QWidget()
-        canvas_panel.setObjectName("canvasPanel")
-        canvas_layout = QVBoxLayout(canvas_panel)
-        canvas_layout.setContentsMargins(0, 0, 0, 0)
-        canvas_layout.setSpacing(0)
-        canvas_header = QWidget()
-        canvas_header.setObjectName("canvasHeader")
-        canvas_header_layout = QHBoxLayout(canvas_header)
-        canvas_header_layout.setContentsMargins(14, 7, 14, 7)
-        canvas_title = QLabel(self.tr("CANVAS"))
-        canvas_title.setObjectName("sectionLabel")
-        canvas_hint = QLabel(
-            self.tr("Arraste para mover  •  roda para zoom")
-        )
-        canvas_hint.setObjectName("canvasHint")
-        canvas_hint.setToolTip(
-            self.tr("Ctrl + clique: seleção múltipla • alça: redimensionar • botão do meio: navegar pelo canvas")
-        )
-        canvas_header_layout.addWidget(canvas_title)
-        canvas_header_layout.addStretch(1)
-        canvas_header_layout.addWidget(canvas_hint)
-        canvas_layout.addWidget(canvas_header)
-        canvas_layout.addWidget(self.view)
+        self.empty_page = self._build_empty_page()
+        self.center_stack = QStackedWidget()
+        self.center_stack.addWidget(self.empty_page)
+        self.center_stack.addWidget(self.view)
+        canvas_panel = self.center_stack
 
         splitter = QSplitter()
         splitter.addWidget(tree_panel)
@@ -498,7 +705,7 @@ class EditorWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes([300, 900, 300])
+        splitter.setSizes([290, 830, 320])
         self.setCentralWidget(splitter)
 
         self._create_actions()
@@ -506,29 +713,60 @@ class EditorWindow(QMainWindow):
             self.lock_action, self.hide_action, self.isolate_action
         )
         self._create_menus_and_toolbar()
+        self._build_canvas_overlays()
+        self._sync_resolution_actions()
+        self._build_status_chips()
+        self._refresh_game_screen()
         self._apply_theme()
         install_pointer_cursors(self)
         self.resize(1500, 900)
         self.setWindowTitle("GF UI Editor")
-        self.statusBar().showMessage(self.tr("Abra um XML da pasta UI para começar."))
         self.statusBar().addPermanentWidget(self.cursor_position_label)
 
+        self._refresh_files()
+        self._update_title()
         if initial_path is not None:
             self.open_document(initial_path)
+        elif restore_last_project:
+            last = str(QSettings("Local", "GF UI Editor").value("last_project", ""))
+            if last and (Path(last) / "project.json").is_file():
+                self.open_project(Path(last))
 
     def _create_actions(self) -> None:
-        self.open_action = QAction(self.tr("Abrir XML…"), self)
-        self.open_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
+        self.new_project_action = QAction(self.tr("Novo projeto…"), self)
+        self.new_project_action.setShortcut("Ctrl+Shift+N")
+        self.new_project_action.setIcon(icon("folder-plus", "#ffffff" if "folder-plus" == "play" else COLORS["ICON"]))
+        self.new_project_action.setIconText(self.tr("Novo projeto"))
+        self.new_project_action.triggered.connect(self.new_project)
+        self.open_project_action = QAction(self.tr("Abrir projeto…"), self)
+        self.open_project_action.setShortcut("Ctrl+Shift+O")
+        self.open_project_action.setIcon(icon("folder-open", "#ffffff" if "folder-open" == "play" else COLORS["ICON"]))
+        self.open_project_action.setIconText(self.tr("Projeto"))
+        self.open_project_action.triggered.connect(self.choose_project)
+        self.test_action = QAction(self.tr("Testar no jogo"), self)
+        self.test_action.setShortcut("F5")
+        self.test_action.setIcon(icon("play", "#ffffff" if "play" == "play" else COLORS["ICON"]))
+        self.test_action.setToolTip(
+            self.tr("Publica o projeto em UICustom e na pasta UI do jogo e o seleciona no launcher (F5)")
         )
+        self.test_action.setEnabled(False)
+        self.test_action.triggered.connect(self.test_in_game)
+        self.export_action = QAction(self.tr("Exportar UI (.zip)…"), self)
+        self.export_action.setEnabled(False)
+        self.export_action.triggered.connect(self.export_project_zip)
+        self.project_folder_action = QAction(self.tr("Abrir pasta do projeto"), self)
+        self.project_folder_action.setEnabled(False)
+        self.project_folder_action.triggered.connect(
+            lambda: self.project and QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.project.root)))
+        )
+        self.open_action = QAction(self.tr("Abrir XML…"), self)
+        self.open_action.setIcon(icon("file"))
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.setIconText(self.tr("Abrir"))
         self.open_action.setToolTip(self.tr("Abrir XML (Ctrl+O)"))
         self.open_action.triggered.connect(self.choose_document)
         self.save_action = QAction(self.tr("Salvar com backup"), self)
-        self.save_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
-        )
+        self.save_action.setIcon(icon("save", COLORS["TEXT_BRIGHT"]))
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.setIconText(self.tr("Salvar"))
         self.save_action.setToolTip(self.tr("Salvar com backup (Ctrl+S)"))
@@ -536,12 +774,12 @@ class EditorWindow(QMainWindow):
         self.save_action.triggered.connect(self.save_document)
         self.undo_action = self.undo_stack.createUndoAction(self, self.tr("Desfazer"))
         self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.undo_action.setIcon(icon("undo"))
         self.redo_action = self.undo_stack.createRedoAction(self, self.tr("Refazer"))
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+        self.redo_action.setIcon(icon("redo"))
         self.fit_action = QAction(self.tr("Enquadrar"), self)
-        self.fit_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon)
-        )
+        self.fit_action.setIcon(icon("frame"))
         self.fit_action.setShortcut("F")
         self.fit_action.setEnabled(False)
         self.fit_action.triggered.connect(self.fit_scene)
@@ -549,6 +787,8 @@ class EditorWindow(QMainWindow):
         self.labels_action.setCheckable(True)
         self.labels_action.setChecked(False)
         self.labels_action.setShortcut("I")
+        self.labels_action.setIcon(icon("type"))
+        self.labels_action.setToolTip(self.tr("Mostrar identificadores (I)"))
         self.labels_action.toggled.connect(self.set_labels_visible)
         self.textures_action = QAction(self.tr("Mostrar texturas"), self)
         self.textures_action.setCheckable(True)
@@ -559,33 +799,89 @@ class EditorWindow(QMainWindow):
         self.atlas_action.setEnabled(False)
         self.atlas_action.triggered.connect(self.open_selected_atlas)
         self.reload_textures_action = QAction(self.tr("Recarregar texturas"), self)
-        self.reload_textures_action.setShortcut(QKeySequence.StandardKey.Refresh)
+        self.reload_textures_action.setShortcut("Ctrl+R")
+        self.reload_textures_action.setIcon(icon("refresh"))
         self.reload_textures_action.setEnabled(False)
         self.reload_textures_action.triggered.connect(self.reload_all_textures)
         self.watch_textures_action = QAction(self.tr("Atualizar DDS automaticamente"), self)
         self.watch_textures_action.setCheckable(True)
         self.watch_textures_action.setChecked(True)
         self.watch_textures_action.toggled.connect(self._watch_texture_files)
+        self.preview_action = QAction(self.tr("Preview do jogo"), self)
+        self.preview_action.setCheckable(True)
+        self.preview_action.setShortcut("P")
+        self.preview_action.setIcon(icon("eye"))
+        self.preview_action.setToolTip(
+            self.tr("Esconde contornos e rótulos do editor para ver a interface como no jogo (P)")
+        )
+        self.preview_action.toggled.connect(self.set_preview_mode)
+        self.resolution_actions = QActionGroup(self)
+        self.resolution_actions.setExclusive(True)
+        self.resolution_game_action = QAction(self.tr("Igual ao jogo (client.ini)"), self)
+        self.resolution_game_action.setCheckable(True)
+        self.resolution_game_action.triggered.connect(self.follow_client_resolution)
+        self.resolution_actions.addAction(self.resolution_game_action)
+        self.resolution_off_action = QAction(self.tr("Sem moldura"), self)
+        self.resolution_off_action.setCheckable(True)
+        self.resolution_off_action.triggered.connect(lambda: self.set_game_resolution(None))
+        self.resolution_actions.addAction(self.resolution_off_action)
+        self.resolution_preset_actions: dict[tuple[int, int], QAction] = {}
+        for width, height in GAME_RESOLUTIONS:
+            action = QAction(f"{width} × {height}", self)
+            action.setCheckable(True)
+            action.triggered.connect(
+                lambda _checked, size=(width, height): self.set_game_resolution(size)
+            )
+            self.resolution_actions.addAction(action)
+            self.resolution_preset_actions[(width, height)] = action
+        self.resolution_custom_action = QAction(self.tr("Personalizada…"), self)
+        self.resolution_custom_action.setCheckable(True)
+        self.resolution_custom_action.triggered.connect(self.choose_custom_resolution)
+        self.resolution_actions.addAction(self.resolution_custom_action)
+        self.saved_positions_action = QAction(self.tr("Usar posições salvas do User.ini"), self)
+        self.saved_positions_action.setCheckable(True)
+        self.saved_positions_action.setChecked(True)
+        self.saved_positions_action.setToolTip(
+            self.tr("Janelas arrastadas no jogo ficam na posição gravada no User.ini da pasta do jogo")
+        )
+        self.saved_positions_action.toggled.connect(lambda _checked: self._place_game_screen())
+        self.background_action = QAction(self.tr("Escolher captura de tela do jogo…"), self)
+        self.background_action.triggered.connect(self.choose_game_background)
+        self.clear_background_action = QAction(self.tr("Remover captura de fundo"), self)
+        self.clear_background_action.setEnabled(self.game_background_path is not None)
+        self.clear_background_action.triggered.connect(lambda: self.set_game_background(None))
+        self._sync_resolution_actions()
         self.lock_action = QAction(self.tr("Bloquear selecionado"), self)
         self.lock_action.setShortcut("Ctrl+Shift+L")
+        self.lock_action.setIcon(icon("lock", size=16))
         self.lock_action.setIconText(self.tr("Bloquear"))
         self.lock_action.setEnabled(False)
         self.lock_action.triggered.connect(self.toggle_selected_lock)
         self.hide_action = QAction(self.tr("Ocultar selecionado"), self)
         self.hide_action.setShortcut("Ctrl+Shift+H")
+        self.hide_action.setIcon(icon("eye-off", size=16))
         self.hide_action.setIconText(self.tr("Ocultar"))
         self.hide_action.setEnabled(False)
         self.hide_action.triggered.connect(self.toggle_selected_hidden)
         self.isolate_action = QAction(self.tr("Isolar selecionado"), self)
         self.isolate_action.setShortcut("Ctrl+Shift+I")
+        self.isolate_action.setIcon(icon("focus", size=16))
         self.isolate_action.setIconText(self.tr("Isolar"))
         self.isolate_action.setEnabled(False)
         self.isolate_action.triggered.connect(self.toggle_isolation)
 
     def _create_menus_and_toolbar(self) -> None:
         file_menu = self.menuBar().addMenu(self.tr("Arquivo"))
+        file_menu.addAction(self.new_project_action)
+        file_menu.addAction(self.open_project_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
+        project_menu = self.menuBar().addMenu(self.tr("Projeto"))
+        project_menu.addAction(self.test_action)
+        project_menu.addAction(self.export_action)
+        project_menu.addSeparator()
+        project_menu.addAction(self.project_folder_action)
         edit_menu = self.menuBar().addMenu(self.tr("Editar"))
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
@@ -596,6 +892,21 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.atlas_action)
         view_menu.addAction(self.reload_textures_action)
         view_menu.addAction(self.watch_textures_action)
+        view_menu.addSeparator()
+        view_menu.addAction(self.preview_action)
+        resolution_menu = view_menu.addMenu(self.tr("Resolução do jogo"))
+        self.resolution_menu = resolution_menu
+        resolution_menu.addAction(self.resolution_game_action)
+        resolution_menu.addAction(self.resolution_off_action)
+        resolution_menu.addSeparator()
+        for action in self.resolution_preset_actions.values():
+            resolution_menu.addAction(action)
+        resolution_menu.addAction(self.resolution_custom_action)
+        resolution_menu.addSeparator()
+        resolution_menu.addAction(self.saved_positions_action)
+        resolution_menu.addSeparator()
+        resolution_menu.addAction(self.background_action)
+        resolution_menu.addAction(self.clear_background_action)
         view_menu.addSeparator()
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
@@ -610,6 +921,7 @@ class EditorWindow(QMainWindow):
         language_actions.setExclusive(True)
         for code, label in LANGUAGE_NAMES:
             action = language_menu.addAction(label)
+            action.setData(code)
             action.setCheckable(True)
             action.setChecked(code == self.language)
             language_actions.addAction(action)
@@ -621,15 +933,33 @@ class EditorWindow(QMainWindow):
         help_menu.addAction(self.about_action)
         toolbar = self.addToolBar("Principal")
         toolbar.setMovable(False)
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        toolbar.addAction(self.open_action)
+        toolbar.setIconSize(QSize(18, 18))
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        toolbar.addAction(self.new_project_action)
+        toolbar.addAction(self.open_project_action)
         toolbar.addAction(self.save_action)
         toolbar.addSeparator()
         toolbar.addAction(self.undo_action)
         toolbar.addAction(self.redo_action)
         toolbar.addSeparator()
-        toolbar.addAction(self.fit_action)
+        toolbar.addAction(self.labels_action)
         toolbar.addAction(self.reload_textures_action)
+        for spacer_index in range(2):
+            spacer = QWidget()
+            spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            spacer.setObjectName("transparent")
+            toolbar.addWidget(spacer)
+            if spacer_index == 0:
+                self.breadcrumb = QLabel()
+                self.breadcrumb.setObjectName("breadcrumb")
+                self.breadcrumb.setTextFormat(Qt.TextFormat.RichText)
+                self.breadcrumb_action = toolbar.addWidget(self.breadcrumb)
+        toolbar.addAction(self.test_action)
+        for action, name in ((self.save_action, "saveButton"), (self.test_action, "accentButton")):
+            button = toolbar.widgetForAction(action)
+            button.setObjectName(name)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.main_toolbar = toolbar
 
     def show_about(self) -> None:
         AboutDialog(self).exec()
@@ -637,121 +967,275 @@ class EditorWindow(QMainWindow):
     def _choose_language(self, language: str) -> None:
         if language == self.language or language not in LANGUAGES:
             return
+        if not self._save_before_project_action():
+            self._sync_language_menu()
+            return
         QSettings("Local", "GF UI Editor").setValue("language", language)
-        self.language = language
-        QMessageBox.information(
-            self,
-            self.tr("Idioma alterado"),
-            self.tr("Reinicie o GF UI Editor para aplicar o novo idioma."),
-        )
+        application = QApplication.instance()
+        switch_language(application, language)
+        # Os textos são definidos ao montar a janela: recriá-la aplica o idioma
+        # sem reiniciar, reabrindo o mesmo projeto e o mesmo XML.
+        window = EditorWindow(language=language)
+        if self.project is not None:
+            window.open_project(self.project.root)
+        if self.document is not None:
+            window.open_document(self.document.path)
+        window.set_game_resolution(self.game_resolution)
+        window.preview_action.setChecked(self.preview_action.isChecked())
+        window.restoreGeometry(self.saveGeometry())
+        window.show()
+        application._main_window = window
+        self._closing_for_language = True
+        self.close()
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(
             stylesheet(
                 """
+            * { font-family: "${UI_FONT}", "Segoe UI", sans-serif; }
             QMainWindow, QWidget {
                 background: ${WINDOW_BG};
                 color: ${TEXT_PRIMARY};
-                font-size: 12px;
+                font-size: 13px;
             }
-            QMenuBar, QMenu, QToolBar, QStatusBar {
-                background: ${CHROME_BG};
+            QWidget#transparent, QWidget#emptyPage QWidget#transparent { background: transparent; }
+            QMenuBar, QStatusBar { background: ${CHROME_BG}; color: ${TEXT_MUTED}; }
+            QMenuBar { border-bottom: 1px solid ${BORDER_CHROME}; padding: 2px 6px; }
+            QMenuBar::item { padding: 5px 9px; border-radius: 6px; background: transparent; }
+            QMenuBar::item:selected { background: ${MENU_HOVER_BG}; color: ${TEXT_BRIGHT}; }
+            QMenu {
+                background: ${CHIP_BG};
                 color: ${TEXT_PRIMARY};
+                border: 1px solid ${BORDER_INPUT};
+                border-radius: 8px;
+                padding: 5px;
             }
-            QMenuBar { border-bottom: 1px solid ${BORDER_CHROME}; }
-            QMenuBar::item:selected, QMenu::item:selected { background: ${MENU_HOVER_BG}; }
+            QMenu::item { padding: 6px 22px 6px 12px; border-radius: 5px; }
+            QMenu::item:selected { background: ${ACCENT_SOFT_BG}; color: ${TEXT_BRIGHT}; }
+            QMenu::separator { height: 1px; background: ${BORDER_INPUT}; margin: 5px 6px; }
             QMenu::item:disabled, QMenu::item:selected:disabled,
             QMenuBar::item:disabled, QMenuBar::item:selected:disabled {
                 color: ${TEXT_DISABLED};
                 background: transparent;
             }
             QToolBar {
+                background: ${WINDOW_BG};
                 border: 0;
                 border-bottom: 1px solid ${BORDER_CHROME};
                 spacing: 4px;
-                padding: 5px 7px;
+                padding: 6px 10px;
             }
+            QToolBar::separator { width: 1px; background: ${BORDER_INPUT}; margin: 7px 6px; }
             QToolButton {
+                background: transparent;
                 border: 1px solid transparent;
-                border-radius: 5px;
-                padding: 5px 8px;
+                border-radius: 8px;
+                padding: 6px;
+                color: ${TEXT_PRIMARY};
             }
             QToolButton:hover { background: ${BUTTON_HOVER_BG}; border-color: ${BUTTON_HOVER_BORDER}; }
-            QToolButton:pressed { background: ${BUTTON_PRESSED_BG}; }
+            QToolButton:pressed, QToolButton:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; }
             QToolButton:disabled { color: ${TEXT_DISABLED}; }
-            QToolButton#languageButton {
-                background: ${INPUT_BG};
-                border-color: ${BORDER_PANEL};
-                margin: 2px 8px 2px 0;
+            QToolButton#saveButton {
+                background: ${BUTTON_HOVER_BG};
+                border-color: ${BORDER_INPUT};
+                color: ${TEXT_BRIGHT};
+                font-weight: 500;
+                padding: 6px 12px;
             }
+            QToolButton#saveButton:disabled { color: ${TEXT_DISABLED}; background: transparent; }
+            QToolButton#accentButton {
+                background: ${ACCENT_BG};
+                color: ${WHITE};
+                border: 0;
+                font-weight: 600;
+                padding: 7px 16px;
+            }
+            QToolButton#accentButton:hover { background: ${ACCENT_HOVER_BG}; }
+            QToolButton#accentButton:disabled { background: ${BUTTON_HOVER_BG}; color: ${TEXT_DISABLED}; }
+            QLabel#breadcrumb {
+                background: ${CHIP_BG};
+                border: 1px solid ${BORDER_INPUT};
+                border-radius: 8px;
+                padding: 5px 12px;
+                color: ${TEXT_MUTED};
+            }
+            QToolButton#languageButton {
+                background: transparent;
+                border-color: ${BORDER_INPUT};
+                margin: 2px 6px 2px 0;
+                padding: 3px 9px;
+            }
+            QPushButton {
+                background: ${BUTTON_HOVER_BG};
+                color: ${TEXT_PRIMARY};
+                border: 1px solid ${BORDER_INPUT};
+                border-radius: 7px;
+                padding: 7px 12px;
+            }
+            QPushButton:hover { border-color: ${SCROLLBAR_HANDLE}; color: ${TEXT_BRIGHT}; }
             QPushButton:disabled, QCheckBox:disabled { color: ${TEXT_DISABLED}; }
-            QWidget#treePanel, QWidget#propertiesPanel { background: ${PANEL_BG}; }
-            QWidget#canvasHeader { background: ${PANEL_BG}; border-bottom: 1px solid ${BORDER_PANEL}; }
+            QPushButton#startCard, QPushButton#accentCard {
+                background: ${CARD_BG};
+                border-radius: 12px;
+                padding: 16px;
+                text-align: left;
+                color: ${TEXT_MUTED};
+            }
+            QPushButton#accentCard { border-color: ${ACCENT_BG}; }
+            QPushButton#startCard:hover, QPushButton#accentCard:hover { background: ${BUTTON_HOVER_BG}; color: ${TEXT_PRIMARY}; }
+            QWidget#recentBox { background: ${PANEL_BG}; border: 1px solid ${CARD_BORDER}; border-radius: 12px; }
+            QPushButton#recentRow {
+                background: transparent;
+                border: 0;
+                border-bottom: 1px solid ${BORDER_PANEL};
+                border-radius: 0;
+                padding: 10px 14px;
+                text-align: left;
+                color: ${TEXT_MUTED};
+            }
+            QPushButton#recentRow:hover { background: ${BUTTON_HOVER_BG}; color: ${TEXT_PRIMARY}; }
+            QWidget#emptyPage { background: ${CANVAS_BG}; }
+            QLabel#cardHeading { font-size: 15px; font-weight: 600; color: ${TEXT_BRIGHT}; background: transparent; }
+            QPushButton#startCard QLabel, QPushButton#accentCard QLabel { background: transparent; }
+            QLabel#heroTitle { font-size: 26px; font-weight: 600; color: ${TEXT_BRIGHT}; background: transparent; }
+            QLabel#heroSubtitle { font-size: 14px; color: ${TEXT_MUTED}; background: transparent; }
+            QWidget#treePanel, QWidget#propertiesPanel, QScrollArea#propertiesScroll { background: ${PANEL_BG}; }
             QLabel#sectionLabel {
                 color: ${TEXT_SECTION};
                 font-size: 10px;
-                font-weight: 700;
+                font-weight: 600;
                 letter-spacing: 1px;
+                background: transparent;
             }
-            QLabel#panelTitle { color: ${TEXT_TITLE}; font-size: 17px; font-weight: 700; }
-            QLabel#panelSubtitle, QLabel#canvasHint { color: ${TEXT_SUBTITLE}; }
-            QLabel#fieldLabel { color: ${TEXT_SUBTITLE}; }
-            QLabel#fieldValue { color: ${TEXT_BRIGHT}; font-weight: 600; }
-            QToolButton#inspectorAction {
-                background: ${INPUT_BG};
-                color: ${TEXT_PRIMARY};
-                border: 1px solid ${BORDER_PANEL};
+            QLabel#panelTitle { color: ${TEXT_TITLE}; font-size: 16px; font-weight: 600; background: transparent; }
+            QLabel#panelSubtitle, QLabel#canvasHint { color: ${TEXT_SUBTITLE}; background: transparent; }
+            QLabel#fieldLabel { color: ${TEXT_SUBTITLE}; background: transparent; }
+            QLabel#fieldValue { color: ${TEXT_BRIGHT}; font-weight: 500; background: transparent; }
+            QLabel#monoCaption, QLabel#zoomLabel {
+                font-family: "${MONO_FONT}", Consolas, monospace;
+                font-size: 12px;
+                color: ${TEXT_MUTED};
+                background: transparent;
+            }
+            QLabel#zoomLabel { color: ${TEXT_BRIGHT}; }
+            QLabel#badge {
+                background: ${ACCENT_SOFT_BG};
+                color: ${ACCENT_TEXT};
                 border-radius: 5px;
+                padding: 2px 7px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QLabel#hintBox {
+                background: ${ACCENT_SOFT_BG};
+                color: ${ACCENT_TEXT};
+                border-radius: 7px;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+            QLabel#chip {
+                background: ${CHIP_BG};
+                color: ${TEXT_MUTED};
+                border-radius: 9px;
+                padding: 1px 9px;
+                margin: 3px 2px;
+                font-size: 11px;
+            }
+            QFrame#card {
+                background: ${CARD_BG};
+                border: 1px solid ${CARD_BORDER};
+                border-radius: 10px;
+            }
+            QFrame#card QWidget { background: transparent; }
+            QFrame#floatingBar {
+                background: ${CHIP_BG};
+                border: 1px solid ${BORDER_INPUT};
+                border-radius: 10px;
+            }
+            QFrame#floatingBar QToolButton#pill { border-radius: 7px; padding: 4px 9px; color: ${TEXT_PRIMARY}; }
+            QFrame#floatingBar QToolButton#pill:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; }
+            QFrame#floatingBar QToolButton::menu-indicator { image: none; width: 0; }
+            QToolButton#inspectorAction {
+                background: ${BUTTON_HOVER_BG};
+                border: 1px solid ${BORDER_INPUT};
+                border-radius: 7px;
                 padding: 6px 4px;
             }
-            QToolButton#inspectorAction:hover { background: ${BUTTON_HOVER_BG}; border-color: ${BUTTON_HOVER_BORDER}; }
-            QToolButton#inspectorAction:pressed { background: ${BUTTON_PRESSED_BG}; }
             QToolButton#inspectorAction:focus { border-color: ${FOCUS_BLUE}; }
             QPushButton#githubButton {
-                background: ${TREE_SELECTED_BG};
+                background: ${ACCENT_BG};
                 color: ${WHITE};
-                border: 1px solid ${FOCUS_BLUE};
-                border-radius: 6px;
+                border: 0;
+                border-radius: 7px;
                 padding: 7px 12px;
             }
-            QPushButton#githubButton:hover { background: ${SELECTION_BLUE}; }
-            QPushButton#githubButton:focus { border-color: ${TEXT_BRIGHT}; }
-            QLineEdit, QSpinBox, QPlainTextEdit {
+            QPushButton#githubButton:hover { background: ${ACCENT_HOVER_BG}; }
+            QLineEdit, QSpinBox, QPlainTextEdit, QComboBox {
                 background: ${INPUT_BG};
                 color: ${TEXT_BRIGHT};
                 border: 1px solid ${BORDER_INPUT};
-                border-radius: 5px;
-                padding: 5px 7px;
-                selection-background-color: ${SELECTION_BLUE};
+                border-radius: 7px;
+                padding: 6px 9px;
+                selection-background-color: ${ACCENT_BG};
             }
-            QLineEdit:focus, QSpinBox:focus { border-color: ${FOCUS_BLUE}; }
-            QLineEdit:read-only { color: ${TEXT_READONLY}; background: transparent; border-color: transparent; }
+            QSpinBox#monoSpin { font-family: "${MONO_FONT}", Consolas, monospace; }
+            QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border-color: ${FOCUS_BLUE}; }
+            QLineEdit:read-only { color: ${TEXT_READONLY}; background: transparent; border-color: transparent; padding-left: 0; }
+            QComboBox QAbstractItemView { background: ${CHIP_BG}; border: 1px solid ${BORDER_INPUT}; selection-background-color: ${ACCENT_SOFT_BG}; }
             QTreeWidget {
-                background: ${PANEL_BG};
-                alternate-background-color: ${TREE_ALTERNATE_BG};
-                border: 1px solid ${BORDER_PANEL};
-                border-radius: 6px;
+                background: transparent;
+                alternate-background-color: transparent;
+                border: 0;
                 outline: 0;
             }
-            QTreeWidget::item { min-height: 23px; }
-            QTreeWidget::item:selected { background: ${TREE_SELECTED_BG}; color: ${WHITE}; }
+            QTreeWidget::item { min-height: 26px; border-radius: 6px; padding-left: 4px; }
+            QTreeWidget::item:selected { background: ${TREE_SELECTED_BG}; color: ${TEXT_BRIGHT}; }
             QTreeWidget::item:hover:!selected { background: ${TREE_HOVER_BG}; }
             QHeaderView::section {
-                background: ${INPUT_BG};
+                background: transparent;
                 color: ${TEXT_HEADER};
                 border: 0;
-                border-bottom: 1px solid ${BORDER_INPUT};
+                border-bottom: 1px solid ${BORDER_PANEL};
                 padding: 6px;
+                font-size: 11px;
                 font-weight: 600;
             }
+            QTabWidget#sideTabs::pane { border: 0; background: ${PANEL_BG}; }
+            QTabWidget#sideTabs QTabBar { background: ${PANEL_BG}; }
+            QTabWidget#sideTabs QTabBar::tab {
+                background: transparent;
+                color: ${TEXT_SUBTITLE};
+                padding: 10px 14px 8px;
+                border: 0;
+                border-bottom: 2px solid transparent;
+                font-weight: 500;
+            }
+            QTabWidget#sideTabs QTabBar::tab:selected { color: ${TEXT_BRIGHT}; border-bottom-color: ${ACCENT_BG}; font-weight: 600; }
+            QTabWidget#sideTabs QTabBar::tab:hover:!selected { color: ${TEXT_PRIMARY}; }
             QSplitter::handle { background: ${BORDER_PANEL}; }
             QSplitter::handle:horizontal { width: 1px; }
-            QScrollBar:vertical, QScrollBar:horizontal { background: ${WINDOW_BG}; border: 0; }
-            QScrollBar::handle { background: ${SCROLLBAR_HANDLE}; border-radius: 4px; min-height: 24px; min-width: 24px; }
-            QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
-            QStatusBar { border-top: 1px solid ${BORDER_CHROME}; color: ${TEXT_STATUS}; }
-            QToolTip { background: ${TOOLTIP_BG}; color: ${TEXT_BRIGHT}; border: 1px solid ${BORDER_TOOLTIP}; }
-                """
+            QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; border: 0; }
+            QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; border: 0; }
+            QScrollBar::handle { background: ${SCROLLBAR_HANDLE}; border-radius: 3px; min-height: 28px; min-width: 28px; }
+            QScrollBar::handle:hover { background: ${TEXT_DISABLED}; }
+            QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page { width: 0; height: 0; background: transparent; }
+            QAbstractScrollArea::corner { background: transparent; border: 0; }
+            QStatusBar { border-top: 1px solid ${BORDER_CHROME}; font-size: 11px; }
+            QStatusBar::item { border: 0; }
+            QToolTip { background: ${TOOLTIP_BG}; color: ${TEXT_BRIGHT}; border: 1px solid ${BORDER_TOOLTIP}; padding: 4px 6px; }
+            QDialog { background: ${PANEL_BG}; }
+            QCheckBox { spacing: 8px; background: transparent; }
+            QCheckBox::indicator {
+                width: 15px; height: 15px;
+                border: 1px solid ${SCROLLBAR_HANDLE};
+                border-radius: 4px;
+                background: ${INPUT_BG};
+            }
+            QCheckBox::indicator:hover { border-color: ${FOCUS_BLUE}; }
+            QCheckBox::indicator:checked { background: ${ACCENT_BG}; border-color: ${ACCENT_BORDER}; }
+            QDialog QLabel, QDialog QWidget#transparent { background: transparent; }
+                """.replace("${UI_FONT}", UI_FONT).replace("${MONO_FONT}", MONO_FONT)
             )
         )
 
@@ -772,6 +1256,11 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(exc))
             return
         self.document = document
+        if self.project is not None and self.project.contains(document.path):
+            QSettings("Local", "GF UI Editor").setValue(
+                f"last_file/{self.project.custom_name}",
+                document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix(),
+            )
         self._texture_generation += 1
         ui_directory = document.path.parent.resolve()
         if self.texture_cache is None or self.texture_cache.ui_directory != ui_directory:
@@ -793,6 +1282,7 @@ class EditorWindow(QMainWindow):
         self._watch_texture_files()
         self._update_element_actions()
         self._update_title()
+        self._refresh_files()
         self.fit_scene()
         self._start_texture_loading()
 
@@ -812,10 +1302,169 @@ class EditorWindow(QMainWindow):
             )
             item.set_labels_visible(self.labels_action.isChecked())
             item.set_texture_visible(self.textures_action.isChecked())
+            item.set_preview_mode(self.preview_action.isChecked())
             self.scene.addItem(item)
             self.items[element.index] = item
-        bounds = self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50)
-        self.scene.setSceneRect(bounds)
+        self.game_screen_item = None
+        self._refresh_game_screen()
+
+    def _refresh_game_screen(self) -> None:
+        if self.game_screen_item is not None:
+            self.scene.removeItem(self.game_screen_item)
+            self.game_screen_item = None
+        if self.game_resolution is not None:
+            background = None
+            if self.game_background_path is not None and self.game_background_path.is_file():
+                background = QPixmap(str(self.game_background_path))
+            width, height = self.game_resolution
+            self.game_screen_item = GameScreenItem(width, height, background)
+            self.scene.addItem(self.game_screen_item)
+            self._place_game_screen()
+        self.clear_background_action.setEnabled(self.game_background_path is not None)
+        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
+
+    def _place_game_screen(self) -> None:
+        """Desloca a moldura para que a raiz caia onde o jogo a desenharia.
+
+        Os elementos continuam nas coordenadas do XML; só a tela se move.
+        """
+        if self.game_screen_item is None or self.game_resolution is None:
+            return
+        width, height = self.game_resolution
+        caption = f"{width} × {height}"
+        if self.document is not None and self.document.elements:
+            root = self.document.elements[0]
+            name = self.document.path.name
+            section = saved_section_for(name)
+            saved = None
+            if section and self.saved_positions_action.isChecked():
+                # O XML fica em <jogo>/UI; o User.ini, na pasta do jogo.
+                user_ini = self.document.path.parent.parent / "User.ini"
+                saved = load_user_positions(user_ini).get(section)
+            screen_x, screen_y = root_screen_position(
+                name, self.game_resolution, root.geometry, saved
+            )
+            self.game_screen_item.setPos(root.x - screen_x, root.y - screen_y)
+            caption += " · " + self.tr("janela no jogo em ({x}, {y})").format(x=screen_x, y=screen_y)
+            if rule_for(name) is None and saved_position_applies(self.game_resolution, root.geometry, saved):
+                caption += " · " + self.tr("posição salva no User.ini [{section}]").format(section=section)
+            elif rule_for(name) is not None:
+                caption += " · " + self.tr("posição definida pelo cliente")
+        else:
+            self.game_screen_item.setPos(0, 0)
+        self.game_screen_item.set_caption(caption)
+
+    def _client_resolution(self) -> tuple[int, int]:
+        game_dir = self._game_dir()
+        return (client_resolution(game_dir) if game_dir is not None else None) or (1024, 768)
+
+    def follow_client_resolution(self) -> None:
+        QSettings("Local", "GF UI Editor").setValue("game_resolution", "game")
+        self.follow_game_resolution = True
+        self.game_resolution = self._client_resolution()
+        self._sync_resolution_actions()
+        self._refresh_game_screen()
+
+    def _sync_resolution_actions(self) -> None:
+        if hasattr(self, "resolution_button"):
+            if self.game_resolution is None:
+                text = self.tr("Sem moldura")
+            else:
+                text = f"{self.game_resolution[0]} × {self.game_resolution[1]}"
+                if self.follow_game_resolution:
+                    text += " · " + self.tr("jogo")
+            self.resolution_button.setText(text)
+        if self.follow_game_resolution and self.game_resolution is not None:
+            self.resolution_game_action.setChecked(True)
+            self.resolution_game_action.setText(
+                self.tr("Igual ao jogo ({width} × {height})").format(width=self.game_resolution[0], height=self.game_resolution[1])
+            )
+        elif self.game_resolution is None:
+            self.resolution_off_action.setChecked(True)
+        elif self.game_resolution in self.resolution_preset_actions:
+            self.resolution_preset_actions[self.game_resolution].setChecked(True)
+        else:
+            self.resolution_custom_action.setChecked(True)
+        if self.resolution_custom_action.isChecked() and self.game_resolution is not None:
+            width, height = self.game_resolution
+            self.resolution_custom_action.setText(
+                self.tr("Personalizada ({width} × {height})…").format(width=width, height=height)
+            )
+        else:
+            self.resolution_custom_action.setText(self.tr("Personalizada…"))
+
+    def set_game_resolution(self, resolution: tuple[int, int] | None) -> None:
+        self.game_resolution = resolution
+        self.follow_game_resolution = False
+        QSettings("Local", "GF UI Editor").setValue(
+            "game_resolution", f"{resolution[0]}x{resolution[1]}" if resolution else "off"
+        )
+        self._sync_resolution_actions()
+        self._refresh_game_screen()
+
+    def choose_custom_resolution(self) -> None:
+        width, height = self.game_resolution or (1024, 768)
+        text, accepted = QInputDialog.getText(
+            self,
+            self.tr("Resolução do jogo"),
+            self.tr("Largura × altura (ex.: 1366x768):"),
+            text=f"{width}x{height}",
+        )
+        resolution = parse_resolution(text) if accepted else None
+        if accepted and resolution is None:
+            QMessageBox.warning(
+                self,
+                self.tr("Resolução inválida"),
+                self.tr("Use o formato largura x altura, por exemplo 1366x768."),
+            )
+        if resolution is None:
+            self._sync_resolution_actions()
+            return
+        self.set_game_resolution(resolution)
+
+    def choose_game_background(self) -> None:
+        game_dir = self._game_dir()
+        captures = game_dir / "ScreenCapture" if game_dir is not None else None
+        if self.game_background_path:
+            start = str(self.game_background_path.parent)
+        else:
+            start = str(captures) if captures is not None and captures.is_dir() else ""
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Escolher captura de tela do jogo"),
+            start,
+            self.tr("Imagens (*.png *.jpg *.jpeg *.bmp)"),
+        )
+        if filename:
+            self.set_game_background(Path(filename))
+
+    def set_game_background(self, path: Path | None) -> None:
+        self.game_background_path = path
+        QSettings("Local", "GF UI Editor").setValue("game_background", str(path) if path else "")
+        if path is not None:
+            # A captura define a resolução: o jogo desenha a UI em pixels de
+            # tela, então a moldura passa a ter exatamente o tamanho da imagem.
+            pixmap = QPixmap(str(path))
+            if not pixmap.isNull():
+                size = (pixmap.width(), pixmap.height())
+                game_size = self._client_resolution()
+                self.set_game_resolution(size)
+                if size != game_size:
+                    self.statusBar().showMessage(
+                        self.tr(
+                            "A captura tem {w}×{h}, mas o jogo está configurado para {gw}×{gh}. "
+                            "Para o preview bater, capture só a área do jogo na resolução em que você joga."
+                        ).format(w=size[0], h=size[1], gw=game_size[0], gh=game_size[1]),
+                        15000,
+                    )
+                return
+        self._refresh_game_screen()
+
+    def set_preview_mode(self, enabled: bool) -> None:
+        for item in self.items.values():
+            item.set_preview_mode(enabled)
+        if enabled:
+            self.labels_action.setChecked(False)
 
     def _start_texture_loading(self) -> None:
         assert self.document is not None and self.texture_cache is not None
@@ -916,11 +1565,19 @@ class EditorWindow(QMainWindow):
         finally:
             self._syncing_selection = False
 
+    def _anchor_hint_for(self, index: int) -> str | None:
+        if self.document is None or index != 0:
+            return None
+        if rule_for(self.document.path.name) is not None:
+            return self.tr("O jogo posiciona esta janela sozinho; mover a raiz não muda onde ela aparece no jogo.")
+        return None
+
     def _set_primary_selection(self, index: int, selection_count: int) -> None:
         assert self.document is not None
         self.selected_index = index
         self.view.set_interaction_priority(self.items[index])
         self.properties.set_element(self.document.elements[index])
+        self.properties.set_anchor_hint(self._anchor_hint_for(index))
         self.properties.set_enabled(index not in self.locked_indexes)
         if self.isolated_index is not None and self.isolated_index != index:
             previous_isolated_index = self.isolated_index
@@ -1049,6 +1706,8 @@ class EditorWindow(QMainWindow):
         assert self.document is not None
         self.document.set_geometry(index, geometry)
         self.items[index].apply_element(self.document.elements[index])
+        if index == 0:
+            self._place_game_screen()
         if self.selected_index == index:
             self.properties.set_element(self.document.elements[index])
         self._update_title()
@@ -1188,14 +1847,13 @@ class EditorWindow(QMainWindow):
                     self.tr("A textura {name} não está disponível.").format(name=texture_path.name), 5000
                 )
             return
-        resolved = texture_path.resolve()
-        self.texture_cache.invalidate(resolved)
+        self.texture_cache.invalidate(texture_path)
         refreshed = 0
+        changed_name = texture_path.name.lower()
         for element in self.document.elements:
             if not element.texture_name:
                 continue
-            element_path = self.texture_cache.path_for(element.texture_name)
-            if element_path is not None and element_path.resolve() == resolved:
+            if element.texture_name.lower() == changed_name:
                 self._refresh_element_texture(element.index)
                 refreshed += 1
         self._reload_open_atlas()
@@ -1355,7 +2013,13 @@ class EditorWindow(QMainWindow):
     def fit_scene(self) -> None:
         if not self.scene.items():
             return
-        self.view.fitInView(self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20), Qt.AspectRatioMode.KeepAspectRatio)
+        bounds = QRectF()
+        for item in self.items.values():
+            bounds = bounds.united(item.sceneBoundingRect())
+        if self.game_screen_item is not None:
+            bounds = bounds.united(self.game_screen_item.sceneBoundingRect())
+        self.view.fitInView(bounds.adjusted(-20, -20, 20, 20), Qt.AspectRatioMode.KeepAspectRatio)
+        self.view.notify_zoom()
 
     def save_document(self) -> None:
         if self.document is None:
@@ -1365,8 +2029,11 @@ class EditorWindow(QMainWindow):
             return
         if not self._confirm_diff_preview():
             return
+        in_project = self.project is not None and self.project.contains(self.document.path)
         try:
-            backup = self.document.save()
+            backup = self.document.save(
+                self.project.history_path_for(self.document.path) if in_project else None
+            )
         except ExternalModificationError as exc:
             QMessageBox.warning(self, self.tr("Arquivo alterado externamente"), document_error_text(exc))
             return
@@ -1375,11 +2042,528 @@ class EditorWindow(QMainWindow):
             return
         self.undo_stack.clear()
         self._update_title()
+        if in_project:
+            self.project.prune_history(self.document.path)
+            self._refresh_files()
+            self.statusBar().showMessage(
+                self.tr("Salvo. Backup no histórico do projeto. F5 testa no jogo."), 8000
+            )
+            return
         self.statusBar().showMessage(self.tr("Salvo. Backup: {name}").format(name=backup.name), 10000)
         QMessageBox.information(
             self,
             self.tr("XML salvo"),
             self.tr("As alterações foram salvas.\n\nBackup exato:\n{path}").format(path=backup),
+        )
+
+    # ---- visual --------------------------------------------------------------
+    def _build_empty_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("emptyPage")
+        outer = QVBoxLayout(page)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        column = QWidget()
+        column.setObjectName("transparent")
+        column.setFixedWidth(620)
+        layout = QVBoxLayout(column)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(20)
+        title = QLabel()
+        title.setObjectName("heroTitle")
+        self.hero_title = title
+        subtitle = QLabel()
+        subtitle.setObjectName("heroSubtitle")
+        self.hero_subtitle = subtitle
+        subtitle.setWordWrap(True)
+        cards = QHBoxLayout()
+        cards.setSpacing(12)
+        for icon_name, heading, text, slot, accent in (
+            ("folder-plus", self.tr("Novo projeto"), self.tr("A partir da UI em uso, de uma UI do UICustom ou de outra pasta."), self.new_project, True),
+            ("file", self.tr("Abrir um XML solto"), self.tr("Edita direto no arquivo, sem projeto (o launcher pode sobrescrever)."), self.choose_document, False),
+        ):
+            card = QPushButton()
+            card.setObjectName("accentCard" if accent else "startCard")
+            card.setAccessibleName(heading)
+            card.setMinimumHeight(132)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(16, 16, 16, 16)
+            card_layout.setSpacing(8)
+            glyph = QLabel()
+            glyph.setPixmap(icon(icon_name, COLORS["ACCENT_TEXT"] if accent else COLORS["ICON"], 22).pixmap(22, 22))
+            heading_label = QLabel(heading)
+            heading_label.setObjectName("cardHeading")
+            text_label = QLabel(text)
+            text_label.setObjectName("panelSubtitle")
+            text_label.setWordWrap(True)
+            for label in (glyph, heading_label, text_label):
+                label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                card_layout.addWidget(label)
+            card_layout.addStretch(1)
+            card.clicked.connect(slot)
+            cards.addWidget(card)
+        recent_label = QLabel(self.tr("RECENTES"))
+        recent_label.setObjectName("sectionLabel")
+        self.recent_box = QWidget()
+        self.recent_box.setObjectName("recentBox")
+        self.recent_layout = QVBoxLayout(self.recent_box)
+        self.recent_layout.setContentsMargins(0, 0, 0, 0)
+        self.recent_layout.setSpacing(0)
+        key = f"<span style='font-family:\"{MONO_FONT}\";color:{COLORS['TEXT_PRIMARY']};background:{COLORS['BUTTON_HOVER_BG']}'>&nbsp;%s&nbsp;</span>"
+        shortcuts = QLabel(
+            self.tr("{a} novo projeto &nbsp;&nbsp;&nbsp; {b} abrir projeto &nbsp;&nbsp;&nbsp; {c} testar no jogo").format(
+                a=key % "Ctrl+Shift+N", b=key % "Ctrl+Shift+O", c=key % "F5"
+            )
+        )
+        shortcuts.setObjectName("panelSubtitle")
+        shortcuts.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addLayout(cards)
+        layout.addSpacing(8)
+        layout.addWidget(recent_label)
+        layout.addWidget(self.recent_box)
+        layout.addWidget(shortcuts)
+        outer.addWidget(column)
+        self.recent_label = recent_label
+        return page
+
+    def _refresh_recent_projects(self) -> None:
+        while self.recent_layout.count():
+            widget = self.recent_layout.takeAt(0).widget()
+            if widget is not None:
+                widget.deleteLater()
+        projects = sorted(
+            list_projects(), key=lambda root: (root / "project.json").stat().st_mtime, reverse=True
+        )[:5]
+        self.recent_label.setVisible(bool(projects))
+        self.recent_box.setVisible(bool(projects))
+        for root in projects:
+            try:
+                project = Project.load(root)
+                title = project.name
+                details = self.tr("{count} arquivos · {path}").format(count=len(project.base_hashes), path=root.parent.name)
+            except (OSError, ValueError):
+                title, details = root.name, str(root)
+            button = QPushButton(f"{title}\n{details}")
+            button.setToolTip(str(root))
+            button.setObjectName("recentRow")
+            button.setIcon(icon("package", COLORS["ACCENT_TEXT"]))
+            button.clicked.connect(lambda _checked=False, path=root: self.open_project(path))
+            self.recent_layout.addWidget(button)
+
+    def _update_center_page(self) -> None:
+        if self.document is None:
+            if self.project is not None:
+                self.hero_title.setText(self.project.name)
+                self.hero_subtitle.setText(
+                    self.tr("Escolha um XML na aba Arquivos para começar a editar. Os alterados aparecem no topo; F5 publica no jogo.")
+                )
+            else:
+                self.hero_title.setText(self.tr("Comece um projeto de UI"))
+                self.hero_subtitle.setText(
+                    self.tr("Você edita uma cópia fora da pasta do jogo. Quando quiser ver o resultado, aperte F5 para publicar e abrir o jogo.")
+                )
+            self._refresh_recent_projects()
+            self.center_stack.setCurrentWidget(self.empty_page)
+        else:
+            self.center_stack.setCurrentWidget(self.view)
+
+    def _build_canvas_overlays(self) -> None:
+        bar = QFrame(self.view)
+        bar.setObjectName("floatingBar")
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(4, 4, 4, 4)
+        bar_layout.setSpacing(2)
+
+        def bar_button(text: str = "", action: QAction | None = None) -> QToolButton:
+            button = QToolButton()
+            button.setObjectName("pill")
+            if action is not None:
+                button.setDefaultAction(action)
+                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+                button.setIconSize(QSize(15, 15))
+            else:
+                button.setText(text)
+            bar_layout.addWidget(button)
+            return button
+
+        bar_button(action=self.preview_action)
+        self.resolution_button = bar_button()
+        self.resolution_button.setIcon(icon("monitor", size=15))
+        self.resolution_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.resolution_button.setMenu(self.resolution_menu)
+        self.resolution_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        background_menu = QMenu(self)
+        background_menu.addAction(self.background_action)
+        background_menu.addAction(self.clear_background_action)
+        self.background_button = bar_button(self.tr("Fundo"))
+        self.background_button.setIcon(icon("image", size=15))
+        self.background_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.background_button.setMenu(background_menu)
+        self.background_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        user_ini = bar_button(action=self.saved_positions_action)
+        user_ini.setText("User.ini")
+        self.saved_positions_action.changed.connect(lambda: user_ini.setText("User.ini"))
+        self.view.add_overlay(bar, "top")
+
+        zoom = QFrame(self.view)
+        zoom.setObjectName("floatingBar")
+        zoom_layout = QHBoxLayout(zoom)
+        zoom_layout.setContentsMargins(3, 3, 3, 3)
+        zoom_layout.setSpacing(2)
+        zoom_out = QToolButton()
+        zoom_out.setObjectName("pill")
+        zoom_out.setIcon(icon("minus", size=15))
+        zoom_out.setToolTip(self.tr("Diminuir zoom"))
+        zoom_out.clicked.connect(lambda: self.view.zoom_by(1 / 1.25))
+        self.zoom_label = QLabel("100%")
+        self.zoom_label.setObjectName("zoomLabel")
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.zoom_label.setMinimumWidth(48)
+        zoom_in = QToolButton()
+        zoom_in.setObjectName("pill")
+        zoom_in.setIcon(icon("plus", size=15))
+        zoom_in.setToolTip(self.tr("Aumentar zoom"))
+        zoom_in.clicked.connect(lambda: self.view.zoom_by(1.25))
+        fit = QToolButton()
+        fit.setObjectName("pill")
+        fit.setDefaultAction(self.fit_action)
+        fit.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        fit.setIconSize(QSize(15, 15))
+        for widget in (zoom_out, self.zoom_label, zoom_in, fit):
+            zoom_layout.addWidget(widget)
+        self.view.zoom_changed.connect(lambda factor: self.zoom_label.setText(f"{round(factor * 100)}%"))
+        self.view.add_overlay(zoom, "bottom-left")
+
+    def _build_status_chips(self) -> None:
+        self.status_chips: list[QLabel] = []
+        for _ in range(3):
+            chip = QLabel()
+            chip.setObjectName("chip")
+            chip.setVisible(False)
+            self.statusBar().addWidget(chip)
+            self.status_chips.append(chip)
+        self.cursor_position_label.setObjectName("monoCaption")
+
+    def _update_status_chips(self) -> None:
+        texts: list[str] = []
+        if self.document is not None:
+            texts.append(self.tr("{count} elementos").format(count=len(self.document.elements)))
+            changed = sum(1 for element in self.document.elements if element.changed_attributes or element.original_uv != element.uv)
+            if changed:
+                texts.append(self.tr("{count} alteração(ões) não salva(s)").format(count=changed))
+        if self.project is not None:
+            texts.append(self.tr("{name} → UICustom").format(name=self.project.custom_name))
+        for chip, text in zip(self.status_chips, texts + [""] * 3):
+            chip.setText(text)
+            chip.setVisible(bool(text))
+
+    def _update_breadcrumb(self) -> None:
+        parts = []
+        if self.project is not None:
+            parts.append(f"<span style='color:{COLORS['TEXT_BRIGHT']};font-weight:500'>{self.project.name}</span>")
+        if self.document is not None:
+            parts.append(f"<span style='font-family:\"{MONO_FONT}\";font-size:12px'>{self.document.path.name}</span>")
+        text = f"<span style='color:{COLORS['TEXT_MUTED']}'> / </span>".join(parts)
+        if self.document is not None and self.document.is_dirty:
+            text += f" <span style='color:{COLORS['SELECTION_GOLD']}'>●</span>"
+        self.breadcrumb.setText(text)
+        self.breadcrumb_action.setVisible(bool(parts))
+
+    # ---- projetos ---------------------------------------------------------
+    def _game_dir(self) -> Path | None:
+        if self.project is not None and self.project.game_dir is not None:
+            return self.project.game_dir
+        game_dir = DEFAULT_UI_DIRECTORY.parent
+        return game_dir if game_dir.is_dir() else None
+
+    def new_project(self) -> None:
+        if not self._confirm_discard_changes():
+            return
+        game_dir = self._game_dir()
+        if game_dir is None:
+            folder = QFileDialog.getExistingDirectory(self, self.tr("Pasta do Grand Fantasia Violet"))
+            if not folder:
+                return
+            game_dir = Path(folder)
+        dialog = NewProjectDialog(game_dir, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.source_dir is None:
+            return
+        try:
+            name, source = dialog.name_edit.text().strip(), dialog.source_dir
+            include_assets = dialog.assets_check.isChecked()
+            project = self._run_with_progress(
+                self.tr("Copiando arquivos da UI para o projeto…"),
+                lambda progress: Project.create(
+                    name, source, game_dir, progress=progress, include_assets=include_assets
+                ),
+            )
+        except FileExistsError as exc:
+            QMessageBox.warning(
+                self, self.tr("Projeto já existe"), self.tr("Já existe um projeto em {path}.").format(path=exc.args[0])
+            )
+            return
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Não foi possível criar o projeto"), str(exc))
+            return
+        self.open_project(project.root)
+        self.statusBar().showMessage(
+            self.tr("Projeto criado com {count} arquivos.").format(count=len(project.base_hashes)), 8000
+        )
+
+    def choose_project(self) -> None:
+        if not self._confirm_discard_changes():
+            return
+        projects = list_projects()
+        menu = QMenu(self)
+        for root in projects:
+            action = menu.addAction(root.name)
+            action.triggered.connect(lambda _checked, path=root: self.open_project(path))
+        if projects:
+            menu.addSeparator()
+        other = menu.addAction(self.tr("Procurar pasta…"))
+        other.triggered.connect(self._browse_project)
+        button = self.main_toolbar.widgetForAction(self.open_project_action)
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()) if button else self.cursor().pos())
+
+    def _browse_project(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, self.tr("Abrir projeto"), str(PROJECTS_ROOT if PROJECTS_ROOT.exists() else Path.home())
+        )
+        if not folder:
+            return
+        if not (Path(folder) / "project.json").is_file():
+            QMessageBox.warning(self, self.tr("Não é um projeto"), self.tr("A pasta escolhida não tem project.json."))
+            return
+        self.open_project(Path(folder))
+
+    def open_project(self, root: Path) -> None:
+        try:
+            project = Project.load(root)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, self.tr("Não foi possível abrir o projeto"), str(exc))
+            return
+        self.project = project
+        QSettings("Local", "GF UI Editor").setValue("last_project", str(root))
+        if self.follow_game_resolution:
+            self.game_resolution = self._client_resolution()
+            self._sync_resolution_actions()
+            self._refresh_game_screen()
+        self.test_action.setEnabled(project.game_dir is not None)
+        self.export_action.setEnabled(True)
+        self.project_folder_action.setEnabled(True)
+        self.side_tabs.setCurrentIndex(0)
+        self._refresh_files()
+        self._update_title()
+        last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
+        if last and (project.ui_dir / last).is_file() and self.document is None:
+            self.open_document(project.ui_dir / last)
+
+    def _files_directory(self) -> Path | None:
+        if self.project is not None:
+            return self.project.ui_dir
+        if self.document is not None:
+            return self.document.path.parent
+        return None
+
+    def _refresh_files(self) -> None:
+        self.files_tree.clear()
+        directory = self._files_directory()
+        if self.project is not None:
+            modified = self.project.modified_files()
+            files = [path for path in self.project.files() if path.suffix.lower() == ".xml"]
+            self.project_label.setText(self.project.name)
+            self.project_path_label.setText(
+                self.tr("{count} arquivos XML · {modified} alterados").format(
+                    count=sum(1 for path in self.project.files() if path.suffix.lower() == ".xml"),
+                    modified=len(modified),
+                )
+            )
+            self.project_path_label.setToolTip(str(self.project.root))
+
+        else:
+            self.project_label.setText(self.tr("Sem projeto"))
+            self.project_path_label.setText(
+                self.tr("Crie um projeto para editar fora da pasta do jogo e testar com F5.")
+            )
+            modified = set()
+            files = []
+            if directory is not None:
+                files = sorted(
+                    (path.relative_to(directory) for path in directory.glob("*.xml") if not is_backup_file(path.name)),
+                    key=lambda item: item.as_posix().lower(),
+                )
+        current = os.path.normcase(str(self.document.path)) if self.document is not None else None
+        bold = self.files_tree.font()
+        bold.setBold(True)
+        groups: list[tuple[str, list[Path]]] = []
+        changed = [path for path in files if path.as_posix() in modified]
+        if changed:
+            groups.append((self.tr("ALTERADOS · {count}").format(count=len(changed)), changed))
+        groups.append((self.tr("TODOS · {count}").format(count=len(files)), files))
+        for title, group_files in groups:
+            header = QTreeWidgetItem([title, ""])
+            header.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            header.setForeground(0, QColor(COLORS["TEXT_SECTION"]))
+            header_font = self.files_tree.font()
+            header_font.setPointSizeF(max(7.0, header_font.pointSizeF() - 1.5))
+            header_font.setBold(True)
+            header.setFont(0, header_font)
+            header.setFirstColumnSpanned(True)
+            self.files_tree.addTopLevelItem(header)
+            for relative in group_files:
+                key = relative.as_posix()
+                item = QTreeWidgetItem([key, "●" if key in modified else ""])
+                full_path = (directory / relative) if directory is not None else relative
+                item.setData(0, Qt.ItemDataRole.UserRole, str(full_path))
+                item.setIcon(0, icon("file", COLORS["ACCENT_TEXT"] if key in modified else COLORS["TEXT_DISABLED"], 14))
+                item.setForeground(1, QColor(COLORS["SELECTION_GOLD"]))
+                item.setToolTip(1, self.tr("alterado") if key in modified else "")
+                if current is not None and os.path.normcase(str(full_path)) == current:
+                    item.setFont(0, bold)
+                header.addChild(item)
+            header.setExpanded(True)
+        self._filter_files(self.file_filter_edit.text())
+
+    def _filter_files(self, text: str) -> None:
+        needle = text.strip().lower()
+        for index in range(self.files_tree.topLevelItemCount()):
+            group = self.files_tree.topLevelItem(index)
+            visible = 0
+            for child_index in range(group.childCount()):
+                child = group.child(child_index)
+                hidden = bool(needle) and needle not in child.text(0).lower()
+                child.setHidden(hidden)
+                visible += not hidden
+            group.setHidden(visible == 0)
+
+    def _file_activated(self, item: QTreeWidgetItem, _column: int = 0) -> None:
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        path = Path(data)
+        if self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path)):
+            self.side_tabs.setCurrentIndex(1)
+            return
+        if not self._confirm_discard_changes():
+            return
+        self.open_document(path)
+        self.side_tabs.setCurrentIndex(1)
+
+    def _run_with_progress(self, label: str, work):
+        """Roda `work(progress)` fora da thread da interface, com barra de progresso.
+
+        Exceções do trabalho são relançadas aqui, para os tratamentos de quem chama.
+        """
+        dialog = QProgressDialog(label, None, 0, 0, self)
+        dialog.setWindowTitle("GF UI Editor")
+        dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        dialog.setMinimumDuration(0)
+        dialog.setMinimumWidth(380)
+        state = {"done": 0, "total": 0, "result": None, "error": None}
+
+        def progress(done: int, total: int) -> None:
+            state["done"], state["total"] = done, total
+
+        def run() -> None:
+            try:
+                state["result"] = work(progress)
+            except BaseException as exc:  # noqa: BLE001 - relançada na thread da interface
+                state["error"] = exc
+
+        worker = Thread(target=run, daemon=True)
+        worker.start()
+        dialog.show()
+        while worker.is_alive():
+            if state["total"]:
+                dialog.setMaximum(state["total"])
+                dialog.setValue(state["done"])
+                dialog.setLabelText(f"{label}\n{state['done']} / {state['total']}")
+            QApplication.processEvents()
+            worker.join(0.03)
+        dialog.close()
+        if state["error"] is not None:
+            raise state["error"]
+        return state["result"]
+
+    def _save_before_project_action(self) -> bool:
+        if self.document is None or not self.document.is_dirty:
+            return True
+        answer = QMessageBox.question(
+            self,
+            self.tr("Salvar antes?"),
+            self.tr("{name} tem alterações não salvas. Salvar antes de continuar?").format(name=self.document.path.name),
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if answer == QMessageBox.StandardButton.Cancel:
+            return False
+        if answer == QMessageBox.StandardButton.Save:
+            self.save_document()
+            return not self.document.is_dirty
+        return True
+
+    def test_in_game(self) -> None:
+        if self.project is None or self.project.game_dir is None:
+            return
+        if not self._save_before_project_action():
+            return
+        settings = QSettings("Local", "GF UI Editor")
+        if settings.value("publish_confirmed", "false") != "true":
+            answer = QMessageBox.question(
+                self,
+                self.tr("Testar no jogo"),
+                self.tr(
+                    "Isto vai:\n\n"
+                    "• atualizar {custom}\n"
+                    "• copiar os arquivos do projeto para a pasta UI do jogo\n"
+                    "• selecionar \"{name}\" no Launcher.ini, para o launcher não reaplicar outra UI ao clicar Jogar\n\n"
+                    "Outras UIs em UICustom não são alteradas. Continuar?"
+                ).format(custom=self.project.game_dir / "UICustom" / self.project.custom_name, name=self.project.custom_name),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            settings.setValue("publish_confirmed", "true")
+        try:
+            project = self.project
+            result = self._run_with_progress(
+                self.tr("Publicando no jogo…"), lambda progress: project.publish(progress=progress)
+            )
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                self.tr("Falha ao publicar"),
+                self.tr("Não foi possível copiar os arquivos. Feche o jogo se ele estiver aberto e tente de novo.\n\n{error}").format(error=exc),
+            )
+            return
+        self.statusBar().showMessage(
+            self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
+                count=result.copied_to_ui
+            ),
+            12000,
+        )
+
+    def export_project_zip(self) -> None:
+        if self.project is None:
+            return
+        if not self._save_before_project_action():
+            return
+        default = Path.home() / "Documents" / f"{self.project.custom_name}.zip"
+        filename, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Exportar UI"), str(default), self.tr("UI do launcher (*.zip)")
+        )
+        if not filename:
+            return
+        try:
+            project = self.project
+            path = self._run_with_progress(
+                self.tr("Compactando a UI…"), lambda progress: project.export_zip(Path(filename), progress=progress)
+            )
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Falha ao exportar"), str(exc))
+            return
+        self.statusBar().showMessage(
+            self.tr("Exportado para {path}. No launcher: Adicionar UI Customizada.").format(path=path), 12000
         )
 
     def _confirm_diff_preview(self) -> bool:
@@ -1410,11 +2594,15 @@ class EditorWindow(QMainWindow):
         return dialog.exec() == QDialog.DialogCode.Accepted
 
     def _update_title(self) -> None:
+        self._update_breadcrumb()
+        self._update_status_chips()
+        self._update_center_page()
         if self.document is None:
-            self.setWindowTitle("GF UI Editor")
+            self.setWindowTitle(f"GF UI Editor [{self.project.name}]" if self.project is not None else "GF UI Editor")
             return
         marker = " *" if self.document.is_dirty else ""
-        self.setWindowTitle(f"GF UI Editor — {self.document.path.name}{marker}")
+        project = f" [{self.project.name}]" if self.project is not None else ""
+        self.setWindowTitle(f"GF UI Editor{project} — {self.document.path.name}{marker}")
 
     def _confirm_discard_changes(self) -> bool:
         if self.document is None or not self.document.is_dirty:
@@ -1428,8 +2616,12 @@ class EditorWindow(QMainWindow):
         )
         return result == QMessageBox.StandardButton.Yes
 
+    def _sync_language_menu(self) -> None:
+        for action in self.language_button.menu().actions():
+            action.setChecked(action.data() == self.language)
+
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
-        if self._confirm_discard_changes():
+        if getattr(self, "_closing_for_language", False) or self._confirm_discard_changes():
             event.accept()
         else:
             event.ignore()
@@ -1451,9 +2643,10 @@ def main(argv: list[str] | None = None) -> int:
     language = args.lang or QSettings("Local", "GF UI Editor").value("language", "pt_BR")
     if language not in LANGUAGES:
         language = "pt_BR"
-    application._ui_translator = install_language(application, language)
-    window = EditorWindow(args.xml, language=language)
+    switch_language(application, language)
+    window = EditorWindow(args.xml, language=language, restore_last_project=True)
     window.show()
+    application._main_window = window
     return application.exec()
 
 

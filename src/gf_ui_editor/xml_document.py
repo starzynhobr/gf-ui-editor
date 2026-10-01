@@ -359,7 +359,7 @@ class UIDocument:
             number += 1
         return candidate
 
-    def save(self) -> Path:
+    def save(self, backup_path: Path | None = None) -> Path:
         try:
             current_raw = self.path.read_bytes()
         except OSError as exc:
@@ -378,7 +378,7 @@ class UIDocument:
         except (ET.ParseError, UnicodeEncodeError) as exc:
             raise DocumentError(f"A versão editada não passou pela validação: {exc}", code="validation", details={"error": exc}) from exc
 
-        backup = self._backup_path()
+        backup = backup_path or self._backup_path()
         try:
             shutil.copyfile(self.path, backup)
             fd, temporary_name = tempfile.mkstemp(
