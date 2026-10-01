@@ -46,6 +46,8 @@ COLORS = {
     "PROGRESS_CYAN": "#41dcff",
     "CANVAS_BG": "#0d0f13",
     "ATLAS_BG": "#0f1116",
+    "CHECKER_LIGHT": "#2a2d34",
+    "CHECKER_DARK": "#20232a",
     "ACCENT_BG": "#7c4ce0",
     "ACCENT_HOVER_BG": "#8c5ff0",
     "ACCENT_BORDER": "#a77bff",

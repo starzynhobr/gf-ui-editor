@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
+import difflib
 import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
+import re
+import shutil
 import sys
-import time
 from threading import Thread
+import time
 
 from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
@@ -572,6 +576,25 @@ class UVCommand(QUndoCommand):
         self.window.apply_uv(self.index, self.old)
 
 
+class OffsetCommand(QUndoCommand):
+    def __init__(self, window: "EditorWindow", index: int, old: tuple[int, int], new: tuple[int, int]):
+        super().__init__(
+            QCoreApplication.translate("EditorWindow", "Alterar SOffset do WindowID {id}").format(
+                id=window.document.elements[index].window_id
+            )
+        )
+        self.window = window
+        self.index = index
+        self.old = old
+        self.new = new
+
+    def redo(self) -> None:
+        self.window.apply_offset(self.index, self.new)
+
+    def undo(self) -> None:
+        self.window.apply_offset(self.index, self.old)
+
+
 class EditorWindow(QMainWindow):
     def __init__(
         self,
@@ -671,6 +694,8 @@ class EditorWindow(QMainWindow):
         self.files_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.files_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.files_tree.itemClicked.connect(self._file_activated)
+        self.files_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.files_tree.customContextMenuRequested.connect(self._files_context_menu)
         self.files_tree.itemActivated.connect(self._file_activated)
         self.files_tree.setCursor(Qt.CursorShape.PointingHandCursor)
         files_page = QWidget()
@@ -1268,6 +1293,16 @@ class EditorWindow(QMainWindow):
                 font-size: 11px;
                 font-weight: 600;
             }
+            QLabel#warningHint {
+                background: #3a1d1d;
+                color: #ffb4a8;
+                border-radius: 7px;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+            QLabel#progressHint { color: ${TEXT_MUTED}; background: transparent; }
+            QPushButton#accentPush { background: ${ACCENT_BG}; color: ${WHITE}; border: 0; font-weight: 600; }
+            QPushButton#accentPush:hover { background: ${ACCENT_HOVER_BG}; }
             QLabel#hintBox {
                 background: ${ACCENT_SOFT_BG};
                 color: ${ACCENT_TEXT};
@@ -1878,7 +1913,9 @@ class EditorWindow(QMainWindow):
             self.properties.set_element(self.document.elements[index])
         self._update_title()
 
-    def edit_uv(self, index: int, uv: UVRect, resize_element: bool) -> None:
+    def edit_uv(
+        self, index: int, uv: UVRect, resize_element: bool, offset: tuple[int, int] | None = None
+    ) -> None:
         if self.document is None:
             return
         if index in self.locked_indexes:
@@ -1890,7 +1927,8 @@ class EditorWindow(QMainWindow):
         geometry = (element.x, element.y, uv.width, uv.height)
         uv_changed = element.uv != uv
         geometry_changed = resize_element and element.geometry != geometry
-        if not uv_changed and not geometry_changed:
+        offset_changed = offset is not None and element.progress_offset is not None and offset != element.progress_offset
+        if not uv_changed and not geometry_changed and not offset_changed:
             return
         self.undo_stack.beginMacro(self.tr("Alterar atlas do WindowID {id}").format(id=element.window_id))
         if uv_changed:
@@ -1899,7 +1937,15 @@ class EditorWindow(QMainWindow):
             self.undo_stack.push(
                 GeometryCommand(self, index, element.geometry, geometry)
             )
+        if offset_changed:
+            self.undo_stack.push(OffsetCommand(self, index, element.progress_offset, offset))
         self.undo_stack.endMacro()
+
+    def apply_offset(self, index: int, offset: tuple[int, int]) -> None:
+        assert self.document is not None
+        self.document.set_progress_offset(index, offset)
+        self._refresh_element_texture(index)
+        self._update_title()
 
     def apply_uv(self, index: int, uv: UVRect) -> None:
         assert self.document is not None
@@ -1938,11 +1984,12 @@ class EditorWindow(QMainWindow):
             element.texture_name,
             pixmap,
             element.uv,
-            lambda uv, resize, item_index=index: self.edit_uv(
-                item_index, uv, resize
+            lambda uv, resize, offset, item_index=index: self.edit_uv(
+                item_index, uv, resize, offset
             ),
             self,
             progress_offset=element.progress_offset,
+            offset_editable=self.document.offsets_editable,
         )
         dialog.finished.connect(self._atlas_dialog_closed)
         self.atlas_dialog = dialog
@@ -2208,6 +2255,11 @@ class EditorWindow(QMainWindow):
         if not self._confirm_diff_preview():
             return
         in_project = self.project is not None and self.project.contains(self.document.path)
+        if in_project:
+            try:
+                self.project.remember_original(self.document.path)
+            except OSError:
+                pass
         try:
             backup = self.document.save(
                 self.project.history_path_for(self.document.path) if in_project else None
@@ -2664,6 +2716,121 @@ class EditorWindow(QMainWindow):
         if state["error"] is not None:
             raise state["error"]
         return state["result"]
+
+    # ---- histórico ------------------------------------------------------------
+    def _history_entries(self, path: Path) -> tuple[list[Path], Path | None]:
+        """Backups (mais recente primeiro) e o original, se houver."""
+        if self.project is not None and self.project.contains(path):
+            original = self.project.original_path_for(path)
+            return self.project.history(path), original if original.exists() else None
+        backups = sorted(
+            path.parent.glob(f"{path.stem}.before-gf-ui-editor-*{path.suffix}"), key=lambda item: item.name, reverse=True
+        )
+        return backups, None
+
+    @staticmethod
+    def _backup_label(backup: Path) -> str:
+        match = re.search(r"(\d{8})-(\d{6})", backup.name)
+        if not match:
+            return backup.name
+        stamp = datetime.strptime(match[1] + match[2], "%Y%m%d%H%M%S")
+        today = datetime.now().date()
+        if stamp.date() == today:
+            day = QCoreApplication.translate("EditorWindow", "hoje")
+        elif (today - stamp.date()).days == 1:
+            day = QCoreApplication.translate("EditorWindow", "ontem")
+        else:
+            day = stamp.strftime("%d/%m")
+        return f"{day} {stamp:%H:%M:%S}"
+
+    def _files_context_menu(self, position) -> None:
+        item = self.files_tree.itemAt(position)
+        data = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        if not data:
+            return
+        path = Path(data)
+        backups, original = self._history_entries(path)
+        menu = QMenu(self)
+        open_action = menu.addAction(self.tr("Abrir"))
+        open_action.triggered.connect(lambda: self._file_activated(item))
+        history_menu = menu.addMenu(self.tr("Restaurar versão anterior"))
+        history_menu.setEnabled(bool(backups))
+        for backup in backups:
+            action = history_menu.addAction(self._backup_label(backup))
+            action.triggered.connect(lambda _checked=False, source=backup: self.restore_file(path, source))
+        revert = menu.addAction(self.tr("Desfazer todas as alterações"))
+        revert.setEnabled(original is not None)
+        revert.setToolTip(self.tr("Volta o arquivo para como era quando o projeto foi criado."))
+        if original is not None:
+            revert.triggered.connect(lambda: self.restore_file(path, original))
+        menu.addSeparator()
+        folder = backups[0].parent if backups else (original.parent if original is not None else None)
+        reveal = menu.addAction(self.tr("Abrir pasta do histórico"))
+        reveal.setEnabled(folder is not None)
+        if folder is not None:
+            reveal.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))))
+        menu.exec(self.files_tree.viewport().mapToGlobal(position))
+
+    def restore_file(self, path: Path, source: Path) -> None:
+        is_open = self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path))
+        if is_open and self.document.is_dirty:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Descartar alterações?"),
+                self.tr("{name} tem alterações não salvas que serão perdidas ao restaurar. Continuar?").format(name=path.name),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            current = path.read_bytes().decode("big5", errors="replace").splitlines()
+            restored = source.read_bytes().decode("big5", errors="replace").splitlines()
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
+            return
+        diff = "\n".join(
+            difflib.unified_diff(current, restored, fromfile=self.tr("{name} (atual)").format(name=path.name), tofile=self.tr("versão restaurada"), lineterm="")
+        )
+        if not diff:
+            self.statusBar().showMessage(self.tr("Essa versão é igual ao arquivo atual."), 5000)
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self.tr("Restaurar {name}").format(name=path.name))
+        dialog.resize(1000, 650)
+        explanation = QLabel(self.tr("Estas linhas vão mudar. O estado atual fica guardado no histórico, então dá para voltar."))
+        explanation.setWordWrap(True)
+        view = QPlainTextEdit()
+        view.setReadOnly(True)
+        view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        view.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+        view.setPlainText(diff)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr("Restaurar"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(self.tr("Cancelar"))
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(explanation)
+        layout.addWidget(view)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            if self.project is not None and self.project.contains(path):
+                self.project.restore(path, source)
+            else:
+                backup = path.with_name(
+                    f"{path.stem}.before-gf-ui-editor-{datetime.now():%Y%m%d-%H%M%S}{path.suffix}"
+                )
+                shutil.copy2(path, backup)
+                shutil.copy2(source, path)
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
+            return
+        if is_open:
+            self.document.raw = path.read_bytes()  # evita o aviso de alteração externa ao reabrir
+            self.open_document(path)
+        self._refresh_files()
+        self.statusBar().showMessage(self.tr("{name} restaurado.").format(name=path.name), 6000)
 
     def _save_before_project_action(self) -> bool:
         if self.document is None or not self.document.is_dirty:

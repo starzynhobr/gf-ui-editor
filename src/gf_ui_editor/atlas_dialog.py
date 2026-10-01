@@ -18,8 +18,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSpinBox,
+    QFrame,
+    QGridLayout,
+    QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
+
+from .icons import icon
 
 from .theme import qcolor
 from .interaction import install_pointer_cursors
@@ -28,6 +34,7 @@ from .xml_document import UVRect
 
 class AtlasView(QGraphicsView):
     selection_changed = Signal(object)
+    offset_changed = Signal(int, int)
     cursor_moved = Signal(int, int)
 
     def __init__(self, parent=None):
@@ -71,6 +78,9 @@ class AtlasView(QGraphicsView):
         self._progress_item.setVisible(False)
         self._scene.addItem(self._progress_item)
         self._progress_offset: tuple[int, int] | None = None
+        self.offset_editable = False
+        self._offset_drag_start: QPointF | None = None
+        self._offset_at_drag: tuple[int, int] | None = None
         self._selection_start: QPointF | None = None
         self._resize_corner: str | None = None
         self._resize_anchor: QPointF | None = None
@@ -80,6 +90,25 @@ class AtlasView(QGraphicsView):
     def set_pixmap(self, pixmap: QPixmap) -> None:
         self._pixmap_item.setPixmap(pixmap)
         self._scene.setSceneRect(QRectF(pixmap.rect()))
+
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:  # noqa: N802
+        """Xadrez sob a textura, como nos editores de imagem: mostra o que é transparente."""
+        painter.fillRect(rect, qcolor("ATLAS_BG"))
+        texture = self._pixmap_item.boundingRect()
+        if texture.isEmpty():
+            return
+        painter.save()
+        painter.setClipRect(texture)
+        painter.fillRect(texture, qcolor("CHECKER_LIGHT"))
+        cell = 8 / max(self.transform().m11(), 0.01)  # 8 px de tela em qualquer zoom
+        visible = rect.intersected(texture)
+        start_x = math.floor(visible.left() / cell)
+        start_y = math.floor(visible.top() / cell)
+        dark = qcolor("CHECKER_DARK")
+        for row in range(start_y, math.ceil(visible.bottom() / cell) + 1):
+            for column in range(start_x + (row + start_x) % 2, math.ceil(visible.right() / cell) + 1, 2):
+                painter.fillRect(QRectF(column * cell, row * cell, cell, cell), dark)
+        painter.restore()
 
     def set_selection(self, uv: UVRect) -> None:
         self._selection_item.setRect(uv.left, uv.top, uv.width, uv.height)
@@ -181,6 +210,14 @@ class AtlasView(QGraphicsView):
             event.accept()
             return
         if event.button() == Qt.MouseButton.LeftButton:
+            scene_point = self.mapToScene(event.position().toPoint())
+            if self._over_offset_box(scene_point):
+                # Arrastar a caixa do estado preenchido altera o SOffset, não o recorte.
+                self._offset_drag_start = scene_point
+                self._offset_at_drag = self._progress_offset
+                self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+                event.accept()
+                return
             corner = self._corner_at(event.position().toPoint())
             if corner is not None:
                 self._resize_corner = corner
@@ -210,6 +247,22 @@ class AtlasView(QGraphicsView):
             )
             event.accept()
             return
+        if self._offset_drag_start is not None and self._offset_at_drag is not None:
+            raw = self.mapToScene(event.position().toPoint())
+            dx = round(raw.x() - self._offset_drag_start.x())
+            dy = round(raw.y() - self._offset_drag_start.y())
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                # Shift trava no eixo dominante, como no canvas.
+                if abs(dx) >= abs(dy):
+                    dy = 0
+                else:
+                    dx = 0
+            offset = (self._offset_at_drag[0] + dx, self._offset_at_drag[1] + dy)
+            if offset != self._progress_offset:
+                self.set_progress_offset(offset)
+                self.offset_changed.emit(*offset)
+            event.accept()
+            return
         if self._selection_start is not None:
             self._selection_item.setRect(
                 QRectF(self._selection_start, point).normalized()
@@ -223,6 +276,10 @@ class AtlasView(QGraphicsView):
             event.accept()
             return
         corner = self._corner_at(event.position().toPoint())
+        if corner is None and self._over_offset_box(self.mapToScene(event.position().toPoint())):
+            self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
+            super().mouseMoveEvent(event)
+            return
         if corner in {"top_left", "bottom_right"}:
             self.viewport().setCursor(Qt.CursorShape.SizeFDiagCursor)
         elif corner in {"top_right", "bottom_left"}:
@@ -231,7 +288,25 @@ class AtlasView(QGraphicsView):
             self.viewport().unsetCursor()
         super().mouseMoveEvent(event)
 
+    def _over_offset_box(self, scene_point: QPointF) -> bool:
+        return (
+            self.offset_editable
+            and self._progress_item.isVisible()
+            and self._progress_item.rect().normalized().contains(scene_point)
+        )
+
+    def offsets_overlap(self) -> bool:
+        if not self._progress_item.isVisible():
+            return False
+        return self._selection_item.rect().normalized().intersects(self._progress_item.rect().normalized())
+
     def mouseReleaseEvent(self, event):  # noqa: N802
+        if self._offset_drag_start is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._offset_drag_start = None
+            self._offset_at_drag = None
+            self.viewport().unsetCursor()
+            event.accept()
+            return
         if self._panning and event.button() == Qt.MouseButton.MiddleButton:
             self._panning = False
             self._pan_start = None
@@ -269,9 +344,10 @@ class AtlasDialog(QDialog):
         texture_name: str,
         pixmap: QPixmap,
         uv: UVRect,
-        apply_callback: Callable[[UVRect, bool], None],
+        apply_callback: Callable[[UVRect, bool, tuple[int, int] | None], None],
         parent=None,
         progress_offset: tuple[int, int] | None = None,
+        offset_editable: bool = False,
     ):
         super().__init__(parent)
         self.texture_name = texture_name
@@ -285,11 +361,13 @@ class AtlasDialog(QDialog):
         self.details = QLabel()
         self.details.setObjectName("panelSubtitle")
         self.cursor_label = QLabel(self.tr("Cursor: —"))
-        self.cursor_label.setObjectName("panelSubtitle")
+        self.cursor_label.setObjectName("monoCaption")
 
         self.view = AtlasView()
         self.view.setMinimumSize(760, 560)
         self.view.selection_changed.connect(self._selection_changed)
+        self.view.offset_changed.connect(self._offset_dragged)
+        self.view.offset_editable = offset_editable and progress_offset is not None
         self.view.cursor_moved.connect(
             lambda x, y: self.cursor_label.setText(self.tr("Cursor: X {x} · Y {y}").format(x=x, y=y))
         )
@@ -316,12 +394,7 @@ class AtlasDialog(QDialog):
         ):
             spin.valueChanged.connect(self._spins_changed)
 
-        form = QFormLayout()
-        form.addRow("X / NorUVLeft", self.left_spin)
-        form.addRow("Y / NorUVTop", self.top_spin)
-        form.addRow(self.tr("Largura / NorUVWidth"), self.width_spin)
-        form.addRow(self.tr("Altura / NorUVHeight"), self.height_spin)
-        self.resize_element = QCheckBox(self.tr("Ajustar o tamanho do elemento ao recorte"))
+        self.resize_element = QCheckBox(self.tr("Elemento com o tamanho do recorte"))
         explanation = QLabel(
             self.tr(
                 "Arraste sobre a imagem para marcar o recorte ou use as alças nos cantos "
@@ -334,11 +407,27 @@ class AtlasDialog(QDialog):
         self.progress_explanation = QLabel()
         self.progress_explanation.setWordWrap(True)
         self.progress_explanation.setObjectName("progressHint")
+        self.offset_x_spin = QSpinBox()
+        self.offset_y_spin = QSpinBox()
+        for spin in (self.offset_x_spin, self.offset_y_spin):
+            spin.setRange(-100000, 100000)
+            spin.setEnabled(self.view.offset_editable)
+            spin.valueChanged.connect(self._offset_spins_changed)
+        self.overlap_warning = QLabel(
+            self.tr("Os dois estados se sobrepõem: cada um vai mostrar pedaços do outro no jogo.")
+        )
+        self.overlap_warning.setWordWrap(True)
+        self.overlap_warning.setObjectName("warningHint")
+        self.overlap_warning.hide()
         if progress_offset is not None:
-            offset_x, offset_y = progress_offset
             self.progress_explanation.setText(
-                self.tr("Progresso em 100%: amarelo = textura-base; ciano = camada preenchida aplicada pelo jogo (offset X {x}, Y {y}).").format(x=offset_x, y=offset_y)
+                self.tr("Arraste a caixa ciano até o desenho do estado preenchido; o jogo o desenha deslocado do recorte normal por este SOffset.")
+                if self.view.offset_editable
+                else self.tr("O jogo desenha o estado preenchido deslocado do recorte normal por este SOffset.")
             )
+            with QSignalBlocker(self.offset_x_spin), QSignalBlocker(self.offset_y_spin):
+                self.offset_x_spin.setValue(progress_offset[0])
+                self.offset_y_spin.setValue(progress_offset[1])
         else:
             self.progress_explanation.hide()
 
@@ -346,36 +435,126 @@ class AtlasDialog(QDialog):
             QDialogButtonBox.StandardButton.Apply
             | QDialogButtonBox.StandardButton.Close
         )
-        buttons.button(QDialogButtonBox.StandardButton.Apply).setText(self.tr("Aplicar recorte"))
+        buttons.button(QDialogButtonBox.StandardButton.Apply).setText(self.tr("Aplicar"))
         buttons.button(QDialogButtonBox.StandardButton.Close).setText(self.tr("Fechar"))
         buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
             self._apply
         )
         buttons.rejected.connect(self.close)
 
-        side = QVBoxLayout()
+        # Campos compactos com prefixo, como no inspector; o nome no XML vai na dica.
+        for spin, prefix, tip in (
+            (self.left_spin, "X   ", "NorUVLeft"),
+            (self.top_spin, "Y   ", "NorUVTop"),
+            (self.width_spin, self.tr("L   "), "NorUVWidth"),
+            (self.height_spin, self.tr("A   "), "NorUVHeight"),
+            (self.offset_x_spin, "X   ", "SOffset-0 x"),
+            (self.offset_y_spin, "Y   ", "SOffset-0 y"),
+        ):
+            spin.setPrefix(prefix)
+            spin.setToolTip(tip)
+            spin.setObjectName("monoSpin")
+            spin.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+            spin.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        uv_grid = QGridLayout()
+        uv_grid.setSpacing(8)
+        uv_grid.addWidget(self.left_spin, 0, 0)
+        uv_grid.addWidget(self.top_spin, 0, 1)
+        uv_grid.addWidget(self.width_spin, 1, 0)
+        uv_grid.addWidget(self.height_spin, 1, 1)
+        offset_grid = QGridLayout()
+        offset_grid.setContentsMargins(0, 0, 0, 0)
+        offset_grid.setSpacing(8)
+        offset_grid.addWidget(self.offset_x_spin, 0, 0)
+        offset_grid.addWidget(self.offset_y_spin, 0, 1)
+        self.offset_box = QWidget()
+        self.offset_box.setLayout(offset_grid)
+
+        self.focus_button.setIcon(icon("focus", size=16))
+        self.full_atlas_button.setIcon(icon("frame", size=16))
+        self.focus_button.setText(self.tr("Recorte"))
+        self.full_atlas_button.setText(self.tr("Atlas inteiro"))
+        self.title.setText(texture_name)
+        explanation.setText(
+            self.tr("Arraste para marcar · alças ajustam · botão do meio navega · roda = zoom")
+        )
+
+        uv_card = self._card(
+            self._legend(qcolor("SELECTION_GOLD"), self.tr("RECORTE NORMAL (NorUV)")),
+            uv_grid,
+            self.resize_element,
+        )
+        self.offset_card = self._card(
+            self._legend(qcolor("PROGRESS_CYAN"), self.tr("ESTADO PREENCHIDO (SOffset)")),
+            None,
+            self.progress_explanation,
+            self.offset_box,
+            self.overlap_warning,
+        )
+        self.offset_card.setVisible(progress_offset is not None)
+
+        side_widget = QWidget()
+        side_widget.setObjectName("propertiesPanel")
+        side_widget.setFixedWidth(320)
+        side = QVBoxLayout(side_widget)
+        side.setContentsMargins(16, 16, 16, 16)
+        side.setSpacing(12)
         side.addWidget(self.title)
         side.addWidget(self.details)
         side.addLayout(view_buttons)
-        side.addSpacing(8)
-        side.addLayout(form)
-        side.addWidget(self.resize_element)
-        side.addWidget(explanation)
-        side.addWidget(self.progress_explanation)
+        side.addWidget(uv_card)
+        side.addWidget(self.offset_card)
         side.addStretch(1)
+        side.addWidget(explanation)
         side.addWidget(self.cursor_label)
         side.addWidget(buttons)
+        apply_button = buttons.button(QDialogButtonBox.StandardButton.Apply)
+        apply_button.setObjectName("accentPush")
+        apply_button.setDefault(True)
 
         content = QHBoxLayout()
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(0)
         content.addWidget(self.view, 1)
-        content.addLayout(side)
+        content.addWidget(side_widget)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(content)
 
         self.reload_pixmap(pixmap, fit=True)
         self.view.set_progress_offset(progress_offset)
         self.set_uv(uv)
         install_pointer_cursors(self)
+
+    @staticmethod
+    def _legend(color, text: str) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        swatch = QLabel()
+        swatch.setFixedSize(10, 10)
+        swatch.setStyleSheet(f"background: {color.name()}; border-radius: 2px;")
+        label = QLabel(text)
+        label.setObjectName("sectionLabel")
+        layout.addWidget(swatch)
+        layout.addWidget(label)
+        layout.addStretch(1)
+        return row
+
+    @staticmethod
+    def _card(header: QWidget, inner_layout, *widgets: QWidget) -> QFrame:
+        card = QFrame()
+        card.setObjectName("card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+        layout.addWidget(header)
+        if inner_layout is not None:
+            layout.addLayout(inner_layout)
+        for widget in widgets:
+            layout.addWidget(widget)
+        return card
 
     @staticmethod
     def _spinbox(minimum: int = 0) -> QSpinBox:
@@ -403,12 +582,32 @@ class AtlasDialog(QDialog):
             with QSignalBlocker(spin):
                 spin.setValue(value)
         self.view.set_selection(uv)
+        self._update_overlap()
+
+    def _update_overlap(self) -> None:
+        self.overlap_warning.setVisible(self.view.offsets_overlap())
+
+    def current_offset(self) -> tuple[int, int] | None:
+        if self.offset_card.isHidden():
+            return None
+        return self.offset_x_spin.value(), self.offset_y_spin.value()
+
+    def _offset_dragged(self, x: int, y: int) -> None:
+        with QSignalBlocker(self.offset_x_spin), QSignalBlocker(self.offset_y_spin):
+            self.offset_x_spin.setValue(x)
+            self.offset_y_spin.setValue(y)
+        self._update_overlap()
+
+    def _offset_spins_changed(self, _value: int) -> None:
+        self.view.set_progress_offset(self.current_offset())
+        self._update_overlap()
 
     def _selection_changed(self, uv: UVRect) -> None:
         self.set_uv(uv)
 
     def _spins_changed(self, _value: int) -> None:
         self.view.set_selection(self.current_uv())
+        self._update_overlap()
 
     def current_uv(self) -> UVRect:
         return UVRect(
@@ -419,4 +618,4 @@ class AtlasDialog(QDialog):
         )
 
     def _apply(self) -> None:
-        self._apply_callback(self.current_uv(), self.resize_element.isChecked())
+        self._apply_callback(self.current_uv(), self.resize_element.isChecked(), self.current_offset())

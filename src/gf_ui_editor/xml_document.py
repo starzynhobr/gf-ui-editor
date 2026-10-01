@@ -13,6 +13,8 @@ import xml.etree.ElementTree as ET
 
 START_TAG_RE = re.compile(r"<BaseWndProperty\b[^>]*>")
 NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
+# Deslocamento do estado preenchido de barras (ProgressNode/OffSetUV).
+SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
 
 
 class DocumentError(RuntimeError):
@@ -49,6 +51,7 @@ class UIElement:
     uv: UVRect | None = None
     original_uv: UVRect | None = None
     progress_offset: tuple[int, int] | None = None
+    original_progress_offset: tuple[int, int] | None = None
     child_tags: tuple[str, ...] = field(default_factory=tuple)
 
     @staticmethod
@@ -128,6 +131,17 @@ class UIElement:
             if value != original[name]
         }
 
+    @property
+    def changed_offset_attributes(self) -> dict[str, str]:
+        if self.progress_offset is None or self.progress_offset == self.original_progress_offset:
+            return {}
+        original = self.original_progress_offset or (None, None)
+        return {
+            name: str(value)
+            for name, value, before in zip("xy", self.progress_offset, original)
+            if value != before
+        }
+
     def set_geometry(self, x: int, y: int, width: int, height: int) -> None:
         values = {
             "WindowLeft": x,
@@ -198,6 +212,7 @@ class UIDocument:
         self.elements: list[UIElement] = []
         self._start_tags = list(START_TAG_RE.finditer(text))
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(text))
+        self._offset_tags = list(SOFFSET_TAG_RE.finditer(text))
         self._build_elements()
         if len(self._start_tags) != len(self.elements):
             raise DocumentError(
@@ -237,7 +252,7 @@ class UIDocument:
     @property
     def is_dirty(self) -> bool:
         return any(
-            element.changed_attributes or element.changed_uv_attributes
+            element.changed_attributes or element.changed_uv_attributes or element.changed_offset_attributes
             for element in self.elements
         )
 
@@ -294,6 +309,7 @@ class UIDocument:
             uv=uv,
             original_uv=uv,
             progress_offset=progress_offset,
+            original_progress_offset=progress_offset,
             child_tags=tuple(child.tag for child in base),
         )
 
@@ -302,6 +318,18 @@ class UIDocument:
 
     def set_uv(self, index: int, uv: UVRect) -> None:
         self.elements[index].set_uv(uv.left, uv.top, uv.width, uv.height)
+
+    @property
+    def offsets_editable(self) -> bool:
+        """Só edita SOffset quando cada tag no texto corresponde a um elemento."""
+        return len(self._offset_tags) == sum(
+            1 for element in self.elements if element.original_progress_offset is not None
+        )
+
+    def set_progress_offset(self, index: int, offset: tuple[int, int]) -> None:
+        if not self.offsets_editable or self.elements[index].progress_offset is None:
+            raise ValueError("Este elemento não tem SOffset editável.")
+        self.elements[index].progress_offset = (int(offset[0]), int(offset[1]))
 
     @staticmethod
     def _replace_attribute(tag: str, name: str, value: str) -> str:
@@ -324,6 +352,16 @@ class UIDocument:
             for name, value in element.changed_uv_attributes.items():
                 tag = self._replace_attribute(tag, name, value)
             replacements.append((match.start(), match.end(), tag))
+
+        if self.offsets_editable:
+            offset_elements = [element for element in self.elements if element.original_progress_offset is not None]
+            for element, match in zip(offset_elements, self._offset_tags, strict=True):
+                changes = element.changed_offset_attributes
+                if changes:
+                    tag = match.group(0)
+                    for name, value in changes.items():
+                        tag = self._replace_attribute(tag, name, value)
+                    replacements.append((match.start(), match.end(), tag))
 
         chunks: list[str] = []
         cursor = 0
@@ -403,7 +441,9 @@ class UIDocument:
         self.text = new_text
         self._start_tags = list(START_TAG_RE.finditer(new_text))
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(new_text))
+        self._offset_tags = list(SOFFSET_TAG_RE.finditer(new_text))
         for element in self.elements:
             element.original_attrs = dict(element.attrs)
             element.original_uv = element.uv
+            element.original_progress_offset = element.progress_offset
         return backup

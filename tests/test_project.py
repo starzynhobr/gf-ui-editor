@@ -83,3 +83,27 @@ def test_game_asset_folders_are_opt_in(tmp_path: Path) -> None:
     assert "itemicon/A1.dds" in full.base_hashes
     assert Project.load(full.root).include_assets
     assert any(path.as_posix() == "itemicon/A1.dds" for path in Project.load(full.root).files())
+
+
+def test_history_original_and_restore(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    project = Project.create("H", game / "UI", game, projects_root=tmp_path / "p")
+    radar = project.ui_dir / "Radar.xml"
+
+    project.remember_original(radar)
+    original = project.original_path_for(radar)
+    assert original.read_text(encoding="utf-8") == "<a/>"
+
+    first = project.history_path_for(radar)
+    first.write_text("<a/>", encoding="utf-8")
+    radar.write_text("<b/>", encoding="utf-8")
+    assert project.history(radar) == [first]  # o original não aparece na lista
+
+    project.restore(radar, original)
+    assert radar.read_text(encoding="utf-8") == "<a/>"
+    assert len(project.history(radar)) == 2  # o estado "<b/>" ficou guardado
+    assert any(p.read_text(encoding="utf-8") == "<b/>" for p in project.history(radar))
+
+    radar.write_text("<c/>", encoding="utf-8")
+    project.remember_original(radar)  # já existe: não sobrescreve
+    assert original.read_text(encoding="utf-8") == "<a/>"

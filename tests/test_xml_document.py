@@ -134,3 +134,28 @@ def test_parses_progress_texture_offset(tmp_path: Path) -> None:
 
     assert element.kind == "progress"
     assert element.progress_offset == (2, 6)
+
+
+def test_soffset_is_edited_in_place(tmp_path) -> None:
+    xml = (
+        '<?xml version="1.0" ?>\n<Root_Node UI_File_Name="T.xml">\n'
+        '  <BaseWndProperty WindowID="1" WindowHeight="30" WindowWidth="8">\n'
+        '    <BackGroundMap BGmap="main.dds"><NorUV NorUVLeft="1" NorUVTop="2" NorUVWidth="30" NorUVHeight="8" /></BackGroundMap>\n'
+        '    <ProgressNode Max="100" Min="0" cur="100"><OffSetUV UVCnt="2"><SOffset-0 x="0" y="41" /><SOffset-1 x="0" y="0" /></OffSetUV></ProgressNode>\n'
+        '  </BaseWndProperty>\n</Root_Node>\n'
+    )
+    path = tmp_path / "T.xml"
+    path.write_bytes(xml.encode("big5"))
+    from gf_ui_editor.xml_document import UIDocument
+
+    document = UIDocument.load(path)
+    assert document.offsets_editable
+    document.set_progress_offset(0, (0, -41))
+    assert document.is_dirty
+    rendered = document.render_text()
+    assert '<SOffset-0 x="0" y="-41" />' in rendered
+    assert '<SOffset-1 x="0" y="0" />' in rendered
+    assert rendered.replace('y="-41"', 'y="41"') == xml
+    document.save()
+    assert not document.is_dirty
+    assert UIDocument.load(path).elements[0].progress_offset == (0, -41)

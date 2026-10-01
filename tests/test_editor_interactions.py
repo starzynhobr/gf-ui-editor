@@ -500,14 +500,53 @@ def test_atlas_marks_progress_runtime_region() -> None:
         "main.dds",
         QPixmap(100, 100),
         UVRect(10, 20, 30, 8),
-        lambda _uv, _resize: None,
+        lambda _uv, _resize, _offset: None,
         progress_offset=(2, 12),
     )
 
     assert dialog.view._progress_item.isVisible()
     assert dialog.view._progress_item.rect() == QRectF(12, 32, 30, 8)
-    assert "100%" in dialog.progress_explanation.text()
+    assert "SOffset" in dialog.progress_explanation.text()
+    assert not dialog.view.offset_editable  # somente leitura quando o XML não permite
 
+    dialog.close()
+
+
+def test_dragging_filled_state_box_changes_soffset() -> None:
+    application = QApplication.instance() or QApplication([])
+    applied: list[tuple] = []
+    dialog = AtlasDialog(
+        "main.dds",
+        QPixmap(200, 200),
+        UVRect(10, 20, 30, 8),
+        lambda uv, resize, offset: applied.append((uv, offset)),
+        progress_offset=(0, 12),
+        offset_editable=True,
+    )
+    dialog.resize(900, 700)
+    dialog.show()
+    application.processEvents()
+    view = dialog.view
+    view.resetTransform()
+    view.scale(4, 4)
+    view.centerOn(25, 30)
+    application.processEvents()
+    start = view.mapFromScene(QPointF(25, 36))  # centro da caixa ciano (y 32..40)
+    end = view.mapFromScene(QPointF(25, 16))  # 20 px para cima
+    QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
+    QTest.mouseMove(view.viewport(), end, 20)
+    QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=end)
+    application.processEvents()
+
+    assert dialog.current_offset() == (0, -8)
+    assert dialog.current_uv() == UVRect(10, 20, 30, 8)  # o recorte normal não mudou
+    assert dialog.overlap_warning.isHidden()  # colado logo acima: encaixe ideal, sem sobreposição
+    dialog.offset_y_spin.setValue(-4)  # metade por cima do estado normal
+    assert not dialog.overlap_warning.isHidden()
+    dialog.offset_y_spin.setValue(-9)
+    assert dialog.overlap_warning.isHidden()
+    dialog._apply()
+    assert applied[-1][1] == (0, -9)
     dialog.close()
 
 

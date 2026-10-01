@@ -28,6 +28,7 @@ import zipfile
 PROJECTS_ROOT = Path.home() / "Documents" / "GF UI Projects"
 MANIFEST = "project.json"
 HASH_CACHE = ".hash-cache.json"
+ORIGINAL_NAME = "original"
 HISTORY_LIMIT = 20
 
 # Recebe (feitos, total) durante operações longas.
@@ -230,13 +231,46 @@ class Project:
         return candidate
 
     def prune_history(self, file_path: Path, keep: int = HISTORY_LIMIT) -> None:
-        relative = file_path.resolve().relative_to(self.ui_dir.resolve())
-        folder = self.history_dir / relative
-        if not folder.is_dir():
-            return
-        backups = sorted(folder.iterdir(), key=lambda item: item.name)
-        for old in backups[:-keep] if keep else backups:
+        backups = self.history(file_path)
+        for old in backups[keep:] if keep else backups:
             old.unlink()
+
+    def _history_folder(self, file_path: Path) -> Path:
+        return self.history_dir / file_path.resolve().relative_to(self.ui_dir.resolve())
+
+    def original_path_for(self, file_path: Path) -> Path:
+        """Cópia do arquivo como era na criação do projeto (gravada no 1º salvamento)."""
+        return self._history_folder(file_path) / f"{ORIGINAL_NAME}{file_path.suffix}"
+
+    def history(self, file_path: Path) -> list[Path]:
+        """Backups do arquivo, do mais recente ao mais antigo (sem o original)."""
+        folder = self._history_folder(file_path)
+        if not folder.is_dir():
+            return []
+        return sorted(
+            (item for item in folder.iterdir() if item.is_file() and not item.stem.startswith(ORIGINAL_NAME)),
+            key=lambda item: item.name,
+            reverse=True,
+        )
+
+    def remember_original(self, file_path: Path) -> None:
+        """Antes do 1º salvamento, guarda o original se o arquivo ainda não foi alterado."""
+        original = self.original_path_for(file_path)
+        key = file_path.resolve().relative_to(self.ui_dir.resolve()).as_posix()
+        if original.exists() or self.base_hashes.get(key) != _hash(file_path):
+            return
+        original.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(file_path, original)
+
+    def restore(self, file_path: Path, source: Path) -> Path:
+        """Substitui o arquivo por `source`, guardando antes o estado atual no histórico."""
+        backup = self.history_path_for(file_path)
+        shutil.copy2(file_path, backup)
+        temporary = file_path.with_name(f".{file_path.name}.gf-ui-editor.tmp")
+        shutil.copy2(source, temporary)
+        os.replace(temporary, file_path)
+        self.prune_history(file_path)
+        return backup
 
     def contains(self, file_path: Path) -> bool:
         try:
