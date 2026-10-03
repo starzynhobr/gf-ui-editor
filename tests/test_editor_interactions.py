@@ -611,3 +611,43 @@ def _check_game_screen_frame(tmp_path: Path, parse_resolution) -> None:
     window.set_game_resolution(None)
     assert window.game_screen_item is None
     window.set_game_background(None)
+
+
+def test_screen_coordinates_are_shown_next_to_xml_coordinates(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    application = QApplication.instance() or QApplication([])
+    settings = QSettings("Local", "GF UI Editor")
+    saved = {key: settings.value(key) for key in ("game_resolution", "game_background", "background_mode")}
+    # Storage.xml é centralizado pelo cliente: a raiz 100x80 vai para (350, 260) em 800x600.
+    path = tmp_path / "UI" / "Storage.xml"
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Storage.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="10" WindowTop="20" WindowHeight="100" WindowWidth="80" />\n'
+        b'  <BaseWndProperty WindowID="2" WindowLeft="-5" WindowTop="30" WindowHeight="10" WindowWidth="10" />\n'
+        b"</Root_Node>\n"
+    )
+    try:
+        window = EditorWindow(path)
+        window.set_game_resolution((800, 600))
+        application.processEvents()
+        assert window._screen_offset() == (340, 240)
+
+        window._show_cursor_position(10, 20)
+        assert "X 10" in window.cursor_position_label.text() and "X 350 · Y 260" in window.cursor_position_label.text()
+
+        window.select_element(1)  # filho com X negativo no XML
+        assert not window.properties.screen_position_label.isHidden()
+        assert "X 335 · Y 270" in window.properties.screen_position_label.text()
+        window.move_selected(5, 0)
+        assert "X 340 · Y 270" in window.properties.screen_position_label.text()
+
+        window.set_root_mode("xml")  # escolha manual: a tela volta a coincidir com o XML
+        assert window._screen_offset() == (0, 0)
+        assert "X 0 · Y 30" in window.properties.screen_position_label.text()
+        window.set_root_mode("auto")
+    finally:
+        settings.remove("root_mode/storage.xml")
+        for key, value in saved.items():
+            settings.remove(key) if value is None else settings.setValue(key, value)

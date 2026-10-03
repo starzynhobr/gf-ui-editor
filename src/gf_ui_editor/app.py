@@ -373,6 +373,12 @@ class PropertyPanel(QWidget):
         self.anchor_hint.setObjectName("hintBox")
         self.anchor_hint.setWordWrap(True)
         self.anchor_hint.setVisible(False)
+        self.screen_position_label = QLabel()
+        self.screen_position_label.setObjectName("monoCaption")
+        self.screen_position_label.setToolTip(
+            self.tr("Posição real na tela do jogo. Os campos acima são as coordenadas do XML, relativas à janela.")
+        )
+        self.screen_position_label.setVisible(False)
 
         self.atlas_button.setIcon(icon("image"))
         texture_form = QFormLayout()
@@ -392,7 +398,7 @@ class PropertyPanel(QWidget):
         details_layout.setContentsMargins(0, 0, 0, 0)
         details_layout.setSpacing(12)
         details_layout.addWidget(
-            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.root_mode_combo, self.anchor_hint)
+            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.screen_position_label, self.root_mode_combo, self.anchor_hint)
         )
         details_layout.addWidget(self._card(self.tr("TEXTURA"), texture_form, self.atlas_button))
         details_layout.addWidget(self._card(self.tr("IDENTIFICAÇÃO"), details_form))
@@ -425,6 +431,11 @@ class PropertyPanel(QWidget):
         if mode is not None:
             with QSignalBlocker(self.root_mode_combo):
                 self.root_mode_combo.setCurrentIndex(max(0, self.root_mode_combo.findData(mode)))
+
+    def set_screen_position(self, position: tuple[int, int] | None) -> None:
+        self.screen_position_label.setVisible(position is not None)
+        if position is not None:
+            self.screen_position_label.setText(self.tr("No jogo: X {x} · Y {y}").format(x=position[0], y=position[1]))
 
     def set_anchor_hint(self, text: str | None) -> None:
         self.anchor_hint.setText(text or "")
@@ -460,6 +471,7 @@ class PropertyPanel(QWidget):
         self._loading = True
         try:
             if element is None:
+                self.screen_position_label.setVisible(False)
                 self.actions_row.setVisible(False)
                 self.badge_row.setVisible(False)
                 self.selection_subtitle.setVisible(True)
@@ -671,11 +683,7 @@ class EditorWindow(QMainWindow):
         self.view.setScene(self.scene)
         self.cursor_position_label = QLabel(self.tr("Mouse: X — · Y —"))
         self.cursor_position_label.setMinimumWidth(150)
-        self.view.cursor_scene_moved.connect(
-            lambda x, y: self.cursor_position_label.setText(
-                self.tr("Mouse: X {x} · Y {y}").format(x=x, y=y)
-            )
-        )
+        self.view.cursor_scene_moved.connect(self._show_cursor_position)
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText(self.tr("Pesquisar WindowID, tipo, texto ou textura…"))
         self.search_edit.setClearButtonEnabled(True)
@@ -1574,6 +1582,33 @@ class EditorWindow(QMainWindow):
         else:
             self.game_screen_item.setPos(0, 0)
         self.game_screen_item.set_caption(caption)
+        self._refresh_screen_position()
+
+    def _screen_offset(self) -> tuple[int, int] | None:
+        """Quanto somar a uma coordenada do XML para obter a da tela do jogo."""
+        if self.game_screen_item is None or self.document is None:
+            return None
+        position = self.game_screen_item.pos()
+        return -round(position.x()), -round(position.y())
+
+    def _show_cursor_position(self, x: int, y: int) -> None:
+        offset = self._screen_offset()
+        if offset is None:
+            text = self.tr("Mouse: X {x} · Y {y}").format(x=x, y=y)
+        else:
+            # O XML guarda posições relativas à janela; a tela é onde o jogo desenha.
+            text = self.tr("XML: X {x} · Y {y}    Tela: X {sx} · Y {sy}").format(
+                x=x, y=y, sx=x + offset[0], sy=y + offset[1]
+            )
+        self.cursor_position_label.setText(text)
+
+    def _refresh_screen_position(self) -> None:
+        offset = self._screen_offset()
+        if offset is None or self.selected_index is None or self.document is None:
+            self.properties.set_screen_position(None)
+            return
+        element = self.document.elements[self.selected_index]
+        self.properties.set_screen_position((element.x + offset[0], element.y + offset[1]))
 
     def _document_game_dir(self) -> Path | None:
         """Pasta do jogo do arquivo aberto: a do projeto, ou a pasta acima de UI."""
@@ -1855,7 +1890,8 @@ class EditorWindow(QMainWindow):
         if is_centered(self.document.path.name, self._document_game_dir()):
             return self.tr(
                 "O jogo centraliza esta janela na tela e ignora o X/Y da raiz. "
-                "Para deslocar o conteúdo, mova os elementos de dentro; depois que o jogador arrasta a janela, vale a posição salva no User.ini."
+                "As coordenadas do XML são relativas à janela, então o 0,0 pode cair no meio da tela e valores negativos são normais. "
+                "Para deslocar o conteúdo, mova os elementos de dentro."
             )
         return None
 
@@ -1864,6 +1900,7 @@ class EditorWindow(QMainWindow):
         self.selected_index = index
         self.view.set_interaction_priority(self.items[index])
         self.properties.set_element(self.document.elements[index])
+        self._refresh_screen_position()
         self.properties.set_root_mode(self._root_mode() if index == 0 else None)
         self.properties.set_anchor_hint(self._anchor_hint_for(index))
         self.properties.set_enabled(index not in self.locked_indexes)
@@ -1998,6 +2035,7 @@ class EditorWindow(QMainWindow):
             self._place_game_screen()
         if self.selected_index == index:
             self.properties.set_element(self.document.elements[index])
+            self._refresh_screen_position()
         self._update_title()
 
     def edit_uv(
