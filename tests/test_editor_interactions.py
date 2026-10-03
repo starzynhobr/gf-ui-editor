@@ -329,7 +329,9 @@ def test_uv_edit_updates_preview_and_undo(tmp_path: Path) -> None:
     window.deleteLater()
 
 
-def test_external_dds_save_refreshes_preview(tmp_path: Path) -> None:
+def test_external_dds_save_refreshes_preview(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtGui import QDesktopServices
+
     application = QApplication.instance() or QApplication([])
     texture_path = tmp_path / "atlas.dds"
     Image.new("RGBA", (8, 8), (220, 20, 20, 255)).save(texture_path)
@@ -350,6 +352,18 @@ def test_external_dds_save_refreshes_preview(tmp_path: Path) -> None:
     assert pixmap_item.pixmap().toImage().pixelColor(2, 2).red() > 200
     assert str(texture_path) in window.texture_watcher.files()
 
+    window.select_element(0)
+    window.open_selected_atlas()
+    dialog = window.atlas_dialog
+    assert dialog is not None
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or True)
+    dialog.open_dds_button.click()
+    assert len(opened) == 1
+    assert opened[0].isLocalFile()
+    assert Path(opened[0].toLocalFile()) == texture_path
+    assert window.atlas_dialog is dialog
+
     Image.new("RGBA", (8, 8), (15, 60, 230, 255)).save(texture_path)
     for _ in range(20):
         QTest.qWait(100)
@@ -360,7 +374,37 @@ def test_external_dds_save_refreshes_preview(tmp_path: Path) -> None:
             break
 
     assert pixmap_item.pixmap().toImage().pixelColor(2, 2).blue() > 200
+    assert dialog.view._pixmap_item.pixmap().toImage().pixelColor(2, 2).blue() > 200
+    assert not window.document.is_dirty
+    dialog.close()
     window.deleteLater()
+
+
+def test_open_dds_reports_missing_file_and_launch_failure(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QMessageBox
+
+    application = QApplication.instance() or QApplication([])
+    texture_path = tmp_path / "textura com espaços e acentuação.dds"
+    texture_path.write_bytes(b"dds")
+    dialog = AtlasDialog(
+        texture_path.name, QPixmap(8, 8), UVRect(0, 0, 8, 8),
+        lambda *_: None, texture_path=texture_path,
+    )
+    opened = []
+    warnings = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or False)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[2]))
+    dialog.open_dds_button.click()
+    assert Path(opened[0].toLocalFile()) == texture_path
+    assert len(warnings) == 1
+    assert "aplicativo padrão" in warnings[0]
+    texture_path.unlink()
+    dialog.open_dds_button.click()
+    assert len(opened) == 1
+    assert len(warnings) == 2
+    assert str(texture_path) in warnings[1]
+    dialog.deleteLater()
 
 
 def test_opening_another_xml_reuses_unchanged_decoded_texture(

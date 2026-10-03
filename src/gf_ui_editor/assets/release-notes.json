@@ -1,41 +1,37 @@
 {
-  "version": "0.2.8",
+  "version": "0.2.9",
   "date": "2026-10-03",
   "notes": {
     "pt_BR": {
       "new": [
-        ["Novo projeto a partir de um .zip.", "Em Novo projeto, escolha \"Arquivo .zip…\": o editor extrai a UI e cria o projeto a partir dela."]
-      ],
-      "improved": [
-        ["\"Outra pasta…\" abre o seletor na hora.", "A pasta escolhida aparece na lista e o nome do projeto é sugerido a partir dela."],
-        ["Avisos no Novo projeto.", "O diálogo pede o nome quando ele falta e avisa se a pasta ou o .zip de origem não existe mais."]
+        [
+          "Abrir .dds pelo atlas.",
+          "O novo botão abre a textura exibida no aplicativo padrão do Windows. Salve no editor de imagem e volte: o atlas e o canvas são atualizados automaticamente."
+        ]
       ]
     },
     "en_US": {
       "new": [
-        ["New project from a .zip.", "In New project, pick \"A .zip file…\": the editor extracts the UI and creates the project from it."]
-      ],
-      "improved": [
-        ["\"Another folder…\" opens the picker right away.", "The chosen folder shows up in the list and the project name is suggested from it."],
-        ["Clearer New project dialog.", "It asks for the name when it is missing and tells you if the source folder or .zip no longer exists."]
+        [
+          "Open .dds from the atlas.",
+          "The new button opens the displayed texture in the Windows default application. Save in your image editor and return: the atlas and canvas refresh automatically."
+        ]
       ]
     },
     "es_ES": {
       "new": [
-        ["Nuevo proyecto a partir de un .zip.", "En Nuevo proyecto, elija \"Archivo .zip…\": el editor extrae la UI y crea el proyecto a partir de ella."]
-      ],
-      "improved": [
-        ["\"Otra carpeta…\" abre el selector al instante.", "La carpeta elegida aparece en la lista y el nombre del proyecto se sugiere a partir de ella."],
-        ["Avisos en Nuevo proyecto.", "El diálogo pide el nombre cuando falta y avisa si la carpeta o el .zip de origen ya no existe."]
+        [
+          "Abrir .dds desde el atlas.",
+          "El nuevo botón abre la textura mostrada en la aplicación predeterminada de Windows. Guarde en el editor de imágenes y vuelva: el atlas y el canvas se actualizan automáticamente."
+        ]
       ]
     },
     "fr_FR": {
       "new": [
-        ["Nouveau projet à partir d'un .zip.", "Dans Nouveau projet, choisissez « Fichier .zip… » : l'éditeur extrait l'UI et crée le projet à partir de celle-ci."]
-      ],
-      "improved": [
-        ["« Autre dossier… » ouvre le sélecteur tout de suite.", "Le dossier choisi apparaît dans la liste et le nom du projet est proposé à partir de lui."],
-        ["Nouveau projet plus clair.", "La fenêtre demande le nom s'il manque et prévient si le dossier ou le .zip d'origine n'existe plus."]
+        [
+          "Ouvrir .dds depuis l’atlas.",
+          "Le nouveau bouton ouvre la texture affichée dans l’application par défaut de Windows. Enregistrez dans votre éditeur d’image et revenez : l’atlas et le canevas se mettent à jour automatiquement."
+        ]
       ]
     }
   }

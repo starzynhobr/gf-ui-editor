@@ -2392,6 +2392,7 @@ class EditorWindow(QMainWindow):
             self,
             progress_offset=element.progress_offset,
             offset_editable=self.document.offsets_editable,
+            texture_path=self.texture_cache.path_for(element.texture_name),
         )
         dialog.finished.connect(self._atlas_dialog_closed)
         self.atlas_dialog = dialog

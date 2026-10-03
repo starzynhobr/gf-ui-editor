@@ -82,6 +82,7 @@ O script `run.ps1` também funciona quando as dependências já estão instalada
 - Painel direito: edita X, Y, largura e altura com atualização imediata.
 - `Abrir atlas DDS`: mostra a textura inteira e marca o recorte `NorUV` do elemento.
 - No atlas, arraste para escolher outro recorte ou informe X, Y, largura e altura.
+- `Abrir .dds` abre a textura exibida no aplicativo padrão do Windows. Ao salvar no editor de imagem, o atlas e o canvas são atualizados automaticamente.
 - `Centralizar seleção` aproxima e enquadra o recorte atual; `Ver atlas inteiro` retorna à visão geral.
 - O contorno do recorte permanece com 1 pixel de tela para permitir seleção precisa em zoom alto.
 - `F5`: testa o projeto no jogo.

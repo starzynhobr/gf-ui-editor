@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
+from pathlib import Path
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, Signal
-from PySide6.QtGui import QPainter, QPen, QPixmap, QWheelEvent
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, Signal, QUrl
+from PySide6.QtGui import QDesktopServices, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QFrame,
@@ -348,9 +350,11 @@ class AtlasDialog(QDialog):
         parent=None,
         progress_offset: tuple[int, int] | None = None,
         offset_editable: bool = False,
+        texture_path: Path | None = None,
     ):
         super().__init__(parent)
         self.texture_name = texture_name
+        self.texture_path = texture_path
         self._apply_callback = apply_callback
         self.setWindowTitle(self.tr("Atlas DDS — {name}").format(name=texture_name))
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
@@ -493,6 +497,15 @@ class AtlasDialog(QDialog):
         )
         self.offset_card.setVisible(progress_offset is not None)
 
+        self.open_dds_button = QPushButton(self.tr("Abrir .dds"))
+        self.open_dds_button.setIcon(icon("image", size=16))
+        self.open_dds_button.setToolTip(
+            self.tr("Abre esta textura no aplicativo padrão do sistema.")
+        )
+        self.open_dds_button.setEnabled(texture_path is not None)
+        self.open_dds_button.setAutoDefault(False)
+        self.open_dds_button.clicked.connect(self._open_dds)
+
         side_widget = QWidget()
         side_widget.setObjectName("propertiesPanel")
         side_widget.setFixedWidth(320)
@@ -504,6 +517,7 @@ class AtlasDialog(QDialog):
         side.addLayout(view_buttons)
         side.addWidget(uv_card)
         side.addWidget(self.offset_card)
+        side.addWidget(self.open_dds_button)
         side.addStretch(1)
         side.addWidget(explanation)
         side.addWidget(self.cursor_label)
@@ -525,6 +539,24 @@ class AtlasDialog(QDialog):
         self.view.set_progress_offset(progress_offset)
         self.set_uv(uv)
         install_pointer_cursors(self)
+
+    def _open_dds(self) -> None:
+        path = self.texture_path
+        if path is None:
+            return
+        if not path.is_file():
+            QMessageBox.warning(
+                self,
+                self.tr("Abrir .dds"),
+                self.tr("O arquivo de textura não foi encontrado: {path}").format(path=path),
+            )
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve()))):
+            QMessageBox.warning(
+                self,
+                self.tr("Abrir .dds"),
+                self.tr("Não foi possível abrir {name}. Verifique o aplicativo padrão para arquivos .dds no sistema.").format(name=path.name),
+            )
 
     @staticmethod
     def _legend(color, text: str) -> QWidget:
