@@ -1,57 +1,41 @@
 {
-  "version": "0.2.7",
+  "version": "0.2.8",
   "date": "2026-10-03",
   "notes": {
     "pt_BR": {
       "new": [
-        ["Arraste a janela para onde ela deve aparecer.", "Em janelas que o jogo centraliza ou prende a um canto, a janela principal agora é uma moldura em volta do conteúdo: arraste-a (ou edite X/Y) e ela fica onde você soltar. O editor grava no XML o valor que o jogo espera."],
-        ["Ajuda → Como usar.", "Cinco passos, do projeto ao jogo."],
-        ["Publicar na pasta da sua UI.", "Um projeto criado a partir de uma UI de UICustom publica de volta nela, sem apagar nada. Para projetos existentes, use Projeto → Pasta de publicação."]
+        ["Novo projeto a partir de um .zip.", "Em Novo projeto, escolha \"Arquivo .zip…\": o editor extrai a UI e cria o projeto a partir dela."]
       ],
       "improved": [
-        ["\"Testar no jogo\" agora é \"Enviar para o jogo\".", "O F5 copia a sua UI para o jogo; quem inicia o jogo é o launcher."],
-        ["Pastas sempre visíveis.", "A aba Arquivos mostra onde você está editando e onde o F5 publica; o título da janela mostra a pasta do arquivo aberto."],
-        ["Aviso de arquivos não enviados.", "O rodapé indica quando há arquivos salvos no projeto que ainda não foram para o jogo."],
-        ["Launcher aberto com outra UI.", "Depois do F5, o editor avisa se é preciso escolher a sua UI no launcher antes de clicar em Jogar."]
+        ["\"Outra pasta…\" abre o seletor na hora.", "A pasta escolhida aparece na lista e o nome do projeto é sugerido a partir dela."],
+        ["Avisos no Novo projeto.", "O diálogo pede o nome quando ele falta e avisa se a pasta ou o .zip de origem não existe mais."]
       ]
     },
     "en_US": {
       "new": [
-        ["Drag the window to where it should appear.", "For windows the game centres or pins to a corner, the main window is now a frame around the content: drag it (or edit X/Y) and it stays where you drop it. The editor writes the value the game expects to the XML."],
-        ["Help → How to use.", "Five steps, from project to game."],
-        ["Publish into your own UI folder.", "A project created from a UICustom UI publishes back into it, without deleting anything. For existing projects, use Project → Publish folder."]
+        ["New project from a .zip.", "In New project, pick \"A .zip file…\": the editor extracts the UI and creates the project from it."]
       ],
       "improved": [
-        ["\"Test in game\" is now \"Send to game\".", "F5 copies your UI into the game; the launcher is what starts the game."],
-        ["Folders always visible.", "The Files tab shows where you are editing and where F5 publishes; the window title shows the folder of the open file."],
-        ["Unsent files notice.", "The status bar tells you when files saved in the project have not reached the game yet."],
-        ["Launcher open with another UI.", "After F5, the editor warns you if you need to pick your UI in the launcher before clicking Play."]
+        ["\"Another folder…\" opens the picker right away.", "The chosen folder shows up in the list and the project name is suggested from it."],
+        ["Clearer New project dialog.", "It asks for the name when it is missing and tells you if the source folder or .zip no longer exists."]
       ]
     },
     "es_ES": {
       "new": [
-        ["Arrastre la ventana hasta donde debe aparecer.", "En las ventanas que el juego centra o fija en una esquina, la ventana principal es ahora un marco alrededor del contenido: arrástrela (o edite X/Y) y se queda donde la suelte. El editor escribe en el XML el valor que espera el juego."],
-        ["Ayuda → Cómo usar.", "Cinco pasos, del proyecto al juego."],
-        ["Publicar en la carpeta de su UI.", "Un proyecto creado a partir de una UI de UICustom publica de vuelta en ella, sin borrar nada. Para proyectos existentes, use Proyecto → Carpeta de publicación."]
+        ["Nuevo proyecto a partir de un .zip.", "En Nuevo proyecto, elija \"Archivo .zip…\": el editor extrae la UI y crea el proyecto a partir de ella."]
       ],
       "improved": [
-        ["\"Probar en el juego\" ahora es \"Enviar al juego\".", "F5 copia su UI al juego; quien inicia el juego es el lanzador."],
-        ["Carpetas siempre visibles.", "La pestaña Archivos muestra dónde está editando y dónde publica F5; el título de la ventana muestra la carpeta del archivo abierto."],
-        ["Aviso de archivos sin enviar.", "La barra inferior indica cuándo hay archivos guardados en el proyecto que aún no llegaron al juego."],
-        ["Lanzador abierto con otra UI.", "Después de F5, el editor avisa si hay que elegir su UI en el lanzador antes de pulsar Jugar."]
+        ["\"Otra carpeta…\" abre el selector al instante.", "La carpeta elegida aparece en la lista y el nombre del proyecto se sugiere a partir de ella."],
+        ["Avisos en Nuevo proyecto.", "El diálogo pide el nombre cuando falta y avisa si la carpeta o el .zip de origen ya no existe."]
       ]
     },
     "fr_FR": {
       "new": [
-        ["Faites glisser la fenêtre là où elle doit apparaître.", "Pour les fenêtres que le jeu centre ou fixe dans un coin, la fenêtre principale est désormais un cadre autour du contenu : faites-la glisser (ou modifiez X/Y) et elle reste là où vous la déposez. L'éditeur écrit dans le XML la valeur attendue par le jeu."],
-        ["Aide → Mode d'emploi.", "Cinq étapes, du projet au jeu."],
-        ["Publier dans le dossier de votre UI.", "Un projet créé à partir d'une UI de UICustom publie de nouveau dans ce dossier, sans rien supprimer. Pour les projets existants : Projet → Dossier de publication."]
+        ["Nouveau projet à partir d'un .zip.", "Dans Nouveau projet, choisissez « Fichier .zip… » : l'éditeur extrait l'UI et crée le projet à partir de celle-ci."]
       ],
       "improved": [
-        ["« Tester en jeu » devient « Envoyer au jeu ».", "F5 copie votre UI dans le jeu ; c'est le lanceur qui démarre le jeu."],
-        ["Dossiers toujours visibles.", "L'onglet Fichiers indique où vous modifiez et où F5 publie ; le titre de la fenêtre affiche le dossier du fichier ouvert."],
-        ["Fichiers non envoyés.", "La barre d'état signale les fichiers enregistrés dans le projet qui ne sont pas encore dans le jeu."],
-        ["Lanceur ouvert avec une autre UI.", "Après F5, l'éditeur vous prévient s'il faut choisir votre UI dans le lanceur avant de cliquer sur Jouer."]
+        ["« Autre dossier… » ouvre le sélecteur tout de suite.", "Le dossier choisi apparaît dans la liste et le nom du projet est proposé à partir de lui."],
+        ["Nouveau projet plus clair.", "La fenêtre demande le nom s'il manque et prévient si le dossier ou le .zip d'origine n'existe plus."]
       ]
     }
   }

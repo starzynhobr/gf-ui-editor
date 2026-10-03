@@ -11,7 +11,9 @@ import re
 import shutil
 import sys
 from threading import Thread
+import tempfile
 import time
+import zipfile
 
 from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
@@ -82,7 +84,15 @@ from .interaction import install_pointer_cursors
 from . import backgrounds
 from . import release_notes, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
-from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects, safe_name
+from .project import (
+    PROJECTS_ROOT,
+    Project,
+    custom_ui_sources,
+    extract_ui_zip,
+    is_backup_file,
+    list_projects,
+    safe_name,
+)
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
@@ -195,7 +205,8 @@ class NewProjectDialog(QDialog):
             for label, path in custom_ui_sources(game_dir):
                 text = self.tr("UI em uso no jogo (pasta UI)") if label == "UI" else label
                 self.source_combo.addItem(text, str(path))
-        self.source_combo.addItem(self.tr("Outra pasta…"), "")
+        self.source_combo.addItem(self.tr("Outra pasta…"), self.PICK_FOLDER)
+        self.source_combo.addItem(self.tr("Arquivo .zip…"), self.PICK_ZIP)
         self.assets_check = QCheckBox(
             self.tr("Incluir ícones de itens, skills e telas de carregamento (~18 mil arquivos)")
         )
@@ -227,23 +238,50 @@ class NewProjectDialog(QDialog):
         layout.addWidget(buttons)
         self.source_dir: Path | None = None
         self.publish_folder = ""
+        self._last_index = 0
         self.source_combo.currentIndexChanged.connect(self._suggest_name)
+        self.source_combo.activated.connect(self._source_activated)
+
+    PICK_FOLDER = "?folder"
+    PICK_ZIP = "?zip"
 
     def _suggest_name(self, _index: int = 0) -> None:
         text = self.source_combo.currentText()
         if text.startswith("UICustom/") and not self.name_edit.text().strip():
             self.name_edit.setText(text.split("/", 1)[1])
 
-    def _accept(self) -> None:
+    def _source_activated(self, index: int) -> None:
+        """"Outra pasta…" e "Arquivo .zip…" abrem o seletor na hora e viram um item da lista."""
+        data = self.source_combo.itemData(index)
+        if data not in (self.PICK_FOLDER, self.PICK_ZIP):
+            self._last_index = index
+            return
+        if data == self.PICK_FOLDER:
+            chosen = QFileDialog.getExistingDirectory(self, self.tr("Pasta com os arquivos da UI"))
+        else:
+            chosen, _filter = QFileDialog.getOpenFileName(
+                self, self.tr("Arquivo .zip da UI"), "", self.tr("Arquivos .zip (*.zip)")
+            )
+        if not chosen:
+            self.source_combo.setCurrentIndex(self._last_index)
+            return
+        position = self.source_combo.findData(self.PICK_FOLDER)
+        self.source_combo.insertItem(position, str(Path(chosen)), chosen)
+        self.source_combo.setCurrentIndex(position)
+        self._last_index = position
         if not self.name_edit.text().strip():
+            self.name_edit.setText(Path(chosen).stem if data == self.PICK_ZIP else Path(chosen).name)
+
+    def _accept(self) -> None:
+        if self.source_combo.currentData() in (self.PICK_FOLDER, self.PICK_ZIP):
+            self._source_activated(self.source_combo.currentIndex())
+            if self.source_combo.currentData() in (self.PICK_FOLDER, self.PICK_ZIP):
+                return
+        if not self.name_edit.text().strip():
+            self.name_edit.setPlaceholderText(self.tr("Dê um nome ao projeto"))
             self.name_edit.setFocus()
             return
         data = self.source_combo.currentData()
-        if not data:
-            folder = QFileDialog.getExistingDirectory(self, self.tr("Pasta com os arquivos da UI"))
-            if not folder:
-                return
-            data = folder
         self.source_dir = Path(data)
         text = self.source_combo.currentText()
         # Projeto vindo de uma UI de UICustom publica de volta nela (o launcher já a conhece).
@@ -2901,19 +2939,28 @@ class EditorWindow(QMainWindow):
             name, source = dialog.name_edit.text().strip(), dialog.source_dir
             include_assets = dialog.assets_check.isChecked()
             publish_folder = dialog.publish_folder
-            project = self._run_with_progress(
-                self.tr("Copiando arquivos da UI para o projeto…"),
-                lambda progress: Project.create(
+
+            def build(progress):
+                if not source.exists():
+                    raise FileNotFoundError(str(source))
+                if source.is_file():  # .zip: extrai para uma pasta temporária e parte dela
+                    with tempfile.TemporaryDirectory() as folder:
+                        return Project.create(
+                            name, extract_ui_zip(source, Path(folder)), game_dir, progress=progress,
+                            include_assets=include_assets, publish_folder=publish_folder,
+                        )
+                return Project.create(
                     name, source, game_dir, progress=progress, include_assets=include_assets,
                     publish_folder=publish_folder,
-                ),
-            )
+                )
+
+            project = self._run_with_progress(self.tr("Copiando arquivos da UI para o projeto…"), build)
         except FileExistsError as exc:
             QMessageBox.warning(
                 self, self.tr("Projeto já existe"), self.tr("Já existe um projeto em {path}.").format(path=exc.args[0])
             )
             return
-        except OSError as exc:
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
             QMessageBox.critical(self, self.tr("Não foi possível criar o projeto"), str(exc))
             return
         self.open_project(project.root)

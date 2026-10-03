@@ -153,3 +153,37 @@ def test_project_from_a_custom_ui_publishes_back_into_it_without_deleting(tmp_pa
     # Na pasta adotada nada é apagado: nem backups do usuário, nem arquivos fora do projeto.
     assert (original / "Radar - Copia.xml").exists() and (original / "so-aqui.dds").exists()
     assert b"UI=custom:UI GF ROUGE" in (game / "Launcher.ini").read_bytes()
+
+
+def test_project_can_start_from_a_zip(tmp_path: Path) -> None:
+    import zipfile
+
+    import pytest
+
+    from gf_ui_editor.project import extract_ui_zip
+
+    archive = tmp_path / "Minha UI.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("Minha UI/Radar.xml", "<Root_Node />")
+        bundle.writestr("Minha UI/main.dds", b"DDS ")
+    root = extract_ui_zip(archive, tmp_path / "out")
+    assert root.name == "Minha UI"
+    assert sorted(path.name for path in root.iterdir()) == ["Radar.xml", "main.dds"]
+
+    loose = tmp_path / "solta.zip"
+    with zipfile.ZipFile(loose, "w") as bundle:
+        bundle.writestr("Radar.xml", "<Root_Node />")
+    assert extract_ui_zip(loose, tmp_path / "out2") == (tmp_path / "out2").resolve()
+
+    unsafe = tmp_path / "ruim.zip"
+    with zipfile.ZipFile(unsafe, "w") as bundle:
+        bundle.writestr("../fora.xml", "x")
+    with pytest.raises(ValueError):
+        extract_ui_zip(unsafe, tmp_path / "out3")
+    assert not (tmp_path / "fora.xml").exists()
+
+    empty = tmp_path / "vazia.zip"
+    with zipfile.ZipFile(empty, "w") as bundle:
+        bundle.writestr("leia-me.txt", "x")
+    with pytest.raises(ValueError):
+        extract_ui_zip(empty, tmp_path / "out4")

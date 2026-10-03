@@ -460,6 +460,30 @@ def select_custom_ui(launcher_ini: Path, custom_name: str) -> bool:
     return True
 
 
+def extract_ui_zip(archive_path: Path, destination: Path) -> Path:
+    """Extrai um .zip de UI e devolve a pasta que contém os arquivos.
+
+    Os presets vêm com uma pasta raiz dentro do .zip; outros trazem os arquivos soltos.
+    """
+    destination = destination.resolve()
+    with zipfile.ZipFile(archive_path) as archive:
+        for member in archive.infolist():
+            target = (destination / member.filename).resolve()
+            if destination != target and destination not in target.parents:
+                raise ValueError(f"Caminho inválido no .zip: {member.filename}")
+        archive.extractall(destination)
+    root = destination
+    while True:
+        entries = list(root.iterdir())
+        if len(entries) == 1 and entries[0].is_dir():
+            root = entries[0]
+        else:
+            break
+    if not any(entry.suffix.lower() == ".xml" for entry in root.iterdir() if entry.is_file()):
+        raise ValueError("O .zip não contém arquivos XML de UI.")
+    return root
+
+
 def custom_ui_sources(game_dir: Path) -> list[tuple[str, Path]]:
     """Pastas que podem servir de base para um projeto novo."""
     sources: list[tuple[str, Path]] = []
