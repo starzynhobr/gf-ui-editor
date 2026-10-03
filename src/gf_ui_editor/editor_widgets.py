@@ -123,6 +123,11 @@ class ElementItem(QGraphicsRectItem):
         self._labels_enabled = False
         self._textures_enabled = True
         self._preview_mode = False
+        # Moldura da janela: a raiz é desenhada em volta do conteúdo e arrastá-la
+        # leva os demais elementos junto (ver set_content_frame).
+        self._frame_mode = False
+        self._frame_offset = (0, 0)
+        self._followers: list[tuple["ElementItem", QPointF]] = []
         self._base_z = float(element.index)
         self.setPos(element.x, element.y)
         self.setZValue(self._base_z)
@@ -229,7 +234,7 @@ class ElementItem(QGraphicsRectItem):
     def set_texture_visible(self, visible: bool) -> None:
         self._textures_enabled = visible
         if self.texture_item is not None:
-            self.texture_item.setVisible(visible)
+            self.texture_item.setVisible(visible and not self._frame_mode)
 
     def set_pixmap(self, pixmap: QPixmap | None) -> None:
         if self.texture_item is None:
@@ -240,13 +245,13 @@ class ElementItem(QGraphicsRectItem):
             self.texture_item.setZValue(-1)
         else:
             self.texture_item.setPixmap(pixmap or QPixmap())
-        self.texture_item.setVisible(self._textures_enabled and pixmap is not None)
+        self.texture_item.setVisible(self._textures_enabled and pixmap is not None and not self._frame_mode)
         self._update_texture_transform()
 
     def set_locked(self, locked: bool) -> None:
         self._locked = locked
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not locked)
-        self.resize_handle.setVisible(self.isSelected() and not locked)
+        self.resize_handle.setVisible(self.isSelected() and not locked and not self._frame_mode)
         self.setCursor(
             Qt.CursorShape.ArrowCursor if locked else Qt.CursorShape.SizeAllCursor
         )
@@ -254,10 +259,34 @@ class ElementItem(QGraphicsRectItem):
     def apply_element(self, element: UIElement) -> None:
         self._element_width = element.width
         self._element_height = element.height
+        self._frame_mode = False
         self.setPos(element.x, element.y)
         self.setRect(QRectF(0, 0, max(1, element.width), max(1, element.height)))
         self._update_texture_transform()
         self._update_overlays()
+        self.resize_handle.setVisible(self.isSelected() and not self._locked)
+        if self.texture_item is not None:
+            self.texture_item.setVisible(self._textures_enabled and not self.texture_item.pixmap().isNull())
+
+    @property
+    def frame_mode(self) -> bool:
+        return self._frame_mode
+
+    def set_content_frame(self, rect: QRectF, offset: tuple[int, int]) -> None:
+        """Desenha a raiz em volta do conteúdo, onde o jogo o mostra.
+
+        Numa janela que o jogo posiciona sozinho, o retângulo real da raiz fica
+        preso ao centro (ou a um canto) e o que o usuário enxerga como "a janela"
+        é o conteúdo. `offset` converte a posição no canvas em posição na tela.
+        """
+        self._frame_mode = True
+        self._frame_offset = offset
+        self.setPos(rect.topLeft())
+        self.setRect(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
+        self._update_overlays()
+        self.resize_handle.setVisible(False)
+        if self.texture_item is not None:
+            self.texture_item.setVisible(False)  # a textura da raiz não é a do conteúdo
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):  # noqa: N802
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
@@ -272,7 +301,7 @@ class ElementItem(QGraphicsRectItem):
             )
             self.setPen(self._selected_pen if selected else self._idle_pen())
             self.label_item.setVisible(self._labels_enabled or selected)
-            self.resize_handle.setVisible(selected and not self._locked)
+            self.resize_handle.setVisible(selected and not self._locked and not self._frame_mode)
             self._selected_callback(self.element_index)
         return super().itemChange(change, value)
 
@@ -306,7 +335,19 @@ class ElementItem(QGraphicsRectItem):
             )
             for item in selected_items
         }
+        self._followers = []
+        if self._frame_mode and set(self._group_drag_starts) == {self.element_index} and self.scene() is not None:
+            self._followers = [
+                (item, QPointF(item.pos()))
+                for item in self.scene().items()
+                if isinstance(item, ElementItem) and item is not self
+            ]
         super().mousePressEvent(event)
+
+    def _move_followers(self) -> None:
+        delta = self.pos() - self._drag_start_position
+        for item, start_position in self._followers:
+            item.setPos(start_position + delta)
 
     def mouseMoveEvent(self, event):  # noqa: N802
         if self._locked:
@@ -319,12 +360,14 @@ class ElementItem(QGraphicsRectItem):
             )
             for item, start_position, _geometry in self._group_drag_starts.values():
                 item.setPos(start_position + QPointF(dx, dy))
+            self._move_followers()
             self._show_drag_position(self._locked_axis)
             event.accept()
             return
         # Soltar Shift durante o arraste devolve imediatamente o movimento livre.
         self._locked_axis = None
         super().mouseMoveEvent(event)
+        self._move_followers()
         self._show_drag_position()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
@@ -340,6 +383,10 @@ class ElementItem(QGraphicsRectItem):
             )
             if new_geometry != old_geometry:
                 changes[index] = (old_geometry, new_geometry)
+        # O conteúdo só acompanhou o arraste; quem muda no XML é a raiz.
+        for item, start_position in self._followers:
+            item.setPos(start_position)
+        self._followers = []
         if changes:
             self._moved_callback(changes)
         self._group_drag_starts.clear()
@@ -353,8 +400,9 @@ class ElementItem(QGraphicsRectItem):
             suffix = " · eixo horizontal"
         elif axis == "vertical":
             suffix = " · eixo vertical"
+        offset = self._frame_offset if self._frame_mode else (0, 0)
         self.drag_position_item.setText(
-            f"X {round(position.x())} · Y {round(position.y())}{suffix}"
+            f"X {round(position.x()) + offset[0]} · Y {round(position.y()) + offset[1]}{suffix}"
         )
         self._update_overlays()
         self.drag_position_item.setVisible(True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import difflib
+from html import escape
 import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
@@ -81,7 +82,7 @@ from .interaction import install_pointer_cursors
 from . import backgrounds
 from . import release_notes, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
-from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects
+from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects, safe_name
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
@@ -204,7 +205,7 @@ class NewProjectDialog(QDialog):
         explanation = QLabel(
             self.tr(
                 "Os arquivos serão copiados para {root}. Backups e cópias antigas ficam de fora; "
-                "a pasta do jogo não é alterada até você usar Testar no jogo."
+                "a pasta do jogo não é alterada até você usar Enviar para o jogo."
             ).format(root=PROJECTS_ROOT)
         )
         explanation.setWordWrap(True)
@@ -225,6 +226,13 @@ class NewProjectDialog(QDialog):
         layout.addWidget(explanation)
         layout.addWidget(buttons)
         self.source_dir: Path | None = None
+        self.publish_folder = ""
+        self.source_combo.currentIndexChanged.connect(self._suggest_name)
+
+    def _suggest_name(self, _index: int = 0) -> None:
+        text = self.source_combo.currentText()
+        if text.startswith("UICustom/") and not self.name_edit.text().strip():
+            self.name_edit.setText(text.split("/", 1)[1])
 
     def _accept(self) -> None:
         if not self.name_edit.text().strip():
@@ -237,6 +245,9 @@ class NewProjectDialog(QDialog):
                 return
             data = folder
         self.source_dir = Path(data)
+        text = self.source_combo.currentText()
+        # Projeto vindo de uma UI de UICustom publica de volta nela (o launcher já a conhece).
+        self.publish_folder = text.split("/", 1)[1] if text.startswith("UICustom/") else ""
         self.accept()
 
 
@@ -436,6 +447,14 @@ class PropertyPanel(QWidget):
         self.screen_position_label.setVisible(position is not None)
         if position is not None:
             self.screen_position_label.setText(self.tr("No jogo: X {x} · Y {y}").format(x=position[0], y=position[1]))
+
+    def show_window_position(self, screen: tuple[int, int], xml: tuple[int, int]) -> None:
+        """Janela posicionada pelo jogo: X/Y mostram onde ela aparece; o do XML vai na legenda."""
+        for spin, value in zip((self.x_spin, self.y_spin), screen, strict=True):
+            with QSignalBlocker(spin):
+                spin.setValue(value)
+        self.screen_position_label.setVisible(True)
+        self.screen_position_label.setText(self.tr("No XML: X {x} · Y {y}").format(x=xml[0], y=xml[1]))
 
     def set_anchor_hint(self, text: str | None) -> None:
         self.anchor_hint.setText(text or "")
@@ -734,6 +753,14 @@ class EditorWindow(QMainWindow):
         files_layout.setSpacing(6)
         files_layout.addWidget(self.project_label)
         files_layout.addWidget(self.project_path_label)
+        self.project_paths_label = QLabel()
+        self.project_paths_label.setObjectName("pathCaption")
+        self.project_paths_label.setWordWrap(True)
+        # Caminhos longos não podem alargar o painel; o texto completo fica na dica.
+        self.project_paths_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.project_paths_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.project_paths_label.setVisible(False)
+        files_layout.addWidget(self.project_paths_label)
         files_layout.addWidget(self.file_filter_edit)
         files_layout.addWidget(self.files_tree)
 
@@ -808,9 +835,9 @@ class EditorWindow(QMainWindow):
         self.open_project_action.setIcon(icon("folder-open", "#ffffff" if "folder-open" == "play" else COLORS["ICON"]))
         self.open_project_action.setIconText(self.tr("Projeto"))
         self.open_project_action.triggered.connect(self.choose_project)
-        self.test_action = QAction(self.tr("Testar no jogo"), self)
+        self.test_action = QAction(self.tr("Enviar para o jogo"), self)
         self.test_action.setShortcut("F5")
-        self.test_action.setIcon(icon("play", "#ffffff" if "play" == "play" else COLORS["ICON"]))
+        self.test_action.setIcon(icon("send", "#ffffff"))
         self.test_action.setToolTip(
             self.tr("Publica o projeto em UICustom e na pasta UI do jogo e o seleciona no launcher (F5)")
         )
@@ -952,6 +979,10 @@ class EditorWindow(QMainWindow):
         project_menu = self.menuBar().addMenu(self.tr("Projeto"))
         project_menu.addAction(self.test_action)
         project_menu.addAction(self.export_action)
+        self.publish_folder_action = QAction(self.tr("Pasta de publicação…"), self)
+        self.publish_folder_action.setEnabled(False)
+        self.publish_folder_action.triggered.connect(self.choose_publish_folder)
+        project_menu.addAction(self.publish_folder_action)
         project_menu.addSeparator()
         project_menu.addAction(self.project_folder_action)
         edit_menu = self.menuBar().addMenu(self.tr("Editar"))
@@ -1013,6 +1044,10 @@ class EditorWindow(QMainWindow):
         self.auto_update_action.toggled.connect(
             lambda on: QSettings("Local", "GF UI Editor").setValue("auto_update_check", "true" if on else "false")
         )
+        self.how_to_action = QAction(self.tr("Como usar"), self)
+        self.how_to_action.setShortcut(QKeySequence.StandardKey.HelpContents)
+        self.how_to_action.triggered.connect(self.show_how_to)
+        help_menu.addAction(self.how_to_action)
         self.whats_new_action = QAction(self.tr("Novidades desta versão"), self)
         self.whats_new_action.triggered.connect(self.show_whats_new)
         help_menu.addAction(self.whats_new_action)
@@ -1124,6 +1159,84 @@ class EditorWindow(QMainWindow):
             QSettings("Local", "GF UI Editor").setValue("skipped_update_version", info.version)
         elif dialog.choice == UPDATE:
             self._install_update(info)
+
+    def show_how_to(self) -> None:
+        steps = [
+            (
+                self.tr("Crie um projeto"),
+                self.tr(
+                    "Arquivo → Novo projeto. Dê um nome e escolha de onde partir: a UI em uso, uma UI da lista "
+                    "(UICustom/…) ou \"Outra pasta…\" se os seus arquivos estão em outro lugar. O editor copia os "
+                    "arquivos para o projeto; a pasta original não é alterada."
+                ),
+            ),
+            (
+                self.tr("Edite e salve"),
+                self.tr(
+                    "Abra um XML na aba Arquivos, mova e ajuste os elementos e salve com Ctrl+S. Cada salvamento "
+                    "guarda um backup: clique com o botão direito no arquivo para restaurar uma versão anterior."
+                ),
+            ),
+            (
+                self.tr("Envie para o jogo com F5"),
+                self.tr(
+                    "Salvar grava só no projeto. Enviar para o jogo (F5) copia a sua UI para a pasta do jogo e a "
+                    "seleciona no launcher; depois inicie o jogo pelo launcher. Se o launcher já estiver aberto, "
+                    "escolha a sua UI na lista dele antes de clicar em Jogar."
+                ),
+            ),
+            (
+                self.tr("Entenda o preview"),
+                self.tr(
+                    "A moldura mostra a tela do jogo na sua resolução. Algumas janelas o jogo fixa "
+                    "(no centro ou num canto): nelas, arraste a janela para onde o conteúdo deve aparecer "
+                    "e o editor ajusta o X/Y que o jogo espera."
+                ),
+            ),
+            (
+                self.tr("Compartilhe"),
+                self.tr(
+                    "Projeto → Exportar UI (.zip) gera o pacote que outras pessoas adicionam no launcher em "
+                    "\"Adicionar UI Customizada\"."
+                ),
+            ),
+        ]
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self.tr("Como usar"))
+        dialog.setMinimumWidth(600)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(28, 24, 28, 20)
+        layout.setSpacing(16)
+        title = QLabel(self.tr("Do projeto ao jogo em cinco passos"))
+        title.setObjectName("heroTitle")
+        layout.addWidget(title)
+        for number, (heading, text) in enumerate(steps, 1):
+            row = QHBoxLayout()
+            row.setSpacing(14)
+            badge = QLabel(str(number))
+            badge.setObjectName("stepBadge")
+            badge.setFixedSize(26, 26)
+            badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            body = QLabel(
+                f"<span style='color:{COLORS['TEXT_BRIGHT']};font-weight:600'>{escape(heading)}</span><br>"
+                f"<span style='color:{COLORS['TEXT_PRIMARY']}'>{escape(text)}</span>"
+            )
+            body.setTextFormat(Qt.TextFormat.RichText)
+            body.setWordWrap(True)
+            body.setObjectName("noteEntry")
+            row.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+            row.addWidget(body, 1)
+            layout.addLayout(row)
+        close = QPushButton(self.tr("Fechar"))
+        close.setObjectName("accentPush")
+        close.setDefault(True)
+        close.clicked.connect(dialog.accept)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(close)
+        layout.addLayout(footer)
+        install_pointer_cursors(dialog)
+        dialog.exec()
 
     def show_whats_new(self) -> None:
         WhatsNewDialog(__version__, release_notes.bundled(), self.language, parent=self).exec()
@@ -1304,6 +1417,12 @@ class EditorWindow(QMainWindow):
             QLabel#panelSubtitle, QLabel#canvasHint { color: ${TEXT_SUBTITLE}; background: transparent; }
             QLabel#fieldLabel { color: ${TEXT_SUBTITLE}; background: transparent; }
             QLabel#fieldValue { color: ${TEXT_BRIGHT}; font-weight: 500; background: transparent; }
+            QLabel#pathCaption {
+                font-family: "${MONO_FONT}", Consolas, monospace;
+                font-size: 11px;
+                color: ${TEXT_MUTED};
+                background: transparent;
+            }
             QLabel#monoCaption, QLabel#zoomLabel {
                 font-family: "${MONO_FONT}", Consolas, monospace;
                 font-size: 12px;
@@ -1336,6 +1455,12 @@ class EditorWindow(QMainWindow):
                 padding: 8px 10px;
                 font-size: 12px;
             }
+            QLabel#stepBadge {
+                background: ${ACCENT_SOFT_BG};
+                color: ${ACCENT_TEXT};
+                border-radius: 13px;
+                font-weight: 700;
+            }
             QLabel#versionChip {
                 background: ${NOTE_NEW};
                 color: ${CHROME_BG};
@@ -1356,6 +1481,15 @@ class EditorWindow(QMainWindow):
             QFrame#separatorLine { background: ${BORDER_PANEL}; border: 0; }
             QPushButton#ghostPush { background: transparent; border-color: transparent; color: ${TEXT_MUTED}; }
             QPushButton#ghostPush:hover { color: ${TEXT_BRIGHT}; }
+            QLabel#chipWarning {
+                background: #3a2e12;
+                color: ${SELECTION_GOLD};
+                border-radius: 9px;
+                padding: 1px 9px;
+                margin: 3px 2px;
+                font-size: 11px;
+                font-weight: 600;
+            }
             QLabel#chip {
                 background: ${CHIP_BG};
                 color: ${TEXT_MUTED};
@@ -1546,6 +1680,7 @@ class EditorWindow(QMainWindow):
             self.game_screen_item = GameScreenItem(width, height, background)
             self.scene.addItem(self.game_screen_item)
             self._place_game_screen()
+        self._sync_window_frame()
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
 
     def _place_game_screen(self) -> None:
@@ -1555,6 +1690,8 @@ class EditorWindow(QMainWindow):
         """
         if self.game_screen_item is None or self.game_resolution is None:
             return
+        before = self.game_screen_item.pos()
+        before_in_view = self.view.mapFromScene(before)
         width, height = self.game_resolution
         caption = f"{width} × {height}"
         if self.document is not None and self.document.elements:
@@ -1582,7 +1719,43 @@ class EditorWindow(QMainWindow):
         else:
             self.game_screen_item.setPos(0, 0)
         self.game_screen_item.set_caption(caption)
+        self._keep_screen_in_place(before, before_in_view)
+        self._sync_window_frame()
         self._refresh_screen_position()
+
+    def _keep_screen_in_place(self, before, before_in_view) -> None:
+        """A tela não sai do lugar na vista quando a raiz muda: é o conteúdo que anda."""
+        assert self.game_screen_item is not None
+        shift = self.game_screen_item.pos() - before
+        if shift.isNull():
+            return
+        self.scene.setSceneRect(self.scene.sceneRect().translated(shift))
+        drift = self.view.mapFromScene(self.game_screen_item.pos()) - before_in_view
+        for bar, amount in (
+            (self.view.horizontalScrollBar(), drift.x()),
+            (self.view.verticalScrollBar(), drift.y()),
+        ):
+            bar.setValue(bar.value() + amount)
+
+    def _sync_window_frame(self) -> None:
+        """Numa janela que o jogo posiciona, mostra a raiz como moldura do conteúdo.
+
+        O retângulo real da raiz fica preso ao centro ou a um canto; arrastar a
+        moldura leva o conteúdo junto e o X/Y da raiz é acertado por baixo.
+        """
+        if self.document is None or 0 not in self.items or not self.document.elements:
+            return
+        root = self.document.elements[0]
+        item = self.items[0]
+        item.apply_element(root)
+        offset = self._screen_offset()
+        others = self.document.elements[1:]
+        if offset is None or not others or not self._root_position_is_set_by_game():
+            return
+        bounds = QRectF()
+        for element in others:
+            bounds = bounds.united(QRectF(element.x, element.y, max(1, element.width), max(1, element.height)))
+        item.set_content_frame(bounds, offset)
 
     def _screen_offset(self) -> tuple[int, int] | None:
         """Quanto somar a uma coordenada do XML para obter a da tela do jogo."""
@@ -1608,7 +1781,19 @@ class EditorWindow(QMainWindow):
             self.properties.set_screen_position(None)
             return
         element = self.document.elements[self.selected_index]
+        frame = self._window_frame_on_screen() if self.selected_index == 0 else None
+        if frame is not None:
+            self.properties.show_window_position(frame, (element.x, element.y))
+            return
         self.properties.set_screen_position((element.x + offset[0], element.y + offset[1]))
+
+    def _window_frame_on_screen(self) -> tuple[int, int] | None:
+        """Onde a moldura da janela aparece na tela, quando o jogo é quem a posiciona."""
+        offset = self._screen_offset()
+        item = self.items.get(0)
+        if offset is None or item is None or not item.frame_mode:
+            return None
+        return round(item.pos().x()) + offset[0], round(item.pos().y()) + offset[1]
 
     def _document_game_dir(self) -> Path | None:
         """Pasta do jogo do arquivo aberto: a do projeto, ou a pasta acima de UI."""
@@ -1886,12 +2071,16 @@ class EditorWindow(QMainWindow):
         if self._root_mode() != "auto":
             return None
         if rule_for(self.document.path.name) is not None:
-            return self.tr("O jogo posiciona esta janela sozinho; mover a raiz não muda onde ela aparece no jogo.")
+            return self.tr(
+                "O jogo prende esta janela a um ponto da tela. "
+                "Com o Preview do jogo ligado, arraste a janela ou edite X/Y para colocá-la onde deve aparecer na tela; "
+                "o editor grava no XML o valor que o jogo espera."
+            )
         if is_centered(self.document.path.name, self._document_game_dir()):
             return self.tr(
-                "O jogo centraliza esta janela na tela e ignora o X/Y da raiz. "
-                "As coordenadas do XML são relativas à janela, então o 0,0 pode cair no meio da tela e valores negativos são normais. "
-                "Para deslocar o conteúdo, mova os elementos de dentro."
+                "O jogo centraliza esta janela na tela. "
+                "Com o Preview do jogo ligado, arraste a janela ou edite X/Y para colocá-la onde deve aparecer na tela; "
+                "o editor grava no XML o valor que o jogo espera."
             )
         return None
 
@@ -1992,8 +2181,11 @@ class EditorWindow(QMainWindow):
             for index, geometries in changes.items()
             if index not in self.locked_indexes and geometries[0] != geometries[1]
         }
+        changes = self._root_move_as_screen_move(changes)
         if changes:
             self.undo_stack.push(GeometryBatchCommand(self, changes))
+            if 0 in changes and self._window_frame_on_screen() is None:
+                self._warn_root_position_ignored()
 
     def edit_selected_geometry(self, geometry: tuple[int, int, int, int]) -> None:
         if self.document is None or self.selected_index is None:
@@ -2004,10 +2196,50 @@ class EditorWindow(QMainWindow):
             self.properties.set_enabled(False)
             return
         element = self.document.elements[self.selected_index]
+        frame = self._window_frame_on_screen() if self.selected_index == 0 else None
+        if frame is not None:
+            # O painel mostra a posição na tela; a raiz anda ao contrário (ver _root_move_as_screen_move).
+            geometry = (
+                element.x - (geometry[0] - frame[0]), element.y - (geometry[1] - frame[1]), geometry[2], geometry[3]
+            )
         if element.geometry != geometry:
+            moved = frame is None and element.geometry[:2] != geometry[:2]
             self.undo_stack.push(
                 GeometryCommand(self, self.selected_index, element.geometry, geometry)
             )
+            if self.selected_index == 0 and moved:
+                self._warn_root_position_ignored()
+
+    def _root_move_as_screen_move(self, changes: dict) -> dict:
+        """Mover só a raiz de uma janela que o jogo fixa = mover o conteúdo na tela.
+
+        O jogo põe a raiz no centro (ou num canto) e desenha cada elemento
+        deslocado dela por (elemento - raiz). Para o conteúdo ir aonde o usuário
+        levou a janela, o X/Y da raiz anda no sentido contrário. Movendo a raiz
+        junto com os elementos, a diferença não muda e nada é invertido.
+        """
+        if 0 not in changes or self.document is None:
+            return changes
+        # A moldura da raiz pode estar desenhada fora do X/Y do XML: vale o deslocamento.
+        old, new = changes[0]
+        dx, dy = new[0] - old[0], new[1] - old[1]
+        x, y = self.document.elements[0].geometry[:2]
+        if set(changes) == {0} and self._root_position_is_set_by_game():
+            dx, dy = -dx, -dy
+        root = self.document.elements[0].geometry
+        return {**changes, 0: (root, (x + dx, y + dy, new[2], new[3]))}
+
+    def _root_position_is_set_by_game(self) -> bool:
+        return self.document is not None and self._anchor_hint_for(0) is not None
+
+    def _warn_root_position_ignored(self) -> None:
+        """Explica o efeito do X/Y da raiz numa janela que o jogo posiciona sozinho."""
+        if not self._root_position_is_set_by_game():
+            return
+        self.statusBar().showMessage(
+            self.tr("O jogo fixa esta janela; o X/Y dela desloca o conteúdo no sentido contrário. Confira o resultado no preview."),
+            12000,
+        )
 
     def move_selected(self, dx: int, dy: int) -> None:
         if self.document is None or self.selected_index is None:
@@ -2022,8 +2254,11 @@ class EditorWindow(QMainWindow):
             element = self.document.elements[index]
             x, y, width, height = element.geometry
             changes[index] = (element.geometry, (x + dx, y + dy, width, height))
+        changes = self._root_move_as_screen_move(changes)
         if changes:
             self.undo_stack.push(GeometryBatchCommand(self, changes))
+            if 0 in changes and self._window_frame_on_screen() is None:
+                self._warn_root_position_ignored()
         else:
             self.statusBar().showMessage(self.tr("Os elementos selecionados estão bloqueados."), 3000)
 
@@ -2033,9 +2268,13 @@ class EditorWindow(QMainWindow):
         self.items[index].apply_element(self.document.elements[index])
         if index == 0:
             self._place_game_screen()
+        else:
+            self._sync_window_frame()
         if self.selected_index == index:
             self.properties.set_element(self.document.elements[index])
             self._refresh_screen_position()
+        elif self.selected_index == 0:
+            self._refresh_screen_position()  # a moldura acompanha o conteúdo
         self._update_title()
 
     def edit_uv(
@@ -2401,7 +2640,7 @@ class EditorWindow(QMainWindow):
             self.project.prune_history(self.document.path)
             self._refresh_files()
             self.statusBar().showMessage(
-                self.tr("Salvo. Backup no histórico do projeto. F5 testa no jogo."), 8000
+                self.tr("Salvo no projeto. O jogo só recebe as mudanças com Enviar para o jogo (F5)."), 10000
             )
             return
         self.statusBar().showMessage(self.tr("Salvo. Backup: {name}").format(name=backup.name), 10000)
@@ -2516,7 +2755,7 @@ class EditorWindow(QMainWindow):
             else:
                 self.hero_title.setText(self.tr("Comece um projeto de UI"))
                 self.hero_subtitle.setText(
-                    self.tr("Você edita uma cópia fora da pasta do jogo. Quando quiser ver o resultado, aperte F5 para publicar e abrir o jogo.")
+                    self.tr("Você edita uma cópia fora da pasta do jogo. Quando quiser ver o resultado, aperte F5 para enviar ao jogo e inicie-o pelo launcher.")
                 )
             self._refresh_recent_projects()
             self.center_stack.setCurrentWidget(self.empty_page)
@@ -2593,7 +2832,7 @@ class EditorWindow(QMainWindow):
 
     def _build_status_chips(self) -> None:
         self.status_chips: list[QLabel] = []
-        for _ in range(3):
+        for _ in range(4):
             chip = QLabel()
             chip.setObjectName("chip")
             chip.setVisible(False)
@@ -2608,11 +2847,24 @@ class EditorWindow(QMainWindow):
             changed = sum(1 for element in self.document.elements if element.changed_attributes or element.original_uv != element.uv)
             if changed:
                 texts.append(self.tr("{count} alteração(ões) não salva(s)").format(count=changed))
+        pending = 0
         if self.project is not None:
             texts.append(self.tr("{name} → UICustom").format(name=self.project.custom_name))
-        for chip, text in zip(self.status_chips, texts + [""] * 3):
+            try:
+                pending = len(self.project.unpublished_files())
+            except OSError:
+                pending = 0
+            if pending:
+                texts.append(self.tr("{count} arquivo(s) ainda não publicados no jogo · F5").format(count=pending))
+        for chip, text in zip(self.status_chips, texts + [""] * 4):
             chip.setText(text)
             chip.setVisible(bool(text))
+            chip.setObjectName("chip")
+        if pending:
+            self.status_chips[len(texts) - 1].setObjectName("chipWarning")
+        for chip in self.status_chips:
+            chip.style().unpolish(chip)
+            chip.style().polish(chip)
 
     def _update_breadcrumb(self) -> None:
         parts = []
@@ -2648,10 +2900,12 @@ class EditorWindow(QMainWindow):
         try:
             name, source = dialog.name_edit.text().strip(), dialog.source_dir
             include_assets = dialog.assets_check.isChecked()
+            publish_folder = dialog.publish_folder
             project = self._run_with_progress(
                 self.tr("Copiando arquivos da UI para o projeto…"),
                 lambda progress: Project.create(
-                    name, source, game_dir, progress=progress, include_assets=include_assets
+                    name, source, game_dir, progress=progress, include_assets=include_assets,
+                    publish_folder=publish_folder,
                 ),
             )
         except FileExistsError as exc:
@@ -2707,6 +2961,7 @@ class EditorWindow(QMainWindow):
             self._refresh_game_screen()
         self.test_action.setEnabled(project.game_dir is not None)
         self.export_action.setEnabled(True)
+        self.publish_folder_action.setEnabled(project.game_dir is not None)
         self.project_folder_action.setEnabled(True)
         self.side_tabs.setCurrentIndex(0)
         self._refresh_files()
@@ -2736,9 +2991,22 @@ class EditorWindow(QMainWindow):
                 )
             )
             self.project_path_label.setToolTip(str(self.project.root))
+            lines = [self.tr("Editando em: {path}").format(path=self.project.ui_dir)]
+            if self.project.game_dir is not None:
+                lines.append(
+                    self.tr("Publica em: {path}").format(
+                        path=self.project.game_dir / "UICustom" / self.project.custom_name
+                    )
+                )
+            self.project_paths_label.setText("\n".join(lines))
+            self.project_paths_label.setToolTip(self.project_paths_label.text())
+            self.project_paths_label.setVisible(True)
 
         else:
             self.project_label.setText(self.tr("Sem projeto"))
+            self.project_paths_label.setVisible(directory is not None)
+            if directory is not None:
+                self.project_paths_label.setText(self.tr("Editando em: {path}").format(path=directory))
             self.project_path_label.setText(
                 self.tr("Crie um projeto para editar fora da pasta do jogo e testar com F5.")
             )
@@ -2983,7 +3251,7 @@ class EditorWindow(QMainWindow):
         if settings.value("publish_confirmed", "false") != "true":
             answer = QMessageBox.question(
                 self,
-                self.tr("Testar no jogo"),
+                self.tr("Enviar para o jogo"),
                 self.tr(
                     "Isto vai:\n\n"
                     "• atualizar {custom}\n"
@@ -3007,12 +3275,51 @@ class EditorWindow(QMainWindow):
                 self.tr("Não foi possível copiar os arquivos. Feche o jogo se ele estiver aberto e tente de novo.\n\n{error}").format(error=exc),
             )
             return
+        self._update_status_chips()
         self.statusBar().showMessage(
             self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
                 count=result.copied_to_ui
             ),
             12000,
         )
+        wanted = f"custom:{project.custom_name}"
+        if result.launcher_running and result.previous_selection != wanted:
+            QMessageBox.information(
+                self,
+                self.tr("Selecione a UI no launcher"),
+                self.tr(
+                    "Os arquivos foram publicados, mas o launcher está aberto com outra UI selecionada.\n\n"
+                    "Antes de clicar em Jogar, escolha \"{name}\" na lista de UIs do launcher "
+                    "(ou feche e abra o launcher). Senão ele reaplica a UI anterior por cima do seu teste."
+                ).format(name=project.custom_name),
+            )
+
+    def choose_publish_folder(self) -> None:
+        """Escolhe em qual pasta de UICustom o F5 publica este projeto."""
+        if self.project is None or self.project.game_dir is None:
+            return
+        own = self.tr("Pasta própria do projeto ({name})").format(name=safe_name(self.project.name))
+        custom_root = self.project.game_dir / "UICustom"
+        folders = sorted(item.name for item in custom_root.iterdir() if item.is_dir()) if custom_root.is_dir() else []
+        options = [own] + folders
+        current = options.index(self.project.publish_folder) if self.project.publish_folder in options else 0
+        choice, accepted = QInputDialog.getItem(
+            self,
+            self.tr("Pasta de publicação"),
+            self.tr(
+                "O F5 copia os arquivos do projeto para esta pasta de UICustom.\n"
+                "Numa pasta que já existe, ele só adiciona e atualiza arquivos; nada é apagado."
+            ),
+            options,
+            current,
+            False,
+        )
+        if not accepted:
+            return
+        self.project.publish_folder = "" if choice == own else choice
+        self.project.save_manifest()
+        self._refresh_files()
+        self._update_title()
 
     def export_project_zip(self) -> None:
         if self.project is None:
@@ -3073,7 +3380,9 @@ class EditorWindow(QMainWindow):
             return
         marker = " *" if self.document.is_dirty else ""
         project = f" [{self.project.name}]" if self.project is not None else ""
-        self.setWindowTitle(f"GF UI Editor{project} — {self.document.path.name}{marker}")
+        self.setWindowTitle(
+            f"GF UI Editor{project} — {self.document.path.name}{marker} — {self.document.path.parent}"
+        )
 
     def _confirm_discard_changes(self) -> bool:
         if self.document is None or not self.document.is_dirty:

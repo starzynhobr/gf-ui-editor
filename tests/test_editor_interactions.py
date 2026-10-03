@@ -632,12 +632,13 @@ def test_screen_coordinates_are_shown_next_to_xml_coordinates(tmp_path: Path) ->
         window = EditorWindow(path)
         window.set_game_resolution((800, 600))
         application.processEvents()
+        # A raiz (10, 20) vai para o centro (350, 260): somar (340, 240) leva do XML à tela.
         assert window._screen_offset() == (340, 240)
 
         window._show_cursor_position(10, 20)
         assert "X 10" in window.cursor_position_label.text() and "X 350 · Y 260" in window.cursor_position_label.text()
 
-        window.select_element(1)  # filho com X negativo no XML
+        window.select_element(1)  # filho 15 px à esquerda e 10 abaixo da raiz
         assert not window.properties.screen_position_label.isHidden()
         assert "X 335 · Y 270" in window.properties.screen_position_label.text()
         window.move_selected(5, 0)
@@ -651,3 +652,113 @@ def test_screen_coordinates_are_shown_next_to_xml_coordinates(tmp_path: Path) ->
         settings.remove("root_mode/storage.xml")
         for key, value in saved.items():
             settings.remove(key) if value is None else settings.setValue(key, value)
+
+
+def test_dragging_a_game_centered_window_moves_its_content_on_screen(tmp_path: Path) -> None:
+    """Caso medido no jogo: raiz (134, 302) -> (-100, 250) moveu o conteúdo (+234, +52)."""
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "UI" / "Storage.xml"  # centralizada pelo cliente
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Storage.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="134" WindowTop="302" WindowHeight="434" WindowWidth="306" />\n'
+        b'  <BaseWndProperty WindowID="2" WindowLeft="140" WindowTop="310" WindowHeight="20" WindowWidth="20" />\n'
+        b"</Root_Node>\n"
+    )
+    window = EditorWindow(path)
+    window.set_game_resolution((1920, 1080))
+
+    def child_on_screen() -> tuple[int, int]:
+        offset = window._screen_offset()
+        child = window.document.elements[1]
+        return child.x + offset[0], child.y + offset[1]
+
+    assert window._screen_offset() == (743 - 134, 387 - 302)  # raiz no centro
+    assert child_on_screen() == (749, 395)
+
+    # No painel, X/Y da janela são a posição na tela; o XML recebe os valores do Notepad++ dele.
+    window.select_element(0)
+    assert (window.properties.x_spin.value(), window.properties.y_spin.value()) == (749, 395)
+    window.properties.x_spin.setValue(749 + 234)
+    window.properties.y_spin.setValue(395 + 52)
+    assert child_on_screen() == (749 + 234, 395 + 52)
+    assert window.document.elements[0].geometry == (-100, 250, 434, 306)
+    assert (window.properties.x_spin.value(), window.properties.y_spin.value()) == (749 + 234, 395 + 52)
+    window.undo_stack.undo()
+    window.undo_stack.undo()
+
+    # Arrastar a janela 463 px para a esquerda: o conteúdo vai para lá e a raiz anda ao contrário.
+    window.elements_dragged({0: ((134, 302, 434, 306), (134 - 463, 302 + 4, 434, 306))})
+    application.processEvents()
+    assert window.document.elements[0].geometry == (134 + 463, 302 - 4, 434, 306)
+    assert window.document.elements[1].geometry == (140, 310, 20, 20)
+    assert child_on_screen() == (749 - 463, 395 + 4)
+
+    # Movendo tudo junto, a diferença não muda: nada é invertido e nada muda no jogo.
+    before = child_on_screen()
+    window.elements_dragged(
+        {0: (window.document.elements[0].geometry, (700, 300, 434, 306)), 1: ((140, 310, 20, 20), (243, 312, 20, 20))}
+    )
+    assert window.document.elements[0].geometry == (700, 300, 434, 306)
+    assert child_on_screen() == before
+
+
+def test_dragging_a_free_window_keeps_plain_xml_semantics(tmp_path: Path) -> None:
+    path = tmp_path / "UI" / "Solta.xml"  # sem regra do jogo: a raiz fica no X/Y do XML
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Solta.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="100" WindowTop="50" WindowHeight="200" WindowWidth="120" />\n'
+        b"</Root_Node>\n"
+    )
+    window = EditorWindow(path)
+    window.set_game_resolution((800, 600))
+    window.elements_dragged({0: ((100, 50, 200, 120), (130, 40, 200, 120))})
+    assert window.document.elements[0].geometry == (130, 40, 200, 120)
+
+
+def test_window_frame_follows_the_content_and_stays_where_it_is_dropped(tmp_path: Path) -> None:
+    """A raiz de uma janela centralizada é a moldura do conteúdo: arrasta-se como uma janela comum."""
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "UI" / "Storage.xml"
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Storage.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="134" WindowTop="302" WindowHeight="434" WindowWidth="306" />\n'
+        b'  <BaseWndProperty WindowID="2" WindowLeft="140" WindowTop="310" WindowHeight="60" WindowWidth="40" />\n'
+        b"</Root_Node>\n"
+    )
+    window = EditorWindow(path)
+    window.set_game_resolution((1920, 1080))
+    window.show()
+    window.view.resetTransform()
+    window.select_element(0)
+    window.view.centerOn(window.items[1])
+    application.processEvents()
+    frame, child, viewport = window.items[0], window.items[1], window.view.viewport()
+
+    def in_view(item):
+        return window.view.mapFromScene(item.pos())
+
+    assert frame.sceneBoundingRect().contains(child.mapRectToScene(child.rect()))
+    assert frame.rect().size() == child.rect().size()
+
+    for step in (QPoint(-80, 30), QPoint(50, -20)):
+        child_before, screen_before = in_view(child), in_view(window.game_screen_item)
+        root_before = window.document.elements[0].geometry
+        start = window.view.mapFromScene(frame.mapRectToScene(frame.rect()).center())
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(viewport, start + step, 20)
+        application.processEvents()
+        assert in_view(child) == child_before + step  # o conteúdo acompanha durante o arraste
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=start + step)
+        application.processEvents()
+
+        assert in_view(child) == child_before + step  # e fica onde foi solto
+        assert in_view(window.game_screen_item) == screen_before  # a tela não se mexe
+        assert in_view(frame) == in_view(child)  # a moldura continua em volta do conteúdo
+        assert window.document.elements[1].geometry == (140, 310, 60, 40)
+        assert window.document.elements[0].geometry == (
+            root_before[0] - step.x(), root_before[1] - step.y(), 434, 306
+        )
+    window.deleteLater()

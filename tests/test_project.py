@@ -107,3 +107,49 @@ def test_history_original_and_restore(tmp_path: Path) -> None:
     radar.write_text("<c/>", encoding="utf-8")
     project.remember_original(radar)  # já existe: não sobrescreve
     assert original.read_text(encoding="utf-8") == "<a/>"
+
+
+def test_unpublished_files_and_previous_launcher_selection(tmp_path: Path) -> None:
+    from gf_ui_editor.project import selected_ui
+
+    game = _game(tmp_path)
+    (game / "Launcher.ini").write_bytes(b"[Config]\r\nUI=custom:Outra UI\r\nUIAplicada=custom:Outra UI\r\n")
+    project = Project.create("P", game / "UI", game, projects_root=tmp_path / "p")
+    assert project.unpublished_files() == set()
+
+    (project.ui_dir / "Radar.xml").write_text("<b/>", encoding="utf-8")
+    assert project.unpublished_files() == {"Radar.xml"}  # salvo no projeto, ainda não no jogo
+
+    result = project.publish()
+    assert result.previous_selection == "custom:Outra UI"  # o launcher aberto reaplicaria esta
+    assert not result.launcher_running  # não há Launcher.exe rodando desta pasta
+    assert selected_ui(game / "Launcher.ini") == "custom:P"
+    assert project.unpublished_files() == set()
+
+    # O launcher reaplica outra UI por cima: o projeto volta a aparecer como não publicado.
+    (game / "UI" / "Radar.xml").write_text("<a/>", encoding="utf-8")
+    assert project.unpublished_files() == {"Radar.xml"}
+
+
+def test_project_from_a_custom_ui_publishes_back_into_it_without_deleting(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    original = game / "UICustom" / "UI GF ROUGE"
+    original.mkdir(parents=True)
+    (original / "Radar.xml").write_text("<a/>", encoding="utf-8")
+    (original / "Radar - Copia.xml").write_text("backup do usuario", encoding="utf-8")
+    (original / "so-aqui.dds").write_bytes(b"x")
+
+    project = Project.create("UI GF ROUGE", original, game, projects_root=tmp_path / "p", publish_folder="UI GF ROUGE")
+    assert project.custom_name == "UI GF ROUGE"  # nome exato, com espaços
+    assert Project.load(project.root).publish_folder == "UI GF ROUGE"
+
+    (project.ui_dir / "Radar.xml").write_text("<b/>", encoding="utf-8")
+    (project.ui_dir / "so-aqui.dds").unlink()  # removido no projeto
+    project.files(refresh=True)
+    result = project.publish()
+
+    assert result.custom_dir == original
+    assert (original / "Radar.xml").read_text(encoding="utf-8") == "<b/>"
+    # Na pasta adotada nada é apagado: nem backups do usuário, nem arquivos fora do projeto.
+    assert (original / "Radar - Copia.xml").exists() and (original / "so-aqui.dds").exists()
+    assert b"UI=custom:UI GF ROUGE" in (game / "Launcher.ini").read_bytes()

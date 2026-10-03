@@ -91,6 +91,10 @@ class PublishResult:
     custom_dir: Path
     copied_to_ui: int
     launcher_updated: bool
+    # UI que estava selecionada no launcher antes de publicar (ex.: "custom:UI-Hero").
+    previous_selection: str = ""
+    # Launcher aberto: ele guarda a seleção na memória e pode reaplicar a UI antiga.
+    launcher_running: bool = False
 
 
 @dataclass
@@ -102,6 +106,9 @@ class Project:
     include_assets: bool = False
     # Escolha manual da posição da raiz no preview, por arquivo ("xml"/"center").
     root_modes: dict[str, str] = field(default_factory=dict)
+    # Pasta já existente de UICustom adotada como destino (nome exato). Nela o
+    # F5 só adiciona e atualiza arquivos; nunca apaga o que o usuário tem lá.
+    publish_folder: str = ""
     # (tamanho, mtime) -> hash, para não reler arquivos que não mudaram.
     _hash_cache: dict[str, tuple[int, int, str]] = field(default_factory=dict, repr=False)
     _files: list[Path] | None = field(default=None, repr=False)
@@ -116,7 +123,8 @@ class Project:
 
     @property
     def custom_name(self) -> str:
-        return safe_name(self.name)
+        """Pasta de `UICustom` onde o projeto é publicado."""
+        return self.publish_folder or safe_name(self.name)
 
     # ---- criação e leitura -------------------------------------------------
     @classmethod
@@ -128,6 +136,7 @@ class Project:
         projects_root: Path = PROJECTS_ROOT,
         progress: Progress = None,
         include_assets: bool = False,
+        publish_folder: str = "",
     ) -> "Project":
         root = projects_root / safe_name(name)
         if root.exists():
@@ -142,7 +151,7 @@ class Project:
             hashes[relative.as_posix()] = _hash(target)
             if progress is not None:
                 progress(done, len(files))
-        project = cls(root, name, game_dir, hashes, include_assets)
+        project = cls(root, name, game_dir, hashes, include_assets, publish_folder=publish_folder)
         for key, digest in hashes.items():
             stat = (ui_dir / key).stat()
             project._hash_cache[key] = (stat.st_size, stat.st_mtime_ns, digest)
@@ -160,6 +169,7 @@ class Project:
             dict(data.get("base_hashes", {})),
             bool(data.get("include_assets", False)),
             dict(data.get("root_modes", {})),
+            str(data.get("publish_folder", "")),
         )
 
     def save_manifest(self) -> None:
@@ -168,6 +178,7 @@ class Project:
             "game_dir": str(self.game_dir) if self.game_dir else None,
             "include_assets": self.include_assets,
             "root_modes": self.root_modes,
+            "publish_folder": self.publish_folder,
             "base_hashes": self.base_hashes,
         }
         self.root.mkdir(parents=True, exist_ok=True)
@@ -304,7 +315,7 @@ class Project:
         custom_dir = self.game_dir / "UICustom" / self.custom_name
         files = self.files(refresh=True)
         wanted = {relative.as_posix().lower() for relative in files}
-        if custom_dir.exists():
+        if custom_dir.exists() and not self.publish_folder:
             for existing in sorted(custom_dir.rglob("*"), reverse=True):
                 relative = existing.relative_to(custom_dir).as_posix().lower()
                 if existing.is_file() and relative not in wanted:
@@ -320,10 +331,33 @@ class Project:
                 copied += 1
             if progress is not None:
                 progress(done, len(files))
+        launcher_ini = self.game_dir / "Launcher.ini"
+        previous = selected_ui(launcher_ini)
         launcher_updated = False
         if select_in_launcher:
-            launcher_updated = select_custom_ui(self.game_dir / "Launcher.ini", self.custom_name)
-        return PublishResult(custom_dir, copied, launcher_updated)
+            launcher_updated = select_custom_ui(launcher_ini, self.custom_name)
+        return PublishResult(
+            custom_dir,
+            copied,
+            launcher_updated,
+            previous,
+            process_running(self.game_dir / "Launcher.exe"),
+        )
+
+    def unpublished_files(self) -> set[str]:
+        """Arquivos alterados no projeto cujo conteúdo difere do que está na pasta UI do jogo."""
+        if self.game_dir is None:
+            return set()
+        pending: set[str] = set()
+        for key in self.modified_files():
+            source = self.ui_dir / key
+            target = self.game_dir / "UI" / key
+            try:
+                if not target.is_file() or source.read_bytes() != target.read_bytes():
+                    pending.add(key)
+            except OSError:
+                pending.add(key)
+        return pending
 
 
 def _copy_if_different(source: Path, target: Path) -> bool:
@@ -336,6 +370,60 @@ def _copy_if_different(source: Path, target: Path) -> bool:
     shutil.copy2(source, temporary)
     os.replace(temporary, target)
     return True
+
+
+def selected_ui(launcher_ini: Path) -> str:
+    """Valor de `UI=` na seção [Config] do Launcher.ini ("" se não houver)."""
+    try:
+        lines = launcher_ini.read_text(encoding="latin-1").splitlines()
+    except OSError:
+        return ""
+    in_config = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("["):
+            in_config = stripped.lower() == "[config]"
+        elif in_config and stripped.lower().startswith("ui="):
+            return stripped.split("=", 1)[1].strip()
+    return ""
+
+
+def process_running(executable: Path) -> bool:
+    """Há um processo rodando a partir deste executável? (Windows; False se não der para saber.)"""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        wanted = os.path.normcase(str(executable.resolve()))
+        psapi = ctypes.WinDLL("psapi")
+        kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)
+        ]
+        ids = (wintypes.DWORD * 4096)()
+        needed = wintypes.DWORD()
+        if not psapi.EnumProcesses(ids, ctypes.sizeof(ids), ctypes.byref(needed)):
+            return False
+        for index in range(needed.value // ctypes.sizeof(wintypes.DWORD)):
+            handle = kernel32.OpenProcess(0x1000, False, ids[index])  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not handle:
+                continue
+            try:
+                buffer = ctypes.create_unicode_buffer(1024)
+                size = wintypes.DWORD(len(buffer))
+                if kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+                    if os.path.normcase(buffer.value) == wanted:
+                        return True
+            finally:
+                kernel32.CloseHandle(handle)
+    except (OSError, AttributeError, ValueError):
+        return False
+    return False
 
 
 def select_custom_ui(launcher_ini: Path, custom_name: str) -> bool:
