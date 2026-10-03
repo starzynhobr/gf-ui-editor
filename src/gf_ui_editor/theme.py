@@ -52,6 +52,7 @@ COLORS = {
     "ACCENT_HOVER_BG": "#8c5ff0",
     "ACCENT_BORDER": "#a77bff",
     "ICON": "#aeb6c6",
+    "NOTE_NEW": "#5eead4",
     "CARD_BG": "#181b22",
     "CARD_BORDER": "#232833",
     "ACCENT_SOFT_BG": "#241d3a",

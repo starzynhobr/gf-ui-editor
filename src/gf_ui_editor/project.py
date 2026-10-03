@@ -100,6 +100,8 @@ class Project:
     game_dir: Path | None
     base_hashes: dict[str, str] = field(default_factory=dict)
     include_assets: bool = False
+    # Escolha manual da posição da raiz no preview, por arquivo ("xml"/"center").
+    root_modes: dict[str, str] = field(default_factory=dict)
     # (tamanho, mtime) -> hash, para não reler arquivos que não mudaram.
     _hash_cache: dict[str, tuple[int, int, str]] = field(default_factory=dict, repr=False)
     _files: list[Path] | None = field(default=None, repr=False)
@@ -157,6 +159,7 @@ class Project:
             Path(game_dir) if game_dir else None,
             dict(data.get("base_hashes", {})),
             bool(data.get("include_assets", False)),
+            dict(data.get("root_modes", {})),
         )
 
     def save_manifest(self) -> None:
@@ -164,6 +167,7 @@ class Project:
             "name": self.name,
             "game_dir": str(self.game_dir) if self.game_dir else None,
             "include_assets": self.include_assets,
+            "root_modes": self.root_modes,
             "base_hashes": self.base_hashes,
         }
         self.root.mkdir(parents=True, exist_ok=True)

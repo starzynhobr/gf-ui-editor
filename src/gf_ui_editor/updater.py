@@ -8,7 +8,7 @@ fecha o editor se ainda estiver aberto e o reabre ao terminar.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 from pathlib import Path
@@ -19,10 +19,13 @@ import tempfile
 import urllib.request
 
 from . import __version__
+from .release_notes import ReleaseNotes, parse as parse_release_notes
 
 REPOSITORY = "starzynhobr/gf-ui-editor"
 LATEST_RELEASE_API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 TIMEOUT_SECONDS = 15
+NOTES_ASSET = "release-notes.json"
+NOTES_SIZE_LIMIT = 200_000
 
 
 class UpdateError(Exception):
@@ -37,6 +40,8 @@ class UpdateInfo:
     asset_name: str
     asset_url: str
     sha256: str | None
+    notes_url: str | None = None
+    structured_notes: ReleaseNotes | None = None
 
 
 def parse_version(text: str) -> tuple[int, ...]:
@@ -77,7 +82,23 @@ def release_from_json(data: dict) -> UpdateInfo | None:
         asset_name=str(asset["name"]),
         asset_url=str(asset["browser_download_url"]),
         sha256=digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else None,
+        notes_url=(assets.get(NOTES_ASSET) or {}).get("browser_download_url"),
     )
+
+
+def fetch_structured_notes(info: UpdateInfo) -> ReleaseNotes | None:
+    """Notas traduzidas anexadas à release; None se não houver ou vierem inválidas."""
+    url = info.notes_url
+    if not url or not url.startswith(f"https://github.com/{REPOSITORY}/releases/download/"):
+        return None
+    try:
+        with _request(url) as response:
+            payload = response.read(NOTES_SIZE_LIMIT + 1)
+    except OSError:
+        return None
+    if len(payload) > NOTES_SIZE_LIMIT:
+        return None
+    return parse_release_notes(payload)
 
 
 def check_for_update(current: str = __version__) -> UpdateInfo | None:
@@ -90,7 +111,7 @@ def check_for_update(current: str = __version__) -> UpdateInfo | None:
     info = release_from_json(data)
     if info is None or not is_newer(info.version, current):
         return None
-    return info
+    return replace(info, structured_notes=fetch_structured_notes(info))
 
 
 def download_installer(

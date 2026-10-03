@@ -70,6 +70,7 @@ from .game_layout import (
     client_resolution,
     load_user_positions,
     root_screen_position,
+    is_centered,
     rule_for,
     saved_position_applies,
     saved_section_for,
@@ -78,7 +79,8 @@ from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, sw
 from .icons import MONO_FONT, UI_FONT, icon, load_fonts
 from .interaction import install_pointer_cursors
 from . import backgrounds
-from . import updater
+from . import release_notes, updater
+from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import PROJECTS_ROOT, Project, custom_ui_sources, is_backup_file, list_projects
 from .atlas_dialog import AtlasDialog
 from .texture_cache import TextureCache
@@ -240,6 +242,7 @@ class NewProjectDialog(QDialog):
 
 class PropertyPanel(QWidget):
     geometry_edited = Signal(tuple)
+    root_mode_changed = Signal(str)
     atlas_requested = Signal()
 
     def __init__(self, parent=None):
@@ -355,6 +358,17 @@ class PropertyPanel(QWidget):
         geometry_grid.addWidget(self.y_spin, 0, 1)
         geometry_grid.addWidget(self.width_spin, 1, 0)
         geometry_grid.addWidget(self.height_spin, 1, 1)
+        self.root_mode_combo = QComboBox()
+        self.root_mode_combo.addItem(self.tr("Posição no jogo: automática"), "auto")
+        self.root_mode_combo.addItem(self.tr("Posição no jogo: X e Y do XML"), "xml")
+        self.root_mode_combo.addItem(self.tr("Posição no jogo: centralizada"), "center")
+        self.root_mode_combo.setToolTip(
+            self.tr("Como o preview posiciona esta janela na tela. Use se o jogo do seu servidor se comportar diferente do automático.")
+        )
+        self.root_mode_combo.setVisible(False)
+        self.root_mode_combo.currentIndexChanged.connect(
+            lambda _index: None if self._loading else self.root_mode_changed.emit(self.root_mode_combo.currentData())
+        )
         self.anchor_hint = QLabel()
         self.anchor_hint.setObjectName("hintBox")
         self.anchor_hint.setWordWrap(True)
@@ -378,7 +392,7 @@ class PropertyPanel(QWidget):
         details_layout.setContentsMargins(0, 0, 0, 0)
         details_layout.setSpacing(12)
         details_layout.addWidget(
-            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.anchor_hint)
+            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.root_mode_combo, self.anchor_hint)
         )
         details_layout.addWidget(self._card(self.tr("TEXTURA"), texture_form, self.atlas_button))
         details_layout.addWidget(self._card(self.tr("IDENTIFICAÇÃO"), details_form))
@@ -404,6 +418,13 @@ class PropertyPanel(QWidget):
         for widget in widgets:
             card_layout.addWidget(widget)
         return card
+
+    def set_root_mode(self, mode: str | None) -> None:
+        """Mostra o seletor só para a janela raiz (`mode` None esconde)."""
+        self.root_mode_combo.setVisible(mode is not None)
+        if mode is not None:
+            with QSignalBlocker(self.root_mode_combo):
+                self.root_mode_combo.setCurrentIndex(max(0, self.root_mode_combo.findData(mode)))
 
     def set_anchor_hint(self, text: str | None) -> None:
         self.anchor_hint.setText(text or "")
@@ -716,6 +737,7 @@ class EditorWindow(QMainWindow):
         tree_panel = self.side_tabs
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
+        self.properties.root_mode_changed.connect(self.set_root_mode)
         self.properties.atlas_requested.connect(self.open_selected_atlas)
         properties_scroll = QScrollArea()
         properties_scroll.setObjectName("propertiesScroll")
@@ -983,6 +1005,9 @@ class EditorWindow(QMainWindow):
         self.auto_update_action.toggled.connect(
             lambda on: QSettings("Local", "GF UI Editor").setValue("auto_update_check", "true" if on else "false")
         )
+        self.whats_new_action = QAction(self.tr("Novidades desta versão"), self)
+        self.whats_new_action.triggered.connect(self.show_whats_new)
+        help_menu.addAction(self.whats_new_action)
         help_menu.addAction(self.update_action)
         help_menu.addAction(self.auto_update_action)
         help_menu.addSeparator()
@@ -1077,30 +1102,23 @@ class EditorWindow(QMainWindow):
         timer.start()
 
     def _offer_update(self, info: "updater.UpdateInfo") -> None:
-        box = QMessageBox(self)
-        box.setWindowTitle(self.tr("Atualização disponível"))
-        box.setIcon(QMessageBox.Icon.Information)
-        box.setText(
-            self.tr("A versão {new} do GF UI Editor está disponível (você tem a {current}).").format(
-                new=info.version, current=__version__
-            )
+        dialog = WhatsNewDialog(
+            info.version,
+            info.structured_notes,
+            self.language,
+            current_version=__version__,
+            fallback_text=info.notes,
+            can_install=updater.is_installed_build(),
+            parent=self,
         )
-        box.setInformativeText(
-            self.tr("O editor baixa o instalador, confere o arquivo e reabre já atualizado.")
-            if updater.is_installed_build()
-            else self.tr("Você está rodando pelo código-fonte; a página da release será aberta.")
-        )
-        if info.notes:
-            box.setDetailedText(info.notes)
-        update_button = box.addButton(self.tr("Atualizar agora"), QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(self.tr("Depois"), QMessageBox.ButtonRole.RejectRole)
-        skip_button = box.addButton(self.tr("Pular esta versão"), QMessageBox.ButtonRole.DestructiveRole)
-        box.exec()
-        clicked = box.clickedButton()
-        if clicked is skip_button:
+        dialog.exec()
+        if dialog.choice == SKIP:
             QSettings("Local", "GF UI Editor").setValue("skipped_update_version", info.version)
-        elif clicked is update_button:
+        elif dialog.choice == UPDATE:
             self._install_update(info)
+
+    def show_whats_new(self) -> None:
+        WhatsNewDialog(__version__, release_notes.bundled(), self.language, parent=self).exec()
 
     def _install_update(self, info: "updater.UpdateInfo") -> None:
         if not updater.is_installed_build():
@@ -1310,6 +1328,26 @@ class EditorWindow(QMainWindow):
                 padding: 8px 10px;
                 font-size: 12px;
             }
+            QLabel#versionChip {
+                background: ${NOTE_NEW};
+                color: ${CHROME_BG};
+                border-radius: 5px;
+                padding: 2px 8px;
+                font-family: "${MONO_FONT}", Consolas, monospace;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            QLabel#noteEntry { background: transparent; font-size: 13px; }
+            QLabel#noteBox {
+                background: ${CHROME_BG};
+                color: ${TEXT_MUTED};
+                border-radius: 8px;
+                padding: 10px 12px;
+                font-size: 12px;
+            }
+            QFrame#separatorLine { background: ${BORDER_PANEL}; border: 0; }
+            QPushButton#ghostPush { background: transparent; border-color: transparent; color: ${TEXT_MUTED}; }
+            QPushButton#ghostPush:hover { color: ${TEXT_BRIGHT}; }
             QLabel#chip {
                 background: ${CHIP_BG};
                 color: ${TEXT_MUTED};
@@ -1515,23 +1553,64 @@ class EditorWindow(QMainWindow):
             root = self.document.elements[0]
             name = self.document.path.name
             section = saved_section_for(name)
+            game_dir = self._document_game_dir()
+            mode = self._root_mode()
             saved = None
-            if section and self.saved_positions_action.isChecked():
-                # O XML fica em <jogo>/UI; o User.ini, na pasta do jogo.
-                user_ini = self.document.path.parent.parent / "User.ini"
-                saved = load_user_positions(user_ini).get(section)
+            if section and game_dir is not None and self.saved_positions_action.isChecked():
+                saved = load_user_positions(game_dir / "User.ini").get(section)
             screen_x, screen_y = root_screen_position(
-                name, self.game_resolution, root.geometry, saved
+                name, self.game_resolution, root.geometry, saved, mode=mode, game_dir=game_dir
             )
             self.game_screen_item.setPos(root.x - screen_x, root.y - screen_y)
             caption += " · " + self.tr("janela no jogo em ({x}, {y})").format(x=screen_x, y=screen_y)
-            if rule_for(name) is None and saved_position_applies(self.game_resolution, root.geometry, saved):
+            if mode != "auto":
+                caption += " · " + self.tr("posição escolhida por você")
+            elif rule_for(name) is None and saved_position_applies(self.game_resolution, root.geometry, saved):
                 caption += " · " + self.tr("posição salva no User.ini [{section}]").format(section=section)
             elif rule_for(name) is not None:
                 caption += " · " + self.tr("posição definida pelo cliente")
+            elif is_centered(name, game_dir):
+                caption += " · " + self.tr("centralizada pelo jogo")
         else:
             self.game_screen_item.setPos(0, 0)
         self.game_screen_item.set_caption(caption)
+
+    def _document_game_dir(self) -> Path | None:
+        """Pasta do jogo do arquivo aberto: a do projeto, ou a pasta acima de UI."""
+        if self.document is None:
+            return None
+        if self.project is not None and self.project.contains(self.document.path):
+            return self.project.game_dir
+        return self.document.path.parent.parent
+
+    def _root_mode_key(self) -> str:
+        assert self.document is not None
+        if self.project is not None and self.project.contains(self.document.path):
+            return self.document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+        return self.document.path.name.lower()
+
+    def _root_mode(self) -> str:
+        if self.document is None:
+            return "auto"
+        if self.project is not None and self.project.contains(self.document.path):
+            return self.project.root_modes.get(self._root_mode_key(), "auto")
+        return str(QSettings("Local", "GF UI Editor").value(f"root_mode/{self._root_mode_key()}", "auto"))
+
+    def set_root_mode(self, mode: str) -> None:
+        if self.document is None:
+            return
+        key = self._root_mode_key()
+        if self.project is not None and self.project.contains(self.document.path):
+            if mode == "auto":
+                self.project.root_modes.pop(key, None)
+            else:
+                self.project.root_modes[key] = mode
+            self.project.save_manifest()
+        else:
+            QSettings("Local", "GF UI Editor").setValue(f"root_mode/{key}", mode)
+        self._place_game_screen()
+        if self.selected_index == 0:
+            self.properties.set_anchor_hint(self._anchor_hint_for(0))
 
     def _client_resolution(self) -> tuple[int, int]:
         game_dir = self._game_dir()
@@ -1769,8 +1848,15 @@ class EditorWindow(QMainWindow):
     def _anchor_hint_for(self, index: int) -> str | None:
         if self.document is None or index != 0:
             return None
+        if self._root_mode() != "auto":
+            return None
         if rule_for(self.document.path.name) is not None:
             return self.tr("O jogo posiciona esta janela sozinho; mover a raiz não muda onde ela aparece no jogo.")
+        if is_centered(self.document.path.name, self._document_game_dir()):
+            return self.tr(
+                "O jogo centraliza esta janela na tela e ignora o X/Y da raiz. "
+                "Para deslocar o conteúdo, mova os elementos de dentro; depois que o jogador arrasta a janela, vale a posição salva no User.ini."
+            )
         return None
 
     def _set_primary_selection(self, index: int, selection_count: int) -> None:
@@ -1778,6 +1864,7 @@ class EditorWindow(QMainWindow):
         self.selected_index = index
         self.view.set_interaction_priority(self.items[index])
         self.properties.set_element(self.document.elements[index])
+        self.properties.set_root_mode(self._root_mode() if index == 0 else None)
         self.properties.set_anchor_hint(self._anchor_hint_for(index))
         self.properties.set_enabled(index not in self.locked_indexes)
         if self.isolated_index is not None and self.isolated_index != index:

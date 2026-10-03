@@ -83,6 +83,67 @@ RULES: dict[str, AnchorRule] = {
 }
 
 
+# Janelas que o cliente centraliza na tela ao criá-las (0x00A12D50, chamada no
+# Create de cada classe do GrandFantasia.exe): o WindowLeft/WindowTop da raiz é
+# ignorado. Vale para o cliente base, comum aos servidores.
+CENTERED = frozenset(
+    """
+    arenareward.xml autoelflotterygosetting.xml autoelflotterylog.xml autoelflotterysetting.xml
+    battlefield_info.xml battlefield_result.xml battlefield_reward.xml beaststowerregister.xml
+    carvingstylewnd.xml chaircombine.xml channelgroup.xml collection.xml
+    collectionpointabilitywnd.xml commondlgf.xml commoninvite.xml cook.xml customkey.xml
+    dailyawards.xml diary_prestige.xml elfbet.xml elfboxing.xml elfboxingschedule.xml
+    elfequip.xml elflotterylist.xml elfracing.xml elfracingbuycoin.xml elfracingreward.xml
+    elfreturn_new.xml elfschoolresultwnd.xml elfsearch.xml elfskill.xml elfskillmodify.xml
+    elftablet.xml elfui.xml equipment.xml family_farm.xml familybank.xml familybattleresult.xml
+    familybattleschedule.xml familybulletin.xml familycrop.xml familyelfalter.xml
+    familyrecruit.xml familysetcadre.xml familysetprivilege.xml familywishingwell.xml
+    fellowship_family.xml fellowship_friends.xml fellowship_mentorship.xml fellowship_race.xml
+    fellowship_search.xml fellowship_searchopt.xml fellowship_searchteam.xml fightkingwnd.xml
+    fishcontrol.xml fishing.xml gamehelp.xml insidem_1.xml insidem_2.xml insidem_3.xml
+    insidem_4.xml insidem_5.xml isle.xml islealtar.xml isleelfview.xml isleelfwork.xml
+    isleinfo.xml islerecord.xml islestatue.xml islestorage.xml islesummon.xml itemmallhot.xml
+    itemmallnewdetail.xml itemmallsend.xml kickcoride.xml kusocombine.xml logoutcount.xml
+    lootruleplus.xml lotterygo.xml lover.xml lovermessage.xml luckybar.xml luckybarelfnew.xml
+    luckystar.xml maillist.xml megaphone.xml mentorship_lvup_reward.xml messageboard.xml
+    messageread.xml messagewrite.xml missionbook.xml monsterinfo.xml nodelimitwnd.xml
+    npctalk.xml option_case.xml optionalluckybag.xml optionalluckybagconfirm.xml
+    partbreakingdrop.xml programinfo.xml race_comment.xml race_filter.xml race_rank.xml
+    race_record.xml race_result.xml rainbowroadtypewnd.xml rankinfo.xml removerune.xml
+    ridecombine.xml ridetrain.xml sceneeventstate.xml serverlistwnd.xml
+    special_battlefield_info.xml special_battlefield_setting.xml spellaa.xml spellcard.xml
+    spelllist.xml spelloverview.xml spellst.xml spellstorage.xml spellview.xml staravenue.xml
+    starrewardlist.xml starshop.xml storage.xml strengthenex.xml systemwnd.xml territory.xml
+    tinyclocksetting.xml tradeui.xml transport.xml upanishad.xml vkeyboard.xml vkeyboard_1.xml
+    webbrowser.xml zonemapframe.xml zonemapoption.xml
+    """.split()
+)
+
+# Janelas criadas por DLLs próprias de um servidor. Só valem quando a DLL existe
+# na pasta do jogo. De propósito, esta tabela é mínima: para o resto, o usuário
+# escolhe a posição da raiz por arquivo (ROOT_MODES), sem depender de análise
+# do executável de cada servidor.
+SERVER_CENTERED = {
+    "Violet.dll": frozenset(['battlefieldlobby.xml', 'elementstrengthen.xml', 'equipmentpreset.xml', 'lookequipment.xml', 'lookstat.xml', 'selfequipment.xml', 'selfstat.xml', 'soullantern.xml']),
+}
+
+# Como posicionar a raiz no preview: automático (regras acima), X/Y do XML ou centro.
+ROOT_MODES = ("auto", "xml", "center")
+
+
+def is_centered(filename: str, game_dir: Path | None = None) -> bool:
+    name = filename.lower()
+    if name in CENTERED:
+        return True
+    if game_dir is None:
+        return False
+    return any(name in names and (game_dir / dll).is_file() for dll, names in SERVER_CENTERED.items())
+
+
+def _center(screen_w: int, screen_h: int, rect: Rect) -> tuple[int, int]:
+    return int((screen_w - rect[2]) / 2), int((screen_h - rect[3]) / 2)
+
+
 # Seção do User.ini usada por cada XML (chamadas a 0x00A12B20 por classe).
 # Ficaram de fora janelas com várias instâncias por XML (SHORTCUTnn, ENCHANTLISTn).
 INI_SECTIONS = {
@@ -160,14 +221,30 @@ def saved_position_applies(screen: tuple[int, int], rect: Rect, saved: Rect | No
 
 
 def root_screen_position(
-    filename: str, screen: tuple[int, int], rect: Rect, saved: Rect | None = None
+    filename: str,
+    screen: tuple[int, int],
+    rect: Rect,
+    saved: Rect | None = None,
+    *,
+    mode: str = "auto",
+    game_dir: Path | None = None,
 ) -> tuple[int, int]:
-    """Onde a raiz (`rect` = x, y, largura, altura do XML) aparece na tela."""
+    """Onde a raiz (`rect` = x, y, largura, altura do XML) aparece na tela.
+
+    `mode` "xml" ou "center" é a escolha manual do usuário para o arquivo e
+    vence as regras automáticas.
+    """
+    if mode == "xml":
+        return _clamp(screen[0], screen[1], rect)
+    if mode == "center":
+        return _center(screen[0], screen[1], rect)
     rule = rule_for(filename)
     if rule is None and saved is not None and saved_position_applies(screen, rect, saved):
         return saved[0], saved[1]
     screen_w, screen_h = screen
     if rule is None:
+        if is_centered(filename, game_dir):
+            return _center(screen_w, screen_h, rect)
         return _clamp(screen_w, screen_h, rect)
     return rule.position(screen_w, screen_h, rect)
 

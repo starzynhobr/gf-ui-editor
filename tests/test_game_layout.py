@@ -36,3 +36,41 @@ def test_user_ini_position_decoding_and_priority(tmp_path) -> None:
     assert root_screen_position("Inventory.xml", SCREEN, (0, 0, 422, 436), (600, 200, 422, 436)) == (600, 200)
     # Fora da tela: o cliente descarta a posição salva.
     assert root_screen_position("Inventory.xml", SCREEN, (5, 6, 422, 436), (1178, 366, 422, 436)) == (5, 6)
+
+
+def test_windows_centered_by_the_client(tmp_path) -> None:
+    from gf_ui_editor.game_layout import is_centered
+
+    # Cliente base: vale em qualquer servidor.
+    assert is_centered("Storage.xml")
+    assert root_screen_position("Storage.xml", (1920, 1080), (10, 20, 300, 200)) == (810, 440)
+    assert not is_centered("BasicChar.xml")  # HUD não é centralizado
+    # A posição salva pelo jogador continua valendo quando cabe na tela.
+    assert root_screen_position("Equipment.xml", (1920, 1080), (0, 0, 302, 308), (649, 296, 302, 308)) == (649, 296)
+
+
+def test_server_dll_windows_only_apply_when_the_dll_exists(tmp_path) -> None:
+    from gf_ui_editor.game_layout import is_centered
+
+    rect = (275, 401, 434, 306)
+    other_server = tmp_path / "other"
+    other_server.mkdir()
+    assert not is_centered("SelfEquipment.xml")
+    assert not is_centered("SelfEquipment.xml", other_server)
+    assert root_screen_position("SelfEquipment.xml", (1920, 1080), rect, game_dir=other_server) == (275, 401)
+
+    violet = tmp_path / "violet"
+    violet.mkdir()
+    (violet / "Violet.dll").write_bytes(b"")
+    assert is_centered("SelfEquipment.xml", violet)
+    # Medido num print 1920x1080 do Violet: a janela 434x306 aparece em ~(745, 388).
+    assert root_screen_position("SelfEquipment.xml", (1920, 1080), rect, game_dir=violet) == (743, 387)
+
+
+def test_manual_root_mode_overrides_automatic_rules() -> None:
+    rect = (275, 401, 434, 306)
+    # Forçar o X/Y do XML numa janela que o automático centralizaria (e numa ancorada).
+    assert root_screen_position("Storage.xml", (1920, 1080), rect, mode="xml") == (275, 401)
+    assert root_screen_position("Radar.xml", (1920, 1080), rect, mode="xml") == (275, 401)
+    # Forçar o centro numa janela que o automático deixaria no X/Y do XML.
+    assert root_screen_position("QualquerCoisa.xml", (1920, 1080), rect, mode="center") == (743, 387)

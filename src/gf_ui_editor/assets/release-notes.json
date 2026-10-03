@@ -1,0 +1,46 @@
+{
+  "version": "0.2.5",
+  "date": "2026-10-03",
+  "notes": {
+    "pt_BR": {
+      "new": [
+        ["Novidades dentro do app.", "As notas de cada versão aparecem aqui, no idioma do editor, antes de você atualizar. Também ficam em Ajuda → Novidades desta versão."],
+        ["Posição da janela escolhida por você.", "Ao selecionar a janela principal de um arquivo, escolha como o preview a posiciona: automática, X e Y do XML ou centralizada. Útil quando o jogo do seu servidor se comporta diferente."]
+      ],
+      "fixed": [
+        ["Janelas centralizadas pelo jogo.", "Muitas janelas (equipamento, depósito, diálogos…) são centralizadas pelo jogo, que ignora o X/Y da janela principal. O preview mostrava a posição do XML; agora mostra o centro e avisa no painel."],
+        ["Posições salvas em projetos.", "Dentro de um projeto, o preview não considerava as posições que o jogo salva quando você arrasta uma janela."]
+      ]
+    },
+    "en_US": {
+      "new": [
+        ["What's new inside the app.", "Release notes show up here, in the editor's language, before you update. They are also under Help → What's new in this version."],
+        ["Window position chosen by you.", "When the main window of a file is selected, choose how the preview places it: automatic, X and Y from the XML, or centered. Useful when your server's game behaves differently."]
+      ],
+      "fixed": [
+        ["Windows centered by the game.", "Many windows (equipment, storage, dialogs…) are centered by the game, which ignores the X/Y of the main window. The preview showed the XML position; it now shows the center and tells you so in the panel."],
+        ["Saved positions in projects.", "Inside a project, the preview ignored the positions the game saves when you drag a window."]
+      ]
+    },
+    "es_ES": {
+      "new": [
+        ["Novedades dentro de la app.", "Las notas de cada versión aparecen aquí, en el idioma del editor, antes de actualizar. También están en Ayuda → Novedades de esta versión."],
+        ["Posición de la ventana elegida por usted.", "Al seleccionar la ventana principal de un archivo, elija cómo la coloca la vista previa: automática, X e Y del XML o centrada. Útil cuando el juego de su servidor se comporta distinto."]
+      ],
+      "fixed": [
+        ["Ventanas centradas por el juego.", "Muchas ventanas (equipo, almacén, diálogos…) son centradas por el juego, que ignora el X/Y de la ventana principal. La vista previa mostraba la posición del XML; ahora muestra el centro y lo indica en el panel."],
+        ["Posiciones guardadas en proyectos.", "Dentro de un proyecto, la vista previa no tenía en cuenta las posiciones que el juego guarda al arrastrar una ventana."]
+      ]
+    },
+    "fr_FR": {
+      "new": [
+        ["Nouveautés dans l'application.", "Les notes de chaque version s'affichent ici, dans la langue de l'éditeur, avant la mise à jour. Elles sont aussi dans Aide → Nouveautés de cette version."],
+        ["Position de la fenêtre choisie par vous.", "Quand la fenêtre principale d'un fichier est sélectionnée, choisissez comment l'aperçu la place : automatique, X et Y du XML ou centrée. Utile si le jeu de votre serveur se comporte autrement."]
+      ],
+      "fixed": [
+        ["Fenêtres centrées par le jeu.", "Beaucoup de fenêtres (équipement, entrepôt, dialogues…) sont centrées par le jeu, qui ignore le X/Y de la fenêtre principale. L'aperçu montrait la position du XML ; il montre maintenant le centre et l'indique dans le panneau."],
+        ["Positions enregistrées dans les projets.", "Dans un projet, l'aperçu ignorait les positions que le jeu enregistre quand vous déplacez une fenêtre."]
+      ]
+    }
+  }
+}

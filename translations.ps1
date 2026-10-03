@@ -7,7 +7,8 @@ $sources = @(
     (Join-Path $root "src\gf_ui_editor\app.py"),
     (Join-Path $root "src\gf_ui_editor\atlas_dialog.py"),
     (Join-Path $root "src\gf_ui_editor\editor_widgets.py"),
-    (Join-Path $root "src\gf_ui_editor\i18n.py")
+    (Join-Path $root "src\gf_ui_editor\i18n.py"),
+    (Join-Path $root "src\gf_ui_editor\update_dialog.py")
 )
 
 $languages = & $python -c "from gf_ui_editor.i18n import LANGUAGES; print(' '.join(language for language in LANGUAGES if language != 'pt_BR'))"
