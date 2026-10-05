@@ -61,6 +61,7 @@ COLORS = {
     "CHIP_BG": "#171a21",
     "GAME_SCREEN_BG": "#0d0f13",
     "GAME_SCREEN_BORDER": "#7c8799",
+    "GHOST_AREA": "#f87171",
 }
 
 

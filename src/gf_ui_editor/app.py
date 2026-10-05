@@ -68,7 +68,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
-from .editor_widgets import EditorView, ElementItem, GameScreenItem
+from .editor_widgets import EditorView, ElementItem, GameScreenItem, GhostAreaItem
 from .game_layout import (
     client_resolution,
     load_user_positions,
@@ -291,7 +291,7 @@ class NewProjectDialog(QDialog):
 
 class PropertyPanel(QWidget):
     geometry_edited = Signal(tuple)
-    root_mode_changed = Signal(str)
+    ghost_fix_requested = Signal()
     atlas_requested = Signal()
 
     def __init__(self, parent=None):
@@ -407,17 +407,21 @@ class PropertyPanel(QWidget):
         geometry_grid.addWidget(self.y_spin, 0, 1)
         geometry_grid.addWidget(self.width_spin, 1, 0)
         geometry_grid.addWidget(self.height_spin, 1, 1)
-        self.root_mode_combo = QComboBox()
-        self.root_mode_combo.addItem(self.tr("Posição no jogo: automática"), "auto")
-        self.root_mode_combo.addItem(self.tr("Posição no jogo: X e Y do XML"), "xml")
-        self.root_mode_combo.addItem(self.tr("Posição no jogo: centralizada"), "center")
-        self.root_mode_combo.setToolTip(
-            self.tr("Como o preview posiciona esta janela na tela. Use se o jogo do seu servidor se comportar diferente do automático.")
+        self.ghost_hint = QLabel(
+            self.tr(
+                "A área em vermelho é a janela principal: o jogo a mantém ali, invisível, "
+                "e ela continua recebendo cliques e arraste."
+            )
         )
-        self.root_mode_combo.setVisible(False)
-        self.root_mode_combo.currentIndexChanged.connect(
-            lambda _index: None if self._loading else self.root_mode_changed.emit(self.root_mode_combo.currentData())
+        self.ghost_hint.setObjectName("hintBox")
+        self.ghost_hint.setWordWrap(True)
+        self.ghost_hint.setVisible(False)
+        self.ghost_button = QPushButton(self.tr("Remover área invisível"))
+        self.ghost_button.setToolTip(
+            self.tr("Reduz a janela principal a 1 × 1 e ajusta o X/Y para o conteúdo continuar no mesmo lugar.")
         )
+        self.ghost_button.setVisible(False)
+        self.ghost_button.clicked.connect(self.ghost_fix_requested.emit)
         self.anchor_hint = QLabel()
         self.anchor_hint.setObjectName("hintBox")
         self.anchor_hint.setWordWrap(True)
@@ -447,7 +451,9 @@ class PropertyPanel(QWidget):
         details_layout.setContentsMargins(0, 0, 0, 0)
         details_layout.setSpacing(12)
         details_layout.addWidget(
-            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.screen_position_label, self.root_mode_combo, self.anchor_hint)
+            self._card(self.tr("POSIÇÃO E TAMANHO"), geometry_grid, self.screen_position_label, self.anchor_hint,
+                self.ghost_hint, self.ghost_button,
+            )
         )
         details_layout.addWidget(self._card(self.tr("TEXTURA"), texture_form, self.atlas_button))
         details_layout.addWidget(self._card(self.tr("IDENTIFICAÇÃO"), details_form))
@@ -474,12 +480,9 @@ class PropertyPanel(QWidget):
             card_layout.addWidget(widget)
         return card
 
-    def set_root_mode(self, mode: str | None) -> None:
-        """Mostra o seletor só para a janela raiz (`mode` None esconde)."""
-        self.root_mode_combo.setVisible(mode is not None)
-        if mode is not None:
-            with QSignalBlocker(self.root_mode_combo):
-                self.root_mode_combo.setCurrentIndex(max(0, self.root_mode_combo.findData(mode)))
+    def set_ghost_warning(self, visible: bool) -> None:
+        self.ghost_hint.setVisible(visible)
+        self.ghost_button.setVisible(visible)
 
     def set_screen_position(self, position: tuple[int, int] | None) -> None:
         self.screen_position_label.setVisible(position is not None)
@@ -732,6 +735,7 @@ class EditorWindow(QMainWindow):
             settings.value("background_mode", "custom" if self.game_background_path else "builtin")
         )
         self.game_screen_item: GameScreenItem | None = None
+        self.ghost_item: GhostAreaItem | None = None
 
         self.undo_stack = QUndoStack(self)
         self.scene = QGraphicsScene(self)
@@ -810,7 +814,7 @@ class EditorWindow(QMainWindow):
         tree_panel = self.side_tabs
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
-        self.properties.root_mode_changed.connect(self.set_root_mode)
+        self.properties.ghost_fix_requested.connect(self.remove_ghost_area)
         self.properties.atlas_requested.connect(self.open_selected_atlas)
         properties_scroll = QScrollArea()
         properties_scroll.setObjectName("propertiesScroll")
@@ -1049,6 +1053,25 @@ class EditorWindow(QMainWindow):
         resolution_menu.addAction(self.builtin_background_action)
         resolution_menu.addAction(self.background_action)
         resolution_menu.addAction(self.no_background_action)
+        root_mode_menu = view_menu.addMenu(self.tr("Posição da janela no preview"))
+        root_mode_menu.setToolTipsVisible(True)
+        self.root_mode_actions = QActionGroup(self)
+        self.root_mode_actions.setExclusive(True)
+        for mode, label in (
+            ("auto", self.tr("Automática (como o jogo)")),
+            ("xml", self.tr("X e Y do XML")),
+            ("center", self.tr("Centralizada")),
+        ):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setData(mode)
+            action.setToolTip(
+                self.tr("Use se o jogo do seu servidor posicionar esta janela de um jeito diferente do automático.")
+            )
+            action.triggered.connect(lambda _checked, value=mode: self.set_root_mode(value))
+            self.root_mode_actions.addAction(action)
+            root_mode_menu.addAction(action)
+        root_mode_menu.aboutToShow.connect(self._sync_root_mode_actions)
         view_menu.addSeparator()
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
@@ -1700,6 +1723,7 @@ class EditorWindow(QMainWindow):
             self.scene.addItem(item)
             self.items[element.index] = item
         self.game_screen_item = None
+        self.ghost_item = None  # a cena foi refeita
         self._refresh_game_screen()
 
     def _refresh_game_screen(self) -> None:
@@ -1738,12 +1762,8 @@ class EditorWindow(QMainWindow):
             section = saved_section_for(name)
             game_dir = self._document_game_dir()
             mode = self._root_mode()
-            saved = None
-            if section and game_dir is not None and self.saved_positions_action.isChecked():
-                saved = load_user_positions(game_dir / "User.ini").get(section)
-            screen_x, screen_y = root_screen_position(
-                name, self.game_resolution, root.geometry, saved, mode=mode, game_dir=game_dir
-            )
+            saved = self._saved_root_position()
+            screen_x, screen_y = self._root_screen_for(root.geometry)
             self.game_screen_item.setPos(root.x - screen_x, root.y - screen_y)
             caption += " · " + self.tr("janela no jogo em ({x}, {y})").format(x=screen_x, y=screen_y)
             if mode != "auto":
@@ -1760,6 +1780,22 @@ class EditorWindow(QMainWindow):
         self._keep_screen_in_place(before, before_in_view)
         self._sync_window_frame()
         self._refresh_screen_position()
+
+    def _saved_root_position(self):
+        assert self.document is not None
+        section = saved_section_for(self.document.path.name)
+        game_dir = self._document_game_dir()
+        if section and game_dir is not None and self.saved_positions_action.isChecked():
+            return load_user_positions(game_dir / "User.ini").get(section)
+        return None
+
+    def _root_screen_for(self, geometry: tuple[int, int, int, int]) -> tuple[int, int]:
+        """Onde o jogo poria a janela principal se ela tivesse esta geometria."""
+        assert self.document is not None and self.game_resolution is not None
+        return root_screen_position(
+            self.document.path.name, self.game_resolution, geometry, self._saved_root_position(),
+            mode=self._root_mode(), game_dir=self._document_game_dir(),
+        )
 
     def _keep_screen_in_place(self, before, before_in_view) -> None:
         """A tela não sai do lugar na vista quando a raiz muda: é o conteúdo que anda."""
@@ -1786,14 +1822,98 @@ class EditorWindow(QMainWindow):
         root = self.document.elements[0]
         item = self.items[0]
         item.apply_element(root)
+        item.carries_content = len(self.document.elements) > 1
         offset = self._screen_offset()
-        others = self.document.elements[1:]
-        if offset is None or not others or not self._root_position_is_set_by_game():
-            return
+        bounds = self._content_bounds()
+        if offset is not None and bounds is not None and self._root_position_is_set_by_game():
+            item.set_content_frame(bounds, offset)
+        self._sync_ghost_area()
+
+    def _content_bounds(self) -> QRectF | None:
+        """Retângulo que envolve tudo menos a janela principal, em coordenadas do XML."""
+        if self.document is None or len(self.document.elements) < 2:
+            return None
         bounds = QRectF()
-        for element in others:
+        for element in self.document.elements[1:]:
             bounds = bounds.united(QRectF(element.x, element.y, max(1, element.width), max(1, element.height)))
-        item.set_content_frame(bounds, offset)
+        return bounds
+
+    GHOST_TOLERANCE = 8
+
+    def _ghost_area(self, geometry: tuple[int, int, int, int] | None = None) -> QRectF | None:
+        """Parte da tela que o jogo ainda trata como janela, longe do conteúdo.
+
+        O jogo prende a janela principal ao centro (ou a um canto) e desenha o
+        conteúdo deslocado dela. Se o conteúdo foi levado para outro lugar, o
+        retângulo da janela continua lá, invisível, recebendo cliques e arraste.
+        """
+        bounds = self._content_bounds()
+        if bounds is None or self._screen_offset() is None or not self._root_position_is_set_by_game():
+            return None
+        x, y, width, height = geometry or self.document.elements[0].geometry
+        if width <= 1 and height <= 1:
+            return None
+        area = QRectF(x, y, max(1, width), max(1, height))
+        margin = self.GHOST_TOLERANCE
+        # Uma dentro da outra é uma janela comum (com folga ou com conteúdo maior); só
+        # há área sobrando quando o conteúdo saiu de cima da janela principal.
+        if bounds.adjusted(-margin, -margin, margin, margin).contains(area):
+            return None
+        if area.adjusted(-margin, -margin, margin, margin).contains(bounds):
+            return None
+        # Com fundo próprio visível a área não é invisível, e encolher apagaria o fundo.
+        return None if self._root_draws_background() else area
+
+    def _sync_ghost_area(self) -> None:
+        area = self._ghost_area()
+        if area is None:
+            if self.ghost_item is not None:
+                self.scene.removeItem(self.ghost_item)
+                self.ghost_item = None
+        else:
+            if self.ghost_item is None:
+                self.ghost_item = GhostAreaItem(self.tr("Área invisível da janela"))
+                self.scene.addItem(self.ghost_item)
+            self.ghost_item.set_area(area)
+        self.properties.set_ghost_warning(area is not None and self.selected_index == 0)
+
+    def _root_draws_background(self) -> bool:
+        """A janela principal tem textura visível? Encolhê-la apagaria esse fundo."""
+        item = self.items.get(0)
+        texture = item.texture_item if item is not None else None
+        if texture is None or texture.pixmap().isNull():
+            return False
+        image = texture.pixmap().toImage().scaled(16, 16)
+        return any(image.pixelColor(x, y).alpha() > 8 for x in range(16) for y in range(16))
+
+    def _collapsed_root(self, geometry: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+        """A mesma janela com 1 × 1, com o X/Y compensado para o conteúdo não sair do lugar."""
+        return self._resized_root(geometry, 1, 1)
+
+    def _resized_root(
+        self, geometry: tuple[int, int, int, int], width: int, height: int
+    ) -> tuple[int, int, int, int]:
+        # O ponto onde o jogo põe a janela depende do tamanho dela (centro, canto direito...).
+        x, y = geometry[:2]
+        before = self._root_screen_for(geometry)
+        after = self._root_screen_for((x, y, width, height))
+        return x + after[0] - before[0], y + after[1] - before[1], width, height
+
+    def _without_ghost_area(self, geometry: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+        """Depois de mover a janela: encolhe a principal se ela fosse sobrar longe do conteúdo."""
+        if self._ghost_area(geometry) is None:
+            return geometry
+        self.statusBar().showMessage(
+            self.tr("A janela principal foi reduzida a 1 × 1 para não deixar uma área invisível no lugar antigo."),
+            10000,
+        )
+        return self._collapsed_root(geometry)
+
+    def remove_ghost_area(self) -> None:
+        if self.document is None or self._ghost_area() is None:
+            return
+        root = self.document.elements[0].geometry
+        self.undo_stack.push(GeometryCommand(self, 0, root, self._collapsed_root(root)))
 
     def _screen_offset(self) -> tuple[int, int] | None:
         """Quanto somar a uma coordenada do XML para obter a da tela do jogo."""
@@ -1853,6 +1973,12 @@ class EditorWindow(QMainWindow):
         if self.project is not None and self.project.contains(self.document.path):
             return self.project.root_modes.get(self._root_mode_key(), "auto")
         return str(QSettings("Local", "GF UI Editor").value(f"root_mode/{self._root_mode_key()}", "auto"))
+
+    def _sync_root_mode_actions(self) -> None:
+        mode = self._root_mode()
+        for action in self.root_mode_actions.actions():
+            action.setEnabled(self.document is not None)
+            action.setChecked(action.data() == mode)
 
     def set_root_mode(self, mode: str) -> None:
         if self.document is None:
@@ -2045,6 +2171,8 @@ class EditorWindow(QMainWindow):
                 for element in self.document.elements:
                     if element.texture_name == name:
                         self._refresh_element_texture(element.index)
+                        if element.index == 0:
+                            self._sync_ghost_area()  # o fundo da janela principal muda a resposta
             done = self._texture_total - len(self._textures_pending)
             if self._textures_pending:
                 self.statusBar().showMessage(self.tr("Elementos prontos · carregando texturas ({done}/{total})…").format(done=done, total=self._texture_total))
@@ -2128,8 +2256,8 @@ class EditorWindow(QMainWindow):
         self.view.set_interaction_priority(self.items[index])
         self.properties.set_element(self.document.elements[index])
         self._refresh_screen_position()
-        self.properties.set_root_mode(self._root_mode() if index == 0 else None)
         self.properties.set_anchor_hint(self._anchor_hint_for(index))
+        self.properties.set_ghost_warning(index == 0 and self._ghost_area() is not None)
         self.properties.set_enabled(index not in self.locked_indexes)
         if self.isolated_index is not None and self.isolated_index != index:
             previous_isolated_index = self.isolated_index
@@ -2237,9 +2365,17 @@ class EditorWindow(QMainWindow):
         frame = self._window_frame_on_screen() if self.selected_index == 0 else None
         if frame is not None:
             # O painel mostra a posição na tela; a raiz anda ao contrário (ver _root_move_as_screen_move).
-            geometry = (
-                element.x - (geometry[0] - frame[0]), element.y - (geometry[1] - frame[1]), geometry[2], geometry[3]
+            moved_root = (
+                element.x - (geometry[0] - frame[0]), element.y - (geometry[1] - frame[1]),
+                element.width, element.height,
             )
+            if geometry[2:] != element.geometry[2:]:
+                # Mudar o tamanho desloca o ponto onde o jogo põe a janela: o conteúdo não deve pular.
+                geometry = self._resized_root(moved_root, geometry[2], geometry[3])
+            elif moved_root != element.geometry:
+                geometry = self._without_ghost_area(moved_root)
+            else:
+                geometry = moved_root
         if element.geometry != geometry:
             moved = frame is None and element.geometry[:2] != geometry[:2]
             self.undo_stack.push(
@@ -2262,10 +2398,53 @@ class EditorWindow(QMainWindow):
         old, new = changes[0]
         dx, dy = new[0] - old[0], new[1] - old[1]
         x, y = self.document.elements[0].geometry[:2]
-        if set(changes) == {0} and self._root_position_is_set_by_game():
-            dx, dy = -dx, -dy
         root = self.document.elements[0].geometry
+        if set(changes) == {0} and self._root_position_is_set_by_game():
+            moved = (x - dx, y - dy, new[2], new[3])
+            if self._window_frame_on_screen() is not None and (dx or dy):
+                moved = self._without_ghost_area(moved)
+            return {0: (root, moved)}
+        if set(changes) == {0} and new[2:] == old[2:] and (dx or dy):
+            # Janela comum: arrastar a principal é mover a janela inteira. Movendo tudo junto,
+            # muda a posição padrão dela sem mexer na relação entre os elementos.
+            shown_at = self._preview_default_position()
+            if shown_at is not None:
+                # A janela estava desenhada na posição salva: o padrão do XML passa a ser
+                # o ponto da tela onde ela foi solta, não o X/Y antigo mais o arraste.
+                dx, dy = shown_at[0] + dx - x, shown_at[1] + dy - y
+            return {
+                element.index: (
+                    element.geometry, (element.x + dx, element.y + dy, element.width, element.height)
+                )
+                for element in self.document.elements
+                if element.index == 0 or element.index not in self.locked_indexes
+            }
         return {**changes, 0: (root, (x + dx, y + dy, new[2], new[3]))}
+
+    def _preview_default_position(self) -> tuple[int, int] | None:
+        """Ao mover uma janela com posição salva no User.ini, o preview passa a mostrar a do XML.
+
+        O jogo reabre essas janelas onde o jogador as deixou; o XML só define a
+        posição padrão, que é o que se está editando. Devolve onde a janela
+        estava desenhada, se era na posição salva.
+        """
+        if self.document is None or self.game_resolution is None or not self.saved_positions_action.isChecked():
+            return None
+        if rule_for(self.document.path.name) is not None:
+            return None
+        root = self.document.elements[0].geometry
+        if not saved_position_applies(self.game_resolution, root, self._saved_root_position()):
+            return None
+        shown_at = self._root_screen_for(root)
+        self.saved_positions_action.setChecked(False)
+        self.statusBar().showMessage(
+            self.tr(
+                "O jogo lembra onde você deixou esta janela (User.ini). O preview agora mostra a posição "
+                "padrão do XML, que vale para quem ainda não a moveu no jogo."
+            ),
+            15000,
+        )
+        return shown_at
 
     def _root_position_is_set_by_game(self) -> bool:
         return self.document is not None and self._anchor_hint_for(0) is not None

@@ -126,6 +126,8 @@ class ElementItem(QGraphicsRectItem):
         # Moldura da janela: a raiz é desenhada em volta do conteúdo e arrastá-la
         # leva os demais elementos junto (ver set_content_frame).
         self._frame_mode = False
+        # Janela principal: arrastá-la sozinha leva os outros elementos junto.
+        self.carries_content = False
         self._frame_offset = (0, 0)
         self._followers: list[tuple["ElementItem", QPointF]] = []
         self._base_z = float(element.index)
@@ -336,7 +338,8 @@ class ElementItem(QGraphicsRectItem):
             for item in selected_items
         }
         self._followers = []
-        if self._frame_mode and set(self._group_drag_starts) == {self.element_index} and self.scene() is not None:
+        carries = self._frame_mode or self.carries_content
+        if carries and set(self._group_drag_starts) == {self.element_index} and self.scene() is not None:
             self._followers = [
                 (item, QPointF(item.pos()))
                 for item in self.scene().items()
@@ -482,6 +485,27 @@ class ElementItem(QGraphicsRectItem):
             self._moved_callback(
                 {self.element_index: (self._resize_start_geometry, new_geometry)}
             )
+
+
+class GhostAreaItem(QGraphicsRectItem):
+    """Área que o jogo ainda trata como janela, longe do conteúdo; não interage."""
+
+    def __init__(self, label: str):
+        super().__init__()
+        self.setZValue(-0.5)  # acima da tela do jogo, abaixo dos elementos
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setAcceptHoverEvents(False)
+        self.setBrush(qcolor("GHOST_AREA", 40))
+        self.setPen(QPen(qcolor("GHOST_AREA"), 0, Qt.PenStyle.DashLine))
+        self.label_item = QGraphicsSimpleTextItem(label, self)
+        self.label_item.setBrush(qcolor("GHOST_AREA"))
+        self.label_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.label_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+
+    def set_area(self, rect: QRectF) -> None:
+        self.setPos(rect.topLeft())
+        self.setRect(QRectF(0, 0, rect.width(), rect.height()))
+        self.label_item.setPos(2, rect.height() + 4)
 
 
 class GameScreenItem(QGraphicsRectItem):

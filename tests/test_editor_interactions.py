@@ -731,19 +731,24 @@ def test_dragging_a_game_centered_window_moves_its_content_on_screen(tmp_path: P
     window.undo_stack.undo()
     window.undo_stack.undo()
 
+    assert window.ghost_item is None  # o conteúdo continua em cima da janela principal
+
     # Arrastar a janela 463 px para a esquerda: o conteúdo vai para lá e a raiz anda ao contrário.
+    # Como o conteúdo sai de cima da janela principal, ela encolhe para 1 × 1 (senão ficaria
+    # uma área invisível no centro) com o X/Y compensado: (1920-1)//2 - (1920-434)//2 = 216.
     window.elements_dragged({0: ((134, 302, 434, 306), (134 - 463, 302 + 4, 434, 306))})
     application.processEvents()
-    assert window.document.elements[0].geometry == (134 + 463, 302 - 4, 434, 306)
+    assert window.document.elements[0].geometry == (134 + 463 + 216, 302 - 4 + 152, 1, 1)
     assert window.document.elements[1].geometry == (140, 310, 20, 20)
     assert child_on_screen() == (749 - 463, 395 + 4)
+    assert window.ghost_item is None
 
     # Movendo tudo junto, a diferença não muda: nada é invertido e nada muda no jogo.
     before = child_on_screen()
     window.elements_dragged(
-        {0: (window.document.elements[0].geometry, (700, 300, 434, 306)), 1: ((140, 310, 20, 20), (243, 312, 20, 20))}
+        {0: (window.document.elements[0].geometry, (916, 452, 1, 1)), 1: ((140, 310, 20, 20), (243, 312, 20, 20))}
     )
-    assert window.document.elements[0].geometry == (700, 300, 434, 306)
+    assert window.document.elements[0].geometry == (916, 452, 1, 1)
     assert child_on_screen() == before
 
 
@@ -802,7 +807,112 @@ def test_window_frame_follows_the_content_and_stays_where_it_is_dropped(tmp_path
         assert in_view(window.game_screen_item) == screen_before  # a tela não se mexe
         assert in_view(frame) == in_view(child)  # a moldura continua em volta do conteúdo
         assert window.document.elements[1].geometry == (140, 310, 60, 40)
-        assert window.document.elements[0].geometry == (
-            root_before[0] - step.x(), root_before[1] - step.y(), 434, 306
-        )
+        assert window.document.elements[0].geometry != root_before
+    # O conteúdo saiu de cima da janela principal: ela encolheu e não sobra área invisível.
+    assert window.document.elements[0].geometry[2:] == (1, 1)
+    assert window.ghost_item is None
     window.deleteLater()
+
+
+def test_dragging_the_main_window_of_a_free_window_moves_everything(tmp_path: Path) -> None:
+    """Janela que o jogo não fixa: arrastar a principal leva o conteúdo, ao vivo e no XML."""
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "UI" / "Solta.xml"
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Solta.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="100" WindowTop="50" WindowHeight="200" WindowWidth="120" />\n'
+        b'  <BaseWndProperty WindowID="2" WindowLeft="110" WindowTop="60" WindowHeight="40" WindowWidth="30" />\n'
+        b"</Root_Node>\n"
+    )
+    window = EditorWindow(path)
+    window.set_game_resolution((800, 600))
+    window.show()
+    window.view.resetTransform()
+    window.select_element(0)
+    window.view.centerOn(window.items[0])
+    application.processEvents()
+    root, child, viewport = window.items[0], window.items[1], window.view.viewport()
+    start = window.view.mapFromScene(QPointF(250, 150))  # dentro da principal, fora do filho
+    child_before = window.view.mapFromScene(child.pos())
+    step = QPoint(40, -25)
+    QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+    QTest.mouseMove(viewport, start + step, 20)
+    application.processEvents()
+    assert window.view.mapFromScene(child.pos()) == child_before + step  # acompanha durante o arraste
+    QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=start + step)
+    application.processEvents()
+
+    assert window.document.elements[0].geometry == (140, 25, 200, 120)
+    assert window.document.elements[1].geometry == (150, 35, 40, 30)
+    assert root.pos() == QPointF(140, 25) and child.pos() == QPointF(150, 35)
+    window.undo_stack.undo()  # um passo só
+    assert window.document.elements[0].geometry == (100, 50, 200, 120)
+    assert window.document.elements[1].geometry == (110, 60, 40, 30)
+
+    # No painel o X/Y continua sendo o do XML: move só a principal, para ajuste fino.
+    window.properties.x_spin.setValue(90)
+    assert window.document.elements[0].geometry == (90, 50, 200, 120)
+    assert window.document.elements[1].geometry == (110, 60, 40, 30)
+    window.deleteLater()
+
+
+def test_invisible_window_area_is_shown_and_removed_in_one_click(tmp_path: Path) -> None:
+    """Arquivo que já chega deslocado (editado à mão): a janela principal sobra longe do conteúdo."""
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "UI" / "Storage.xml"  # centralizada pelo cliente
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Storage.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="600" WindowTop="50" WindowHeight="200" WindowWidth="100" />\n'
+        b'  <BaseWndProperty WindowID="2" WindowLeft="0" WindowTop="0" WindowHeight="200" WindowWidth="100" />\n'
+        b"</Root_Node>\n"
+    )
+    window = EditorWindow(path)
+    window.set_game_resolution((1920, 1080))
+    window.select_element(0)
+
+    def child_on_screen() -> tuple[int, int]:
+        offset = window._screen_offset()
+        child = window.document.elements[1]
+        return child.x + offset[0], child.y + offset[1]
+
+    before = child_on_screen()
+    assert window.ghost_item is not None
+    assert window.ghost_item.pos() == QPointF(600, 50)  # o retângulo real da janela principal
+    assert not window.properties.ghost_button.isHidden()
+
+    window.properties.ghost_button.click()
+    assert window.document.elements[0].geometry[2:] == (1, 1)
+    assert child_on_screen() == before
+    assert window.ghost_item is None
+    assert window.properties.ghost_button.isHidden()
+
+    window.undo_stack.undo()
+    assert window.document.elements[0].geometry == (600, 50, 200, 100)
+    assert window.ghost_item is not None
+
+    # Sem a moldura do jogo não há como saber onde a janela cai: nenhum aviso.
+    window.set_game_resolution(None)
+    assert window.ghost_item is None
+
+
+def test_resizing_a_game_positioned_window_keeps_its_content_in_place(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "UI" / "Storage.xml"
+    path.parent.mkdir()
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Storage.xml">\n'
+        b'  <BaseWndProperty WindowID="1" WindowLeft="0" WindowTop="0" WindowHeight="200" WindowWidth="100" />\n'
+        b'  <BaseWndProperty WindowID="2" WindowLeft="0" WindowTop="0" WindowHeight="200" WindowWidth="100" />\n'
+        b"</Root_Node>\n"
+    )
+    window = EditorWindow(path)
+    window.set_game_resolution((1920, 1080))
+    window.select_element(0)
+    offset = window._screen_offset()
+    window.properties.width_spin.setValue(80)
+    window.properties.height_spin.setValue(40)
+    assert window.document.elements[0].geometry[2:] == (80, 40)
+    assert window._screen_offset() == offset  # o conteúdo não pulou
+    assert window.document.elements[1].geometry == (0, 0, 200, 100)
