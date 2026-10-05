@@ -688,10 +688,16 @@ def test_screen_coordinates_are_shown_next_to_xml_coordinates(tmp_path: Path) ->
         window.move_selected(5, 0)
         assert "X 340 · Y 270" in window.properties.screen_position_label.text()
 
+        assert window.manual_position_button.isHidden()
         window.set_root_mode("xml")  # escolha manual: a tela volta a coincidir com o XML
         assert window._screen_offset() == (0, 0)
         assert "X 0 · Y 30" in window.properties.screen_position_label.text()
-        window.set_root_mode("auto")
+        # A escolha manual fica à vista na barra do canvas e sai com um clique.
+        assert not window.manual_position_button.isHidden()
+        window.manual_position_button.click()
+        assert window._root_mode() == "auto"
+        assert window.manual_position_button.isHidden()
+        assert window._screen_offset() != (0, 0)
     finally:
         settings.remove("root_mode/storage.xml")
         for key, value in saved.items():

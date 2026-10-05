@@ -1572,6 +1572,9 @@ class EditorWindow(QMainWindow):
             }
             QFrame#floatingBar QToolButton#pill { border-radius: 7px; padding: 4px 9px; color: ${TEXT_PRIMARY}; }
             QFrame#floatingBar QToolButton#pill:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; }
+            QFrame#floatingBar QToolButton#pillWarning {
+                border-radius: 7px; padding: 4px 9px; background: #3a2e12; color: ${SELECTION_GOLD}; font-weight: 600;
+            }
             QFrame#floatingBar QToolButton::menu-indicator { image: none; width: 0; }
             QToolButton#inspectorAction {
                 background: ${BUTTON_HOVER_BG};
@@ -1743,6 +1746,7 @@ class EditorWindow(QMainWindow):
             self.scene.addItem(self.game_screen_item)
             self._place_game_screen()
         self._sync_window_frame()
+        self._sync_manual_position_warning()
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
 
     def _place_game_screen(self) -> None:
@@ -1779,7 +1783,16 @@ class EditorWindow(QMainWindow):
         self.game_screen_item.set_caption(caption)
         self._keep_screen_in_place(before, before_in_view)
         self._sync_window_frame()
+        self._sync_manual_position_warning()
         self._refresh_screen_position()
+
+    def _sync_manual_position_warning(self) -> None:
+        if not hasattr(self, "manual_position_button"):
+            return
+        manual = self.document is not None and self.game_screen_item is not None and self._root_mode() != "auto"
+        if manual != (not self.manual_position_button.isHidden()):
+            self.manual_position_button.setVisible(manual)
+            self.view._place_overlays()
 
     def _saved_root_position(self):
         assert self.document is not None
@@ -3017,6 +3030,17 @@ class EditorWindow(QMainWindow):
         user_ini = bar_button(action=self.saved_positions_action)
         user_ini.setText("User.ini")
         self.saved_positions_action.changed.connect(lambda: user_ini.setText("User.ini"))
+        # Aviso de posição manual: o preview deixa de seguir o jogo neste arquivo.
+        self.manual_position_button = bar_button(self.tr("Posição manual · voltar ao automático"))
+        self.manual_position_button.setObjectName("pillWarning")
+        self.manual_position_button.setToolTip(
+            self.tr(
+                "Neste arquivo o preview usa uma posição escolhida à mão (Visualização → Posição da janela no preview) "
+                "e pode não mostrar onde a janela aparece no jogo. Clique para voltar a seguir o jogo."
+            )
+        )
+        self.manual_position_button.clicked.connect(lambda: self.set_root_mode("auto"))
+        self.manual_position_button.setVisible(False)
         self.view.add_overlay(bar, "top")
 
         zoom = QFrame(self.view)

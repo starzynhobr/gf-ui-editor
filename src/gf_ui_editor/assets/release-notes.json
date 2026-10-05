@@ -1,53 +1,25 @@
 {
-  "version": "0.2.10",
+  "version": "0.2.11",
   "date": "2026-10-05",
   "notes": {
     "pt_BR": {
-      "new": [
-        ["Sem área invisível ao mover janelas.", "Em janelas que o jogo centraliza ou prende a um canto, a janela principal continuava no lugar antigo, invisível, recebendo cliques. Ao arrastar, o editor agora a reduz a 1 × 1 e ajusta o X/Y sozinho."],
-        ["Aviso para arquivos já deslocados.", "Se um XML chega com essa área sobrando, o preview a marca em vermelho e o painel oferece \"Remover área invisível\"."],
-        ["Arrastar a janela principal move a janela inteira.", "Vale para qualquer janela: o conteúdo acompanha e tudo é gravado junto, num único passo de desfazer."]
-      ],
       "improved": [
-        ["Mudar o tamanho da janela principal não desloca mais o conteúdo.", "O editor compensa o X/Y nas janelas que o jogo posiciona."],
-        ["Janelas com posição salva no User.ini.", "Ao movê-las, o preview passa a mostrar a posição padrão do XML e avisa no rodapé."],
-        ["\"Posição no jogo\" saiu do painel.", "Agora fica em Visualização → Posição da janela no preview, para quem precisa do ajuste manual."]
+        ["Aviso de posição manual no preview.", "Se um arquivo está com a posição da janela escolhida à mão, a barra do preview mostra \"Posição manual · voltar ao automático\". Nesse modo o preview pode não mostrar onde a janela aparece no jogo; um clique volta ao automático."]
       ]
     },
     "en_US": {
-      "new": [
-        ["No invisible area when moving windows.", "For windows the game centres or pins to a corner, the main window stayed at the old spot, invisible, still catching clicks. When you drag, the editor now shrinks it to 1 × 1 and adjusts X/Y by itself."],
-        ["Warning for files that are already shifted.", "If an XML arrives with that leftover area, the preview marks it in red and the panel offers \"Remove invisible area\"."],
-        ["Dragging the main window moves the whole window.", "This applies to any window: the content follows and everything is written together, in a single undo step."]
-      ],
       "improved": [
-        ["Resizing the main window no longer shifts the content.", "The editor compensates X/Y for windows the game positions."],
-        ["Windows with a position saved in User.ini.", "When you move them, the preview switches to the XML default position and says so in the status bar."],
-        ["\"Position in game\" left the panel.", "It now lives in View → Window position in the preview, for those who need the manual override."]
+        ["Manual position warning in the preview.", "If a file has its window position chosen by hand, the preview bar shows \"Manual position · back to automatic\". In that mode the preview may not show where the window appears in game; one click goes back to automatic."]
       ]
     },
     "es_ES": {
-      "new": [
-        ["Sin área invisible al mover ventanas.", "En las ventanas que el juego centra o fija en una esquina, la ventana principal seguía en el lugar anterior, invisible, recibiendo clics. Al arrastrar, el editor ahora la reduce a 1 × 1 y ajusta X/Y por sí solo."],
-        ["Aviso para archivos ya desplazados.", "Si un XML llega con esa área sobrante, la vista previa la marca en rojo y el panel ofrece \"Quitar área invisible\"."],
-        ["Arrastrar la ventana principal mueve la ventana entera.", "Vale para cualquier ventana: el contenido la sigue y todo se guarda junto, en un solo paso de deshacer."]
-      ],
       "improved": [
-        ["Cambiar el tamaño de la ventana principal ya no desplaza el contenido.", "El editor compensa X/Y en las ventanas que el juego posiciona."],
-        ["Ventanas con posición guardada en User.ini.", "Al moverlas, la vista previa pasa a mostrar la posición por defecto del XML y lo indica en la barra inferior."],
-        ["\"Posición en el juego\" salió del panel.", "Ahora está en Visualización → Posición de la ventana en la vista previa, para quien necesite el ajuste manual."]
+        ["Aviso de posición manual en la vista previa.", "Si un archivo tiene la posición de la ventana elegida a mano, la barra de la vista previa muestra \"Posición manual · volver a automático\". En ese modo la vista previa puede no mostrar dónde aparece la ventana en el juego; un clic vuelve a automático."]
       ]
     },
     "fr_FR": {
-      "new": [
-        ["Plus de zone invisible en déplaçant les fenêtres.", "Pour les fenêtres que le jeu centre ou fixe dans un coin, la fenêtre principale restait à l'ancien endroit, invisible, et recevait toujours les clics. Quand vous la faites glisser, l'éditeur la réduit maintenant à 1 × 1 et ajuste X/Y tout seul."],
-        ["Avertissement pour les fichiers déjà décalés.", "Si un XML arrive avec cette zone en trop, l'aperçu la marque en rouge et le panneau propose « Supprimer la zone invisible »."],
-        ["Faire glisser la fenêtre principale déplace toute la fenêtre.", "Valable pour toutes les fenêtres : le contenu suit et tout est enregistré ensemble, en une seule étape d'annulation."]
-      ],
       "improved": [
-        ["Changer la taille de la fenêtre principale ne décale plus le contenu.", "L'éditeur compense X/Y pour les fenêtres que le jeu positionne."],
-        ["Fenêtres dont la position est enregistrée dans User.ini.", "Quand vous les déplacez, l'aperçu affiche la position par défaut du XML et l'indique dans la barre d'état."],
-        ["« Position en jeu » a quitté le panneau.", "Elle se trouve maintenant dans Affichage → Position de la fenêtre dans l'aperçu, pour ceux qui ont besoin du réglage manuel."]
+        ["Avertissement de position manuelle dans l'aperçu.", "Si la position de la fenêtre a été choisie à la main pour un fichier, la barre de l'aperçu affiche « Position manuelle · revenir à l'automatique ». Dans ce mode, l'aperçu peut ne pas montrer où la fenêtre apparaît en jeu ; un clic rétablit l'automatique."]
       ]
     }
   }
