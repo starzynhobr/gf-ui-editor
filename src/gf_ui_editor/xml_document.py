@@ -15,6 +15,50 @@ START_TAG_RE = re.compile(r"<BaseWndProperty\b[^>]*>")
 NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 # Deslocamento do estado preenchido de barras (ProgressNode/OffSetUV).
 SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
+BUTTON_UV_STATES = ("FocusUV", "DownUV", "DisableUV")
+BUTTON_TAG_RE = re.compile(
+    r"<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|"
+    r"</?(?:BaseWndProperty|ButtonNode|FocusUV|DownUV|DisableUV)\b[^>]*>"
+)
+
+
+def _button_uv_matches(text: str) -> dict[tuple[int, str], re.Match[str]]:
+    """Relaciona os estados ao botão dono, inclusive dentro de containers."""
+    bases: list[int] = []
+    buttons: list[int] = []
+    index = -1
+    matches = {}
+    for match in BUTTON_TAG_RE.finditer(text):
+        token = match.group()
+        if token.startswith("<!"):
+            continue
+        tag = token.lstrip("</").split(None, 1)[0].rstrip("/>")
+        closing = token.startswith("</")
+        if tag == "BaseWndProperty":
+            if closing:
+                bases.pop()
+            else:
+                index += 1
+                if not token.rstrip().endswith("/>"):
+                    bases.append(index)
+        elif tag == "ButtonNode":
+            if closing:
+                buttons.pop()
+            elif bases and not token.rstrip().endswith("/>"):
+                buttons.append(bases[-1])
+        elif not closing and bases and buttons and buttons[-1] == bases[-1]:
+            key = (bases[-1], tag)
+            if key in matches:
+                raise ValueError("Estado de botão duplicado")
+            matches[key] = match
+    return matches
+
+
+def _uv_attributes(state: str, uv: UVRect) -> dict[str, int]:
+    return dict(zip(
+        (state + suffix for suffix in ("Left", "Top", "Width", "Height")),
+        (uv.left, uv.top, uv.width, uv.height), strict=True,
+    ))
 
 
 class DocumentError(RuntimeError):
@@ -50,6 +94,8 @@ class UIElement:
     texture_name: str | None = None
     uv: UVRect | None = None
     original_uv: UVRect | None = None
+    button_uvs: dict[str, UVRect] = field(default_factory=dict)
+    original_button_uvs: dict[str, UVRect] = field(default_factory=dict)
     progress_offset: tuple[int, int] | None = None
     original_progress_offset: tuple[int, int] | None = None
     child_tags: tuple[str, ...] = field(default_factory=tuple)
@@ -142,6 +188,19 @@ class UIElement:
             if value != before
         }
 
+    @property
+    def changed_button_uv_attributes(self) -> dict[str, dict[str, str]]:
+        changes = {}
+        for state, uv in self.button_uvs.items():
+            original = _uv_attributes(state, self.original_button_uvs[state])
+            attrs = {
+                name: str(value) for name, value in _uv_attributes(state, uv).items()
+                if value != original[name]
+            }
+            if attrs:
+                changes[state] = attrs
+        return changes
+
     def set_geometry(self, x: int, y: int, width: int, height: int) -> None:
         values = {
             "WindowLeft": x,
@@ -214,6 +273,13 @@ class UIDocument:
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(text))
         self._offset_tags = list(SOFFSET_TAG_RE.finditer(text))
         self._build_elements()
+        try:
+            self._button_uv_tags = _button_uv_matches(text)
+            expected = {(e.index, state) for e in self.elements for state in e.button_uvs}
+            self.button_states_editable = self._button_uv_tags.keys() == expected
+        except (ValueError, IndexError):
+            self._button_uv_tags = {}
+            self.button_states_editable = False
         if len(self._start_tags) != len(self.elements):
             raise DocumentError(
                 "Não foi possível relacionar todos os elementos ao texto original "
@@ -253,6 +319,7 @@ class UIDocument:
     def is_dirty(self) -> bool:
         return any(
             element.changed_attributes or element.changed_uv_attributes or element.changed_offset_attributes
+            or element.changed_button_uv_attributes
             for element in self.elements
         )
 
@@ -297,6 +364,16 @@ class UIDocument:
                 _integer(offset_node.attrib, "y"),
             )
         ctrl_type = style_attrs.get("CtrlType")
+        button_uvs = {}
+        button_node = base.find("ButtonNode")
+        if button_node is not None:
+            for state in BUTTON_UV_STATES:
+                node = button_node.find(state)
+                if node is not None:
+                    button_uvs[state] = UVRect(*(
+                        _integer(node.attrib, state + suffix)
+                        for suffix in ("Left", "Top", "Width", "Height")
+                    ))
         return UIElement(
             index=len(self.elements),
             window_id=attrs.get("WindowID", "?"),
@@ -308,6 +385,8 @@ class UIDocument:
             texture_name=texture_name,
             uv=uv,
             original_uv=uv,
+            button_uvs=button_uvs,
+            original_button_uvs=dict(button_uvs),
             progress_offset=progress_offset,
             original_progress_offset=progress_offset,
             child_tags=tuple(child.tag for child in base),
@@ -318,6 +397,12 @@ class UIDocument:
 
     def set_uv(self, index: int, uv: UVRect) -> None:
         self.elements[index].set_uv(uv.left, uv.top, uv.width, uv.height)
+
+    def set_button_uv(self, index: int, state: str, uv: UVRect) -> None:
+        element = self.elements[index]
+        if not self.button_states_editable or state not in element.button_uvs:
+            raise ValueError("Este estado de botão não tem recorte editável.")
+        element.button_uvs[state] = UVRect(uv.left, uv.top, max(0, uv.width), max(0, uv.height))
 
     @property
     def offsets_editable(self) -> bool:
@@ -336,7 +421,8 @@ class UIDocument:
         pattern = re.compile(rf'(\b{re.escape(name)}\s*=\s*")[^"]*(")')
         if pattern.search(tag):
             return pattern.sub(rf"\g<1>{value}\g<2>", tag, count=1)
-        return tag[:-1] + f' {name}="{value}">'
+        closing = re.search(r"\s*/?>$", tag)
+        return tag[:closing.start()] + f' {name}="{value}"' + tag[closing.start():]
 
     def render_text(self) -> str:
         replacements: list[tuple[int, int, str]] = []
@@ -362,6 +448,16 @@ class UIDocument:
                     for name, value in changes.items():
                         tag = self._replace_attribute(tag, name, value)
                     replacements.append((match.start(), match.end(), tag))
+
+        for element in self.elements:
+            for state, changes in element.changed_button_uv_attributes.items():
+                if not self.button_states_editable:
+                    raise DocumentError("Não foi possível relacionar os estados de botão ao XML.")
+                match = self._button_uv_tags[(element.index, state)]
+                tag = match.group()
+                for name, value in changes.items():
+                    tag = self._replace_attribute(tag, name, value)
+                replacements.append((match.start(), match.end(), tag))
 
         chunks: list[str] = []
         cursor = 0
@@ -442,8 +538,10 @@ class UIDocument:
         self._start_tags = list(START_TAG_RE.finditer(new_text))
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(new_text))
         self._offset_tags = list(SOFFSET_TAG_RE.finditer(new_text))
+        self._button_uv_tags = _button_uv_matches(new_text) if self.button_states_editable else {}
         for element in self.elements:
             element.original_attrs = dict(element.attrs)
             element.original_uv = element.uv
+            element.original_button_uvs = dict(element.button_uvs)
             element.original_progress_offset = element.progress_offset
         return backup

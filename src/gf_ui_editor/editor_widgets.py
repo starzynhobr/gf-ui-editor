@@ -41,13 +41,14 @@ def constrain_to_axis(
 
 
 class ResizeHandle(QGraphicsRectItem):
-    """Alça inferior direita com tamanho constante na tela."""
+    """Alça de redimensionamento com tamanho constante na tela."""
 
     HIT_RECT = QRectF(-9, -9, 18, 18)
 
     def __init__(self, owner: "ElementItem"):
         super().__init__(QRectF(-5, -5, 10, 10), owner)
         self.owner = owner
+        self.axes: tuple[int, int] | None = None
         self._dragging = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
         self.setBrush(qcolor("SELECTION_GOLD"))
@@ -66,7 +67,7 @@ class ResizeHandle(QGraphicsRectItem):
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
             self._dragging = True
-            self.owner.begin_resize(event.scenePos())
+            self.owner.begin_resize(event.scenePos(), axes=self.axes)
             event.accept()
             return
         super().mousePressEvent(event)
@@ -92,8 +93,32 @@ class ResizeHandle(QGraphicsRectItem):
         super().mouseReleaseEvent(event)
 
 
+class WindowFrameItem(QGraphicsRectItem):
+    """Permite arrastar a janela também pela área fora do conteúdo."""
+
+    def __init__(self, owner: "ElementItem"):
+        super().__init__(owner)
+        self.owner = owner
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)
+
+    def mousePressEvent(self, event):  # noqa: N802
+        self.owner.mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        self.owner.mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        self.owner.mouseReleaseEvent(event)
+
+
 class ElementItem(QGraphicsRectItem):
     SELECTION_Z_BASE = 1_000_000.0
+    WINDOW_HANDLE_AXES = {
+        "top_left": (-1, -1), "top": (0, -1), "top_right": (1, -1),
+        "right": (1, 0), "bottom_right": (1, 1), "bottom": (0, 1),
+        "bottom_left": (-1, 1), "left": (-1, 0),
+    }
 
     def __init__(
         self,
@@ -120,15 +145,25 @@ class ElementItem(QGraphicsRectItem):
         self._locked = False
         self._resize_start_scene_position = QPointF()
         self._resize_start_geometry = element.geometry
+        self._group_resize_starts: dict[
+            int, tuple["ElementItem", tuple[int, int, int, int]]
+        ] = {}
+        self._resize_bounds = QRectF()
         self._labels_enabled = False
         self._textures_enabled = True
         self._preview_mode = False
+        self.preview_offset = QPointF()
         # Moldura da janela: a raiz é desenhada em volta do conteúdo e arrastá-la
         # leva os demais elementos junto (ver set_content_frame).
         self._frame_mode = False
         # Janela principal: arrastá-la sozinha leva os outros elementos junto.
         self.carries_content = False
         self._frame_offset = (0, 0)
+        self._frame_geometry: Callable[[int, int], QRectF] | None = None
+        self._frame_window_rect = QRectF()
+        self._frame_resize_scale = (1.0, 1.0)
+        self._frame_anchor_delta = (0.0, 0.0)
+        self._active_resize_scale = (1.0, 1.0)
         self._followers: list[tuple["ElementItem", QPointF]] = []
         self._base_z = float(element.index)
         self.setPos(element.x, element.y)
@@ -168,6 +203,15 @@ class ElementItem(QGraphicsRectItem):
         self.drag_position_item.setVisible(False)
         self.resize_handle = ResizeHandle(self)
         self.resize_handle.setVisible(False)
+        self.window_resize_handles: dict[str, ResizeHandle] = {}
+        self.window_bounds_item = WindowFrameItem(self)
+        self.window_bounds_item.setPen(self._selected_pen)
+        self.window_bounds_item.setZValue(10)
+        self.window_bounds_item.setVisible(False)
+        self.window_size_item = QGraphicsSimpleTextItem(self.window_bounds_item)
+        self.window_size_item.setBrush(qcolor("SELECTION_GOLD"))
+        self.window_size_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.window_size_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self._update_overlays()
         details = [
             f"WindowID: {element.window_id}",
@@ -219,8 +263,12 @@ class ElementItem(QGraphicsRectItem):
         local_position = self.mapFromScene(scene_position)
         if self.shape().contains(local_position):
             return True
-        return self.resize_handle.isVisible() and self.resize_handle.shape().contains(
-            self.resize_handle.mapFromScene(scene_position)
+        handles = self.window_resize_handles.values() if self._frame_mode else [self.resize_handle]
+        if any(handle.isVisible() and handle.shape().contains(handle.mapFromScene(scene_position))
+               for handle in handles):
+            return True
+        return self.window_bounds_item.isVisible() and self.window_bounds_item.shape().contains(
+            self.window_bounds_item.mapFromScene(scene_position)
         )
 
     def set_preview_mode(self, enabled: bool) -> None:
@@ -229,6 +277,11 @@ class ElementItem(QGraphicsRectItem):
         self.setBrush(Qt.BrushStyle.NoBrush if enabled else qcolor("ELEMENT_OVERLAY", 8))
         if not self.isSelected():
             self.setPen(self._idle_pen())
+
+    def set_preview_offset(self, offset: QPointF) -> None:
+        """Ajusta só a exibição; pos() continua sendo a coordenada editável do XML."""
+        self.preview_offset = QPointF(offset)
+        self.setTransform(QTransform.fromTranslate(offset.x(), offset.y()))
 
     def _idle_pen(self) -> QPen:
         return QPen(Qt.PenStyle.NoPen) if self._preview_mode else self._normal_pen
@@ -253,7 +306,8 @@ class ElementItem(QGraphicsRectItem):
     def set_locked(self, locked: bool) -> None:
         self._locked = locked
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not locked)
-        self.resize_handle.setVisible(self.isSelected() and not locked and not self._frame_mode)
+        self.resize_handle.setVisible(self.isSelected() and not locked)
+        self._update_overlays()
         self.setCursor(
             Qt.CursorShape.ArrowCursor if locked else Qt.CursorShape.SizeAllCursor
         )
@@ -262,6 +316,9 @@ class ElementItem(QGraphicsRectItem):
         self._element_width = element.width
         self._element_height = element.height
         self._frame_mode = False
+        self._frame_geometry = None
+        self.resize_handle.axes = None
+        self.window_bounds_item.setVisible(False)
         self.setPos(element.x, element.y)
         self.setRect(QRectF(0, 0, max(1, element.width), max(1, element.height)))
         self._update_texture_transform()
@@ -274,7 +331,10 @@ class ElementItem(QGraphicsRectItem):
     def frame_mode(self) -> bool:
         return self._frame_mode
 
-    def set_content_frame(self, rect: QRectF, offset: tuple[int, int]) -> None:
+    def set_content_frame(
+        self, rect: QRectF, offset: tuple[int, int],
+        frame_geometry: Callable[[int, int], QRectF],
+    ) -> None:
         """Desenha a raiz em volta do conteúdo, onde o jogo o mostra.
 
         Numa janela que o jogo posiciona sozinho, o retângulo real da raiz fica
@@ -283,10 +343,30 @@ class ElementItem(QGraphicsRectItem):
         """
         self._frame_mode = True
         self._frame_offset = offset
+        self._frame_geometry = frame_geometry
+        self._frame_window_rect = frame_geometry(self._element_width, self._element_height)
+        # Choose the corner that actually moves when this anchored window changes
+        # size. For a bottom-centred window this is the upper-left corner.
+        probe = frame_geometry(self._element_width + 2, self._element_height + 2)
+        dx = (probe.left() - self._frame_window_rect.left()) / 2
+        dy = (probe.top() - self._frame_window_rect.top()) / 2
+        self._frame_anchor_delta = (dx, dy)
+        self._frame_resize_scale = (1 / dx if dx else 1.0, 1 / dy if dy else 1.0)
+        default_axes = (-1 if dx else 1, -1 if dy else 1)
+        default_key = next(key for key, axes in self.WINDOW_HANDLE_AXES.items() if axes == default_axes)
+        if not self.window_resize_handles:
+            self.window_resize_handles = {
+                key: self.resize_handle if key == default_key else ResizeHandle(self)
+                for key in self.WINDOW_HANDLE_AXES
+            }
+        elif self.window_resize_handles[default_key] is not self.resize_handle:
+            previous = next(key for key, handle in self.window_resize_handles.items() if handle is self.resize_handle)
+            self.window_resize_handles[previous] = self.window_resize_handles[default_key]
+            self.window_resize_handles[default_key] = self.resize_handle
         self.setPos(rect.topLeft())
         self.setRect(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
         self._update_overlays()
-        self.resize_handle.setVisible(False)
+        self.resize_handle.setVisible(self.isSelected() and not self._locked)
         if self.texture_item is not None:
             self.texture_item.setVisible(False)  # a textura da raiz não é a do conteúdo
 
@@ -303,7 +383,8 @@ class ElementItem(QGraphicsRectItem):
             )
             self.setPen(self._selected_pen if selected else self._idle_pen())
             self.label_item.setVisible(self._labels_enabled or selected)
-            self.resize_handle.setVisible(selected and not self._locked and not self._frame_mode)
+            self.resize_handle.setVisible(selected and not self._locked)
+            self._update_overlays()
             self._selected_callback(self.element_index)
         return super().itemChange(change, value)
 
@@ -412,7 +493,35 @@ class ElementItem(QGraphicsRectItem):
 
     def _update_overlays(self) -> None:
         rect = self.rect()
-        self.resize_handle.setPos(rect.width(), rect.height())
+        if self._frame_mode:
+            self.setPen(self._idle_pen())
+            bounds = self._frame_window_rect.translated(-self.pos())
+            self.window_bounds_item.setRect(bounds)
+            self.window_bounds_item.setVisible(self.isSelected())
+            self.window_bounds_item.setCursor(
+                Qt.CursorShape.ArrowCursor if self._locked else Qt.CursorShape.SizeAllCursor
+            )
+            self.window_size_item.setText(f"{round(bounds.width())} × {round(bounds.height())}")
+            self.window_size_item.setPos(bounds.topLeft() + QPointF(8, 2))
+            for key, handle in self.window_resize_handles.items():
+                ax, ay = self.WINDOW_HANDLE_AXES[key]
+                handle.axes = (ax, ay)
+                handle.setPos(
+                    bounds.center().x() if not ax else bounds.left() if ax < 0 else bounds.right(),
+                    bounds.center().y() if not ay else bounds.top() if ay < 0 else bounds.bottom(),
+                )
+                handle.setCursor(
+                    Qt.CursorShape.SizeVerCursor if not ax else
+                    Qt.CursorShape.SizeHorCursor if not ay else
+                    Qt.CursorShape.SizeFDiagCursor if ax * ay > 0 else Qt.CursorShape.SizeBDiagCursor
+                )
+                handle.setVisible(self.isSelected() and not self._locked)
+        else:
+            for handle in self.window_resize_handles.values():
+                if handle is not self.resize_handle:
+                    handle.setVisible(False)
+            self.resize_handle.setPos(rect.width(), rect.height())
+            self.resize_handle.setCursor(Qt.CursorShape.SizeFDiagCursor)
         self.drag_position_item.setPos(2, max(1, rect.height()) + 7)
 
     def _update_texture_transform(self) -> None:
@@ -426,17 +535,46 @@ class ElementItem(QGraphicsRectItem):
             )
         )
 
-    def begin_resize(self, scene_position: QPointF) -> None:
+    def begin_resize(
+        self, scene_position: QPointF, *, axes: tuple[int, int] | None = None
+    ) -> None:
+        self._group_resize_starts.clear()
         if self._locked:
             return
         position = self.pos()
         self._resize_start_scene_position = QPointF(scene_position)
+        self._active_resize_scale = self._frame_resize_scale
+        if self._frame_mode and axes is not None:
+            scales = []
+            for axis, anchor in zip(axes, self._frame_anchor_delta):
+                # The client can pin an edge (Menu's bottom). It still adjusts
+                # the size, while the pinned edge stays put in the preview.
+                derivative = anchor + (1 if axis > 0 else 0)
+                scales.append(0.0 if not axis else 1 / derivative if derivative else float(axis))
+            self._active_resize_scale = tuple(scales)
         self._resize_start_geometry = (
             round(position.x()),
             round(position.y()),
             self._element_width,
             self._element_height,
         )
+        items = [
+            item
+            for item in (self.scene().selectedItems() if self.scene() else [])
+            if isinstance(item, ElementItem)
+            and not item._locked and not item._frame_mode and item.isVisible()
+        ] if self.isSelected() and not self._frame_mode else []
+        if len(items) > 1:
+            bounds = QRectF()
+            for item in items:
+                geometry = (
+                    round(item.pos().x()), round(item.pos().y()),
+                    item._element_width, item._element_height,
+                )
+                self._group_resize_starts[item.element_index] = (item, geometry)
+                x, y, width, height = geometry
+                bounds = bounds.united(QRectF(x, y, max(1, width), max(1, height)))
+            self._resize_bounds = bounds
 
     def resize_to(
         self, scene_position: QPointF, *, proportional: bool = False
@@ -444,6 +582,12 @@ class ElementItem(QGraphicsRectItem):
         if self._locked:
             return
         delta = scene_position - self._resize_start_scene_position
+        if self._frame_mode:
+            sx, sy = self._active_resize_scale
+            delta = QPointF(delta.x() * sx, delta.y() * sy)
+        if self._group_resize_starts:
+            self._resize_group(delta, proportional=proportional)
+            return
         _, _, semantic_width, semantic_height = self._resize_start_geometry
         start_width = max(1, semantic_width)
         start_height = max(1, semantic_height)
@@ -461,7 +605,10 @@ class ElementItem(QGraphicsRectItem):
         else:
             width = max(1, round(start_width + delta.x()))
             height = max(1, round(start_height + delta.y()))
-        self.setRect(QRectF(0, 0, width, height))
+        if self._frame_mode and self._frame_geometry is not None:
+            self._frame_window_rect = self._frame_geometry(width, height)
+        else:
+            self.setRect(QRectF(0, 0, width, height))
         self._update_texture_transform()
         self._update_overlays()
         self.drag_position_item.setText(
@@ -471,10 +618,60 @@ class ElementItem(QGraphicsRectItem):
         )
         self.drag_position_item.setVisible(True)
 
+    def _resize_group(self, delta: QPointF, *, proportional: bool) -> None:
+        bounds = self._resize_bounds
+        sx = (bounds.width() + delta.x()) / bounds.width()
+        sy = (bounds.height() + delta.y()) / bounds.height()
+        # Keep every nonzero dimension at least one pixel without collapsing gaps.
+        min_sx = max(
+            (1 / g[2] for _, g in self._group_resize_starts.values() if g[2] > 0),
+            default=1 / bounds.width(),
+        )
+        min_sy = max(
+            (1 / g[3] for _, g in self._group_resize_starts.values() if g[3] > 0),
+            default=1 / bounds.height(),
+        )
+        if proportional:
+            scale = sx if abs(sx - 1) >= abs(sy - 1) else sy
+            sx = sy = max(scale, min_sx, min_sy)
+        else:
+            sx, sy = max(sx, min_sx), max(sy, min_sy)
+        for item, (x, y, width, height) in self._group_resize_starts.values():
+            item.setPos(
+                round(bounds.left() + (x - bounds.left()) * sx),
+                round(bounds.top() + (y - bounds.top()) * sy),
+            )
+            # Zero dimensions are meaningful in the XML (e.g. text controls).
+            new_width = max(1, round(width * sx)) if width else 0
+            new_height = max(1, round(height * sy)) if height else 0
+            item._element_width, item._element_height = new_width, new_height
+            item.setRect(QRectF(0, 0, max(1, new_width), max(1, new_height)))
+            item._update_texture_transform()
+            item._update_overlays()
+        self.drag_position_item.setText(
+            QCoreApplication.translate("ElementItem", "L {width} · A {height}").format(
+                width=round(bounds.width() * sx), height=round(bounds.height() * sy)
+            )
+        )
+        self.drag_position_item.setVisible(True)
+
     def end_resize(self) -> None:
         self.drag_position_item.setVisible(False)
+        if self._group_resize_starts:
+            changes = {}
+            for index, (item, old) in self._group_resize_starts.items():
+                new = (
+                    round(item.pos().x()), round(item.pos().y()),
+                    item._element_width, item._element_height,
+                )
+                if new != old:
+                    changes[index] = (old, new)
+            self._group_resize_starts.clear()
+            if changes:
+                self._moved_callback(changes)
+            return
         position = self.pos()
-        rect = self.rect()
+        rect = self._frame_window_rect if self._frame_mode else self.rect()
         new_geometry = (
             round(position.x()),
             round(position.y()),

@@ -15,7 +15,7 @@ import tempfile
 import time
 import zipfile
 
-from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -72,6 +72,7 @@ from .editor_widgets import EditorView, ElementItem, GameScreenItem, GhostAreaIt
 from .game_layout import (
     client_resolution,
     load_user_positions,
+    menu_shortcut_preview_y,
     root_screen_position,
     is_centered,
     rule_for,
@@ -688,6 +689,19 @@ class OffsetCommand(QUndoCommand):
         self.window.apply_offset(self.index, self.old)
 
 
+class ButtonUVCommand(QUndoCommand):
+    def __init__(self, window: "EditorWindow", index: int, state: str, old: UVRect, new: UVRect):
+        super().__init__(state)
+        self.window, self.index, self.state = window, index, state
+        self.old, self.new = old, new
+
+    def redo(self) -> None:
+        self.window.apply_button_uv(self.index, self.state, self.new)
+
+    def undo(self) -> None:
+        self.window.apply_button_uv(self.index, self.state, self.old)
+
+
 class EditorWindow(QMainWindow):
     def __init__(
         self,
@@ -932,7 +946,10 @@ class EditorWindow(QMainWindow):
         self.atlas_action = QAction(self.tr("Abrir atlas DDS…"), self)
         self.atlas_action.setEnabled(False)
         self.atlas_action.triggered.connect(self.open_selected_atlas)
-        self.reload_textures_action = QAction(self.tr("Recarregar texturas"), self)
+        self.reload_textures_action = QAction(self.tr("Atualizar arquivos e texturas"), self)
+        self.reload_textures_action.setToolTip(
+            self.tr("Atualiza a lista de XMLs e recarrega as texturas do disco (Ctrl+R)")
+        )
         self.reload_textures_action.setShortcut("Ctrl+R")
         self.reload_textures_action.setIcon(icon("refresh"))
         self.reload_textures_action.setEnabled(False)
@@ -1833,14 +1850,29 @@ class EditorWindow(QMainWindow):
         if self.document is None or 0 not in self.items or not self.document.elements:
             return
         root = self.document.elements[0]
+        self._sync_menu_shortcut_preview()
         item = self.items[0]
         item.apply_element(root)
         item.carries_content = len(self.document.elements) > 1
         offset = self._screen_offset()
         bounds = self._content_bounds()
         if offset is not None and bounds is not None and self._root_position_is_set_by_game():
-            item.set_content_frame(bounds, offset)
+            geometry = root.geometry
+            def frame_geometry(width: int, height: int) -> QRectF:
+                return QRectF(*self._resized_root(geometry, width, height))
+            item.set_content_frame(bounds, offset, frame_geometry)
         self._sync_ghost_area()
+
+    def _sync_menu_shortcut_preview(self) -> None:
+        if self.document.path.name.lower() != "menu.xml":
+            return
+        root_y = self.document.elements[0].y
+        enabled = self.game_screen_item is not None and self._root_mode() == "auto"
+        for element in self.document.elements:
+            y = menu_shortcut_preview_y(self.document.path.name, element.window_id, root_y)
+            if y is None or element.kind != "slot":
+                continue
+            self.items[element.index].set_preview_offset(QPointF(0, y - element.y if enabled else 0))
 
     def _content_bounds(self) -> QRectF | None:
         """Retângulo que envolve tudo menos a janela principal, em coordenadas do XML."""
@@ -1848,7 +1880,8 @@ class EditorWindow(QMainWindow):
             return None
         bounds = QRectF()
         for element in self.document.elements[1:]:
-            bounds = bounds.united(QRectF(element.x, element.y, max(1, element.width), max(1, element.height)))
+            area = QRectF(element.x, element.y, max(1, element.width), max(1, element.height))
+            bounds = bounds.united(area.translated(self.items[element.index].preview_offset))
         return bounds
 
     GHOST_TOLERANCE = 8
@@ -1956,7 +1989,8 @@ class EditorWindow(QMainWindow):
         if frame is not None:
             self.properties.show_window_position(frame, (element.x, element.y))
             return
-        self.properties.set_screen_position((element.x + offset[0], element.y + offset[1]))
+        position = self.items[element.index].scenePos()
+        self.properties.set_screen_position((round(position.x()) + offset[0], round(position.y()) + offset[1]))
 
     def _window_frame_on_screen(self) -> tuple[int, int] | None:
         """Onde a moldura da janela aparece na tela, quando o jogo é quem a posiciona."""
@@ -2245,9 +2279,19 @@ class EditorWindow(QMainWindow):
             self._syncing_selection = False
 
     def _anchor_hint_for(self, index: int) -> str | None:
-        if self.document is None or index != 0:
+        if self.document is None:
             return None
         if self._root_mode() != "auto":
+            return None
+        if index != 0:
+            element = self.document.elements[index]
+            if element.kind == "slot" and menu_shortcut_preview_y(
+                self.document.path.name, element.window_id, self.document.elements[0].y
+            ) is not None:
+                return self.tr(
+                    "O jogo define a posição vertical destes atalhos do Menu. "
+                    "Com o preview ativo, o Y exibido segue essa regra; o campo Y mantém o valor do XML."
+                )
             return None
         if rule_for(self.document.path.name) is not None:
             return self.tr(
@@ -2413,6 +2457,9 @@ class EditorWindow(QMainWindow):
         x, y = self.document.elements[0].geometry[:2]
         root = self.document.elements[0].geometry
         if set(changes) == {0} and self._root_position_is_set_by_game():
+            if new[2:] != old[2:]:
+                moved = (x - dx, y - dy, root[2], root[3])
+                return {0: (root, self._resized_root(moved, new[2], new[3]))}
             moved = (x - dx, y - dy, new[2], new[3])
             if self._window_frame_on_screen() is not None and (dx or dy):
                 moved = self._without_ghost_area(moved)
@@ -2549,6 +2596,34 @@ class EditorWindow(QMainWindow):
             self.properties.set_element(self.document.elements[index])
         self._update_title()
 
+    def edit_button_uvs(self, index: int, states: dict[str, UVRect], resize_element: bool) -> None:
+        if self.document is None or index in self.locked_indexes:
+            return
+        element = self.document.elements[index]
+        if "ButtonNode" not in element.child_tags or element.uv is None or not self.document.button_states_editable:
+            return
+        allowed = {"NorUV": element.uv, **element.button_uvs}
+        changes = {state: uv for state, uv in states.items()
+                   if state in allowed and allowed[state] is not None and allowed[state] != uv}
+        normal = states.get("NorUV", element.uv)
+        geometry = (element.x, element.y, normal.width, normal.height)
+        resize = resize_element and element.geometry != geometry
+        if not changes and not resize:
+            return
+        self.undo_stack.beginMacro(self.tr("Alterar atlas do WindowID {id}").format(id=element.window_id))
+        for state, uv in changes.items():
+            command = (UVCommand(self, index, element.uv, uv) if state == "NorUV" else
+                       ButtonUVCommand(self, index, state, element.button_uvs[state], uv))
+            self.undo_stack.push(command)
+        if resize:
+            self.undo_stack.push(GeometryCommand(self, index, element.geometry, geometry))
+        self.undo_stack.endMacro()
+
+    def apply_button_uv(self, index: int, state: str, uv: UVRect) -> None:
+        assert self.document is not None
+        self.document.set_button_uv(index, state, uv)
+        self._update_title()
+
     def open_selected_atlas(self) -> None:
         if self._textures_pending:
             self.statusBar().showMessage(self.tr("Aguarde o carregamento das texturas para abrir o atlas."), 4000)
@@ -2585,6 +2660,9 @@ class EditorWindow(QMainWindow):
             progress_offset=element.progress_offset,
             offset_editable=self.document.offsets_editable,
             texture_path=self.texture_cache.path_for(element.texture_name),
+            button_uvs=(element.button_uvs if "ButtonNode" in element.child_tags
+                        and self.document.button_states_editable else None),
+            apply_button_uvs=lambda states, resize, item_index=index: self.edit_button_uvs(item_index, states, resize),
         )
         dialog.finished.connect(self._atlas_dialog_closed)
         self.atlas_dialog = dialog
@@ -2604,16 +2682,23 @@ class EditorWindow(QMainWindow):
         self.items[index].set_pixmap(self.texture_cache.pixmap_for(element))
 
     def reload_all_textures(self) -> None:
+        if self.project is not None:
+            self.project.files(refresh=True)
+        self._refresh_files()
         if self.document is None or self.texture_cache is None:
+            self.statusBar().showMessage(self.tr("Lista de arquivos atualizada."), 4000)
             return
         if self._textures_pending:
-            self.statusBar().showMessage(self.tr("Aguarde o carregamento das texturas."), 4000)
+            self.statusBar().showMessage(
+                self.tr("Lista de arquivos atualizada. Aguarde o carregamento das texturas."), 4000
+            )
             return
         self.texture_cache.invalidate()
         for index in self.items:
             self._refresh_element_texture(index)
         self._reload_open_atlas()
-        self.statusBar().showMessage(self.tr("Texturas recarregadas do disco."), 4000)
+        self._watch_texture_files()
+        self.statusBar().showMessage(self.tr("Arquivos e texturas atualizados do disco."), 4000)
 
     def _watch_texture_files(self, enabled: bool | None = None) -> None:
         watched = self.texture_watcher.files()
@@ -3214,6 +3299,7 @@ class EditorWindow(QMainWindow):
         self.export_action.setEnabled(True)
         self.publish_folder_action.setEnabled(project.game_dir is not None)
         self.project_folder_action.setEnabled(True)
+        self.reload_textures_action.setEnabled(True)
         self.side_tabs.setCurrentIndex(0)
         self._refresh_files()
         self._update_title()

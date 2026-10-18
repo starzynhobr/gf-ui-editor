@@ -31,6 +31,12 @@
 </context>
 <context>
     <name>AtlasDialog</name>
+    <message><source>Estado do botão</source><translation>État du bouton</translation></message>
+    <message><source>Normal</source><translation>Normal</translation></message>
+    <message><source>Mouse sobre (hover)</source><translation>Survol de la souris</translation></message>
+    <message><source>Pressionado</source><translation>Appuyé</translation></message>
+    <message><source>Desativado</source><translation>Désactivé</translation></message>
+    <message><source>{state} — não definido</source><translation>{state} — non défini</translation></message>
     <message>
         <location filename="../atlas_dialog.py" line="359"/>
         <source>Atlas DDS — {name}</source>
@@ -329,8 +335,20 @@
     </message>
     <message>
         <location filename="../app.py" line="935"/>
-        <source>Recarregar texturas</source>
-        <translation>Recharger les textures</translation>
+        <source>Atualizar arquivos e texturas</source>
+        <translation>Actualiser les fichiers et les textures</translation>
+    </message>
+    <message>
+        <source>Atualiza a lista de XMLs e recarrega as texturas do disco (Ctrl+R)</source>
+        <translation>Actualise la liste des XML et recharge les textures depuis le disque (Ctrl+R)</translation>
+    </message>
+    <message>
+        <source>Lista de arquivos atualizada.</source>
+        <translation>Liste des fichiers actualisée.</translation>
+    </message>
+    <message>
+        <source>O jogo define a posição vertical destes atalhos do Menu. Com o preview ativo, o Y exibido segue essa regra; o campo Y mantém o valor do XML.</source>
+        <translation>Le jeu définit la position verticale de ces raccourcis du Menu. Lorsque l’aperçu est actif, le Y affiché suit cette règle ; le champ Y conserve la valeur du XML.</translation>
     </message>
     <message>
         <location filename="../app.py" line="940"/>
@@ -830,13 +848,13 @@
     </message>
     <message>
         <location filename="../app.py" line="2610"/>
-        <source>Aguarde o carregamento das texturas.</source>
-        <translation>Attendez le chargement des textures.</translation>
+        <source>Lista de arquivos atualizada. Aguarde o carregamento das texturas.</source>
+        <translation>Liste des fichiers actualisée. Attendez le chargement des textures.</translation>
     </message>
     <message>
         <location filename="../app.py" line="2616"/>
-        <source>Texturas recarregadas do disco.</source>
-        <translation>Textures rechargées depuis le disque.</translation>
+        <source>Arquivos e texturas atualizados do disco.</source>
+        <translation>Fichiers et textures actualisés depuis le disque.</translation>
     </message>
     <message>
         <location filename="../app.py" line="2655"/>

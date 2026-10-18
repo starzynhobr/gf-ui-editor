@@ -25,6 +25,28 @@ import struct
 Rect = tuple[int, int, int, int]
 
 
+def menu_shortcut_preview_y(
+    filename: str, window_id: str, root_y: int, *, alternate_layout: bool = False
+) -> int | None:
+    """Y dos slots superiores de CFunctionWnd, não uma regra geral de controles.
+
+    Em 0x00702500 (cliente Violet), apenas os IDs 2013..2036 são
+    reposicionados: 0x0070297B usa raiz + 21; o ramo alternativo
+    0x00702961 usa raiz + 23 (flag interna 0x1000). O XML não contém
+    essa flag. O preview representa o ramo normal observado neste cliente,
+    sem simular a ocupação/ocultação dos slots em tempo de execução.
+    """
+    if filename.lower() != "menu.xml":
+        return None
+    try:
+        slot_id = int(window_id)
+    except ValueError:
+        return None
+    if not 2013 <= slot_id <= 2036:
+        return None
+    return root_y + (23 if alternate_layout else 21)
+
+
 def _half(value: int) -> int:
     # Divisão inteira do C: trunca em direção a zero.
     return int(value / 2)

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QGraphicsScene, QToolBar
 from gf_ui_editor.app import EditorWindow
 from gf_ui_editor.atlas_dialog import AtlasDialog, AtlasView
 from gf_ui_editor.editor_widgets import EditorView
+from gf_ui_editor.project import Project
 from gf_ui_editor.xml_document import UVRect
 
 
@@ -58,6 +59,72 @@ def wait_for_textures(window: EditorWindow) -> None:
             return
         QTest.qWait(20)
     raise AssertionError("As texturas não terminaram de carregar")
+
+
+def test_refresh_button_discovers_added_and_removed_xml_without_open_document(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Teste.xml").write_bytes(SAMPLE.encode("big5"))
+    project = Project.create("Refresh", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    assert window.document is None
+    assert window.reload_textures_action.isEnabled()
+    assert window.project.files() == [Path("Teste.xml")]
+    (project.ui_dir / "Teste.xml").unlink()
+    (project.ui_dir / "Novo.xml").write_bytes(SAMPLE.encode("big5"))
+    window.file_filter_edit.setText("Novo")
+    toolbar = window.findChild(QToolBar)
+    toolbar.widgetForAction(window.reload_textures_action).click()
+    application.processEvents()
+    assert window.project.files() == [Path("Novo.xml")]
+    listed = [
+        window.files_tree.topLevelItem(i).child(j)
+        for i in range(window.files_tree.topLevelItemCount())
+        for j in range(window.files_tree.topLevelItem(i).childCount())
+    ]
+    assert listed and all(item.text(0) == "Novo.xml" for item in listed)
+    assert all(not item.isHidden() for item in listed)
+    assert window.file_filter_edit.text() == "Novo"
+    assert window.document is None
+    window.deleteLater()
+
+
+def test_refresh_updates_textures_and_file_list_preserving_unsaved_xml(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    xml = SAMPLE.replace(
+        'WindowWidth="80" />',
+        'WindowWidth="80"><BackGroundMap BGmap="main.dds">'
+        '<NorUV NorUVWidth="4" NorUVHeight="4" /></BackGroundMap></BaseWndProperty>',
+    )
+    (source / "Teste.xml").write_bytes(xml.encode("big5"))
+    Image.new("RGBA", (4, 4), "red").save(source / "main.dds", format="DDS")
+    project = Project.create("Refresh", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.watch_textures_action.setChecked(False)
+    window.open_document(project.ui_dir / "Teste.xml")
+    wait_for_textures(window)
+    window.select_element(0)
+    window.properties.x_spin.setValue(17)
+    document = window.document
+    undo_count = window.undo_stack.count()
+    assert window.items[0].texture_item.pixmap().toImage().pixelColor(0, 0).name() == "#ff0000"
+    Image.new("RGBA", (4, 4), "blue").save(project.ui_dir / "main.dds", format="DDS")
+    (project.ui_dir / "Novo.xml").write_bytes(SAMPLE.encode("big5"))
+    window.reload_textures_action.trigger()
+    assert Path("Novo.xml") in window.project.files()
+    assert window.items[0].texture_item.pixmap().toImage().pixelColor(0, 0).name() == "#0000ff"
+    assert window.document is document
+    assert document.elements[0].x == 17 and document.is_dirty
+    assert window.undo_stack.count() == undo_count
+    assert (project.ui_dir / "Teste.xml").read_bytes() == xml.encode("big5")
+    window.undo_stack.undo()
+    assert document.elements[0].x == 0 and not document.is_dirty
+    window.deleteLater()
 
 
 def test_numeric_property_updates_canvas_immediately(tmp_path: Path) -> None:

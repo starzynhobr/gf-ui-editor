@@ -70,9 +70,10 @@ O script `run.ps1` também funciona quando as dependências já estão instalada
 - Ao selecionar pela árvore, o elemento recebe prioridade no próximo arraste, mesmo sob outros controles; o rótulo selecionado também pode ser arrastado.
 - `Alt` + clique: percorre os elementos sobrepostos naquele ponto.
 - O movimento encaixa na grade de 1 pixel durante todo o arraste.
-- Alça dourada no canto inferior direito: redimensiona o elemento.
+- Alça dourada no canto inferior direito: redimensiona o elemento; com vários selecionados, escala os tamanhos e espaçamentos do conjunto a partir do canto superior esquerdo. Itens bloqueados ficam de fora.
 - `Shift` ao mover: trava no eixo horizontal ou vertical dominante.
-- `Shift` ao usar a alça dourada: preserva a proporção original do elemento.
+- `Shift` ao usar a alça dourada: preserva a proporção original do elemento ou do conjunto selecionado. Cada arraste pode ser desfeito de uma vez com `Ctrl+Z`.
+- Com o preview do jogo ativo, selecionar `Window` também mostra o contorno do tamanho real da janela no XML, com alças nos quatro cantos e no meio dos quatro lados. Os lados ajustam um eixo; `Shift` mantém a proporção. Arrastar a área interna move o conjunto. No `Menu.xml`, a base permanece fixa pela regra do jogo: a alça inferior altera a altura pelo topo, sem deslocar o conteúdo.
 - Botão do meio do mouse + arraste: navega pelo canvas.
 - Roda do mouse: aproxima ou afasta o canvas.
 - A barra inferior mostra continuamente as coordenadas X/Y do mouse no canvas.
@@ -86,8 +87,9 @@ O script `run.ps1` também funciona quando as dependências já estão instalada
 - `Centralizar seleção` aproxima e enquadra o recorte atual; `Ver atlas inteiro` retorna à visão geral.
 - O contorno do recorte permanece com 1 pixel de tela para permitir seleção precisa em zoom alto.
 - `F5`: testa o projeto no jogo.
-- `Ctrl+R`: recarrega todas as texturas manualmente.
+- Botão `Atualizar arquivos e texturas` ou `Ctrl+R`: atualiza a lista de XMLs adicionados ou removidos na pasta e recarrega as texturas. As edições do XML aberto são preservadas.
 - Texturas DDS referenciadas pelo XML são recarregadas automaticamente quando outro programa as salva.
+- No preview do `Menu.xml`, os atalhos superiores `2013–2036` seguem a posição vertical aplicada pelo cliente Violet. Esse ajuste é só visual, restrito a esses slots; o Y do XML continua preservado. Rótulos de teclas e ocupação dos slots não são simulados.
 - `Ctrl+S`: salva com backup.
 - `Ctrl+O`: abre um XML.
 - `Ctrl+Z` / `Ctrl+Y`: desfaz/refaz.
@@ -114,7 +116,7 @@ O menu **Ajuda → Sobre o GF UI Editor** mostra a versão instalada e oferece u
 - `WindowLeft` e `WindowTop` posicionam o elemento na interface.
 - `WindowHeight` é a largura visual e `WindowWidth` é a altura visual no formato do jogo.
 
-O recorte pode apontar para qualquer região válida do DDS. A primeira versão do editor de atlas altera `NorUV`; controles com estados adicionais podem usar outras estruturas UV que ainda não são editadas visualmente.
+O recorte pode apontar para qualquer região válida do DDS. Nos botões, o Atlas permite escolher **Normal**, **Mouse sobre (hover)**, **Pressionado** e **Desativado**, com prévia e recorte independente para cada estado existente no XML. Eles não precisam estar alinhados na textura. **Aplicar** confirma os recortes em um único passo de desfazer; fechar descarta mudanças ainda não aplicadas. A opção de ajustar o tamanho do elemento usa o recorte **Normal**.
 
 ## Gerar o aplicativo para Windows
 

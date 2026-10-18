@@ -8,6 +8,7 @@ from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, Signal, 
 from PySide6.QtGui import QDesktopServices, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -351,11 +352,17 @@ class AtlasDialog(QDialog):
         progress_offset: tuple[int, int] | None = None,
         offset_editable: bool = False,
         texture_path: Path | None = None,
+        button_uvs: dict[str, UVRect] | None = None,
+        apply_button_uvs: Callable[[dict[str, UVRect], bool], None] | None = None,
     ):
         super().__init__(parent)
         self.texture_name = texture_name
         self.texture_path = texture_path
         self._apply_callback = apply_callback
+        self._button_apply_callback = apply_button_uvs if button_uvs is not None else None
+        self._button_uvs = {"NorUV": uv, **button_uvs} if button_uvs is not None else None
+        self._active_uv_state = "NorUV"
+        self._source_pixmap = pixmap
         self.setWindowTitle(self.tr("Atlas DDS — {name}").format(name=texture_name))
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.resize(1180, 820)
@@ -386,10 +393,10 @@ class AtlasDialog(QDialog):
         view_buttons.addWidget(self.focus_button)
         view_buttons.addWidget(self.full_atlas_button)
 
-        self.left_spin = self._spinbox()
-        self.top_spin = self._spinbox()
-        self.width_spin = self._spinbox(minimum=1)
-        self.height_spin = self._spinbox(minimum=1)
+        self.left_spin = self._spinbox(minimum=-100000)
+        self.top_spin = self._spinbox(minimum=-100000)
+        self.width_spin = self._spinbox(minimum=0 if button_uvs is not None else 1)
+        self.height_spin = self._spinbox(minimum=0 if button_uvs is not None else 1)
         for spin in (
             self.left_spin,
             self.top_spin,
@@ -483,8 +490,9 @@ class AtlasDialog(QDialog):
             self.tr("Arraste para marcar · alças ajustam · botão do meio navega · roda = zoom")
         )
 
+        self.uv_heading = QLabel(self.tr("RECORTE NORMAL (NorUV)"))
         uv_card = self._card(
-            self._legend(qcolor("SELECTION_GOLD"), self.tr("RECORTE NORMAL (NorUV)")),
+            self._legend(qcolor("SELECTION_GOLD"), self.uv_heading),
             uv_grid,
             self.resize_element,
         )
@@ -496,6 +504,24 @@ class AtlasDialog(QDialog):
             self.overlap_warning,
         )
         self.offset_card.setVisible(progress_offset is not None)
+
+        self.state_combo = QComboBox()
+        self.state_combo.setAccessibleName(self.tr("Estado do botão"))
+        for state, label in (
+            ("NorUV", self.tr("Normal")),
+            ("FocusUV", self.tr("Mouse sobre (hover)")),
+            ("DownUV", self.tr("Pressionado")),
+            ("DisableUV", self.tr("Desativado")),
+        ):
+            available = self._button_uvs is not None and state in self._button_uvs
+            text = label if available else self.tr("{state} — não definido").format(state=label)
+            self.state_combo.addItem(text, state)
+            self.state_combo.model().item(self.state_combo.count() - 1).setEnabled(available)
+        self.state_preview = QLabel()
+        self.state_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.state_preview.setFixedHeight(64)
+        self.state_card = self._card(QLabel(self.tr("Estado do botão")), None, self.state_combo, self.state_preview)
+        self.state_card.setVisible(button_uvs is not None)
 
         self.open_dds_button = QPushButton(self.tr("Abrir .dds"))
         self.open_dds_button.setIcon(icon("image", size=16))
@@ -515,6 +541,7 @@ class AtlasDialog(QDialog):
         side.addWidget(self.title)
         side.addWidget(self.details)
         side.addLayout(view_buttons)
+        side.addWidget(self.state_card)
         side.addWidget(uv_card)
         side.addWidget(self.offset_card)
         side.addWidget(self.open_dds_button)
@@ -538,6 +565,7 @@ class AtlasDialog(QDialog):
         self.reload_pixmap(pixmap, fit=True)
         self.view.set_progress_offset(progress_offset)
         self.set_uv(uv)
+        self.state_combo.currentIndexChanged.connect(self._state_changed)
         install_pointer_cursors(self)
 
     def _open_dds(self) -> None:
@@ -559,7 +587,7 @@ class AtlasDialog(QDialog):
             )
 
     @staticmethod
-    def _legend(color, text: str) -> QWidget:
+    def _legend(color, text: str | QLabel) -> QWidget:
         row = QWidget()
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -567,7 +595,7 @@ class AtlasDialog(QDialog):
         swatch = QLabel()
         swatch.setFixedSize(10, 10)
         swatch.setStyleSheet(f"background: {color.name()}; border-radius: 2px;")
-        label = QLabel(text)
+        label = text if isinstance(text, QLabel) else QLabel(text)
         label.setObjectName("sectionLabel")
         layout.addWidget(swatch)
         layout.addWidget(label)
@@ -596,6 +624,7 @@ class AtlasDialog(QDialog):
         return spin
 
     def reload_pixmap(self, pixmap: QPixmap, fit: bool = False) -> None:
+        self._source_pixmap = pixmap
         self.view.set_pixmap(pixmap)
         self.details.setText(f"{pixmap.width()} × {pixmap.height()} px")
         self.left_spin.setMaximum(max(0, pixmap.width() - 1))
@@ -604,6 +633,7 @@ class AtlasDialog(QDialog):
         self.height_spin.setMaximum(max(1, pixmap.height()))
         if fit:
             self.view.fit_texture()
+        self._update_state_preview()
 
     def set_uv(self, uv: UVRect) -> None:
         for spin, value in zip(
@@ -615,6 +645,45 @@ class AtlasDialog(QDialog):
                 spin.setValue(value)
         self.view.set_selection(uv)
         self._update_overlap()
+        self._update_state_preview()
+
+    def _remember_current_state(self) -> None:
+        if self._button_uvs is not None:
+            self._button_uvs[self._active_uv_state] = self.current_uv()
+
+    def _state_changed(self, _index: int) -> None:
+        state = self.state_combo.currentData()
+        if self._button_uvs is None or state not in self._button_uvs:
+            return
+        self._remember_current_state()
+        self._active_uv_state = state
+        self.set_uv(self._button_uvs[state])
+        self.uv_heading.setText(f"{self.state_combo.currentText()} ({state})")
+        for spin, suffix in zip(
+            (self.left_spin, self.top_spin, self.width_spin, self.height_spin),
+            ("Left", "Top", "Width", "Height"), strict=True,
+        ):
+            spin.setToolTip(state + suffix)
+        self.resize_element.setEnabled(state == "NorUV")
+        self.view.focus_selection()
+
+    def _update_state_preview(self) -> None:
+        if self._button_uvs is None:
+            return
+        uv = self.current_uv()
+        image = QPixmap(112, 64)
+        image.fill(qcolor("CHECKER_LIGHT"))
+        painter = QPainter(image)
+        for row in range(8):
+            for column in range(row % 2, 14, 2):
+                painter.fillRect(column * 8, row * 8, 8, 8, qcolor("CHECKER_DARK"))
+        if uv.width > 0 and uv.height > 0:
+            cropped = self._source_pixmap.copy(uv.left, uv.top, uv.width, uv.height).scaled(
+                56, 56, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation
+            )
+            painter.drawPixmap((image.width() - cropped.width()) // 2, (image.height() - cropped.height()) // 2, cropped)
+        painter.end()
+        self.state_preview.setPixmap(image)
 
     def _update_overlap(self) -> None:
         self.overlap_warning.setVisible(self.view.offsets_overlap())
@@ -640,6 +709,7 @@ class AtlasDialog(QDialog):
     def _spins_changed(self, _value: int) -> None:
         self.view.set_selection(self.current_uv())
         self._update_overlap()
+        self._update_state_preview()
 
     def current_uv(self) -> UVRect:
         return UVRect(
@@ -650,4 +720,8 @@ class AtlasDialog(QDialog):
         )
 
     def _apply(self) -> None:
+        if self._button_apply_callback is not None:
+            self._remember_current_state()
+            self._button_apply_callback(dict(self._button_uvs), self.resize_element.isChecked())
+            return
         self._apply_callback(self.current_uv(), self.resize_element.isChecked(), self.current_offset())
