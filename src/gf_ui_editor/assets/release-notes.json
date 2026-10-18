@@ -1,25 +1,57 @@
 {
-  "version": "0.2.11",
-  "date": "2026-10-05",
+  "version": "0.2.12",
+  "date": "2026-10-18",
   "notes": {
     "pt_BR": {
+      "new": [
+        ["Estados dos botões no Atlas.", "Escolha Normal, Mouse sobre, Pressionado ou Desativado, veja a prévia e ajuste o recorte de cada estado existente no XML. Os recortes podem ficar em qualquer posição da textura. Aplicar reúne as alterações em um único passo de desfazer."],
+        ["Redimensionamento em grupo.", "Selecione vários elementos e use uma alça dourada para escalar os tamanhos e espaçamentos juntos. Shift mantém a proporção; itens bloqueados ficam de fora."]
+      ],
       "improved": [
-        ["Aviso de posição manual no preview.", "Se um arquivo está com a posição da janela escolhida à mão, a barra do preview mostra \"Posição manual · voltar ao automático\". Nesse modo o preview pode não mostrar onde a janela aparece no jogo; um clique volta ao automático."]
+        ["Alças em todos os lados da janela.", "Com o preview do jogo ativo, selecione Window para ver o tamanho real do XML e ajustar pelos quatro cantos ou lados. Arraste a área interna para mover o conjunto; o redimensionamento respeita a ancoragem da janela no jogo."],
+        ["Atualizar arquivos e texturas.", "O botão de recarregar e Ctrl+R agora também atualizam a lista de XMLs adicionados ou removidos da pasta do projeto, preservando as edições do arquivo aberto."]
+      ],
+      "fixed": [
+        ["Posição dos atalhos superiores do Menu.", "O preview do Menu.xml acompanha a posição vertical que o cliente Violet aplica a essa fileira. A correção é restrita a esses slots e não altera o Y salvo no XML nem outras janelas."]
       ]
     },
     "en_US": {
+      "new": [
+        ["Button states in the Atlas.", "Choose Normal, Mouse over, Pressed or Disabled, preview the result and adjust the slice for each state defined in the XML. Slices can be anywhere in the texture. Apply groups the changes into a single undo step."],
+        ["Resize a selection together.", "Select multiple elements and drag a gold handle to scale their sizes and spacing together. Hold Shift to keep the proportions; locked items are excluded."]
+      ],
       "improved": [
-        ["Manual position warning in the preview.", "If a file has its window position chosen by hand, the preview bar shows \"Manual position · back to automatic\". In that mode the preview may not show where the window appears in game; one click goes back to automatic."]
+        ["Window handles on every side.", "With the game preview enabled, select Window to see its actual XML size and resize from any corner or side. Drag the inner area to move the group; resizing respects the window's in-game anchoring."],
+        ["Refresh files and textures.", "The reload button and Ctrl+R now also refresh the list of XML files added to or removed from the project folder, preserving edits to the open file."]
+      ],
+      "fixed": [
+        ["Position of the upper Menu shortcuts.", "The Menu.xml preview follows the vertical position the Violet client applies to this row. This correction only affects these slots and leaves the saved XML Y and other windows unchanged."]
       ]
     },
     "es_ES": {
+      "new": [
+        ["Estados de los botones en el Atlas.", "Elige Normal, Ratón encima, Pulsado o Desactivado, consulta la vista previa y ajusta el recorte de cada estado definido en el XML. Los recortes pueden estar en cualquier posición de la textura. Aplicar agrupa los cambios en un único paso de deshacer."],
+        ["Redimensionar una selección en conjunto.", "Selecciona varios elementos y arrastra un tirador dorado para escalar sus tamaños y espacios juntos. Mantén Shift para conservar las proporciones; los elementos bloqueados quedan excluidos."]
+      ],
       "improved": [
-        ["Aviso de posición manual en la vista previa.", "Si un archivo tiene la posición de la ventana elegida a mano, la barra de la vista previa muestra \"Posición manual · volver a automático\". En ese modo la vista previa puede no mostrar dónde aparece la ventana en el juego; un clic vuelve a automático."]
+        ["Tiradores en todos los lados de la ventana.", "Con la vista previa del juego activa, selecciona Window para ver su tamaño real en el XML y ajustar desde cualquier esquina o lado. Arrastra el área interior para mover el conjunto; el redimensionamiento respeta el anclaje de la ventana en el juego."],
+        ["Actualizar archivos y texturas.", "El botón de recarga y Ctrl+R ahora también actualizan la lista de XML añadidos o eliminados de la carpeta del proyecto, conservando los cambios del archivo abierto."]
+      ],
+      "fixed": [
+        ["Posición de los atajos superiores del Menu.", "La vista previa de Menu.xml sigue la posición vertical que el cliente Violet aplica a esta fila. La corrección solo afecta a estos slots y no modifica la Y guardada en el XML ni otras ventanas."]
       ]
     },
     "fr_FR": {
+      "new": [
+        ["États des boutons dans l'Atlas.", "Choisissez Normal, Survol de la souris, Appuyé ou Désactivé, consultez l'aperçu et ajustez la zone de chaque état défini dans le XML. Les zones peuvent se trouver n'importe où dans la texture. Appliquer regroupe les modifications en une seule étape d'annulation."],
+        ["Redimensionner une sélection ensemble.", "Sélectionnez plusieurs éléments et faites glisser une poignée dorée pour ajuster leurs tailles et espacements ensemble. Maintenez Shift pour conserver les proportions ; les éléments verrouillés sont exclus."]
+      ],
       "improved": [
-        ["Avertissement de position manuelle dans l'aperçu.", "Si la position de la fenêtre a été choisie à la main pour un fichier, la barre de l'aperçu affiche « Position manuelle · revenir à l'automatique ». Dans ce mode, l'aperçu peut ne pas montrer où la fenêtre apparaît en jeu ; un clic rétablit l'automatique."]
+        ["Poignées sur tous les côtés de la fenêtre.", "Avec l'aperçu du jeu activé, sélectionnez Window pour voir sa taille réelle dans le XML et ajuster depuis chaque coin ou côté. Faites glisser la zone intérieure pour déplacer l'ensemble ; le redimensionnement respecte l'ancrage de la fenêtre dans le jeu."],
+        ["Actualiser les fichiers et les textures.", "Le bouton de rechargement et Ctrl+R actualisent aussi la liste des XML ajoutés ou supprimés du dossier du projet, tout en conservant les modifications du fichier ouvert."]
+      ],
+      "fixed": [
+        ["Position des raccourcis supérieurs du Menu.", "L'aperçu de Menu.xml suit la position verticale appliquée à cette rangée par le client Violet. La correction concerne uniquement ces slots et ne modifie ni la coordonnée Y enregistrée dans le XML ni les autres fenêtres."]
       ]
     }
   }
