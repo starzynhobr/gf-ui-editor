@@ -989,3 +989,65 @@ def test_resizing_a_game_positioned_window_keeps_its_content_in_place(tmp_path: 
     assert window.document.elements[0].geometry[2:] == (80, 40)
     assert window._screen_offset() == offset  # o conteúdo não pulou
     assert window.document.elements[1].geometry == (0, 0, 200, 100)
+
+
+def test_navigation_styles_map_wheel_to_zoom_or_scroll() -> None:
+    from PySide6.QtGui import QWheelEvent
+
+    application = QApplication.instance() or QApplication([])
+    view = EditorView(lambda dx, dy: None)
+    scene = QGraphicsScene(0, 0, 5000, 5000)
+    view.setScene(scene)
+    view.resize(400, 300)
+    view.show()
+    application.processEvents()
+
+    def wheel(modifiers=Qt.KeyboardModifier.NoModifier) -> None:
+        event = QWheelEvent(
+            QPointF(200, 150), QPointF(200, 150), QPoint(), QPoint(0, -120),
+            Qt.MouseButton.NoButton, modifiers, Qt.ScrollPhase.NoScrollPhase, False,
+        )
+        view.wheelEvent(event)
+
+    view.navigation_style = "corel"
+    zoom = view.transform().m11()
+    wheel()
+    assert view.transform().m11() < zoom
+
+    view.navigation_style = "paintnet"
+    zoom, top = view.transform().m11(), view.verticalScrollBar().value()
+    wheel()
+    assert view.transform().m11() == zoom and view.verticalScrollBar().value() > top
+    left = view.horizontalScrollBar().value()
+    wheel(Qt.KeyboardModifier.ShiftModifier)
+    assert view.horizontalScrollBar().value() > left
+    wheel(Qt.KeyboardModifier.ControlModifier)
+    assert view.transform().m11() < zoom
+
+    view.navigation_style = "photoshop"
+    zoom = view.transform().m11()
+    wheel(Qt.KeyboardModifier.AltModifier)
+    assert view.transform().m11() < zoom
+    view.close()
+
+
+def test_loose_xml_outside_the_game_uses_the_configured_game_folder(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    application = QApplication.instance() or QApplication([])
+    game = tmp_path / "Game"
+    (game / "UI").mkdir(parents=True)
+    (game / "client.ini").write_text("[Option]\n", encoding="utf-8")
+    loose = tmp_path / "Downloads" / "Storage.xml"
+    loose.parent.mkdir()
+    loose.write_bytes(SAMPLE.encode("big5"))
+    QSettings("Local", "GF UI Editor").setValue("game_dir", str(game))
+
+    window = EditorWindow(loose)
+    assert window._document_game_dir() == game
+
+    inside = game / "UI" / "Storage.xml"
+    inside.write_bytes(SAMPLE.encode("big5"))
+    window.open_document(inside)
+    assert window._document_game_dir() == game
+    window.close()

@@ -159,3 +159,56 @@ def test_soffset_is_edited_in_place(tmp_path) -> None:
     document.save()
     assert not document.is_dirty
     assert UIDocument.load(path).elements[0].progress_offset == (0, -41)
+
+
+def test_utf8_file_is_detected_and_converted_to_big5(tmp_path):
+    import pytest
+    from gf_ui_editor.xml_document import DocumentError, UIDocument, convert_utf8_file_to_big5
+
+    xml = '<?xml version="1.0" ?>\n<Root_Node UI_File_Name="T.xml">\n  <BaseWndProperty WindowID="1" WindowText="細明體" />\n</Root_Node>\n'
+    path = tmp_path / "T.xml"
+    path.write_bytes(xml.encode("utf-8"))
+
+    with pytest.raises(DocumentError) as info:
+        UIDocument.load(path)
+    assert info.value.code == "utf8"
+
+    backup = convert_utf8_file_to_big5(path)
+    assert backup.read_bytes() == xml.encode("utf-8")
+    assert path.read_bytes() == xml.encode("big5")
+    assert UIDocument.load(path).text == xml
+
+
+def test_bytes_invalid_in_both_encodings_keep_decode_error(tmp_path):
+    import pytest
+    from gf_ui_editor.xml_document import DocumentError, UIDocument
+
+    path = tmp_path / "T.xml"
+    path.write_bytes(b'<Root_Node a="\x98\xff" />')
+    with pytest.raises(DocumentError) as info:
+        UIDocument.load(path)
+    assert info.value.code == "decode"
+
+
+def test_child_count_mismatch_is_reported_and_fixed_on_save(tmp_path):
+    from gf_ui_editor.xml_document import UIDocument
+
+    xml = (
+        '<?xml version="1.0" ?>\n<Root_Node UI_File_Name="T.xml">\n'
+        '  <BaseWndProperty WindowID="1">\n    <Container_Node Child_Cnt="1">\n'
+        '      <Style CtrlType="1" />\n      <BaseWndProperty WindowID="2" />\n'
+        '      <Style CtrlType="1" />\n      <BaseWndProperty WindowID="3" />\n'
+        '    </Container_Node>\n  </BaseWndProperty>\n</Root_Node>\n'
+    )
+    path = tmp_path / "T.xml"
+    path.write_bytes(xml.encode("big5"))
+    document = UIDocument.load(path)
+    assert document.child_count_mismatches() == [(1, 2)]
+    assert not document.is_dirty
+
+    document.fix_child_counts()
+    assert document.is_dirty
+    document.save()
+    assert path.read_bytes() == xml.replace('Child_Cnt="1"', 'Child_Cnt="2"').encode("big5")
+    assert not document.is_dirty
+    assert UIDocument.load(path).child_count_mismatches() == []

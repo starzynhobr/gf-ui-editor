@@ -746,6 +746,10 @@ class EditorView(QGraphicsView):
     cursor_scene_moved = Signal(int, int)
     zoom_changed = Signal(float)
     DOT_SPACING = 16
+    # Roda do mouse por estilo: "corel" dá zoom direto; "paintnet" e
+    # "photoshop" rolam a tela e dão zoom com Ctrl/Alt. Botão do meio e
+    # Espaço+arrastar movem a tela em todos.
+    NAVIGATION_STYLES = ("corel", "paintnet", "photoshop")
 
     def __init__(self, move_selected: Callable[[int, int], None], parent=None):
         super().__init__(parent)
@@ -754,6 +758,9 @@ class EditorView(QGraphicsView):
         self._cycle_offset = -1
         self._panning = False
         self._pan_start = None
+        self._pan_button = Qt.MouseButton.NoButton
+        self._space_held = False
+        self.navigation_style = "corel"
         self._preferred_item: ElementItem | None = None
         self.setRenderHints(
             QPainter.RenderHint.Antialiasing
@@ -781,8 +788,11 @@ class EditorView(QGraphicsView):
         self._preferred_item = item
 
     def mousePressEvent(self, event):  # noqa: N802
-        if event.button() == Qt.MouseButton.MiddleButton:
+        if event.button() == Qt.MouseButton.MiddleButton or (
+            event.button() == Qt.MouseButton.LeftButton and self._space_held
+        ):
             self._panning = True
+            self._pan_button = event.button()
             self._pan_start = event.position().toPoint()
             self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
@@ -860,16 +870,37 @@ class EditorView(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):  # noqa: N802
-        if self._panning and event.button() == Qt.MouseButton.MiddleButton:
+        if self._panning and event.button() == self._pan_button:
             self._panning = False
             self._pan_start = None
-            self.viewport().unsetCursor()
+            if self._space_held:
+                self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
+            else:
+                self.viewport().unsetCursor()
             event.accept()
             return
         super().mouseReleaseEvent(event)
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        self.zoom_by(1.15 if event.angleDelta().y() > 0 else 1 / 1.15)
+        delta = event.angleDelta().y() or event.angleDelta().x()
+        if not delta:
+            return
+        modifiers = event.modifiers()
+        ctrl = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
+        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
+        if self.navigation_style == "paintnet":
+            action = "zoom" if ctrl else "horizontal" if shift else "vertical"
+        elif self.navigation_style == "photoshop":
+            action = "zoom" if alt else "horizontal" if ctrl or shift else "vertical"
+        else:
+            action = "zoom"
+        if action == "zoom":
+            self.zoom_by(1.15 if delta > 0 else 1 / 1.15)
+        else:
+            bar = self.horizontalScrollBar() if action == "horizontal" else self.verticalScrollBar()
+            bar.setValue(bar.value() - delta)
+        event.accept()
 
     def zoom_by(self, factor: float) -> None:
         current = self.transform().m11()
@@ -915,7 +946,23 @@ class EditorView(QGraphicsView):
         painter.drawPoints(points)
         painter.restore()
 
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
+            self._space_held = False
+            if not self._panning:
+                self.viewport().unsetCursor()
+            event.accept()
+            return
+        super().keyReleaseEvent(event)
+
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if event.key() == Qt.Key.Key_Space:
+            if not event.isAutoRepeat():
+                self._space_held = True
+                if not self._panning:
+                    self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
+            event.accept()
+            return
         directions = {
             Qt.Key.Key_Left: (-1, 0),
             Qt.Key.Key_Right: (1, 0),

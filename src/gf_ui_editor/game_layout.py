@@ -153,6 +153,11 @@ SERVER_CENTERED = {
 ROOT_MODES = ("auto", "xml", "center")
 
 
+def looks_like_game_dir(path: Path | None) -> bool:
+    """Pasta do cliente: tem o client.ini ou o Launcher.ini."""
+    return path is not None and ((path / "client.ini").is_file() or (path / "Launcher.ini").is_file())
+
+
 def is_centered(filename: str, game_dir: Path | None = None) -> bool:
     name = filename.lower()
     if name in CENTERED:

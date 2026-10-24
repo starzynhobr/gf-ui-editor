@@ -187,3 +187,22 @@ def test_project_can_start_from_a_zip(tmp_path: Path) -> None:
         bundle.writestr("leia-me.txt", "x")
     with pytest.raises(ValueError):
         extract_ui_zip(empty, tmp_path / "out4")
+
+
+def test_import_file_replaces_same_name_anywhere_or_adds_to_root(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    project = Project.create("I", game / "UI", game, projects_root=tmp_path / "p")
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    (loose / "M.DDS").write_bytes(b"new dds")
+    (loose / "Novo.xml").write_text("<n/>", encoding="utf-8")
+
+    target, backup = project.import_file(loose / "M.DDS")
+    assert target == project.ui_dir / "map" / "m.dds"
+    assert target.read_bytes() == b"new dds"
+    assert backup is not None and backup.read_bytes() == b"dds"
+    assert project.original_path_for(target).read_bytes() == b"dds"
+
+    target, backup = project.import_file(loose / "Novo.xml")
+    assert target == project.ui_dir / "Novo.xml" and backup is None
+    assert Path("Novo.xml") in project.files()

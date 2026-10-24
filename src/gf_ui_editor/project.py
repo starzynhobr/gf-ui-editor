@@ -287,6 +287,25 @@ class Project:
         self.prune_history(file_path)
         return backup
 
+    def import_target(self, source: Path) -> Path:
+        """Onde um arquivo avulso entra: no lugar do de mesmo nome, se houver; senão na raiz da UI."""
+        matches = [relative for relative in self.files() if relative.name.lower() == source.name.lower()]
+        if matches:
+            return self.ui_dir / min(matches, key=lambda relative: len(relative.parts))
+        return self.ui_dir / source.name
+
+    def import_file(self, source: Path) -> tuple[Path, Path | None]:
+        """Copia `source` para o projeto. Devolve o destino e o backup do arquivo substituído."""
+        target = self.import_target(source)
+        if target.exists():
+            self.remember_original(target)
+            backup = self.restore(target, source)
+        else:
+            shutil.copy2(source, target)
+            backup = None
+        self._files = None
+        return target, backup
+
     def contains(self, file_path: Path) -> bool:
         try:
             file_path.resolve().relative_to(self.ui_dir.resolve())

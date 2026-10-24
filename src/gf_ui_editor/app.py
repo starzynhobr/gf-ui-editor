@@ -75,6 +75,7 @@ from .game_layout import (
     menu_shortcut_preview_y,
     root_screen_position,
     is_centered,
+    looks_like_game_dir,
     rule_for,
     saved_position_applies,
     saved_section_for,
@@ -130,6 +131,7 @@ from .xml_document import (
     UIDocument,
     UIElement,
     UVRect,
+    convert_utf8_file_to_big5,
 )
 
 
@@ -195,19 +197,24 @@ class AboutDialog(QDialog):
 class NewProjectDialog(QDialog):
     """Nome do projeto e a UI que servirá de ponto de partida."""
 
-    def __init__(self, game_dir: Path | None, parent: QWidget | None = None):
+    def __init__(self, game_dir: Path | None, parent: QWidget | None = None, loose_dir: Path | None = None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Novo projeto de UI"))
         self.setMinimumWidth(460)
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText(self.tr("Ex.: UI-Hero ajustada"))
+        self.game_dir = game_dir
+        self.game_dir_edit = QLineEdit()
+        self.game_dir_edit.setReadOnly(True)
+        self.game_dir_edit.setPlaceholderText(self.tr("Não definida"))
+        game_dir_button = QPushButton(self.tr("Alterar…"))
+        game_dir_button.clicked.connect(self._choose_game_dir)
+        game_dir_row = QHBoxLayout()
+        game_dir_row.setContentsMargins(0, 0, 0, 0)
+        game_dir_row.addWidget(self.game_dir_edit, 1)
+        game_dir_row.addWidget(game_dir_button)
         self.source_combo = QComboBox()
-        if game_dir is not None:
-            for label, path in custom_ui_sources(game_dir):
-                text = self.tr("UI em uso no jogo (pasta UI)") if label == "UI" else label
-                self.source_combo.addItem(text, str(path))
-        self.source_combo.addItem(self.tr("Outra pasta…"), self.PICK_FOLDER)
-        self.source_combo.addItem(self.tr("Arquivo .zip…"), self.PICK_ZIP)
+        self._fill_sources()
         self.assets_check = QCheckBox(
             self.tr("Incluir ícones de itens, skills e telas de carregamento (~18 mil arquivos)")
         )
@@ -224,6 +231,7 @@ class NewProjectDialog(QDialog):
         explanation.setObjectName("panelSubtitle")
         form = QFormLayout()
         form.addRow(self.tr("Nome"), self.name_edit)
+        form.addRow(self.tr("Pasta do jogo"), game_dir_row)
         form.addRow(self.tr("Começar a partir de"), self.source_combo)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -235,6 +243,14 @@ class NewProjectDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.assets_check)
+        # XML editados fora de projeto: entram por cima da UI de partida.
+        self.loose_files: list[Path] = []
+        self.loose_check = QCheckBox()
+        self.loose_check.setChecked(True)
+        self.loose_check.setVisible(False)
+        layout.addWidget(self.loose_check)
+        if loose_dir is not None:
+            self._offer_loose_files(loose_dir)
         layout.addWidget(explanation)
         layout.addWidget(buttons)
         self.source_dir: Path | None = None
@@ -245,6 +261,51 @@ class NewProjectDialog(QDialog):
 
     PICK_FOLDER = "?folder"
     PICK_ZIP = "?zip"
+
+    def _offer_loose_files(self, loose_dir: Path) -> None:
+        """Pasta da UI do jogo vira a origem; qualquer outra pasta tem seus XML copiados por cima."""
+        index = next(
+            (i for i in range(self.source_combo.count())
+             if os.path.normcase(str(self.source_combo.itemData(i))) == os.path.normcase(str(loose_dir))),
+            -1,
+        )
+        if index >= 0:
+            self.source_combo.setCurrentIndex(index)
+            self._last_index = index
+            return
+        self.loose_files = sorted(
+            (path for path in loose_dir.glob("*.xml") if not is_backup_file(path.name)),
+            key=lambda path: path.name.lower(),
+        )
+        if not self.loose_files:
+            return
+        self.loose_check.setText(
+            self.tr("Trazer os {count} XML de {folder} (substituem os de mesmo nome)").format(
+                count=len(self.loose_files), folder=loose_dir
+            )
+        )
+        self.loose_check.setToolTip("\n".join(path.name for path in self.loose_files))
+        self.loose_check.setVisible(True)
+
+    def _fill_sources(self) -> None:
+        """Fontes da UI: as da pasta do jogo (UI e UICustom) mais "Outra pasta…" e ".zip…"."""
+        self.game_dir_edit.setText(str(self.game_dir) if self.game_dir is not None else "")
+        self.source_combo.clear()
+        if self.game_dir is not None:
+            for label, path in custom_ui_sources(self.game_dir):
+                text = self.tr("UI em uso no jogo (pasta UI)") if label == "UI" else label
+                self.source_combo.addItem(text, str(path))
+        self.source_combo.addItem(self.tr("Outra pasta…"), self.PICK_FOLDER)
+        self.source_combo.addItem(self.tr("Arquivo .zip…"), self.PICK_ZIP)
+        self._last_index = 0
+
+    def _choose_game_dir(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(
+            self, self.tr("Pasta do Grand Fantasia Violet"), str(self.game_dir or "")
+        )
+        if chosen:
+            self.game_dir = Path(chosen)
+            self._fill_sources()
 
     def _suggest_name(self, _index: int = 0) -> None:
         text = self.source_combo.currentText()
@@ -287,6 +348,8 @@ class NewProjectDialog(QDialog):
         text = self.source_combo.currentText()
         # Projeto vindo de uma UI de UICustom publica de volta nela (o launcher já a conhece).
         self.publish_folder = text.split("/", 1)[1] if text.startswith("UICustom/") else ""
+        if not self.loose_check.isChecked():
+            self.loose_files = []
         self.accept()
 
 
@@ -817,6 +880,15 @@ class EditorWindow(QMainWindow):
         self.project_paths_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.project_paths_label.setVisible(False)
         files_layout.addWidget(self.project_paths_label)
+        self.loose_project_button = QPushButton(icon("folder-plus"), self.tr("Criar projeto com estes arquivos"))
+        self.loose_project_button.setToolTip(
+            self.tr("Copia a UI do jogo para um projeto com estes XML por cima; depois é só usar Enviar para o jogo.")
+        )
+        self.loose_project_button.setVisible(False)
+        self.loose_project_button.clicked.connect(
+            lambda: self.new_project(loose_dir=self._files_directory())
+        )
+        files_layout.addWidget(self.loose_project_button)
         files_layout.addWidget(self.file_filter_edit)
         files_layout.addWidget(self.files_tree)
 
@@ -885,7 +957,7 @@ class EditorWindow(QMainWindow):
         self.new_project_action.setShortcut("Ctrl+Shift+N")
         self.new_project_action.setIcon(icon("folder-plus", "#ffffff" if "folder-plus" == "play" else COLORS["ICON"]))
         self.new_project_action.setIconText(self.tr("Novo projeto"))
-        self.new_project_action.triggered.connect(self.new_project)
+        self.new_project_action.triggered.connect(lambda: self.new_project())
         self.open_project_action = QAction(self.tr("Abrir projeto…"), self)
         self.open_project_action.setShortcut("Ctrl+Shift+O")
         self.open_project_action.setIcon(icon("folder-open", "#ffffff" if "folder-open" == "play" else COLORS["ICON"]))
@@ -902,6 +974,13 @@ class EditorWindow(QMainWindow):
         self.export_action = QAction(self.tr("Exportar UI (.zip)…"), self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self.export_project_zip)
+        self.import_action = QAction(self.tr("Importar arquivos…"), self)
+        self.import_action.setIcon(icon("file-import"))
+        self.import_action.setToolTip(
+            self.tr("Importar arquivos avulsos para o projeto (substitui os de mesmo nome)")
+        )
+        self.import_action.setEnabled(False)
+        self.import_action.triggered.connect(self.import_files)
         self.project_folder_action = QAction(self.tr("Abrir pasta do projeto"), self)
         self.project_folder_action.setEnabled(False)
         self.project_folder_action.triggered.connect(
@@ -1032,11 +1111,18 @@ class EditorWindow(QMainWindow):
         file_menu = self.menuBar().addMenu(self.tr("Arquivo"))
         file_menu.addAction(self.new_project_action)
         file_menu.addAction(self.open_project_action)
+        self.recent_menu = file_menu.addMenu(self.tr("Projetos recentes"))
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
+        self.home_action = QAction(self.tr("Tela inicial"), self)
+        self.home_action.setToolTip(self.tr("Fecha o XML aberto e mostra os projetos recentes"))
+        self.home_action.triggered.connect(self.go_home)
+        file_menu.addAction(self.home_action)
         file_menu.addSeparator()
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
         project_menu = self.menuBar().addMenu(self.tr("Projeto"))
         project_menu.addAction(self.test_action)
+        project_menu.addAction(self.import_action)
         project_menu.addAction(self.export_action)
         self.publish_folder_action = QAction(self.tr("Pasta de publicação…"), self)
         self.publish_folder_action.setEnabled(False)
@@ -1089,6 +1175,27 @@ class EditorWindow(QMainWindow):
             self.root_mode_actions.addAction(action)
             root_mode_menu.addAction(action)
         root_mode_menu.aboutToShow.connect(self._sync_root_mode_actions)
+        navigation_menu = view_menu.addMenu(self.tr("Navegação do canvas"))
+        navigation_actions = QActionGroup(self)
+        navigation_actions.setExclusive(True)
+        saved_style = str(QSettings("Local", "GF UI Editor").value("navigation_style", "corel"))
+        if saved_style not in EditorView.NAVIGATION_STYLES:
+            saved_style = "corel"
+        self.view.navigation_style = saved_style
+        for style, label, tip in (
+            ("corel", self.tr("Estilo CorelDRAW"), self.tr("Roda: zoom · botão do meio ou Espaço+arrastar: mover")),
+            ("paintnet", self.tr("Estilo Paint.NET"), self.tr("Roda: rolar · Shift+roda: para os lados · Ctrl+roda: zoom")),
+            ("photoshop", self.tr("Estilo Photoshop"), self.tr("Roda: rolar · Ctrl+roda: para os lados · Alt+roda: zoom")),
+        ):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(style == saved_style)
+            action.setToolTip(tip)
+            action.setStatusTip(tip)
+            action.triggered.connect(lambda _checked, value=style: self.set_navigation_style(value))
+            navigation_actions.addAction(action)
+            navigation_menu.addAction(action)
+        navigation_menu.setToolTipsVisible(True)
         view_menu.addSeparator()
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
@@ -1139,6 +1246,7 @@ class EditorWindow(QMainWindow):
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         toolbar.addAction(self.new_project_action)
         toolbar.addAction(self.open_project_action)
+        toolbar.addAction(self.import_action)
         toolbar.addAction(self.save_action)
         toolbar.addSeparator()
         toolbar.addAction(self.undo_action)
@@ -1683,15 +1791,74 @@ class EditorWindow(QMainWindow):
         filename, _ = QFileDialog.getOpenFileName(
             self, self.tr("Abrir XML de interface"), str(initial), self.tr("XML (*.xml);;Todos os arquivos (*)")
         )
-        if filename:
-            self.open_document(Path(filename))
+        if not filename:
+            return
+        path = Path(filename)
+        if self.project is None or not self.project.contains(path):
+            if self._offer_project_for(path):
+                return
+        self.open_document(path)
+
+    def _offer_project_for(self, path: Path) -> bool:
+        """Sugere criar um projeto ao abrir um XML solto. True se o projeto foi criado."""
+        settings = QSettings("Local", "GF UI Editor")
+        if settings.value("offer_project_on_open", "true") != "true":
+            return False
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(self.tr("Criar um projeto?"))
+        box.setText(self.tr("Editar {name} dentro de um projeto?").format(name=path.name))
+        box.setInformativeText(
+            self.tr(
+                "Num projeto suas alterações ficam guardadas com histórico, e Enviar para o jogo copia "
+                "tudo para a pasta certa. Arquivos soltos o jogo só vê se você copiá-los manualmente."
+            )
+        )
+        create = box.addButton(self.tr("Criar projeto"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(self.tr("Só abrir"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(create)
+        never = QCheckBox(self.tr("Não perguntar de novo"))
+        box.setCheckBox(never)
+        box.exec()
+        if never.isChecked():
+            settings.setValue("offer_project_on_open", "false")
+        if box.clickedButton() is not create:
+            return False
+        return self.new_project(loose_dir=path.parent, focus=path)
+
+    def set_navigation_style(self, style: str) -> None:
+        self.view.navigation_style = style
+        QSettings("Local", "GF UI Editor").setValue("navigation_style", style)
+
+    def _confirm_utf8_conversion(self, path: Path) -> bool:
+        answer = QMessageBox.question(
+            self,
+            self.tr("Arquivo salvo como UTF-8"),
+            self.tr(
+                "{name} foi salvo como UTF-8 (provavelmente por um editor de texto), mas o jogo lê os XML em Big5.\n\n"
+                "Converter o arquivo para Big5? Uma cópia do original será guardada como backup."
+            ).format(name=path.name),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        return answer == QMessageBox.StandardButton.Yes
 
     def open_document(self, path: Path) -> None:
         try:
             document = UIDocument.load(path)
         except DocumentError as exc:
-            QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(exc))
-            return
+            if exc.code == "utf8" and self._confirm_utf8_conversion(path):
+                in_project = self.project is not None and self.project.contains(path)
+                try:
+                    convert_utf8_file_to_big5(path, self.project.history_path_for(path) if in_project else None)
+                    document = UIDocument.load(path)
+                except DocumentError as retry_exc:
+                    QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(retry_exc))
+                    return
+            else:
+                if exc.code != "utf8":
+                    QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(exc))
+                return
         self.document = document
         if self.project is not None and self.project.contains(document.path):
             QSettings("Local", "GF UI Editor").setValue(
@@ -1722,6 +1889,30 @@ class EditorWindow(QMainWindow):
         self._refresh_files()
         self.fit_scene()
         self._start_texture_loading()
+        self._check_child_counts()
+
+    def _check_child_counts(self) -> None:
+        """Child_Cnt menor que o número de controles faz o jogo ignorar os últimos."""
+        assert self.document is not None
+        mismatches = self.document.child_count_mismatches()
+        if not mismatches:
+            return
+        declared, actual = mismatches[0]
+        answer = QMessageBox.warning(
+            self,
+            self.tr("Contagem de controles incorreta"),
+            self.tr(
+                "Este arquivo declara Child_Cnt=\"{declared}\", mas tem {actual} controles. "
+                "O jogo lê só a quantidade declarada e pode mostrar o erro "
+                "\"Child control can not found\".\n\nCorrigir para {actual}? A correção é gravada ao salvar."
+            ).format(declared=declared, actual=actual),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.document.fix_child_counts()
+            self._update_title()
+            self.statusBar().showMessage(self.tr("Child_Cnt será corrigido ao salvar."), 6000)
 
     def _rebuild_scene(self, *, load_textures: bool = True) -> None:
         assert self.document is not None and self.texture_cache is not None
@@ -1795,6 +1986,10 @@ class EditorWindow(QMainWindow):
                 caption += " · " + self.tr("posição definida pelo cliente")
             elif is_centered(name, game_dir):
                 caption += " · " + self.tr("centralizada pelo jogo")
+            else:
+                caption += " · " + self.tr("posição no jogo ainda não mapeada: usando o X/Y do XML")
+            if game_dir is None:
+                caption += " · " + self.tr("pasta do jogo não encontrada (escolha em Arquivo → Novo projeto)")
         else:
             self.game_screen_item.setPos(0, 0)
         self.game_screen_item.set_caption(caption)
@@ -2006,7 +2201,11 @@ class EditorWindow(QMainWindow):
             return None
         if self.project is not None and self.project.contains(self.document.path):
             return self.project.game_dir
-        return self.document.path.parent.parent
+        beside = self.document.path.parent.parent
+        if looks_like_game_dir(beside):
+            return beside
+        # XML avulso (ex.: Downloads): usa a pasta do jogo configurada para ter as regras.
+        return self._game_dir()
 
     def _root_mode_key(self) -> str:
         assert self.document is not None
@@ -2988,7 +3187,7 @@ class EditorWindow(QMainWindow):
         cards = QHBoxLayout()
         cards.setSpacing(12)
         for icon_name, heading, text, slot, accent in (
-            ("folder-plus", self.tr("Novo projeto"), self.tr("A partir da UI em uso, de uma UI do UICustom ou de outra pasta."), self.new_project, True),
+            ("folder-plus", self.tr("Novo projeto"), self.tr("A partir da UI em uso, de uma UI do UICustom ou de outra pasta."), lambda: self.new_project(), True),
             ("file", self.tr("Abrir um XML solto"), self.tr("Edita direto no arquivo, sem projeto (o launcher pode sobrescrever)."), self.choose_document, False),
         ):
             card = QPushButton()
@@ -3037,14 +3236,66 @@ class EditorWindow(QMainWindow):
         self.recent_label = recent_label
         return page
 
+    def _recent_projects(self, limit: int) -> list[Path]:
+        return sorted(
+            list_projects(), key=lambda root: (root / "project.json").stat().st_mtime, reverse=True
+        )[:limit]
+
+    def _fill_recent_menu(self) -> None:
+        self.recent_menu.clear()
+        current = os.path.normcase(str(self.project.root)) if self.project is not None else None
+        projects = self._recent_projects(15)
+        for root in projects:
+            action = self.recent_menu.addAction(icon("package"), root.name)
+            action.setToolTip(str(root))
+            if os.path.normcase(str(root)) == current:
+                action.setCheckable(True)
+                action.setChecked(True)
+            action.triggered.connect(lambda _checked=False, path=root: self.switch_project(path))
+        if not projects:
+            empty = self.recent_menu.addAction(self.tr("Nenhum projeto ainda"))
+            empty.setEnabled(False)
+        self.recent_menu.addSeparator()
+        browse = self.recent_menu.addAction(self.tr("Procurar pasta…"))
+        browse.triggered.connect(self._browse_project)
+
+    def switch_project(self, root: Path) -> None:
+        if not self._confirm_discard_changes():
+            return
+        self.open_project(root)
+
+    def close_document(self) -> None:
+        """Volta ao estado sem XML aberto (mostra a tela inicial no centro)."""
+        self.document = None
+        self._texture_generation += 1
+        self.undo_stack.clear()
+        self.selected_index = None
+        self.locked_indexes.clear()
+        self.hidden_indexes.clear()
+        self.isolated_index = None
+        self.scene.clear()
+        self.items.clear()
+        self.tree.clear()
+        self.tree_items.clear()
+        self.properties.set_element(None)
+        self.save_action.setEnabled(False)
+        self.fit_action.setEnabled(False)
+        self._watch_texture_files()
+        self._update_element_actions()
+        self._update_title()
+        self._refresh_files()
+
+    def go_home(self) -> None:
+        if self.document is None or not self._confirm_discard_changes():
+            return
+        self.close_document()
+
     def _refresh_recent_projects(self) -> None:
         while self.recent_layout.count():
             widget = self.recent_layout.takeAt(0).widget()
             if widget is not None:
                 widget.deleteLater()
-        projects = sorted(
-            list_projects(), key=lambda root: (root / "project.json").stat().st_mtime, reverse=True
-        )[:5]
+        projects = self._recent_projects(5)
         self.recent_label.setVisible(bool(projects))
         self.recent_box.setVisible(bool(projects))
         for root in projects:
@@ -3058,7 +3309,7 @@ class EditorWindow(QMainWindow):
             button.setToolTip(str(root))
             button.setObjectName("recentRow")
             button.setIcon(icon("package", COLORS["ACCENT_TEXT"]))
-            button.clicked.connect(lambda _checked=False, path=root: self.open_project(path))
+            button.clicked.connect(lambda _checked=False, path=root: self.switch_project(path))
             self.recent_layout.addWidget(button)
 
     def _update_center_page(self) -> None:
@@ -3209,21 +3460,23 @@ class EditorWindow(QMainWindow):
     def _game_dir(self) -> Path | None:
         if self.project is not None and self.project.game_dir is not None:
             return self.project.game_dir
+        saved = str(QSettings("Local", "GF UI Editor").value("game_dir", ""))
+        if saved and Path(saved).is_dir():
+            return Path(saved)
         game_dir = DEFAULT_UI_DIRECTORY.parent
         return game_dir if game_dir.is_dir() else None
 
-    def new_project(self) -> None:
+    def new_project(self, loose_dir: Path | None = None, focus: Path | None = None) -> bool:
         if not self._confirm_discard_changes():
-            return
-        game_dir = self._game_dir()
-        if game_dir is None:
-            folder = QFileDialog.getExistingDirectory(self, self.tr("Pasta do Grand Fantasia Violet"))
-            if not folder:
-                return
-            game_dir = Path(folder)
-        dialog = NewProjectDialog(game_dir, self)
+            return False
+        if focus is None and self.document is not None and loose_dir is not None:
+            focus = self.document.path
+        dialog = NewProjectDialog(self._game_dir(), self, loose_dir=loose_dir)
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.source_dir is None:
-            return
+            return False
+        game_dir = dialog.game_dir
+        if game_dir is not None:
+            QSettings("Local", "GF UI Editor").setValue("game_dir", str(game_dir))
         try:
             name, source = dialog.name_edit.text().strip(), dialog.source_dir
             include_assets = dialog.assets_check.isChecked()
@@ -3244,17 +3497,78 @@ class EditorWindow(QMainWindow):
                 )
 
             project = self._run_with_progress(self.tr("Copiando arquivos da UI para o projeto…"), build)
+            for loose in dialog.loose_files:
+                target, _backup = project.import_file(loose)
+                if focus is not None and loose == focus:
+                    focus = target
         except FileExistsError as exc:
             QMessageBox.warning(
                 self, self.tr("Projeto já existe"), self.tr("Já existe um projeto em {path}.").format(path=exc.args[0])
             )
-            return
+            return False
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
             QMessageBox.critical(self, self.tr("Não foi possível criar o projeto"), str(exc))
-            return
+            return False
         self.open_project(project.root)
+        if focus is not None:
+            if not project.contains(focus):
+                focus = project.import_target(focus)
+            if focus.is_file():
+                self.document = None
+                self.open_document(focus)
         self.statusBar().showMessage(
             self.tr("Projeto criado com {count} arquivos.").format(count=len(project.base_hashes)), 8000
+        )
+        return True
+
+    def import_files(self) -> None:
+        if self.project is None:
+            return
+        names, _filter = QFileDialog.getOpenFileNames(
+            self, self.tr("Importar arquivos para o projeto"), "",
+            self.tr("Arquivos da UI (*.xml *.dds *.tga *.ini);;Todos os arquivos (*)"),
+        )
+        sources = [Path(name) for name in names]
+        if not sources:
+            return
+        targets = {source: self.project.import_target(source) for source in sources}
+        replaced = [target for target in targets.values() if target.exists()]
+        if replaced:
+            listing = "\n".join(
+                f"• {target.relative_to(self.project.ui_dir).as_posix()}" for target in replaced[:15]
+            )
+            if len(replaced) > 15:
+                listing += "\n" + self.tr("… e mais {count}").format(count=len(replaced) - 15)
+            answer = QMessageBox.question(
+                self,
+                self.tr("Substituir arquivos?"),
+                self.tr(
+                    "Estes arquivos já existem no projeto e serão substituídos "
+                    "(a versão atual fica no histórico):\n\n{files}"
+                ).format(files=listing),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        open_path = self.document.path.resolve() if self.document is not None else None
+        reopen = open_path is not None and any(target.resolve() == open_path for target in replaced)
+        if reopen and not self._confirm_discard_changes():
+            return
+        try:
+            for source in sources:
+                self.project.import_file(source)
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Não foi possível importar"), str(exc))
+        if reopen:
+            self.document.raw = open_path.read_bytes()  # evita o aviso de alteração externa ao reabrir
+            self.open_document(open_path)
+        self.reload_all_textures()
+        self.statusBar().showMessage(
+            self.tr("{count} arquivo(s) importado(s), {replaced} substituído(s).").format(
+                count=len(sources), replaced=len(replaced)
+            ),
+            6000,
         )
 
     def choose_project(self) -> None:
@@ -3290,6 +3604,8 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Não foi possível abrir o projeto"), str(exc))
             return
         self.project = project
+        if self.document is not None and not project.contains(self.document.path):
+            self.close_document()
         QSettings("Local", "GF UI Editor").setValue("last_project", str(root))
         if self.follow_game_resolution:
             self.game_resolution = self._client_resolution()
@@ -3297,6 +3613,7 @@ class EditorWindow(QMainWindow):
             self._refresh_game_screen()
         self.test_action.setEnabled(project.game_dir is not None)
         self.export_action.setEnabled(True)
+        self.import_action.setEnabled(True)
         self.publish_folder_action.setEnabled(project.game_dir is not None)
         self.project_folder_action.setEnabled(True)
         self.reload_textures_action.setEnabled(True)
@@ -3338,6 +3655,7 @@ class EditorWindow(QMainWindow):
             self.project_paths_label.setText("\n".join(lines))
             self.project_paths_label.setToolTip(self.project_paths_label.text())
             self.project_paths_label.setVisible(True)
+            self.loose_project_button.setVisible(False)
 
         else:
             self.project_label.setText(self.tr("Sem projeto"))
@@ -3345,8 +3663,14 @@ class EditorWindow(QMainWindow):
             if directory is not None:
                 self.project_paths_label.setText(self.tr("Editando em: {path}").format(path=directory))
             self.project_path_label.setText(
-                self.tr("Crie um projeto para editar fora da pasta do jogo e testar com F5.")
+                self.tr(
+                    "Arquivos soltos: o jogo só vê estas mudanças se você copiar os arquivos para a pasta "
+                    "da UI escolhida no launcher. Com um projeto, Enviar para o jogo faz isso por você."
+                )
+                if directory is not None
+                else self.tr("Crie um projeto para editar fora da pasta do jogo e testar com F5.")
             )
+            self.loose_project_button.setVisible(directory is not None)
             modified = set()
             files = []
             if directory is not None:

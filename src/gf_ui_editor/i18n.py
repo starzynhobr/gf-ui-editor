@@ -64,6 +64,7 @@ def document_error_text(error: Exception) -> str:
         "uv_count": QCoreApplication.translate("DocumentError", "Não foi possível relacionar todos os recortes NorUV ao texto original ({cuts} recortes, {tags} tags)."),
         "read": QCoreApplication.translate("DocumentError", "Não foi possível ler {path}: {error}"),
         "decode": QCoreApplication.translate("DocumentError", "O arquivo não pôde ser decodificado como Big5: {error}"),
+        "utf8": QCoreApplication.translate("DocumentError", "O arquivo foi salvo como UTF-8, não Big5."),
         "roundtrip": QCoreApplication.translate("DocumentError", "A leitura Big5 não preserva exatamente os bytes do arquivo."),
         "invalid_xml": QCoreApplication.translate("DocumentError", "XML inválido: {error}"),
         "reread": QCoreApplication.translate("DocumentError", "Não foi possível reler o arquivo antes de salvar: {error}"),

@@ -15,6 +15,7 @@ START_TAG_RE = re.compile(r"<BaseWndProperty\b[^>]*>")
 NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 # Deslocamento do estado preenchido de barras (ProgressNode/OffSetUV).
 SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
+CONTAINER_TAG_RE = re.compile(r"<Container_Node\b[^>]*>")
 BUTTON_UV_STATES = ("FocusUV", "DownUV", "DisableUV")
 BUTTON_TAG_RE = re.compile(
     r"<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|"
@@ -260,6 +261,45 @@ def _kind_for(base: ET.Element, ctrl_type: str | None) -> str:
     return "control" if ctrl_type else "window"
 
 
+def backup_path_for(path: Path) -> Path:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    candidate = path.with_name(f"{path.stem}.before-gf-ui-editor-{stamp}{path.suffix}")
+    number = 2
+    while candidate.exists():
+        candidate = path.with_name(f"{path.stem}.before-gf-ui-editor-{stamp}-{number}{path.suffix}")
+        number += 1
+    return candidate
+
+
+def utf8_text_convertible_to_big5(raw: bytes) -> str | None:
+    """Texto do arquivo se ele foi salvo como UTF-8 e cabe inteiro em Big5."""
+    try:
+        text = raw.decode("utf-8-sig")
+        text.encode(UIDocument.encoding)
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return None
+    return text
+
+
+def convert_utf8_file_to_big5(path: str | Path, backup_path: Path | None = None) -> Path:
+    """Regrava em Big5 um XML salvo como UTF-8, guardando backup. Devolve o backup."""
+    xml_path = Path(path).resolve()
+    try:
+        raw = xml_path.read_bytes()
+    except OSError as exc:
+        raise DocumentError(f"Não foi possível ler {xml_path}: {exc}", code="read", details={"path": xml_path, "error": exc}) from exc
+    text = utf8_text_convertible_to_big5(raw)
+    if text is None:
+        raise DocumentError("O arquivo não pôde ser decodificado como Big5.", code="decode", details={"error": ""})
+    backup = backup_path or backup_path_for(xml_path)
+    try:
+        shutil.copyfile(xml_path, backup)
+        xml_path.write_bytes(text.encode(UIDocument.encoding))
+    except OSError as exc:
+        raise DocumentError(f"Falha ao criar backup ou gravar o XML: {exc}", code="write", details={"error": exc}) from exc
+    return backup
+
+
 class UIDocument:
     encoding = "big5"
 
@@ -272,6 +312,7 @@ class UIDocument:
         self._start_tags = list(START_TAG_RE.finditer(text))
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(text))
         self._offset_tags = list(SOFFSET_TAG_RE.finditer(text))
+        self._fix_child_counts = False
         self._build_elements()
         try:
             self._button_uv_tags = _button_uv_matches(text)
@@ -306,8 +347,12 @@ class UIDocument:
         try:
             text = raw.decode(cls.encoding)
         except UnicodeDecodeError as exc:
+            if utf8_text_convertible_to_big5(raw) is not None:
+                raise DocumentError("O arquivo foi salvo como UTF-8, não Big5.", code="utf8", details={"path": xml_path}) from exc
             raise DocumentError(f"O arquivo não pôde ser decodificado como Big5: {exc}", code="decode", details={"error": exc}) from exc
         if text.encode(cls.encoding) != raw:
+            if utf8_text_convertible_to_big5(raw) is not None:
+                raise DocumentError("O arquivo foi salvo como UTF-8, não Big5.", code="utf8", details={"path": xml_path})
             raise DocumentError("A leitura Big5 não preserva exatamente os bytes do arquivo.", code="roundtrip")
         try:
             root = ET.fromstring(text)
@@ -315,9 +360,27 @@ class UIDocument:
             raise DocumentError(f"XML inválido: {exc}", code="invalid_xml", details={"error": exc}) from exc
         return cls(xml_path, raw, text, root)
 
+    def child_count_mismatches(self) -> list[tuple[int, int]]:
+        """(Child_Cnt declarado, controles reais) de cada Container_Node que não bate.
+
+        O cliente lê só Child_Cnt filhos; os excedentes somem e o jogo acusa
+        "Child control can not found" ao procurá-los.
+        """
+        mismatches = []
+        for container in self.root.iter("Container_Node"):
+            declared = container.get("Child_Cnt")
+            actual = len(container.findall("BaseWndProperty"))
+            if declared is not None and declared.strip().isdigit() and int(declared) != actual:
+                mismatches.append((int(declared), actual))
+        return mismatches
+
+    def fix_child_counts(self) -> None:
+        """Marca o Child_Cnt para ser corrigido no próximo salvamento."""
+        self._fix_child_counts = bool(self.child_count_mismatches())
+
     @property
     def is_dirty(self) -> bool:
-        return any(
+        return self._fix_child_counts or any(
             element.changed_attributes or element.changed_uv_attributes or element.changed_offset_attributes
             or element.changed_button_uv_attributes
             for element in self.elements
@@ -459,6 +522,15 @@ class UIDocument:
                     tag = self._replace_attribute(tag, name, value)
                 replacements.append((match.start(), match.end(), tag))
 
+        if self._fix_child_counts:
+            containers = list(self.root.iter("Container_Node"))
+            for container, match in zip(containers, CONTAINER_TAG_RE.finditer(self.text)):
+                actual = str(len(container.findall("BaseWndProperty")))
+                if container.get("Child_Cnt") not in (None, actual):
+                    replacements.append(
+                        (match.start(), match.end(), self._replace_attribute(match.group(0), "Child_Cnt", actual))
+                    )
+
         chunks: list[str] = []
         cursor = 0
         for start, end, tag in sorted(replacements):
@@ -481,17 +553,7 @@ class UIDocument:
         )
 
     def _backup_path(self) -> Path:
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        candidate = self.path.with_name(
-            f"{self.path.stem}.before-gf-ui-editor-{stamp}{self.path.suffix}"
-        )
-        number = 2
-        while candidate.exists():
-            candidate = self.path.with_name(
-                f"{self.path.stem}.before-gf-ui-editor-{stamp}-{number}{self.path.suffix}"
-            )
-            number += 1
-        return candidate
+        return backup_path_for(self.path)
 
     def save(self, backup_path: Path | None = None) -> Path:
         try:
@@ -538,6 +600,11 @@ class UIDocument:
         self._start_tags = list(START_TAG_RE.finditer(new_text))
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(new_text))
         self._offset_tags = list(SOFFSET_TAG_RE.finditer(new_text))
+        if self._fix_child_counts:
+            for container in self.root.iter("Container_Node"):
+                if container.get("Child_Cnt") is not None:
+                    container.set("Child_Cnt", str(len(container.findall("BaseWndProperty"))))
+            self._fix_child_counts = False
         self._button_uv_tags = _button_uv_matches(new_text) if self.button_states_editable else {}
         for element in self.elements:
             element.original_attrs = dict(element.attrs)
