@@ -334,6 +334,13 @@ def looks_like_game_dir(path: Path | None) -> bool:
     return path is not None and ((path / "client.ini").is_file() or (path / "Launcher.ini").is_file())
 
 
+def normalize_game_dir(path: Path) -> Path:
+    """Quem escolhe a pasta UI (ou UICustom) no lugar da raiz do jogo recebe a raiz."""
+    if not looks_like_game_dir(path) and looks_like_game_dir(path.parent):
+        return path.parent
+    return path
+
+
 def is_centered(filename: str, game_dir: Path | None = None) -> bool:
     name = filename.lower()
     if name in CENTERED:

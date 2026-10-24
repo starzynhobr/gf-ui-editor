@@ -4,7 +4,7 @@ from collections.abc import Callable
 import math
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, Signal, QUrl
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -86,8 +86,11 @@ class AtlasView(QGraphicsView):
         self._offset_at_drag: tuple[int, int] | None = None
         self._selection_start: QPointF | None = None
         self._resize_corner: str | None = None
-        self._resize_anchor: QPointF | None = None
+        self._resize_rect: QRectF | None = None
+        # Fora do modo de edição o atlas só navega: clicar não altera o recorte.
+        self.editable = True
         self._panning = False
+        self._pan_button = Qt.MouseButton.NoButton
         self._pan_start: QPoint | None = None
 
     def set_pixmap(self, pixmap: QPixmap) -> None:
@@ -133,12 +136,18 @@ class AtlasView(QGraphicsView):
             "bottom_left": rect.bottomLeft(),
             "bottom_right": rect.bottomRight(),
         }
-        visible = not rect.isEmpty()
+        visible = not rect.isEmpty() and self.editable
         for corner, handle in self._resize_handles.items():
             handle.setPos(positions[corner])
             handle.setVisible(visible)
 
+    def set_editable(self, editable: bool) -> None:
+        self.editable = editable
+        self._update_resize_handles()
+        self.viewport().unsetCursor()
+
     def _corner_at(self, viewport_position: QPoint) -> str | None:
+        """Alça sob o cursor: um canto ("top_left"…) ou uma borda ("top", "left"…)."""
         for corner, handle in self._resize_handles.items():
             if not handle.isVisible():
                 continue
@@ -148,16 +157,38 @@ class AtlasView(QGraphicsView):
                 and abs(handle_position.y() - viewport_position.y()) <= 8
             ):
                 return corner
+        rect = self._selection_item.rect().normalized()
+        if not self.editable or rect.isEmpty():
+            return None
+        top_left = self.mapFromScene(rect.topLeft())
+        bottom_right = self.mapFromScene(rect.bottomRight())
+        x, y = viewport_position.x(), viewport_position.y()
+        within_x = top_left.x() <= x <= bottom_right.x()
+        within_y = top_left.y() <= y <= bottom_right.y()
+        if within_x and abs(y - top_left.y()) <= 5:
+            return "top"
+        if within_x and abs(y - bottom_right.y()) <= 5:
+            return "bottom"
+        if within_y and abs(x - top_left.x()) <= 5:
+            return "left"
+        if within_y and abs(x - bottom_right.x()) <= 5:
+            return "right"
         return None
 
-    def _opposite_corner(self, corner: str) -> QPointF:
-        rect = self._selection_item.rect().normalized()
-        return {
-            "top_left": rect.bottomRight(),
-            "top_right": rect.bottomLeft(),
-            "bottom_left": rect.topRight(),
-            "bottom_right": rect.topLeft(),
-        }[corner]
+    def _resized(self, point: QPointF) -> UVRect:
+        """Move só os lados da alça arrastada; os outros ficam onde estavam."""
+        assert self._resize_corner is not None and self._resize_rect is not None
+        rect = self._resize_rect
+        left, top, right, bottom = rect.left(), rect.top(), rect.right(), rect.bottom()
+        if "left" in self._resize_corner:
+            left = point.x()
+        if "right" in self._resize_corner:
+            right = point.x()
+        if "top" in self._resize_corner:
+            top = point.y()
+        if "bottom" in self._resize_corner:
+            bottom = point.y()
+        return self._uv_between(QPointF(left, top), QPointF(right, bottom))
 
     def _uv_between(self, first: QPointF, second: QPointF) -> UVRect:
         bounds = self._pixmap_item.boundingRect()
@@ -206,8 +237,11 @@ class AtlasView(QGraphicsView):
         )
 
     def mousePressEvent(self, event):  # noqa: N802
-        if event.button() == Qt.MouseButton.MiddleButton:
+        if event.button() == Qt.MouseButton.MiddleButton or (
+            event.button() == Qt.MouseButton.LeftButton and not self.editable
+        ):
             self._panning = True
+            self._pan_button = event.button()
             self._pan_start = event.position().toPoint()
             self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
@@ -224,7 +258,7 @@ class AtlasView(QGraphicsView):
             corner = self._corner_at(event.position().toPoint())
             if corner is not None:
                 self._resize_corner = corner
-                self._resize_anchor = self._opposite_corner(corner)
+                self._resize_rect = self._selection_item.rect().normalized()
                 event.accept()
                 return
             self._selection_start = self._clamp(
@@ -272,11 +306,15 @@ class AtlasView(QGraphicsView):
             )
             event.accept()
             return
-        if self._resize_corner is not None and self._resize_anchor is not None:
-            uv = self._uv_between(self._resize_anchor, point)
+        if self._resize_corner is not None and self._resize_rect is not None:
+            uv = self._resized(point)
             self.set_selection(uv)
             self.selection_changed.emit(uv)
             event.accept()
+            return
+        if not self.editable:
+            self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
+            super().mouseMoveEvent(event)
             return
         corner = self._corner_at(event.position().toPoint())
         if corner is None and self._over_offset_box(self.mapToScene(event.position().toPoint())):
@@ -287,13 +325,18 @@ class AtlasView(QGraphicsView):
             self.viewport().setCursor(Qt.CursorShape.SizeFDiagCursor)
         elif corner in {"top_right", "bottom_left"}:
             self.viewport().setCursor(Qt.CursorShape.SizeBDiagCursor)
+        elif corner in {"left", "right"}:
+            self.viewport().setCursor(Qt.CursorShape.SizeHorCursor)
+        elif corner in {"top", "bottom"}:
+            self.viewport().setCursor(Qt.CursorShape.SizeVerCursor)
         else:
             self.viewport().unsetCursor()
         super().mouseMoveEvent(event)
 
     def _over_offset_box(self, scene_point: QPointF) -> bool:
         return (
-            self.offset_editable
+            self.editable
+            and self.offset_editable
             and self._progress_item.isVisible()
             and self._progress_item.rect().normalized().contains(scene_point)
         )
@@ -310,7 +353,7 @@ class AtlasView(QGraphicsView):
             self.viewport().unsetCursor()
             event.accept()
             return
-        if self._panning and event.button() == Qt.MouseButton.MiddleButton:
+        if self._panning and event.button() == self._pan_button:
             self._panning = False
             self._pan_start = None
             self.viewport().unsetCursor()
@@ -326,10 +369,9 @@ class AtlasView(QGraphicsView):
             return
         if self._resize_corner is not None and event.button() == Qt.MouseButton.LeftButton:
             point = self._clamp(self.mapToScene(event.position().toPoint()))
-            assert self._resize_anchor is not None
-            uv = self._uv_between(self._resize_anchor, point)
+            uv = self._resized(point)
             self._resize_corner = None
-            self._resize_anchor = None
+            self._resize_rect = None
             self.set_selection(uv)
             self.selection_changed.emit(uv)
             event.accept()
@@ -392,6 +434,15 @@ class AtlasDialog(QDialog):
         view_buttons = QHBoxLayout()
         view_buttons.addWidget(self.focus_button)
         view_buttons.addWidget(self.full_atlas_button)
+        self.edit_button = QPushButton(self.tr("Editar posição"))
+        self.edit_button.setCheckable(True)
+        self.edit_button.setObjectName("accentPush")
+        self.edit_button.setIcon(icon("frame", "#ffffff", size=16))
+        self.edit_button.setToolTip(
+            self.tr("Libera o recorte para ser marcado ou ajustado. Sem isto, arrastar só move a vista.")
+        )
+        self.edit_button.setAutoDefault(False)
+        self.edit_button.toggled.connect(self._set_editing)
 
         self.left_spin = self._spinbox(minimum=-100000)
         self.top_spin = self._spinbox(minimum=-100000)
@@ -483,12 +534,12 @@ class AtlasDialog(QDialog):
 
         self.focus_button.setIcon(icon("focus", size=16))
         self.full_atlas_button.setIcon(icon("frame", size=16))
-        self.focus_button.setText(self.tr("Recorte"))
+        self.focus_button.setText(self.tr("Centralizar"))
         self.full_atlas_button.setText(self.tr("Atlas inteiro"))
         self.title.setText(texture_name)
-        explanation.setText(
-            self.tr("Arraste para marcar · alças ajustam · botão do meio navega · roda = zoom")
-        )
+        self.explanation = explanation
+        self.view_hint = self.tr("Arraste para mover a vista · roda = zoom · Editar posição libera o recorte")
+        self.edit_hint = self.tr("Arraste para marcar · cantos e bordas ajustam · botão do meio navega · roda = zoom")
 
         self.uv_heading = QLabel(self.tr("RECORTE NORMAL (NorUV)"))
         uv_card = self._card(
@@ -541,6 +592,7 @@ class AtlasDialog(QDialog):
         side.addWidget(self.title)
         side.addWidget(self.details)
         side.addLayout(view_buttons)
+        side.addWidget(self.edit_button)
         side.addWidget(self.state_card)
         side.addWidget(uv_card)
         side.addWidget(self.offset_card)
@@ -552,6 +604,7 @@ class AtlasDialog(QDialog):
         apply_button = buttons.button(QDialogButtonBox.StandardButton.Apply)
         apply_button.setObjectName("accentPush")
         apply_button.setDefault(True)
+        self.apply_button = apply_button
 
         content = QHBoxLayout()
         content.setContentsMargins(0, 0, 0, 0)
@@ -566,7 +619,28 @@ class AtlasDialog(QDialog):
         self.view.set_progress_offset(progress_offset)
         self.set_uv(uv)
         self.state_combo.currentIndexChanged.connect(self._state_changed)
+        self._offset_allowed = self.view.offset_editable
+        self._set_editing(False)
+        self._framed = False
         install_pointer_cursors(self)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        if not self._framed:
+            # Abre já no recorte; com o atlas inteiro não dá para ver o que está selecionado.
+            self._framed = True
+            QTimer.singleShot(0, self.view.focus_selection)
+
+    def _set_editing(self, editing: bool) -> None:
+        self.view.set_editable(editing)
+        for spin in (self.left_spin, self.top_spin, self.width_spin, self.height_spin):
+            spin.setReadOnly(not editing)
+        for spin in (self.offset_x_spin, self.offset_y_spin):
+            spin.setEnabled(editing and self._offset_allowed)
+        self.resize_element.setEnabled(editing and self._active_uv_state == "NorUV")
+        self.apply_button.setEnabled(editing)
+        self.explanation.setText(self.edit_hint if editing else self.view_hint)
+        self.edit_button.setText(self.tr("Editando posição") if editing else self.tr("Editar posição"))
 
     def _open_dds(self) -> None:
         path = self.texture_path
@@ -664,7 +738,7 @@ class AtlasDialog(QDialog):
             ("Left", "Top", "Width", "Height"), strict=True,
         ):
             spin.setToolTip(state + suffix)
-        self.resize_element.setEnabled(state == "NorUV")
+        self.resize_element.setEnabled(state == "NorUV" and self.edit_button.isChecked())
         self.view.focus_selection()
 
     def _update_state_preview(self) -> None:

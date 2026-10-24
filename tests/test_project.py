@@ -206,3 +206,22 @@ def test_import_file_replaces_same_name_anywhere_or_adds_to_root(tmp_path: Path)
     target, backup = project.import_file(loose / "Novo.xml")
     assert target == project.ui_dir / "Novo.xml" and backup is None
     assert Path("Novo.xml") in project.files()
+
+
+def test_projects_publishing_to_finds_projects_sharing_a_custom_folder(tmp_path: Path, monkeypatch) -> None:
+    import gf_ui_editor.project as project_module
+    from gf_ui_editor.game_layout import normalize_game_dir
+
+    game = _game(tmp_path)
+    (game / "client.ini").write_text("[Option]\n", encoding="utf-8")
+    assert normalize_game_dir(game / "UI") == game
+    assert normalize_game_dir(game) == game
+
+    root = tmp_path / "projects"
+    monkeypatch.setattr(project_module, "PROJECTS_ROOT", root)
+    first = Project.create("UI-HERO", game / "UI", game, projects_root=root)
+    second = Project.create("UI-HERO2", game / "UI", game, projects_root=root, publish_folder="UI-HERO")
+    assert project_module.projects_publishing_to("ui-hero") == ["UI-HERO", "UI-HERO2"]
+    assert project_module.projects_publishing_to("UI-HERO", exclude=second.root) == ["UI-HERO"]
+    assert project_module.projects_publishing_to("UI-HERO2") == []
+    assert first.custom_name == "UI-HERO"

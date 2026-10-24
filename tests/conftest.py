@@ -25,4 +25,8 @@ def _no_real_game_folder(monkeypatch, tmp_path_factory):
     """XML avulso cai na pasta do jogo instalada; nos testes ela não pode existir."""
     import gf_ui_editor.app as app
 
-    monkeypatch.setattr(app, "DEFAULT_UI_DIRECTORY", tmp_path_factory.mktemp("no-game") / "missing" / "UI")
+    import gf_ui_editor.project as project
+
+    missing = tmp_path_factory.mktemp("no-game")
+    monkeypatch.setattr(app, "DEFAULT_UI_DIRECTORY", missing / "missing" / "UI")
+    monkeypatch.setattr(project, "PROJECTS_ROOT", missing / "projects")

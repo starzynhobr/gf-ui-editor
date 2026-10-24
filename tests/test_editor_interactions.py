@@ -636,6 +636,7 @@ def test_dragging_filled_state_box_changes_soffset() -> None:
     )
     dialog.resize(900, 700)
     dialog.show()
+    dialog.edit_button.setChecked(True)
     application.processEvents()
     view = dialog.view
     view.resetTransform()
@@ -1050,4 +1051,113 @@ def test_loose_xml_outside_the_game_uses_the_configured_game_folder(tmp_path: Pa
     inside.write_bytes(SAMPLE.encode("big5"))
     window.open_document(inside)
     assert window._document_game_dir() == game
+    window.close()
+
+
+def test_atlas_opens_read_only_framed_on_the_slice_and_edges_resize_when_editing() -> None:
+    application = QApplication.instance() or QApplication([])
+    dialog = AtlasDialog("main.dds", QPixmap(400, 400), UVRect(100, 120, 40, 20), lambda *_: None)
+    dialog.resize(900, 700)
+    dialog.show()
+    application.processEvents()
+    application.processEvents()
+    view = dialog.view
+    assert view.transform().m11() > 2  # enquadrado no recorte, não no atlas inteiro
+    assert not dialog.apply_button.isEnabled() and dialog.left_spin.isReadOnly()
+
+    start = view.mapFromScene(QPointF(110, 125))
+    QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
+    QTest.mouseMove(view.viewport(), start + QPoint(40, 30), 20)
+    QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=start + QPoint(40, 30))
+    assert dialog.current_uv() == UVRect(100, 120, 40, 20)  # só moveu a vista
+
+    dialog.edit_button.setChecked(True)
+    assert dialog.apply_button.isEnabled()
+    edge = view.mapFromScene(QPointF(140, 130))  # meio da borda direita
+    end = view.mapFromScene(QPointF(149.5, 130))
+    QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=edge)
+    QTest.mouseMove(view.viewport(), end, 20)
+    QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=end)
+    assert dialog.current_uv() == UVRect(100, 120, 50, 20)
+    dialog.close()
+
+
+def test_official_controls_are_inserted_as_an_undoable_edit(tmp_path: Path, monkeypatch) -> None:
+    import zlib
+
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QDialog
+
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    official = SAMPLE.replace(
+        "</Root_Node>",
+        '  <BaseWndProperty WindowID="900">\n    <Container_Node Child_Cnt="1">\n'
+        '      <Style CtrlType="1" />\n      <BaseWndProperty WindowID="5130" WindowLeft="3" WindowTop="4" WindowHeight="10" WindowWidth="10" />\n'
+        "    </Container_Node>\n  </BaseWndProperty>\n</Root_Node>",
+    )
+    custom = official.replace('Child_Cnt="1"', 'Child_Cnt="0"').replace(
+        '      <Style CtrlType="1" />\n      <BaseWndProperty WindowID="5130" WindowLeft="3" WindowTop="4" WindowHeight="10" WindowWidth="10" />\n', ""
+    )
+    game = tmp_path / "Game"
+    (game / "UI").mkdir(parents=True)
+    data = official.encode("big5")
+    (game / "UI" / "Storage.xml").write_bytes(data)
+    (game / "client.ini").write_text("[Option]\n", encoding="utf-8")
+    (game / "GameDataFileList.txt").write_text(
+        f"UI\\Storage.xml|{len(data)}|{zlib.crc32(data):08X}|1|0|\n", encoding="latin-1"
+    )
+    loose = tmp_path / "Downloads" / "Storage.xml"
+    loose.parent.mkdir()
+    loose.write_bytes(custom.encode("big5"))
+    QSettings("Local", "GF UI Editor").setValue("game_dir", str(game))
+
+    monkeypatch.setattr(app_module.OfficialControlsDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    window = EditorWindow(loose)
+    before = len(window.document.elements)
+    window.open_official_compare(focus_id="5130")
+    assert len(window.document.elements) == before + 1
+    assert window.document.is_dirty
+    inserted = next(index for index, element in enumerate(window.document.elements) if element.window_id == "5130")
+    assert window.selected_index == inserted
+
+    window.undo_stack.undo()
+    assert len(window.document.elements) == before and not window.document.is_dirty
+    window.undo_stack.redo()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    monkeypatch.setattr(app_module.QMessageBox, "information", lambda *args, **kwargs: None)
+    window.save_document()
+    assert loose.read_bytes().decode("big5").count('WindowID="5130"') == 1
+    assert 'Child_Cnt="1"' in loose.read_bytes().decode("big5")
+    window.close()
+
+
+def test_texture_of_a_control_can_be_changed_undone_and_saved(tmp_path: Path) -> None:
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    xml = (
+        '<?xml version="1.0" ?>\n<Root_Node UI_File_Name="T.xml">\n'
+        '  <BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80">\n'
+        '    <BackGroundMap BGmap="main.dds"><NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="4" NorUVHeight="4" /></BackGroundMap>\n'
+        '    <Container_Node Child_Cnt="1">\n      <Style CtrlType="1" />\n'
+        '      <BaseWndProperty WindowID="2" WindowHeight="4" WindowWidth="4">\n'
+        '        <BackGroundMap BGmap="main.dds"><NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="4" NorUVHeight="4" /></BackGroundMap>\n'
+        "      </BaseWndProperty>\n    </Container_Node>\n  </BaseWndProperty>\n</Root_Node>\n"
+    )
+    path = tmp_path / "UI" / "T.xml"
+    path.parent.mkdir()
+    path.write_bytes(xml.encode("big5"))
+    window = EditorWindow(path)
+    window.undo_stack.push(app_module.TextureCommand(window, {1: ("main.dds", "meu.dds")}))
+    assert window.document.elements[1].texture_name == "meu.dds" and window.document.is_dirty
+    window.undo_stack.undo()
+    assert window.document.elements[1].texture_name == "main.dds" and not window.document.is_dirty
+    window.undo_stack.redo()
+    window.document.save()
+    saved = path.read_bytes().decode("big5")
+    assert saved == xml.replace('BGmap="main.dds"><NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="4" NorUVHeight="4" /></BackGroundMap>\n      </BaseWndProperty>',
+                                'BGmap="meu.dds"><NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="4" NorUVHeight="4" /></BackGroundMap>\n      </BaseWndProperty>')
+    assert saved.count('BGmap="main.dds"') == 1  # o controle 1 continua com a textura dele
     window.close()

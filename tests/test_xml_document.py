@@ -206,9 +206,31 @@ def test_child_count_mismatch_is_reported_and_fixed_on_save(tmp_path):
     assert document.child_count_mismatches() == [(1, 2)]
     assert not document.is_dirty
 
-    document.fix_child_counts()
+    document.fix_structure()
     assert document.is_dirty
     document.save()
     assert path.read_bytes() == xml.replace('Child_Cnt="1"', 'Child_Cnt="2"').encode("big5")
     assert not document.is_dirty
     assert UIDocument.load(path).child_count_mismatches() == []
+
+
+def test_stray_text_between_tags_is_reported_and_removed_on_save(tmp_path):
+    from gf_ui_editor.xml_document import UIDocument
+
+    xml = (
+        '<?xml version="1.0" ?>\n<Root_Node UI_File_Name="T.xml">\n'
+        '  <BaseWndProperty WindowID="1" WindowText="a>b">\n    <Container_Node Child_Cnt="1">\n'
+        '      <Style CtrlType="1" />\n      <BaseWndProperty WindowID="2" />\n'
+        '      <Style CtrlType="1" />  Description="" />\n      <BaseWndProperty WindowID="3" />\n'
+        '    </Container_Node>\n  </BaseWndProperty>\n</Root_Node>\n'
+    )
+    path = tmp_path / "T.xml"
+    path.write_bytes(xml.encode("big5"))
+    document = UIDocument.load(path)
+    assert document.stray_texts() == [(7, 'Description="" />')]  # o ">" do WindowText não conta
+
+    document.fix_structure()
+    document.save()
+    expected = xml.replace('  Description="" />', "").replace('Child_Cnt="1"', 'Child_Cnt="2"')
+    assert path.read_bytes() == expected.encode("big5")
+    assert UIDocument.load(path).stray_texts() == []

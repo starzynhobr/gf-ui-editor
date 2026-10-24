@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import difflib
+import hashlib
 from html import escape
 import os
 from pathlib import Path
@@ -15,7 +16,7 @@ import tempfile
 import time
 import zipfile
 
-from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -45,6 +46,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -76,6 +79,7 @@ from .game_layout import (
     root_screen_position,
     is_centered,
     looks_like_game_dir,
+    normalize_game_dir,
     placement,
     rule_for,
     saved_position_applies,
@@ -85,6 +89,20 @@ from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, sw
 from .icons import MONO_FONT, UI_FONT, icon, load_fonts
 from .interaction import install_pointer_cursors
 from . import backgrounds
+from .game_updates import (
+    FileDiff,
+    control_info,
+    error_candidates,
+    file_diff,
+    insert_controls,
+    missing_controls,
+    official_text_for,
+    parse_game_error,
+    cached_count,
+    reference_ready,
+    scan as scan_official,
+    snapshot_official_ui,
+)
 from . import release_notes, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
@@ -94,6 +112,8 @@ from .project import (
     extract_ui_zip,
     is_backup_file,
     list_projects,
+    selected_ui,
+    projects_publishing_to,
     safe_name,
 )
 from .atlas_dialog import AtlasDialog
@@ -214,7 +234,20 @@ class NewProjectDialog(QDialog):
         game_dir_row.setContentsMargins(0, 0, 0, 0)
         game_dir_row.addWidget(self.game_dir_edit, 1)
         game_dir_row.addWidget(game_dir_button)
+        self.game_dir_warning = QLabel(
+            self.tr("Esta pasta não parece ser a do jogo: escolha a pasta que tem o client.ini e as pastas UI e UICustom.")
+        )
+        self.game_dir_warning.setWordWrap(True)
+        self.game_dir_warning.setObjectName("warningHint")
         self.source_combo = QComboBox()
+        self.publish_combo = QComboBox()
+        self.publish_combo.setToolTip(
+            self.tr("Pasta de UICustom que Enviar para o jogo atualiza; é a UI que você escolhe no launcher.")
+        )
+        self.publish_warning = QLabel()
+        self.publish_warning.setWordWrap(True)
+        self.publish_warning.setObjectName("warningHint")
+        self.publish_warning.setVisible(False)
         self._fill_sources()
         self.assets_check = QCheckBox(
             self.tr("Incluir ícones de itens, skills e telas de carregamento (~18 mil arquivos)")
@@ -233,7 +266,10 @@ class NewProjectDialog(QDialog):
         form = QFormLayout()
         form.addRow(self.tr("Nome"), self.name_edit)
         form.addRow(self.tr("Pasta do jogo"), game_dir_row)
+        form.addRow("", self.game_dir_warning)
         form.addRow(self.tr("Começar a partir de"), self.source_combo)
+        form.addRow(self.tr("Enviar para"), self.publish_combo)
+        form.addRow("", self.publish_warning)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -259,6 +295,10 @@ class NewProjectDialog(QDialog):
         self._last_index = 0
         self.source_combo.currentIndexChanged.connect(self._suggest_name)
         self.source_combo.activated.connect(self._source_activated)
+        self.source_combo.currentIndexChanged.connect(self._fill_publish_targets)
+        self.name_edit.textChanged.connect(self._fill_publish_targets)
+        self.publish_combo.currentIndexChanged.connect(self._check_publish_target)
+        self._fill_publish_targets()
 
     PICK_FOLDER = "?folder"
     PICK_ZIP = "?zip"
@@ -288,9 +328,51 @@ class NewProjectDialog(QDialog):
         self.loose_check.setToolTip("\n".join(path.name for path in self.loose_files))
         self.loose_check.setVisible(True)
 
+    def _fill_publish_targets(self, *_args) -> None:
+        """Pasta própria do projeto, ou a UI de UICustom de onde ele partiu."""
+        current = self.publish_combo.currentData()
+        name = safe_name(self.name_edit.text().strip()) if self.name_edit.text().strip() else ""
+        with QSignalBlocker(self.publish_combo):
+            self.publish_combo.clear()
+            self.publish_combo.addItem(
+                self.tr("UICustom/{name} (pasta própria do projeto)").format(name=name or self.tr("nome do projeto")), ""
+            )
+            text = self.source_combo.currentText()
+            if text.startswith("UICustom/"):
+                origin = text.split("/", 1)[1]
+                self.publish_combo.addItem(
+                    self.tr("UICustom/{name} (atualiza a UI de origem)").format(name=origin), origin
+                )
+            index = self.publish_combo.findData(current)
+            self.publish_combo.setCurrentIndex(max(index, 0))
+        self._check_publish_target()
+
+    def _check_publish_target(self, *_args) -> None:
+        folder = self.publish_combo.currentData() or (
+            safe_name(self.name_edit.text().strip()) if self.name_edit.text().strip() else ""
+        )
+        message = ""
+        if folder:
+            others = projects_publishing_to(folder)
+            if others:
+                message = self.tr(
+                    "O projeto {projects} também envia para UICustom/{folder}: um vai sobrescrever o outro no jogo."
+                ).format(projects=", ".join(others), folder=folder)
+            elif (
+                not self.publish_combo.currentData()
+                and self.game_dir is not None
+                and (self.game_dir / "UICustom" / folder).is_dir()
+            ):
+                message = self.tr(
+                    "UICustom/{folder} já existe: Enviar para o jogo vai atualizar os arquivos dela."
+                ).format(folder=folder)
+        self.publish_warning.setText(message)
+        self.publish_warning.setVisible(bool(message))
+
     def _fill_sources(self) -> None:
         """Fontes da UI: as da pasta do jogo (UI e UICustom) mais "Outra pasta…" e ".zip…"."""
         self.game_dir_edit.setText(str(self.game_dir) if self.game_dir is not None else "")
+        self.game_dir_warning.setVisible(self.game_dir is not None and not looks_like_game_dir(self.game_dir))
         self.source_combo.clear()
         if self.game_dir is not None:
             for label, path in custom_ui_sources(self.game_dir):
@@ -305,8 +387,9 @@ class NewProjectDialog(QDialog):
             self, self.tr("Pasta do Grand Fantasia Violet"), str(self.game_dir or "")
         )
         if chosen:
-            self.game_dir = Path(chosen)
+            self.game_dir = normalize_game_dir(Path(chosen))
             self._fill_sources()
+            self._fill_publish_targets()
 
     def _suggest_name(self, _index: int = 0) -> None:
         text = self.source_combo.currentText()
@@ -346,18 +429,322 @@ class NewProjectDialog(QDialog):
             return
         data = self.source_combo.currentData()
         self.source_dir = Path(data)
-        text = self.source_combo.currentText()
-        # Projeto vindo de uma UI de UICustom publica de volta nela (o launcher já a conhece).
-        self.publish_folder = text.split("/", 1)[1] if text.startswith("UICustom/") else ""
+        self.publish_folder = self.publish_combo.currentData() or ""
         if not self.loose_check.isChecked():
             self.loose_files = []
         self.accept()
+
+
+class OfficialUIDialog(QDialog):
+    """Guarda uma cópia da UI oficial para comparar; ensina a deixá-la na pasta UI pelo launcher."""
+
+    # O launcher mostra "UI Padrão" em todos os idiomas; no Launcher.ini ela é "padrao".
+    LAUNCHER_NAME = "UI Padrão"
+
+    def __init__(self, game_dir: Path, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.game_dir = game_dir
+        self.setWindowTitle(self.tr("UI oficial de referência"))
+        self.setMinimumWidth(520)
+        intro = QLabel(
+            self.tr(
+                "O editor guarda uma cópia da UI oficial do jogo para comparar com a sua: é assim que ele "
+                "sabe quais controles faltam e quais vieram de uma atualização. Basta guardar uma vez por "
+                "atualização do jogo."
+            )
+        )
+        intro.setWordWrap(True)
+        self.status = QLabel()
+        self.status.setObjectName("panelTitle")
+        self.status.setWordWrap(True)
+        self.save_button = QPushButton(self.tr("Guardar UI oficial agora"))
+        self.save_button.setObjectName("accentPush")
+        self.save_button.clicked.connect(self.try_snapshot)
+        self.tutorial = QFrame()
+        self.tutorial.setObjectName("card")
+        tutorial_layout = QVBoxLayout(self.tutorial)
+        tutorial_layout.setContentsMargins(14, 12, 14, 12)
+        tutorial_layout.setSpacing(8)
+        heading = QLabel(self.tr("A pasta UI do jogo está com outra UI"))
+        heading.setObjectName("cardHeading")
+        steps = QLabel(
+            self.tr(
+                "1. No launcher, escolha \"{name}\" na lista de UIs.\n"
+                "2. Clique em Jogar uma vez (pode fechar o jogo logo depois).\n"
+                "3. Volte aqui: o editor tenta de novo sozinho a cada poucos segundos.\n\n"
+                "Depois você pode voltar a escolher a sua UI no launcher."
+            ).format(name=self.LAUNCHER_NAME)
+        )
+        steps.setWordWrap(True)
+        self.launcher_state = QLabel()
+        self.launcher_state.setObjectName("panelSubtitle")
+        retry = QPushButton(self.tr("Já fiz, tentar de novo"))
+        retry.clicked.connect(self.try_snapshot)
+        tutorial_layout.addWidget(heading)
+        tutorial_layout.addWidget(steps)
+        tutorial_layout.addWidget(self.launcher_state)
+        tutorial_layout.addWidget(retry, 0, Qt.AlignmentFlag.AlignLeft)
+        self.tutorial.setVisible(False)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText(self.tr("Fechar"))
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.addWidget(intro)
+        layout.addWidget(self.status)
+        layout.addWidget(self.save_button, 0, Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.tutorial)
+        layout.addWidget(buttons)
+        self.timer = QTimer(self)
+        self.timer.setInterval(3000)
+        self.timer.timeout.connect(lambda: self.try_snapshot(automatic=True))
+        self._refresh_status()
+
+    def _refresh_status(self) -> None:
+        cached, total = cached_count(self.game_dir)
+        if total == 0:
+            self.status.setText(self.tr("Não encontrei o GameDataFileList.txt do launcher nesta pasta do jogo."))
+            self.save_button.setEnabled(False)
+        elif reference_ready(self.game_dir):
+            self.status.setText(
+                self.tr("Guardada: {cached} de {total} arquivos da UI oficial atual.").format(cached=cached, total=total)
+            )
+        else:
+            self.status.setText(
+                self.tr("Ainda não guardada: {cached} de {total} arquivos da UI oficial atual.").format(cached=cached, total=total)
+            )
+        current = selected_ui(self.game_dir / "Launcher.ini")
+        name = self.LAUNCHER_NAME if current.lower() in ("", "padrao") else current.split(":", 1)[-1]
+        self.launcher_state.setText(self.tr("No launcher agora: {name}").format(name=name))
+
+    def try_snapshot(self, automatic: bool = False) -> None:
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            snapshot_official_ui(self.game_dir)
+        finally:
+            QApplication.restoreOverrideCursor()
+        self._refresh_status()
+        ready = reference_ready(self.game_dir)
+        self.tutorial.setVisible(not ready)
+        if ready:
+            self.timer.stop()
+            self.save_button.setText(self.tr("Pronto"))
+            self.save_button.setEnabled(False)
+        elif not self.timer.isActive():
+            self.timer.start()
+
+    def done(self, result: int) -> None:
+        self.timer.stop()
+        super().done(result)
+
+
+class _PickRow(QFrame):
+    """Linha da tabela de controles: clicar em qualquer ponto marca ou desmarca."""
+
+    COLUMNS = (70, 120, 0, 110)  # ID, tipo, textura (estica), posição
+
+    def __init__(self, cells: list[str], checked: bool, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("pickRow")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 7, 10, 7)
+        layout.setSpacing(10)
+        self.check = QCheckBox()
+        self.check.setObjectName("pickCheck")
+        self.check.setFixedWidth(20)
+        self.check.toggled.connect(self._sync)
+        layout.addWidget(self.check)
+        for text, width in zip(cells, self.COLUMNS, strict=True):
+            label = QLabel(text)
+            label.setObjectName("pickCell")
+            if width:
+                label.setFixedWidth(width)
+                layout.addWidget(label)
+            else:
+                label.setMinimumWidth(80)
+                layout.addWidget(label, 1)
+        self.check.setChecked(checked)
+        self._sync(checked)
+
+    def _sync(self, checked: bool) -> None:
+        self.setProperty("checked", checked)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.check.toggle()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    @staticmethod
+    def header(titles: list[str]) -> QWidget:
+        header = QWidget()
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(11, 0, 11, 0)  # mesma margem das linhas, mais a borda delas
+        layout.setSpacing(10)
+        spacer = QWidget()
+        spacer.setFixedWidth(20)
+        layout.addWidget(spacer)
+        for text, width in zip(titles, _PickRow.COLUMNS, strict=True):
+            label = QLabel(text)
+            label.setObjectName("sectionLabel")
+            if width:
+                label.setFixedWidth(width)
+                layout.addWidget(label)
+            else:
+                layout.addWidget(label, 1)
+        return header
+
+
+class OfficialControlsDialog(QDialog):
+    """Controles da UI oficial que o arquivo aberto não tem; a pessoa escolhe quais entram."""
+
+    def __init__(
+        self,
+        file_name: str,
+        new_ids: list[str],
+        other_ids: list[str],
+        infos: dict,
+        focus_id: str | None = None,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Controles da UI oficial"))
+        self.setMinimumSize(560, 520)
+        title = QLabel(self.tr("Controles do oficial que {file} não tem").format(file=file_name))
+        title.setObjectName("panelTitle")
+        title.setWordWrap(True)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText(self.tr("Buscar WindowID, ex.: 8301"))
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+        self.checks: list[tuple[str, QCheckBox]] = []
+        rows = QWidget()
+        rows_layout = QVBoxLayout(rows)
+        rows_layout.setContentsMargins(0, 0, 0, 0)
+        rows_layout.setSpacing(6)
+        rows_layout.addWidget(
+            _PickRow.header([self.tr("ID"), self.tr("TIPO"), self.tr("TEXTURA DO OFICIAL"), self.tr("POSIÇÃO")])
+        )
+        self.sections: list[tuple[QLabel, list[_PickRow]]] = []
+        for heading, ids, checked in (
+            (self.tr("NOVOS NA ATUALIZAÇÃO DO JOGO"), new_ids, True),
+            (self.tr("OUTROS QUE O OFICIAL TEM (PODEM TER SIDO REMOVIDOS DE PROPÓSITO)"), other_ids, False),
+        ):
+            if not ids:
+                continue
+            label = QLabel(heading)
+            label.setObjectName("sectionLabel")
+            label.setWordWrap(True)
+            rows_layout.addWidget(label)
+            members = []
+            for window_id in ids:
+                info = infos.get(window_id)
+                cells = [
+                    window_id,
+                    kind_label(info.kind) if info is not None else "—",
+                    (info.texture or "—") if info is not None else "—",
+                    f"{info.position[0]}, {info.position[1]}" if info is not None else "—",
+                ]
+                row = _PickRow(cells, checked if focus_id is None else window_id == focus_id)
+                row.setProperty("window_id", window_id)
+                row.check.toggled.connect(self._update_button)
+                rows_layout.addWidget(row)
+                members.append(row)
+                self.checks.append((window_id, row.check))
+            self.sections.append((label, members))
+        rows_layout.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(rows)
+        note = QLabel(
+            self.tr(
+                "Entram na mesma posição do arquivo oficial e o resto do arquivo não muda. "
+                "Dá para desfazer (Ctrl+Z); nada é gravado até você salvar."
+            )
+        )
+        note.setWordWrap(True)
+        note.setObjectName("panelSubtitle")
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(self.tr("Cancelar"))
+        self.add_button = buttons.addButton("", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.add_button.setObjectName("accentPush")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.addWidget(title)
+        layout.addWidget(self.search)
+        layout.addWidget(scroll, 1)
+        layout.addWidget(note)
+        layout.addWidget(buttons)
+        if focus_id is not None:
+            self.search.setText(focus_id)
+        self._update_button()
+
+    def _filter(self, text: str) -> None:
+        needle = text.strip()
+        for label, members in self.sections:
+            visible = 0
+            for row in members:
+                shown = not needle or str(row.property("window_id")).startswith(needle)
+                row.setVisible(shown)
+                visible += shown
+            label.setVisible(visible > 0)
+
+    def _update_button(self, *_args) -> None:
+        count = len(self.selected_ids())
+        self.add_button.setText(self.tr("Adicionar {count}").format(count=count))
+        self.add_button.setEnabled(count > 0)
+
+    def selected_ids(self) -> list[str]:
+        return [window_id for window_id, check in self.checks if check.isChecked()]
+
+
+class TextureCommand(QUndoCommand):
+    def __init__(self, window: "EditorWindow", changes: dict[int, tuple[str, str]]):
+        super().__init__(QCoreApplication.translate("EditorWindow", "Trocar textura de {count} controle(s)").format(count=len(changes)))
+        self.window, self.changes = window, changes
+
+    def redo(self) -> None:
+        for index, (_old, new) in self.changes.items():
+            self.window.apply_texture(index, new)
+
+    def undo(self) -> None:
+        for index, (old, _new) in self.changes.items():
+            self.window.apply_texture(index, old)
+
+
+class _ScanSignals(QObject):
+    """Entrega à thread da interface o resultado da comparação feita em segundo plano."""
+
+    done = Signal(object)
+
+
+class StructureCommand(QUndoCommand):
+    """Troca o documento inteiro (controles inseridos); desfazer volta ao anterior."""
+
+    def __init__(self, window: "EditorWindow", old, new, inserted: list[str]):
+        super().__init__(
+            QCoreApplication.translate("EditorWindow", "Adicionar {count} controle(s) do oficial").format(count=len(inserted))
+        )
+        self.window, self.old, self.new, self.inserted = window, old, new, inserted
+
+    def redo(self) -> None:
+        self.window._swap_document(self.new, self.inserted)
+
+    def undo(self) -> None:
+        self.window._swap_document(self.old, [])
 
 
 class PropertyPanel(QWidget):
     geometry_edited = Signal(tuple)
     ghost_fix_requested = Signal()
     atlas_requested = Signal()
+    texture_change_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -385,6 +772,12 @@ class PropertyPanel(QWidget):
         self.atlas_button = QPushButton(self.tr("Abrir atlas DDS…"))
         self.atlas_button.setEnabled(False)
         self.atlas_button.clicked.connect(self.atlas_requested.emit)
+        self.change_texture_button = QPushButton(self.tr("Trocar .dds…"))
+        self.change_texture_button.setToolTip(
+            self.tr("Usa outro .dds neste controle: um da UI, uma cópia para editar ou um de outra pasta")
+        )
+        self.change_texture_button.setEnabled(False)
+        self.change_texture_button.clicked.connect(self.texture_change_requested.emit)
         self.uv_value = QLabel("—")
         self.font_value = QLabel("—")
         self.visible_value = QCheckBox()
@@ -498,7 +891,8 @@ class PropertyPanel(QWidget):
         )
         self.screen_position_label.setVisible(False)
 
-        self.atlas_button.setIcon(icon("image"))
+        self.atlas_button.setIcon(icon("image", "#ffffff"))
+        self.atlas_button.setObjectName("accentPush")
         texture_form = QFormLayout()
         texture_form.setHorizontalSpacing(12)
         texture_form.setVerticalSpacing(8)
@@ -511,6 +905,8 @@ class PropertyPanel(QWidget):
         layout.addWidget(self.badge_row)
         layout.addWidget(self.selection_title)
         layout.addWidget(self.selection_subtitle)
+        # Bloquear/ocultar/isolar no topo: no fim do painel ninguém os encontrava.
+        layout.addWidget(self.actions_row)
         self.details_container = QWidget()
         details_layout = QVBoxLayout(self.details_container)
         details_layout.setContentsMargins(0, 0, 0, 0)
@@ -520,10 +916,11 @@ class PropertyPanel(QWidget):
                 self.ghost_hint, self.ghost_button,
             )
         )
-        details_layout.addWidget(self._card(self.tr("TEXTURA"), texture_form, self.atlas_button))
+        details_layout.addWidget(
+            self._card(self.tr("TEXTURA"), texture_form, self.atlas_button, self.change_texture_button)
+        )
         details_layout.addWidget(self._card(self.tr("IDENTIFICAÇÃO"), details_form))
         details_layout.addWidget(self._card(self.tr("APARÊNCIA"), appearance_form, explanation))
-        details_layout.addWidget(self._card(self.tr("NO EDITOR"), None, self.actions_row))
         layout.addWidget(self.details_container)
         layout.addStretch(1)
         self.details_container.setVisible(False)
@@ -613,6 +1010,7 @@ class PropertyPanel(QWidget):
                 self.texture_value.clear()
                 self.uv_value.setText("—")
                 self.atlas_button.setEnabled(False)
+                self.change_texture_button.setEnabled(False)
                 self.font_value.setText("—")
                 self.visible_value.setChecked(False)
                 self.set_enabled(False)
@@ -636,6 +1034,7 @@ class PropertyPanel(QWidget):
             self.atlas_button.setEnabled(
                 element.texture_name is not None and element.uv is not None
             )
+            self.change_texture_button.setEnabled(element.original_texture_name is not None)
             self.uv_value.setText(
                 (
                     f"X {element.uv.left} · Y {element.uv.top} · "
@@ -842,6 +1241,11 @@ class EditorWindow(QMainWindow):
         tree_layout.setSpacing(8)
         tree_layout.addWidget(self.search_edit)
         tree_layout.addWidget(self.tree)
+        self.official_button = QPushButton(icon("plus"), self.tr("Adicionar do oficial…"))
+        self.official_button.setToolTip(self.tr("Copia controles da UI oficial que este arquivo não tem"))
+        self.official_button.setEnabled(False)
+        self.official_button.clicked.connect(lambda: self.open_official_compare())
+        tree_layout.addWidget(self.official_button)
 
         self.project_label = QLabel()
         self.project_label.setObjectName("panelTitle")
@@ -881,6 +1285,16 @@ class EditorWindow(QMainWindow):
         self.project_paths_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.project_paths_label.setVisible(False)
         files_layout.addWidget(self.project_paths_label)
+        self.shared_publish_warning = QLabel()
+        self.shared_publish_warning.setObjectName("warningHint")
+        self.shared_publish_warning.setWordWrap(True)
+        self.shared_publish_warning.setVisible(False)
+        files_layout.addWidget(self.shared_publish_warning)
+        self._official_diffs: dict[str, FileDiff] = {}
+        self._official_unavailable = 0
+        self._dismissed_banners: set[str] = set()
+        self._scan_signals = _ScanSignals()
+        self._scan_signals.done.connect(self._official_scan_done)
         self.loose_project_button = QPushButton(icon("folder-plus"), self.tr("Criar projeto com estes arquivos"))
         self.loose_project_button.setToolTip(
             self.tr("Copia a UI do jogo para um projeto com estes XML por cima; depois é só usar Enviar para o jogo.")
@@ -903,6 +1317,7 @@ class EditorWindow(QMainWindow):
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
         self.properties.ghost_fix_requested.connect(self.remove_ghost_area)
         self.properties.atlas_requested.connect(self.open_selected_atlas)
+        self.properties.texture_change_requested.connect(self.change_selected_texture)
         properties_scroll = QScrollArea()
         properties_scroll.setObjectName("propertiesScroll")
         properties_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -913,7 +1328,33 @@ class EditorWindow(QMainWindow):
         self.empty_page = self._build_empty_page()
         self.center_stack = QStackedWidget()
         self.center_stack.addWidget(self.empty_page)
-        self.center_stack.addWidget(self.view)
+        self.canvas_page = QWidget()
+        canvas_layout = QVBoxLayout(self.canvas_page)
+        canvas_layout.setContentsMargins(0, 0, 0, 0)
+        canvas_layout.setSpacing(0)
+        self.official_banner = QFrame()
+        self.official_banner.setObjectName("updateBanner")
+        banner_layout = QHBoxLayout(self.official_banner)
+        banner_layout.setContentsMargins(14, 8, 8, 8)
+        banner_layout.setSpacing(10)
+        banner_icon = QLabel()
+        banner_icon.setPixmap(icon("info", COLORS["SELECTION_GOLD"], 18).pixmap(18, 18))
+        self.official_banner_text = QLabel()
+        self.official_banner_text.setWordWrap(True)
+        banner_button = QPushButton(self.tr("Ver e adicionar"))
+        banner_button.clicked.connect(lambda: self.open_official_compare())
+        banner_close = QToolButton()
+        banner_close.setText("✕")
+        banner_close.setToolTip(self.tr("Dispensar"))
+        banner_close.clicked.connect(self._dismiss_official_banner)
+        banner_layout.addWidget(banner_icon)
+        banner_layout.addWidget(self.official_banner_text, 1)
+        banner_layout.addWidget(banner_button)
+        banner_layout.addWidget(banner_close)
+        self.official_banner.setVisible(False)
+        canvas_layout.addWidget(self.official_banner)
+        canvas_layout.addWidget(self.view, 1)
+        self.center_stack.addWidget(self.canvas_page)
         canvas_panel = self.center_stack
 
         splitter = QSplitter()
@@ -982,6 +1423,17 @@ class EditorWindow(QMainWindow):
         )
         self.import_action.setEnabled(False)
         self.import_action.triggered.connect(self.import_files)
+        self.official_compare_action = QAction(self.tr("Comparar com a UI oficial…"), self)
+        self.official_compare_action.setToolTip(
+            self.tr("Mostra os controles da UI oficial que o XML aberto não tem")
+        )
+        self.official_compare_action.setEnabled(False)
+        self.official_compare_action.triggered.connect(lambda: self.open_official_compare())
+        self.game_error_action = QAction(self.tr("Resolver erro do jogo…"), self)
+        self.game_error_action.setToolTip(
+            self.tr("Cole a mensagem \"Child control can not found\" do jogo para achar o XML e o controle")
+        )
+        self.game_error_action.triggered.connect(self.resolve_game_error)
         self.project_folder_action = QAction(self.tr("Abrir pasta do projeto"), self)
         self.project_folder_action.setEnabled(False)
         self.project_folder_action.triggered.connect(
@@ -1124,6 +1576,11 @@ class EditorWindow(QMainWindow):
         project_menu = self.menuBar().addMenu(self.tr("Projeto"))
         project_menu.addAction(self.test_action)
         project_menu.addAction(self.import_action)
+        self.official_reference_action = QAction(self.tr("UI oficial de referência…"), self)
+        self.official_reference_action.triggered.connect(lambda: self.open_official_reference())
+        project_menu.addAction(self.official_reference_action)
+        project_menu.addAction(self.official_compare_action)
+        project_menu.addAction(self.game_error_action)
         project_menu.addAction(self.export_action)
         self.publish_folder_action = QAction(self.tr("Pasta de publicação…"), self)
         self.publish_folder_action.setEnabled(False)
@@ -1635,6 +2092,20 @@ class EditorWindow(QMainWindow):
             QLabel#progressHint { color: ${TEXT_MUTED}; background: transparent; }
             QPushButton#accentPush { background: ${ACCENT_BG}; color: ${WHITE}; border: 0; font-weight: 600; }
             QPushButton#accentPush:hover { background: ${ACCENT_HOVER_BG}; }
+            QFrame#updateBanner { background: ${WARNING_BG}; border-bottom: 1px solid ${WARNING_BORDER}; }
+            QFrame#updateBanner QLabel { color: ${WARNING_TEXT}; background: transparent; }
+            QToolButton#chip { background: ${CHIP_BG}; color: ${TEXT_MUTED}; border: 0; border-radius: 9px; padding: 1px 9px; margin: 3px 2px; font-size: 11px; }
+            QToolButton#chipWarning { background: #3a2e12; color: ${SELECTION_GOLD}; border: 0; border-radius: 9px; padding: 1px 9px; margin: 3px 2px; font-size: 11px; font-weight: 600; }
+            QToolButton#chip:hover, QToolButton#chipWarning:hover { color: ${TEXT_BRIGHT}; }
+            QFrame#pickRow { background: ${CARD_BG}; border: 1px solid ${CARD_BORDER}; border-radius: 8px; }
+            QFrame#pickRow:hover { border-color: ${BUTTON_HOVER_BORDER}; }
+            QFrame#pickRow[checked="true"] { background: ${ACCENT_SOFT_BG}; border-color: ${ACCENT_BG}; }
+            QFrame#pickRow QLabel#pickCell { background: transparent; color: ${TEXT_MUTED}; }
+            QFrame#pickRow[checked="true"] QLabel#pickCell { color: ${TEXT_BRIGHT}; }
+            QCheckBox#pickCheck::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1px solid ${BORDER_INPUT}; background: ${PANEL_BG}; }
+            QCheckBox#pickCheck::indicator:checked { background: ${ACCENT_BG}; border-color: ${ACCENT_BG}; }
+            QPushButton#accentPush:disabled { background: ${BUTTON_HOVER_BG}; color: ${TEXT_MUTED}; }
+            QPushButton#accentPush:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; border: 1px solid ${ACCENT_BG}; }
             QLabel#hintBox {
                 background: ${ACCENT_SOFT_BG};
                 color: ${ACCENT_TEXT};
@@ -1691,6 +2162,9 @@ class EditorWindow(QMainWindow):
                 border-radius: 10px;
             }
             QFrame#card QWidget { background: transparent; }
+            QFrame#card QPushButton#accentPush { background: ${ACCENT_BG}; }
+            QFrame#card QPushButton#accentPush:hover { background: ${ACCENT_HOVER_BG}; }
+            QFrame#card QPushButton#accentPush:disabled { background: ${BUTTON_HOVER_BG}; }
             QFrame#floatingBar {
                 background: ${CHIP_BG};
                 border: 1px solid ${BORDER_INPUT};
@@ -1890,30 +2364,38 @@ class EditorWindow(QMainWindow):
         self._refresh_files()
         self.fit_scene()
         self._start_texture_loading()
-        self._check_child_counts()
+        self._update_official_banner()
+        self._check_xml_structure()
 
-    def _check_child_counts(self) -> None:
-        """Child_Cnt menor que o número de controles faz o jogo ignorar os últimos."""
+    def _check_xml_structure(self) -> None:
+        """Texto solto entre as tags (sobra de edição manual) trava o jogo ou some com controles.
+
+        Child_Cnt diferente sozinho não é avisado: vários XML originais do jogo
+        têm a contagem errada e funcionam.
+        """
         assert self.document is not None
-        mismatches = self.document.child_count_mismatches()
-        if not mismatches:
+        strays = self.document.stray_texts()
+        if not strays:
             return
-        declared, actual = mismatches[0]
+        line, text = strays[0]
+        details = self.tr("Linha {line}: {text}").format(line=line, text=text[:60])
+        if len(strays) > 1:
+            details += "\n" + self.tr("(e mais {count} trecho(s) assim)").format(count=len(strays) - 1)
         answer = QMessageBox.warning(
             self,
-            self.tr("Contagem de controles incorreta"),
+            self.tr("Texto solto no XML"),
             self.tr(
-                "Este arquivo declara Child_Cnt=\"{declared}\", mas tem {actual} controles. "
-                "O jogo lê só a quantidade declarada e pode mostrar o erro "
-                "\"Child control can not found\".\n\nCorrigir para {actual}? A correção é gravada ao salvar."
-            ).format(declared=declared, actual=actual),
+                "Este arquivo tem texto solto entre as tags, sobra de edição manual:\n\n{details}\n\n"
+                "O jogo pode travar ou mostrar \"Child control can not found\". Remover esse texto e "
+                "acertar o Child_Cnt? A correção é gravada ao salvar."
+            ).format(details=details),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if answer == QMessageBox.StandardButton.Yes:
-            self.document.fix_child_counts()
+            self.document.fix_structure()
             self._update_title()
-            self.statusBar().showMessage(self.tr("Child_Cnt será corrigido ao salvar."), 6000)
+            self.statusBar().showMessage(self.tr("O XML será corrigido ao salvar."), 6000)
 
     def _rebuild_scene(self, *, load_textures: bool = True) -> None:
         assert self.document is not None and self.texture_cache is not None
@@ -2828,6 +3310,124 @@ class EditorWindow(QMainWindow):
         self.document.set_button_uv(index, state, uv)
         self._update_title()
 
+    def apply_texture(self, index: int, name: str) -> None:
+        assert self.document is not None
+        self.document.set_texture(index, name)
+        self._refresh_element_texture(index)
+        if self.selected_index == index:
+            self.properties.set_element(self.document.elements[index])
+        self._watch_texture_files()
+        self._update_title()
+
+    def change_selected_texture(self) -> None:
+        """Troca o BGmap do controle: outro .dds da UI, uma cópia para editar ou um de fora."""
+        if self.document is None or self.selected_index is None or self.texture_cache is None:
+            return
+        index = self.selected_index
+        if index in self.locked_indexes or not self.document.texture_editable(index):
+            return
+        current = self.document.elements[index].texture_name or ""
+        folder = self.texture_cache.ui_directory
+        menu = QMenu(self)
+        use_other = menu.addAction(self.tr("Usar outro .dds desta UI…"))
+        copy_current = menu.addAction(self.tr("Criar cópia de {name} para editar…").format(name=current))
+        copy_current.setEnabled(bool(current) and self.texture_cache.path_for(current) is not None)
+        bring = menu.addAction(self.tr("Trazer .dds de outra pasta…"))
+        button = self.properties.change_texture_button
+        chosen = menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+        if chosen is None:
+            return
+        name = None
+        if chosen is use_other:
+            names = sorted(
+                (path.name for path in folder.iterdir() if path.suffix.lower() in (".dds", ".tga") and path.is_file()),
+                key=str.lower,
+            )
+            if not names:
+                return
+            name, accepted = QInputDialog.getItem(
+                self, self.tr("Trocar .dds"), self.tr("Textura para este controle:"),
+                names, names.index(current) if current in names else 0, False,
+            )
+            if not accepted:
+                return
+        elif chosen is copy_current:
+            source = self.texture_cache.path_for(current)
+            suggestion = f"{Path(current).stem}_custom{Path(current).suffix or '.dds'}"
+            name, accepted = QInputDialog.getText(
+                self, self.tr("Criar cópia do .dds"), self.tr("Nome do novo arquivo (fica na pasta da UI):"), text=suggestion
+            )
+            name = name.strip()
+            if not accepted or not name:
+                return
+            if not name.lower().endswith((".dds", ".tga")):
+                name += ".dds"
+            target = folder / name
+            if target.exists():
+                QMessageBox.warning(self, self.tr("Criar cópia do .dds"), self.tr("Já existe {name} nesta pasta.").format(name=name))
+                return
+            try:
+                shutil.copy2(source, target)
+            except OSError as exc:
+                QMessageBox.critical(self, self.tr("Criar cópia do .dds"), str(exc))
+                return
+        elif chosen is bring:
+            filename, _filter = QFileDialog.getOpenFileName(
+                self, self.tr("Trazer .dds"), "", self.tr("Texturas (*.dds *.tga)")
+            )
+            if not filename:
+                return
+            source = Path(filename)
+            name = source.name
+            target = folder / name
+            if os.path.normcase(str(source.resolve())) != os.path.normcase(str(target.resolve())):
+                if target.exists():
+                    answer = QMessageBox.question(
+                        self, self.tr("Trazer .dds"),
+                        self.tr("Já existe {name} nesta UI. Substituir?").format(name=name),
+                    )
+                    if answer != QMessageBox.StandardButton.Yes:
+                        return
+                    if self.project is not None and self.project.contains(target):
+                        self.project.remember_original(target)
+                        shutil.copy2(target, self.project.history_path_for(target))
+                try:
+                    shutil.copy2(source, target)
+                except OSError as exc:
+                    QMessageBox.critical(self, self.tr("Trazer .dds"), str(exc))
+                    return
+                self.texture_cache.invalidate(target)
+        if not name or name == current:
+            return
+        if self.project is not None:
+            self.project.files(refresh=True)
+            self._refresh_files()
+        changes = {index: (current, name)}
+        others = [
+            element.index
+            for element in self.document.elements
+            if element.index != index
+            and element.texture_name == current
+            and element.index not in self.locked_indexes
+            and self.document.texture_editable(element.index)
+        ]
+        if others:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Trocar .dds"),
+                self.tr("Trocar também nos outros {count} controle(s) deste XML que usam {old}?").format(
+                    count=len(others), old=current
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                changes.update({other: (current, name) for other in others})
+        self.undo_stack.push(TextureCommand(self, changes))
+        self.statusBar().showMessage(
+            self.tr("{count} controle(s) agora usam {name}. Salve para gravar.").format(count=len(changes), name=name), 8000
+        )
+
     def open_selected_atlas(self) -> None:
         if self._textures_pending:
             self.statusBar().showMessage(self.tr("Aguarde o carregamento das texturas para abrir o atlas."), 4000)
@@ -3158,6 +3758,7 @@ class EditorWindow(QMainWindow):
         self._update_title()
         if in_project:
             self.project.prune_history(self.document.path)
+            self._refresh_official_diff()
             self._refresh_files()
             self.statusBar().showMessage(
                 self.tr("Salvo no projeto. O jogo só recebe as mudanças com Enviar para o jogo (F5)."), 10000
@@ -3299,6 +3900,10 @@ class EditorWindow(QMainWindow):
         while self.recent_layout.count():
             widget = self.recent_layout.takeAt(0).widget()
             if widget is not None:
+                # Fora do layout ele ainda é desenhado até o deleteLater rodar: sem isto,
+                # redesenhos seguidos empilham as linhas antigas sobre as novas.
+                widget.hide()
+                widget.setParent(None)
                 widget.deleteLater()
         projects = self._recent_projects(5)
         self.recent_label.setVisible(bool(projects))
@@ -3332,7 +3937,7 @@ class EditorWindow(QMainWindow):
             self._refresh_recent_projects()
             self.center_stack.setCurrentWidget(self.empty_page)
         else:
-            self.center_stack.setCurrentWidget(self.view)
+            self.center_stack.setCurrentWidget(self.canvas_page)
 
     def _build_canvas_overlays(self) -> None:
         bar = QFrame(self.view)
@@ -3421,6 +4026,12 @@ class EditorWindow(QMainWindow):
             chip.setVisible(False)
             self.statusBar().addWidget(chip)
             self.status_chips.append(chip)
+        self.reference_chip = QToolButton()
+        self.reference_chip.setObjectName("chip")
+        self.reference_chip.setVisible(False)
+        self.reference_chip.setToolTip(self.tr("Cópia da UI oficial usada para comparar e achar controles que faltam"))
+        self.reference_chip.clicked.connect(lambda: self.open_official_reference())
+        self.statusBar().addPermanentWidget(self.reference_chip)
         self.cursor_position_label.setObjectName("monoCaption")
 
     def _update_status_chips(self) -> None:
@@ -3448,6 +4059,34 @@ class EditorWindow(QMainWindow):
         for chip in self.status_chips:
             chip.style().unpolish(chip)
             chip.style().polish(chip)
+        self._update_reference_chip()
+
+    def _update_reference_chip(self) -> None:
+        game_dir = self._document_game_dir() or self._game_dir()
+        if game_dir is None or not (game_dir / "GameDataFileList.txt").is_file():
+            self.reference_chip.setVisible(False)
+            return
+        ready = reference_ready(game_dir)
+        self.reference_chip.setText(
+            self.tr("UI oficial: guardada") if ready else self.tr("UI oficial: não guardada · guardar")
+        )
+        self.reference_chip.setObjectName("chip" if ready else "chipWarning")
+        self.reference_chip.style().unpolish(self.reference_chip)
+        self.reference_chip.style().polish(self.reference_chip)
+        self.reference_chip.setVisible(True)
+
+    def open_official_reference(self) -> None:
+        game_dir = self._document_game_dir() or self._game_dir()
+        if game_dir is None:
+            QMessageBox.information(
+                self,
+                self.tr("UI oficial de referência"),
+                self.tr("Defina a pasta do jogo primeiro (Arquivo → Novo projeto → Pasta do jogo)."),
+            )
+            return
+        OfficialUIDialog(game_dir, self).exec()
+        self._update_reference_chip()
+        self._start_official_scan()
 
     def _update_breadcrumb(self) -> None:
         parts = []
@@ -3467,7 +4106,7 @@ class EditorWindow(QMainWindow):
             return self.project.game_dir
         saved = str(QSettings("Local", "GF UI Editor").value("game_dir", ""))
         if saved and Path(saved).is_dir():
-            return Path(saved)
+            return normalize_game_dir(Path(saved))
         game_dir = DEFAULT_UI_DIRECTORY.parent
         return game_dir if game_dir.is_dir() else None
 
@@ -3525,6 +4164,234 @@ class EditorWindow(QMainWindow):
             self.tr("Projeto criado com {count} arquivos.").format(count=len(project.base_hashes)), 8000
         )
         return True
+
+    # ---- UI oficial --------------------------------------------------------
+    def _project_base_bytes(self, relative: str) -> bytes | None:
+        """O arquivo como era na criação do projeto (para saber de qual versão oficial partiu)."""
+        project = self.project
+        if project is None:
+            return None
+        path = project.ui_dir / relative
+        original = project.original_path_for(path)
+        try:
+            if original.is_file():
+                return original.read_bytes()
+            data = path.read_bytes()
+        except OSError:
+            return None
+        key = Path(relative).as_posix()
+        return data if project.base_hashes.get(key) == hashlib.sha1(data).hexdigest() else None
+
+    def _start_official_scan(self) -> None:
+        """Compara a UI do projeto com a oficial em segundo plano (a janela não trava)."""
+        project = self.project
+        if project is None or project.game_dir is None:
+            return
+        game_dir, ui_dir, root = project.game_dir, project.ui_dir, project.root
+        base_bytes = self._project_base_bytes
+        signals = self._scan_signals
+
+        def work() -> None:
+            try:
+                snapshot_official_ui(game_dir)
+                diffs, unavailable = scan_official(game_dir, ui_dir, base_bytes)
+            except Exception:  # noqa: BLE001 - a comparação é só um aviso
+                return
+            signals.done.emit((root, diffs, unavailable))
+
+        Thread(target=work, daemon=True).start()
+
+    def _official_scan_done(self, result) -> None:
+        root, diffs, unavailable = result
+        if self.project is None or self.project.root != root:
+            return
+        self._official_diffs = diffs
+        self._official_unavailable = unavailable
+        self._refresh_files()
+        self._update_official_banner()
+
+    def _official_key(self) -> str | None:
+        if self.document is None:
+            return None
+        if self.project is not None and self.project.contains(self.document.path):
+            return self.document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix().lower()
+        return self.document.path.name.lower()
+
+    def _update_official_banner(self) -> None:
+        key = self._official_key()
+        diff = self._official_diffs.get(key) if key is not None else None
+        show = bool(diff and diff.new_ids) and key not in self._dismissed_banners
+        if show:
+            self.official_banner_text.setText(
+                self.tr("A atualização do jogo trouxe {count} controle(s) que este arquivo não tem ({ids}).").format(
+                    count=len(diff.new_ids), ids=", ".join(diff.new_ids[:6]) + ("…" if len(diff.new_ids) > 6 else "")
+                )
+            )
+        self.official_banner.setVisible(show)
+        has_document = self.document is not None
+        self.official_compare_action.setEnabled(has_document)
+        self.official_button.setEnabled(has_document)
+
+    def _dismiss_official_banner(self) -> None:
+        key = self._official_key()
+        if key is not None:
+            self._dismissed_banners.add(key)
+        self._update_official_banner()
+
+    def _refresh_official_diff(self) -> None:
+        """Recalcula a diferença do arquivo aberto depois de salvar."""
+        project, key = self.project, self._official_key()
+        if project is None or project.game_dir is None or key is None or self.document is None:
+            return
+        relative = self.document.path.resolve().relative_to(project.ui_dir.resolve()).as_posix()
+        diff = file_diff(project.game_dir, project.ui_dir, relative, self._project_base_bytes)
+        if diff is None:
+            self._official_diffs.pop(key, None)
+        else:
+            self._official_diffs[key] = diff
+        self._refresh_files()
+        self._update_official_banner()
+
+    def open_official_compare(self, focus_id: str | None = None) -> None:
+        if self.document is None:
+            return
+        game_dir = self._document_game_dir()
+        relative = self._official_key() or self.document.path.name
+        official = official_text_for(game_dir, relative) if game_dir is not None else None
+        if official is None:
+            answer = QMessageBox.question(
+                self,
+                self.tr("UI oficial indisponível"),
+                self.tr("Não há cópia oficial de {file} para comparar. Guardar a UI oficial agora?").format(
+                    file=self.document.path.name
+                ),
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self.open_official_reference()
+            return
+        current = self.document.render_text()
+        missing = missing_controls(current, official)
+        if not missing:
+            QMessageBox.information(
+                self,
+                self.tr("Controles da UI oficial"),
+                self.tr("{file} já tem todos os controles da UI oficial.").format(file=self.document.path.name),
+            )
+            return
+        diff = self._official_diffs.get(relative.lower())
+        new_ids = [window_id for window_id in missing if diff is not None and window_id in diff.new_ids]
+        other_ids = [window_id for window_id in missing if window_id not in new_ids]
+        dialog = OfficialControlsDialog(
+            self.document.path.name, new_ids, other_ids, control_info(official, missing), focus_id, self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        text, inserted = insert_controls(current, official, set(dialog.selected_ids()))
+        if not inserted:
+            return
+        try:
+            new_document = self.document.with_text(text)
+        except DocumentError as exc:
+            QMessageBox.critical(self, self.tr("Não foi possível adicionar"), document_error_text(exc))
+            return
+        self.undo_stack.push(StructureCommand(self, self.document, new_document, inserted))
+        self.statusBar().showMessage(
+            self.tr("{count} controle(s) do oficial adicionado(s). Ajuste a posição se precisar; salve para gravar.").format(
+                count=len(inserted)
+            ),
+            10000,
+        )
+
+    def _swap_document(self, document: UIDocument, select_ids: list[str]) -> None:
+        """Mostra outro estado do mesmo arquivo (inserção de controles e o desfazer dela)."""
+        self.document = document
+        self.selected_index = None
+        self.locked_indexes.clear()
+        self.hidden_indexes.clear()
+        self.isolated_index = None
+        self.properties.set_element(None)
+        self._rebuild_scene()
+        self._rebuild_tree()
+        self._watch_texture_files()
+        self._update_element_actions()
+        self._update_title()
+        wanted = set(select_ids)
+        indexes = [index for index, element in enumerate(document.elements) if element.window_id in wanted]
+        if indexes:
+            self.select_element(indexes[0])
+            for index in indexes[1:]:
+                item = self.items.get(index)
+                if item is not None:
+                    item.setSelected(True)
+
+    def resolve_game_error(self) -> None:
+        """Do texto do erro do jogo até o XML e o controle que falta."""
+        text, accepted = QInputDialog.getMultiLineText(
+            self,
+            self.tr("Resolver erro do jogo"),
+            self.tr("Cole a mensagem de erro do jogo (por exemplo, a que tem \"Child control can not found\"):"),
+        )
+        if not accepted or not text.strip():
+            return
+        parsed = parse_game_error(text)
+        if parsed is None:
+            QMessageBox.information(
+                self,
+                self.tr("Resolver erro do jogo"),
+                self.tr("Não encontrei um arquivo .cpp e um ID=… nessa mensagem."),
+            )
+            return
+        cpp, window_id = parsed
+        game_dir = self._document_game_dir() or self._game_dir()
+        candidates = error_candidates(game_dir, cpp, window_id) if game_dir is not None else []
+        if not candidates:
+            QMessageBox.information(
+                self,
+                self.tr("Resolver erro do jogo"),
+                self.tr(
+                    "Não sei qual XML o {cpp} usa com o ID {id}, ou não há cópia da UI oficial para conferir. "
+                    "Escolha \"UI Padrão\" no launcher, clique em Jogar uma vez e tente de novo."
+                ).format(cpp=cpp, id=window_id),
+            )
+            return
+        name = candidates[0]
+        if len(candidates) > 1:
+            name, accepted = QInputDialog.getItem(
+                self, self.tr("Resolver erro do jogo"), self.tr("Qual destes arquivos?"), candidates, 0, False
+            )
+            if not accepted:
+                return
+        if self.project is not None:
+            path = self.project.ui_dir / name
+        elif self.document is not None:
+            path = self.document.path.parent / name
+        else:
+            QMessageBox.information(
+                self, self.tr("Resolver erro do jogo"), self.tr("O controle {id} fica em {file}. Abra a UI e tente de novo.").format(id=window_id, file=name)
+            )
+            return
+        if not path.is_file():
+            QMessageBox.information(
+                self, self.tr("Resolver erro do jogo"), self.tr("Esta UI não tem o arquivo {file}.").format(file=name)
+            )
+            return
+        if self.document is None or os.path.normcase(str(self.document.path.resolve())) != os.path.normcase(str(path.resolve())):
+            if not self._confirm_discard_changes():
+                return
+            self.open_document(path)
+            if self.document is None:
+                return
+        if any(element.window_id == window_id for element in self.document.elements):
+            QMessageBox.information(
+                self,
+                self.tr("Resolver erro do jogo"),
+                self.tr(
+                    "{file} já tem o controle {id}. O erro deve vir de outra coisa no arquivo, como texto solto "
+                    "entre as tags; o editor avisa ao abrir quando encontra algo assim."
+                ).format(file=name, id=window_id),
+            )
+            return
+        self.open_official_compare(focus_id=window_id)
 
     def import_files(self) -> None:
         if self.project is None:
@@ -3625,6 +4492,8 @@ class EditorWindow(QMainWindow):
         self.side_tabs.setCurrentIndex(0)
         self._refresh_files()
         self._update_title()
+        self._official_diffs = {}
+        self._start_official_scan()
         last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
         if last and (project.ui_dir / last).is_file() and self.document is None:
             self.open_document(project.ui_dir / last)
@@ -3657,6 +4526,18 @@ class EditorWindow(QMainWindow):
                         path=self.project.game_dir / "UICustom" / self.project.custom_name
                     )
                 )
+            others = (
+                projects_publishing_to(self.project.custom_name, exclude=self.project.root)
+                if self.project.game_dir is not None
+                else []
+            )
+            self.shared_publish_warning.setText(
+                self.tr(
+                    "O projeto {projects} também envia para UICustom/{folder}: um sobrescreve o outro no jogo. "
+                    "Troque em Projeto → Pasta de publicação…"
+                ).format(projects=", ".join(others), folder=self.project.custom_name)
+            )
+            self.shared_publish_warning.setVisible(bool(others))
             self.project_paths_label.setText("\n".join(lines))
             self.project_paths_label.setToolTip(self.project_paths_label.text())
             self.project_paths_label.setVisible(True)
@@ -3664,6 +4545,7 @@ class EditorWindow(QMainWindow):
 
         else:
             self.project_label.setText(self.tr("Sem projeto"))
+            self.shared_publish_warning.setVisible(False)
             self.project_paths_label.setVisible(directory is not None)
             if directory is not None:
                 self.project_paths_label.setText(self.tr("Editando em: {path}").format(path=directory))
@@ -3709,6 +4591,19 @@ class EditorWindow(QMainWindow):
                 item.setIcon(0, icon("file", COLORS["ACCENT_TEXT"] if key in modified else COLORS["TEXT_DISABLED"], 14))
                 item.setForeground(1, QColor(COLORS["SELECTION_GOLD"]))
                 item.setToolTip(1, self.tr("alterado") if key in modified else "")
+                diff = self._official_diffs.get(key.lower()) if self.project is not None else None
+                if diff is not None and diff.new_ids:
+                    item.setText(1, f"+{len(diff.new_ids)}")
+                    item.setForeground(1, QColor(COLORS["WARNING_TEXT"]))
+                    item.setToolTip(
+                        1, self.tr("A atualização do jogo trouxe {count} controle(s) que este arquivo não tem").format(count=len(diff.new_ids))
+                    )
+                elif diff is not None and diff.other_ids and key not in modified:
+                    item.setText(1, str(len(diff.other_ids)))
+                    item.setForeground(1, QColor(COLORS["TEXT_DISABLED"]))
+                    item.setToolTip(
+                        1, self.tr("A UI oficial tem {count} controle(s) que este arquivo não tem (podem ter sido removidos de propósito)").format(count=len(diff.other_ids))
+                    )
                 if current is not None and os.path.normcase(str(full_path)) == current:
                     item.setFont(0, bold)
                 header.addChild(item)
@@ -3913,6 +4808,20 @@ class EditorWindow(QMainWindow):
             return
         if not self._save_before_project_action():
             return
+        pending = sorted(diff.relative for diff in self._official_diffs.values() if diff.new_ids)
+        if pending:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Controles novos do jogo"),
+                self.tr(
+                    "Estes arquivos não têm controles que a atualização do jogo trouxe, e o jogo pode mostrar "
+                    "\"Child control can not found\":\n\n{files}\n\nEnviar mesmo assim?"
+                ).format(files=", ".join(pending[:8]) + ("…" if len(pending) > 8 else "")),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         settings = QSettings("Local", "GF UI Editor")
         if settings.value("publish_confirmed", "false") != "true":
             answer = QMessageBox.question(

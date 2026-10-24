@@ -115,6 +115,7 @@ def create_window(tmp_path, index=1):
     window.select_element(index)
     window.open_selected_atlas()
     application.processEvents()
+    window.atlas_dialog.edit_button.setChecked(True)
     return application, window, window.atlas_dialog, path, raw
 
 

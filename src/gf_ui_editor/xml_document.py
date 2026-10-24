@@ -16,6 +16,9 @@ NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 # Deslocamento do estado preenchido de barras (ProgressNode/OffSetUV).
 SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
 CONTAINER_TAG_RE = re.compile(r"<Container_Node\b[^>]*>")
+BACKGROUND_TAG_RE = re.compile(r"<BackGroundMap\b[^>]*>")
+# Qualquer tag (aspas podem conter ">"); o que sobra entre duas tags deveria ser só espaço.
+ANY_TAG_RE = re.compile(r"""<(?:[^"'>]|"[^"]*"|'[^']*')*>""")
 BUTTON_UV_STATES = ("FocusUV", "DownUV", "DisableUV")
 BUTTON_TAG_RE = re.compile(
     r"<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|"
@@ -93,6 +96,7 @@ class UIElement:
     attrs: dict[str, str]
     original_attrs: dict[str, str]
     texture_name: str | None = None
+    original_texture_name: str | None = None
     uv: UVRect | None = None
     original_uv: UVRect | None = None
     button_uvs: dict[str, UVRect] = field(default_factory=dict)
@@ -313,6 +317,8 @@ class UIDocument:
         self._uv_start_tags = list(NOR_UV_TAG_RE.finditer(text))
         self._offset_tags = list(SOFFSET_TAG_RE.finditer(text))
         self._fix_child_counts = False
+        self._fix_stray_text = False
+        self._structure_changed = False
         self._build_elements()
         try:
             self._button_uv_tags = _button_uv_matches(text)
@@ -374,13 +380,50 @@ class UIDocument:
                 mismatches.append((int(declared), actual))
         return mismatches
 
-    def fix_child_counts(self) -> None:
-        """Marca o Child_Cnt para ser corrigido no próximo salvamento."""
+    def _stray_text_spans(self) -> list[tuple[int, int]]:
+        """Trechos de texto solto entre tags (sobras de edição manual)."""
+        spans = []
+        previous_end = None
+        for match in ANY_TAG_RE.finditer(self.text):
+            if previous_end is not None and self.text[previous_end:match.start()].strip():
+                spans.append((previous_end, match.start()))
+            previous_end = match.end()
+        return spans
+
+    def stray_texts(self) -> list[tuple[int, str]]:
+        """(linha, texto) de cada sobra solta entre as tags.
+
+        Os XML do jogo não têm texto fora dos atributos; o cliente pode travar
+        ao encontrar algo como `/>  Description="" />`.
+        """
+        return [
+            (self.text.count("\n", 0, start) + 1, self.text[start:end].strip())
+            for start, end in self._stray_text_spans()
+        ]
+
+    def fix_structure(self) -> None:
+        """Marca Child_Cnt e texto solto para serem corrigidos no próximo salvamento."""
         self._fix_child_counts = bool(self.child_count_mismatches())
+        self._fix_stray_text = bool(self._stray_text_spans())
+
+    def with_text(self, text: str) -> "UIDocument":
+        """Mesmo arquivo com outra estrutura (ex.: controles inseridos), ainda não gravada.
+
+        Mantém `raw` do disco, então salvar continua detectando mudança externa.
+        """
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError as exc:
+            raise DocumentError(f"XML inválido: {exc}", code="invalid_xml", details={"error": exc}) from exc
+        document = UIDocument(self.path, self.raw, text, root)
+        document._structure_changed = True
+        return document
 
     @property
     def is_dirty(self) -> bool:
-        return self._fix_child_counts or any(
+        return self._structure_changed or self._fix_child_counts or self._fix_stray_text or any(
+            element.texture_name != element.original_texture_name for element in self.elements
+        ) or any(
             element.changed_attributes or element.changed_uv_attributes or element.changed_offset_attributes
             or element.changed_button_uv_attributes
             for element in self.elements
@@ -446,6 +489,7 @@ class UIDocument:
             attrs=attrs,
             original_attrs=dict(attrs),
             texture_name=texture_name,
+            original_texture_name=texture_name,
             uv=uv,
             original_uv=uv,
             button_uvs=button_uvs,
@@ -457,6 +501,22 @@ class UIDocument:
 
     def set_geometry(self, index: int, geometry: tuple[int, int, int, int]) -> None:
         self.elements[index].set_geometry(*geometry)
+
+    def _background_tag(self, index: int) -> re.Match[str] | None:
+        """A tag <BackGroundMap> do próprio controle (vem antes do primeiro filho dele)."""
+        if self.elements[index].original_texture_name is None:
+            return None
+        start = self._start_tags[index].end()
+        end = self._start_tags[index + 1].start() if index + 1 < len(self._start_tags) else len(self.text)
+        return BACKGROUND_TAG_RE.search(self.text, start, end)
+
+    def texture_editable(self, index: int) -> bool:
+        return self._background_tag(index) is not None
+
+    def set_texture(self, index: int, name: str) -> None:
+        if not self.texture_editable(index):
+            raise ValueError("Este controle não tem BackGroundMap para trocar a textura.")
+        self.elements[index].texture_name = name
 
     def set_uv(self, index: int, uv: UVRect) -> None:
         self.elements[index].set_uv(uv.left, uv.top, uv.width, uv.height)
@@ -530,6 +590,19 @@ class UIDocument:
                     replacements.append(
                         (match.start(), match.end(), self._replace_attribute(match.group(0), "Child_Cnt", actual))
                     )
+
+        for element in self.elements:
+            if element.texture_name != element.original_texture_name:
+                match = self._background_tag(element.index)
+                if match is not None:
+                    replacements.append(
+                        (match.start(), match.end(), self._replace_attribute(match.group(0), "BGmap", element.texture_name or ""))
+                    )
+
+        if self._fix_stray_text:
+            for start, end in self._stray_text_spans():
+                gap = self.text[start:end]
+                replacements.append((start, end, gap[len(gap.rstrip()):]))  # mantém só a quebra de linha
 
         chunks: list[str] = []
         cursor = 0
@@ -605,10 +678,13 @@ class UIDocument:
                 if container.get("Child_Cnt") is not None:
                     container.set("Child_Cnt", str(len(container.findall("BaseWndProperty"))))
             self._fix_child_counts = False
+        self._fix_stray_text = False
+        self._structure_changed = False
         self._button_uv_tags = _button_uv_matches(new_text) if self.button_states_editable else {}
         for element in self.elements:
             element.original_attrs = dict(element.attrs)
             element.original_uv = element.uv
             element.original_button_uvs = dict(element.button_uvs)
             element.original_progress_offset = element.progress_offset
+            element.original_texture_name = element.texture_name
         return backup

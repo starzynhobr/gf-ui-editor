@@ -1,57 +1,277 @@
 {
-  "version": "0.2.12",
-  "date": "2026-10-18",
+  "version": "0.3.0",
+  "date": "2026-10-24",
   "notes": {
     "pt_BR": {
       "new": [
-        ["Estados dos botões no Atlas.", "Escolha Normal, Mouse sobre, Pressionado ou Desativado, veja a prévia e ajuste o recorte de cada estado existente no XML. Os recortes podem ficar em qualquer posição da textura. Aplicar reúne as alterações em um único passo de desfazer."],
-        ["Redimensionamento em grupo.", "Selecione vários elementos e use uma alça dourada para escalar os tamanhos e espaçamentos juntos. Shift mantém a proporção; itens bloqueados ficam de fora."]
+        [
+          "Criar projeto a partir de arquivos soltos.",
+          "Ao abrir um XML fora de um projeto, o editor oferece criar um projeto com a UI do jogo e esses arquivos por cima. O painel de arquivos ganhou o botão Criar projeto com estes arquivos; depois é só usar Enviar para o jogo, sem copiar nada à mão."
+        ],
+        [
+          "Importar arquivos.",
+          "Projeto → Importar arquivos coloca XML, DDS ou outros arquivos avulsos no projeto, substituindo os de mesmo nome. A versão anterior fica no histórico."
+        ],
+        [
+          "Projetos recentes e Tela inicial.",
+          "Arquivo → Projetos recentes alterna entre projetos em um clique, e Arquivo → Tela inicial volta à lista de projetos mesmo quando o editor abriu direto no último XML."
+        ],
+        [
+          "Estilos de navegação.",
+          "Visualização → Navegação do canvas permite escolher o estilo CorelDRAW (roda dá zoom), Paint.NET ou Photoshop (roda rola a tela). Em todos, Espaço + arrastar move a vista."
+        ],
+        [
+          "Controles da UI oficial.",
+          "Elementos → Adicionar do oficial mostra os controles da UI oficial que o XML aberto não tem e copia só os que você marcar, na mesma posição do oficial. Dá para desfazer, e nada é gravado até salvar. Quando o editor tem certeza de que um controle veio de uma atualização do jogo, um aviso aparece no topo do canvas. Em Projeto → UI oficial de referência, o editor guarda uma cópia da UI oficial e explica o passo a passo no launcher quando a pasta UI está com outra UI."
+        ],
+        [
+          "Resolver erro do jogo.",
+          "Projeto → Resolver erro do jogo: cole a mensagem \"Child control can not found\" e o editor descobre qual XML o jogo estava lendo, abre o arquivo e oferece o controle que falta."
+        ],
+        [
+          "Trocar o .dds de um controle.",
+          "No painel de propriedades, Trocar .dds… faz o controle usar outra textura: um .dds que já está na UI, uma cópia do atual para você editar à vontade ou um arquivo de outra pasta. Dá para aplicar a troca a todos os controles do XML que usavam a mesma textura, e desfazer com Ctrl+Z."
+        ]
       ],
       "improved": [
-        ["Alças em todos os lados da janela.", "Com o preview do jogo ativo, selecione Window para ver o tamanho real do XML e ajustar pelos quatro cantos ou lados. Arraste a área interna para mover o conjunto; o redimensionamento respeita a ancoragem da janela no jogo."],
-        ["Atualizar arquivos e texturas.", "O botão de recarregar e Ctrl+R agora também atualizam a lista de XMLs adicionados ou removidos da pasta do projeto, preservando as edições do arquivo aberto."]
+        [
+          "Posição das janelas no preview do jogo.",
+          "Mais de 130 janelas que apareciam no canto agora ficam onde o cliente as coloca: centralizadas, ao lado de outras janelas ou no X/Y do XML. A legenda indica quando uma posição ainda não foi mapeada."
+        ],
+        [
+          "Pasta do jogo no novo projeto.",
+          "O modal de novo projeto mostra a pasta do jogo e permite trocá-la; a escolha fica salva. XMLs soltos fora do jogo também passam a usar essa pasta para a resolução, o User.ini e as regras do servidor."
+        ],
+        [
+          "Atlas DDS sem edição acidental.",
+          "O atlas abre já enquadrado no recorte e só para visualização: arrastar move a vista. Editar posição libera o recorte, que agora também pode ser ajustado pelas bordas, não só pelos cantos. O botão Recorte passou a se chamar Centralizar."
+        ],
+        [
+          "Painel de propriedades mais direto.",
+          "Bloquear, Ocultar e Isolar ficam no topo do painel, e Abrir atlas DDS ganhou destaque."
+        ]
       ],
       "fixed": [
-        ["Posição dos atalhos superiores do Menu.", "O preview do Menu.xml acompanha a posição vertical que o cliente Violet aplica a essa fileira. A correção é restrita a esses slots e não altera o Y salvo no XML nem outras janelas."]
+        [
+          "XML salvo como UTF-8.",
+          "Arquivos regravados por editores de texto em UTF-8 não abriam. Agora o editor detecta o caso e oferece converter de volta para Big5, guardando um backup."
+        ],
+        [
+          "Erro \"Child control can not found\" e travamentos.",
+          "Sobras de edição manual entre as tags, como um Description=\"\" /> solto, faziam o jogo acusar controles inexistentes ou travar. O editor agora encontra esse texto ao abrir o XML e o remove ao salvar, acertando o Child_Cnt."
+        ],
+        [
+          "Destino do Enviar para o jogo.",
+          "O novo projeto mostra para qual pasta de UICustom ele envia. Partir de uma UI do UICustom não faz mais o projeto sobrescrever essa UI sem avisar, e o editor alerta quando dois projetos enviam para a mesma pasta."
+        ],
+        [
+          "Pasta do jogo escolhida errada.",
+          "Se a pasta UI ou UICustom for escolhida no lugar da pasta do jogo, o editor usa a pasta do jogo acima dela e avisa quando a pasta escolhida não parece ser a do jogo."
+        ]
       ]
     },
     "en_US": {
       "new": [
-        ["Button states in the Atlas.", "Choose Normal, Mouse over, Pressed or Disabled, preview the result and adjust the slice for each state defined in the XML. Slices can be anywhere in the texture. Apply groups the changes into a single undo step."],
-        ["Resize a selection together.", "Select multiple elements and drag a gold handle to scale their sizes and spacing together. Hold Shift to keep the proportions; locked items are excluded."]
+        [
+          "Create a project from loose files.",
+          "When you open an XML outside a project, the editor offers to create a project with the game UI and those files on top. The files panel has a Create project with these files button; then just use Send to game, with no manual copying."
+        ],
+        [
+          "Import files.",
+          "Project → Import files puts loose XML, DDS or other files into the project, replacing files with the same name. The previous version stays in the history."
+        ],
+        [
+          "Recent projects and Start screen.",
+          "File → Recent projects switches between projects in one click, and File → Start screen returns to the project list even when the editor opened straight into the last XML."
+        ],
+        [
+          "Navigation styles.",
+          "View → Canvas navigation lets you choose the CorelDRAW style (wheel zooms), Paint.NET or Photoshop (wheel scrolls). In every style, Space + drag pans the view."
+        ],
+        [
+          "Official UI controls.",
+          "Elements → Add from official lists the official UI controls the open XML does not have and copies only the ones you check, in the same position as the official file. It can be undone, and nothing is written until you save. When the editor is sure a control came from a game update, a notice appears at the top of the canvas. In Project → Official reference UI, the editor saves a copy of the official UI and walks you through the launcher when the UI folder holds another UI."
+        ],
+        [
+          "Fix a game error.",
+          "Project → Fix a game error: paste the \"Child control can not found\" message and the editor finds which XML the game was reading, opens it and offers the missing control."
+        ],
+        [
+          "Change a control's .dds.",
+          "In the properties panel, Change .dds… makes the control use another texture: a .dds already in the UI, a copy of the current one for you to edit freely or a file from another folder. The change can apply to every control in the XML that used the same texture, and Ctrl+Z undoes it."
+        ]
       ],
       "improved": [
-        ["Window handles on every side.", "With the game preview enabled, select Window to see its actual XML size and resize from any corner or side. Drag the inner area to move the group; resizing respects the window's in-game anchoring."],
-        ["Refresh files and textures.", "The reload button and Ctrl+R now also refresh the list of XML files added to or removed from the project folder, preserving edits to the open file."]
+        [
+          "Window positions in the game preview.",
+          "More than 130 windows that showed up in the corner now sit where the client places them: centered, next to other windows or at the XML X/Y. The caption says when a position is not mapped yet."
+        ],
+        [
+          "Game folder in the new project dialog.",
+          "The new project dialog shows the game folder and lets you change it; the choice is remembered. Loose XML files outside the game also use this folder for the resolution, User.ini and server rules."
+        ],
+        [
+          "DDS atlas without accidental edits.",
+          "The atlas opens framed on the slice and in view-only mode: dragging moves the view. Edit position unlocks the slice, which can now also be adjusted by its edges, not only its corners. The Slice button is now called Center."
+        ],
+        [
+          "A more direct properties panel.",
+          "Lock, Hide and Isolate are at the top of the panel, and Open DDS atlas stands out."
+        ]
       ],
       "fixed": [
-        ["Position of the upper Menu shortcuts.", "The Menu.xml preview follows the vertical position the Violet client applies to this row. This correction only affects these slots and leaves the saved XML Y and other windows unchanged."]
+        [
+          "XML saved as UTF-8.",
+          "Files re-saved as UTF-8 by text editors would not open. The editor now detects this and offers to convert them back to Big5, keeping a backup."
+        ],
+        [
+          "\"Child control can not found\" error and crashes.",
+          "Leftovers from manual editing between tags, such as a loose Description=\"\" />, made the game report missing controls or crash. The editor now finds this text when opening the XML and removes it on save, fixing Child_Cnt."
+        ],
+        [
+          "Send to game destination.",
+          "A new project shows which UICustom folder it sends to. Starting from a UICustom UI no longer makes the project overwrite that UI without notice, and the editor warns when two projects send to the same folder."
+        ],
+        [
+          "Wrong game folder picked.",
+          "If the UI or UICustom folder is picked instead of the game folder, the editor uses the game folder above it and warns when the chosen folder does not look like the game's."
+        ]
       ]
     },
     "es_ES": {
       "new": [
-        ["Estados de los botones en el Atlas.", "Elige Normal, Ratón encima, Pulsado o Desactivado, consulta la vista previa y ajusta el recorte de cada estado definido en el XML. Los recortes pueden estar en cualquier posición de la textura. Aplicar agrupa los cambios en un único paso de deshacer."],
-        ["Redimensionar una selección en conjunto.", "Selecciona varios elementos y arrastra un tirador dorado para escalar sus tamaños y espacios juntos. Mantén Shift para conservar las proporciones; los elementos bloqueados quedan excluidos."]
+        [
+          "Crear un proyecto a partir de archivos sueltos.",
+          "Al abrir un XML fuera de un proyecto, el editor ofrece crear un proyecto con la UI del juego y esos archivos encima. El panel de archivos tiene el botón Crear proyecto con estos archivos; después solo usa Enviar al juego, sin copiar nada a mano."
+        ],
+        [
+          "Importar archivos.",
+          "Proyecto → Importar archivos coloca XML, DDS u otros archivos sueltos en el proyecto y reemplaza los del mismo nombre. La versión anterior queda en el historial."
+        ],
+        [
+          "Proyectos recientes y pantalla de inicio.",
+          "Archivo → Proyectos recientes cambia de proyecto con un clic, y Archivo → Pantalla de inicio vuelve a la lista de proyectos aunque el editor se haya abierto directamente en el último XML."
+        ],
+        [
+          "Estilos de navegación.",
+          "Ver → Navegación del lienzo permite elegir el estilo CorelDRAW (la rueda hace zoom), Paint.NET o Photoshop (la rueda desplaza la vista). En todos, Espacio + arrastrar mueve la vista."
+        ],
+        [
+          "Controles de la UI oficial.",
+          "Elementos → Añadir del oficial muestra los controles de la UI oficial que el XML abierto no tiene y copia solo los que marques, en la misma posición del oficial. Se puede deshacer y nada se graba hasta guardar. Cuando el editor está seguro de que un control vino de una actualización del juego, aparece un aviso arriba del lienzo. En Proyecto → UI oficial de referencia, el editor guarda una copia de la UI oficial y explica los pasos en el launcher cuando la carpeta UI tiene otra UI."
+        ],
+        [
+          "Resolver error del juego.",
+          "Proyecto → Resolver error del juego: pega el mensaje \"Child control can not found\" y el editor descubre qué XML estaba leyendo el juego, abre el archivo y ofrece el control que falta."
+        ],
+        [
+          "Cambiar el .dds de un control.",
+          "En el panel de propiedades, Cambiar .dds… hace que el control use otra textura: un .dds que ya está en la UI, una copia del actual para editarla libremente o un archivo de otra carpeta. El cambio puede aplicarse a todos los controles del XML que usaban la misma textura, y Ctrl+Z lo deshace."
+        ]
       ],
       "improved": [
-        ["Tiradores en todos los lados de la ventana.", "Con la vista previa del juego activa, selecciona Window para ver su tamaño real en el XML y ajustar desde cualquier esquina o lado. Arrastra el área interior para mover el conjunto; el redimensionamiento respeta el anclaje de la ventana en el juego."],
-        ["Actualizar archivos y texturas.", "El botón de recarga y Ctrl+R ahora también actualizan la lista de XML añadidos o eliminados de la carpeta del proyecto, conservando los cambios del archivo abierto."]
+        [
+          "Posición de las ventanas en la vista previa del juego.",
+          "Más de 130 ventanas que aparecían en la esquina ahora quedan donde las coloca el cliente: centradas, junto a otras ventanas o en el X/Y del XML. La leyenda indica cuándo una posición aún no está mapeada."
+        ],
+        [
+          "Carpeta del juego en el nuevo proyecto.",
+          "El diálogo de nuevo proyecto muestra la carpeta del juego y permite cambiarla; la elección se guarda. Los XML sueltos fuera del juego también usan esta carpeta para la resolución, el User.ini y las reglas del servidor."
+        ],
+        [
+          "Atlas DDS sin ediciones accidentales.",
+          "El atlas se abre ya encuadrado en el recorte y solo para visualizar: arrastrar mueve la vista. Editar posición desbloquea el recorte, que ahora también se puede ajustar por los bordes y no solo por las esquinas. El botón Recorte ahora se llama Centrar."
+        ],
+        [
+          "Panel de propiedades más directo.",
+          "Bloquear, Ocultar y Aislar están arriba del panel, y Abrir atlas DDS está destacado."
+        ]
       ],
       "fixed": [
-        ["Posición de los atajos superiores del Menu.", "La vista previa de Menu.xml sigue la posición vertical que el cliente Violet aplica a esta fila. La corrección solo afecta a estos slots y no modifica la Y guardada en el XML ni otras ventanas."]
+        [
+          "XML guardado como UTF-8.",
+          "Los archivos guardados de nuevo como UTF-8 por editores de texto no se abrían. Ahora el editor lo detecta y ofrece convertirlos de vuelta a Big5, guardando una copia de seguridad."
+        ],
+        [
+          "Error \"Child control can not found\" y cierres del juego.",
+          "Restos de edición manual entre las etiquetas, como un Description=\"\" /> suelto, hacían que el juego no encontrara controles o se cerrara. El editor ahora detecta ese texto al abrir el XML y lo quita al guardar, ajustando el Child_Cnt."
+        ],
+        [
+          "Destino de Enviar al juego.",
+          "El nuevo proyecto muestra a qué carpeta de UICustom envía. Partir de una UI de UICustom ya no hace que el proyecto sobrescriba esa UI sin avisar, y el editor avisa cuando dos proyectos envían a la misma carpeta."
+        ],
+        [
+          "Carpeta del juego mal elegida.",
+          "Si se elige la carpeta UI o UICustom en lugar de la del juego, el editor usa la carpeta del juego que la contiene y avisa cuando la carpeta elegida no parece ser la del juego."
+        ]
       ]
     },
     "fr_FR": {
       "new": [
-        ["États des boutons dans l'Atlas.", "Choisissez Normal, Survol de la souris, Appuyé ou Désactivé, consultez l'aperçu et ajustez la zone de chaque état défini dans le XML. Les zones peuvent se trouver n'importe où dans la texture. Appliquer regroupe les modifications en une seule étape d'annulation."],
-        ["Redimensionner une sélection ensemble.", "Sélectionnez plusieurs éléments et faites glisser une poignée dorée pour ajuster leurs tailles et espacements ensemble. Maintenez Shift pour conserver les proportions ; les éléments verrouillés sont exclus."]
+        [
+          "Créer un projet à partir de fichiers isolés.",
+          "À l'ouverture d'un XML hors projet, l'éditeur propose de créer un projet avec l'UI du jeu et ces fichiers par-dessus. Le panneau des fichiers propose le bouton Créer un projet avec ces fichiers ; il suffit ensuite d'utiliser Envoyer au jeu, sans copie manuelle."
+        ],
+        [
+          "Importer des fichiers.",
+          "Projet → Importer des fichiers ajoute au projet des XML, DDS ou autres fichiers isolés, en remplaçant ceux du même nom. La version précédente reste dans l'historique."
+        ],
+        [
+          "Projets récents et écran d'accueil.",
+          "Fichier → Projets récents change de projet en un clic, et Fichier → Écran d'accueil revient à la liste des projets même quand l'éditeur s'est ouvert directement sur le dernier XML."
+        ],
+        [
+          "Styles de navigation.",
+          "Affichage → Navigation dans le canevas permet de choisir le style CorelDRAW (la molette zoome), Paint.NET ou Photoshop (la molette fait défiler). Dans tous les styles, Espace + glisser déplace la vue."
+        ],
+        [
+          "Contrôles de l'UI officielle.",
+          "Éléments → Ajouter depuis l'officielle liste les contrôles de l'UI officielle absents du XML ouvert et copie seulement ceux que vous cochez, à la même position que dans le fichier officiel. C'est annulable, et rien n'est écrit avant l'enregistrement. Quand l'éditeur est sûr qu'un contrôle vient d'une mise à jour du jeu, un avis apparaît en haut du canevas. Dans Projet → UI officielle de référence, l'éditeur enregistre une copie de l'UI officielle et explique les étapes dans le launcher quand le dossier UI contient une autre UI."
+        ],
+        [
+          "Résoudre une erreur du jeu.",
+          "Projet → Résoudre une erreur du jeu : collez le message \"Child control can not found\" et l'éditeur trouve quel XML le jeu lisait, ouvre le fichier et propose le contrôle manquant."
+        ],
+        [
+          "Changer le .dds d'un contrôle.",
+          "Dans le panneau des propriétés, Changer le .dds… fait utiliser une autre texture au contrôle : un .dds déjà présent dans l'UI, une copie de l'actuel à modifier librement ou un fichier d'un autre dossier. Le changement peut s'appliquer à tous les contrôles du XML qui utilisaient la même texture, et Ctrl+Z l'annule."
+        ]
       ],
       "improved": [
-        ["Poignées sur tous les côtés de la fenêtre.", "Avec l'aperçu du jeu activé, sélectionnez Window pour voir sa taille réelle dans le XML et ajuster depuis chaque coin ou côté. Faites glisser la zone intérieure pour déplacer l'ensemble ; le redimensionnement respecte l'ancrage de la fenêtre dans le jeu."],
-        ["Actualiser les fichiers et les textures.", "Le bouton de rechargement et Ctrl+R actualisent aussi la liste des XML ajoutés ou supprimés du dossier du projet, tout en conservant les modifications du fichier ouvert."]
+        [
+          "Position des fenêtres dans l'aperçu du jeu.",
+          "Plus de 130 fenêtres qui apparaissaient dans le coin sont maintenant placées comme le fait le client : centrées, à côté d'autres fenêtres ou aux X/Y du XML. La légende indique quand une position n'est pas encore cartographiée."
+        ],
+        [
+          "Dossier du jeu dans le nouveau projet.",
+          "La fenêtre de nouveau projet affiche le dossier du jeu et permet de le changer ; le choix est mémorisé. Les XML isolés hors du jeu utilisent aussi ce dossier pour la résolution, le User.ini et les règles du serveur."
+        ],
+        [
+          "Atlas DDS sans modification accidentelle.",
+          "L'atlas s'ouvre déjà cadré sur la zone et en lecture seule : glisser déplace la vue. Modifier la position déverrouille la zone, qui peut désormais aussi être ajustée par ses bords et pas seulement par ses coins. Le bouton Zone s'appelle maintenant Centrer."
+        ],
+        [
+          "Un panneau des propriétés plus direct.",
+          "Verrouiller, Masquer et Isoler sont en haut du panneau, et Ouvrir l'atlas DDS est mis en avant."
+        ]
       ],
       "fixed": [
-        ["Position des raccourcis supérieurs du Menu.", "L'aperçu de Menu.xml suit la position verticale appliquée à cette rangée par le client Violet. La correction concerne uniquement ces slots et ne modifie ni la coordonnée Y enregistrée dans le XML ni les autres fenêtres."]
+        [
+          "XML enregistré en UTF-8.",
+          "Les fichiers réenregistrés en UTF-8 par un éditeur de texte ne s'ouvraient pas. L'éditeur détecte maintenant ce cas et propose de les reconvertir en Big5, avec une sauvegarde."
+        ],
+        [
+          "Erreur \"Child control can not found\" et plantages.",
+          "Des restes de modification manuelle entre les balises, comme un Description=\"\" /> isolé, faisaient signaler des contrôles introuvables ou planter le jeu. L'éditeur détecte maintenant ce texte à l'ouverture du XML et le supprime à l'enregistrement, en corrigeant le Child_Cnt."
+        ],
+        [
+          "Destination d'Envoyer au jeu.",
+          "Un nouveau projet indique vers quel dossier de UICustom il envoie. Partir d'une UI de UICustom ne fait plus écraser cette UI sans prévenir, et l'éditeur avertit quand deux projets envoient vers le même dossier."
+        ],
+        [
+          "Mauvais dossier du jeu choisi.",
+          "Si le dossier UI ou UICustom est choisi à la place du dossier du jeu, l'éditeur utilise le dossier du jeu qui le contient et prévient quand le dossier choisi ne semble pas être celui du jeu."
+        ]
       ]
     }
   }

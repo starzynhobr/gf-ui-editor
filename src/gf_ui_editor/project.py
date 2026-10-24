@@ -516,6 +516,21 @@ def custom_ui_sources(game_dir: Path) -> list[tuple[str, Path]]:
     return sources
 
 
+def projects_publishing_to(folder: str, exclude: Path | None = None) -> list[str]:
+    """Nomes dos projetos cujo Enviar para o jogo escreve em UICustom/`folder`."""
+    names = []
+    for root in list_projects(PROJECTS_ROOT):
+        if exclude is not None and os.path.normcase(str(root)) == os.path.normcase(str(exclude)):
+            continue
+        try:
+            project = Project.load(root)
+        except (OSError, ValueError):
+            continue
+        if project.custom_name.lower() == folder.lower():
+            names.append(project.name)
+    return names
+
+
 def list_projects(projects_root: Path = PROJECTS_ROOT) -> list[Path]:
     if not projects_root.is_dir():
         return []
