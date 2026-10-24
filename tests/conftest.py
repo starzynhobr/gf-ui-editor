@@ -30,3 +30,21 @@ def _no_real_game_folder(monkeypatch, tmp_path_factory):
     missing = tmp_path_factory.mktemp("no-game")
     monkeypatch.setattr(app, "DEFAULT_UI_DIRECTORY", missing / "missing" / "UI")
     monkeypatch.setattr(project, "PROJECTS_ROOT", missing / "projects")
+
+
+
+def pytest_unconfigure(config):
+    """Fecha as janelas e espera as threads do Qt antes de o Python sair: no CI do Windows,
+    desmontar o Qt com elas ainda vivas derruba o processo depois dos testes."""
+    from PySide6.QtCore import QThreadPool
+    from PySide6.QtWidgets import QApplication
+
+    application = QApplication.instance()
+    if application is None:
+        return
+    for widget in application.topLevelWidgets():
+        widget.hide()  # close() pediria "Descartar alterações?" e travaria
+        widget.deleteLater()
+    application.processEvents()
+    QThreadPool.globalInstance().waitForDone(5000)
+    application.processEvents()

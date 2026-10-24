@@ -507,14 +507,15 @@ def test_opening_another_xml_reuses_unchanged_decoded_texture(
     window.open_document(second_path)
     application.processEvents()
 
-    assert opened == [texture_path]
+    # No CI a pasta temporária pode vir com nome curto (RUNNER~1): compara o arquivo, não o texto.
+    assert [path.resolve() for path in opened] == [texture_path.resolve()]
 
     Image.new("RGBA", (8, 8), (15, 60, 230, 255)).save(texture_path)
     window.open_document(first_path)
     wait_for_textures(window)
     application.processEvents()
 
-    assert opened == [texture_path, texture_path]
+    assert [path.resolve() for path in opened] == [texture_path.resolve()] * 2
     window.deleteLater()
 
 
