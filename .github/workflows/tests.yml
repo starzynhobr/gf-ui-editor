@@ -17,4 +17,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -e ".[dev]"
-      - run: python -m pytest
+      - name: pytest
+        shell: bash
+        run: |
+          python -X faulthandler -m pytest
+          echo "pytest exit code: $?"
