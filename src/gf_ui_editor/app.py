@@ -75,6 +75,7 @@ from .game_layout import (
     menu_shortcut_preview_y,
     root_screen_position,
     is_centered,
+    placement,
     rule_for,
     saved_position_applies,
     saved_section_for,
@@ -1791,10 +1792,14 @@ class EditorWindow(QMainWindow):
                 caption += " · " + self.tr("posição escolhida por você")
             elif rule_for(name) is None and saved_position_applies(self.game_resolution, root.geometry, saved):
                 caption += " · " + self.tr("posição salva no User.ini [{section}]").format(section=section)
-            elif rule_for(name) is not None:
+            elif placement(name, game_dir) in ("anchor", "placed"):
                 caption += " · " + self.tr("posição definida pelo cliente")
             elif is_centered(name, game_dir):
                 caption += " · " + self.tr("centralizada pelo jogo")
+            elif placement(name, game_dir) == "xml":
+                caption += " · " + self.tr("o jogo usa o X/Y do XML")
+            elif placement(name, game_dir) == "unused":
+                caption += " · " + self.tr("arquivo não carregado pelo jogo")
         else:
             self.game_screen_item.setPos(0, 0)
         self.game_screen_item.set_caption(caption)
@@ -2293,7 +2298,7 @@ class EditorWindow(QMainWindow):
                     "Com o preview ativo, o Y exibido segue essa regra; o campo Y mantém o valor do XML."
                 )
             return None
-        if rule_for(self.document.path.name) is not None:
+        if placement(self.document.path.name) in ("anchor", "placed"):
             return self.tr(
                 "O jogo prende esta janela a um ponto da tela. "
                 "Com o Preview do jogo ligado, arraste a janela ou edite X/Y para colocá-la onde deve aparecer na tela; "
