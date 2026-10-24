@@ -1,0 +1,21 @@
+name: Sugestão / Feature request
+description: Uma ideia para o editor. / An idea for the editor.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: O que você quer fazer na UI / What you want to do with the UI
+      description: Conte o objetivo, não só a solução. / Describe the goal, not only the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: Como você faz isso hoje / How you do it today
+      description: Por exemplo, editando o XML à mão ou com outra ferramenta. / For example, editing the XML by hand or with another tool.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Ideia de como poderia funcionar / How it could work
+      description: Prints ou rascunhos ajudam. / Screenshots or sketches help.

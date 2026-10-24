@@ -89,6 +89,7 @@ from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, sw
 from .icons import MONO_FONT, UI_FONT, icon, load_fonts
 from .interaction import install_pointer_cursors
 from . import backgrounds
+from .controls import ControlError, delete_control, duplicate_control, free_window_id, new_image_control, owner_of
 from .game_updates import (
     FileDiff,
     control_info,
@@ -102,6 +103,7 @@ from .game_updates import (
     reference_ready,
     scan as scan_official,
     snapshot_official_ui,
+    window_ids,
 )
 from . import release_notes, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
@@ -704,6 +706,18 @@ class OfficialControlsDialog(QDialog):
         return [window_id for window_id, check in self.checks if check.isChecked()]
 
 
+class AttributeCommand(QUndoCommand):
+    def __init__(self, window: "EditorWindow", index: int, name: str, old: str | None, new: str | None):
+        super().__init__(f"{name} = {new}")
+        self.window, self.index, self.name, self.old, self.new = window, index, name, old, new
+
+    def redo(self) -> None:
+        self.window.apply_attribute(self.index, self.name, self.new)
+
+    def undo(self) -> None:
+        self.window.apply_attribute(self.index, self.name, self.old)
+
+
 class TextureCommand(QUndoCommand):
     def __init__(self, window: "EditorWindow", changes: dict[int, tuple[str, str]]):
         super().__init__(QCoreApplication.translate("EditorWindow", "Trocar textura de {count} controle(s)").format(count=len(changes)))
@@ -969,7 +983,7 @@ class PropertyPanel(QWidget):
         form.labelForField(value).setObjectName("fieldLabel")
 
     def set_context_actions(
-        self, lock_action: QAction, hide_action: QAction, isolate_action: QAction
+        self, lock_action: QAction, hide_action: QAction, isolate_action: QAction, *structure_actions: QAction
     ) -> None:
         for button, action in zip(
             (self.lock_button, self.hide_button, self.isolate_button),
@@ -977,6 +991,21 @@ class PropertyPanel(QWidget):
             strict=True,
         ):
             button.setDefaultAction(action)
+        # Duplicar/apagar numa segunda fileira, logo abaixo: cinco botões não cabem numa só.
+        self.structure_row = QWidget()
+        layout = QHBoxLayout(self.structure_row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        parent_layout = self.actions_row.parentWidget().layout()
+        parent_layout.insertWidget(parent_layout.indexOf(self.actions_row) + 1, self.structure_row)
+        self.structure_row.setVisible(self.actions_row.isVisibleTo(self))
+        for action in structure_actions:
+            button = QToolButton()
+            button.setObjectName("inspectorAction")
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            button.setDefaultAction(action)
+            layout.addWidget(button)
 
     @staticmethod
     def _spinbox(minimum: int = -100000) -> QSpinBox:
@@ -995,6 +1024,7 @@ class PropertyPanel(QWidget):
             if element is None:
                 self.screen_position_label.setVisible(False)
                 self.actions_row.setVisible(False)
+                getattr(self, "structure_row", self.actions_row).setVisible(False)
                 self.badge_row.setVisible(False)
                 self.selection_subtitle.setVisible(True)
                 self.details_container.setVisible(False)
@@ -1023,6 +1053,7 @@ class PropertyPanel(QWidget):
             self.badge_row.setVisible(True)
             self.selection_subtitle.setVisible(False)
             self.actions_row.setVisible(True)
+            getattr(self, "structure_row", self.actions_row).setVisible(True)
             self.details_container.setVisible(True)
             self.selection_subtitle.setText(kind_label(element.kind, element.ctrl_type))
             self.id_value.setText(element.window_id)
@@ -1245,7 +1276,15 @@ class EditorWindow(QMainWindow):
         self.official_button.setToolTip(self.tr("Copia controles da UI oficial que este arquivo não tem"))
         self.official_button.setEnabled(False)
         self.official_button.clicked.connect(lambda: self.open_official_compare())
-        tree_layout.addWidget(self.official_button)
+        self.new_image_button = QPushButton(icon("image"), self.tr("Nova imagem…"))
+        self.new_image_button.setToolTip(self.tr("Cria um controle de imagem decorativo e abre o atlas para escolher o recorte"))
+        self.new_image_button.setEnabled(False)
+        self.new_image_button.clicked.connect(lambda: self.new_image())
+        element_buttons = QHBoxLayout()
+        element_buttons.setSpacing(6)
+        element_buttons.addWidget(self.new_image_button)
+        element_buttons.addWidget(self.official_button)
+        tree_layout.addLayout(element_buttons)
 
         self.project_label = QLabel()
         self.project_label.setObjectName("panelTitle")
@@ -1344,7 +1383,8 @@ class EditorWindow(QMainWindow):
         banner_button = QPushButton(self.tr("Ver e adicionar"))
         banner_button.clicked.connect(lambda: self.open_official_compare())
         banner_close = QToolButton()
-        banner_close.setText("✕")
+        banner_close.setIcon(icon("x", COLORS["WARNING_TEXT"], 16))
+        banner_close.setAutoRaise(True)
         banner_close.setToolTip(self.tr("Dispensar"))
         banner_close.clicked.connect(self._dismiss_official_banner)
         banner_layout.addWidget(banner_icon)
@@ -1369,7 +1409,7 @@ class EditorWindow(QMainWindow):
 
         self._create_actions()
         self.properties.set_context_actions(
-            self.lock_action, self.hide_action, self.isolate_action
+            self.lock_action, self.hide_action, self.isolate_action, self.duplicate_action, self.delete_action
         )
         self._create_menus_and_toolbar()
         self._build_canvas_overlays()
@@ -1559,6 +1599,28 @@ class EditorWindow(QMainWindow):
         self.isolate_action.setIconText(self.tr("Isolar"))
         self.isolate_action.setEnabled(False)
         self.isolate_action.triggered.connect(self.toggle_isolation)
+        self.duplicate_action = QAction(self.tr("Duplicar controle"), self)
+        self.duplicate_action.setShortcut("Ctrl+D")
+        self.duplicate_action.setIcon(icon("copy", size=16))
+        self.duplicate_action.setIconText(self.tr("Duplicar"))
+        self.duplicate_action.setToolTip(self.tr("Cria uma cópia decorativa deste controle com um WindowID livre"))
+        self.duplicate_action.setEnabled(False)
+        self.duplicate_action.triggered.connect(self.duplicate_selected)
+        self.delete_action = QAction(self.tr("Apagar controle"), self)
+        self.delete_action.setShortcut("Delete")
+        self.delete_action.setIcon(icon("trash", size=16))
+        self.delete_action.setIconText(self.tr("Apagar"))
+        self.delete_action.setEnabled(False)
+        self.delete_action.triggered.connect(self.delete_selected)
+        self.game_hide_action = QAction(self.tr("Ocultar no jogo"), self)
+        self.game_hide_action.setCheckable(True)
+        self.game_hide_action.setToolTip(self.tr("Grava Visible=\"0\": o controle continua no XML, mas o jogo não o mostra"))
+        self.game_hide_action.setEnabled(False)
+        self.game_hide_action.triggered.connect(self.toggle_selected_game_visibility)
+        self.new_image_action = QAction(self.tr("Nova imagem…"), self)
+        self.new_image_action.setIcon(icon("image", size=16))
+        self.new_image_action.setEnabled(False)
+        self.new_image_action.triggered.connect(self.new_image)
 
     def _create_menus_and_toolbar(self) -> None:
         file_menu = self.menuBar().addMenu(self.tr("Arquivo"))
@@ -1591,6 +1653,11 @@ class EditorWindow(QMainWindow):
         edit_menu = self.menuBar().addMenu(self.tr("Editar"))
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.new_image_action)
+        edit_menu.addAction(self.duplicate_action)
+        edit_menu.addAction(self.delete_action)
+        edit_menu.addAction(self.game_hide_action)
         view_menu = self.menuBar().addMenu(self.tr("Visualização"))
         view_menu.addAction(self.fit_action)
         view_menu.addAction(self.labels_action)
@@ -3637,6 +3704,14 @@ class EditorWindow(QMainWindow):
         self.lock_action.setEnabled(enabled)
         self.hide_action.setEnabled(enabled)
         self.isolate_action.setEnabled(enabled)
+        structural = enabled and self.selected_index != 0 and self.selected_index not in self.locked_indexes
+        self.duplicate_action.setEnabled(structural)
+        self.delete_action.setEnabled(structural)
+        self.game_hide_action.setEnabled(structural)
+        self.new_image_action.setEnabled(self.document is not None)
+        self.new_image_button.setEnabled(self.document is not None)
+        if enabled and self.document is not None and self.selected_index is not None:
+            self.game_hide_action.setChecked(not self.document.elements[self.selected_index].visible)
         atlas_enabled = False
         if enabled and self.document is not None and self.selected_index is not None:
             element = self.document.elements[self.selected_index]
@@ -4323,6 +4398,151 @@ class EditorWindow(QMainWindow):
                 item = self.items.get(index)
                 if item is not None:
                     item.setSelected(True)
+
+    # ---- criar, duplicar e apagar controles ---------------------------------
+    def _official_ids(self) -> set[str] | None:
+        """WindowIDs que a versão oficial deste XML tem (os que o jogo pode procurar)."""
+        if self.document is None:
+            return None
+        game_dir = self._document_game_dir()
+        relative = self._official_key() or self.document.path.name
+        official = official_text_for(game_dir, relative) if game_dir is not None else None
+        return window_ids(official) if official is not None else None
+
+    def _push_structure(self, text: str, select: list[str]) -> bool:
+        assert self.document is not None
+        try:
+            new_document = self.document.with_text(text)
+        except DocumentError as exc:
+            QMessageBox.critical(self, self.tr("Não foi possível alterar"), document_error_text(exc))
+            return False
+        self.undo_stack.push(StructureCommand(self, self.document, new_document, select))
+        return True
+
+    def _structure_error(self, error: ControlError) -> None:
+        messages = {
+            "has_children": self.tr("Este controle é uma janela com outros controles dentro; isso ainda não é suportado."),
+            "id_in_use": self.tr("Esse WindowID já existe neste arquivo."),
+        }
+        QMessageBox.information(self, self.tr("Controles"), messages.get(error.code, self.tr("Não foi possível alterar este controle.")))
+
+    def duplicate_selected(self) -> None:
+        if self.document is None or self.selected_index in (None, 0):
+            return
+        element = self.document.elements[self.selected_index]
+        text = self.document.render_text()
+        new_id = free_window_id(text, element.window_id, self._official_ids() or set())
+        try:
+            new_text = duplicate_control(text, element.window_id, new_id)
+        except ControlError as error:
+            self._structure_error(error)
+            return
+        if self._push_structure(new_text, [new_id]):
+            self.statusBar().showMessage(
+                self.tr("Cópia criada com o WindowID {id}. É decorativa: o jogo não usa esse ID, então botões e barras copiados não funcionam.").format(id=new_id),
+                12000,
+            )
+
+    def delete_selected(self) -> None:
+        if self.document is None or self.selected_index in (None, 0):
+            return
+        element = self.document.elements[self.selected_index]
+        official = self._official_ids()
+        if official is None or element.window_id in official:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setWindowTitle(self.tr("Apagar controle"))
+            box.setText(
+                self.tr("O jogo pode procurar o controle {id}. Apagá-lo pode causar \"Child control can not found\".").format(id=element.window_id)
+                if official is not None
+                else self.tr("Sem a UI oficial para conferir, não dá para saber se o jogo usa o controle {id}.").format(id=element.window_id)
+            )
+            box.setInformativeText(self.tr("Ocultar no jogo tira o controle da tela sem esse risco."))
+            hide = box.addButton(self.tr("Ocultar no jogo"), QMessageBox.ButtonRole.AcceptRole)
+            delete = box.addButton(self.tr("Apagar mesmo assim"), QMessageBox.ButtonRole.DestructiveRole)
+            box.addButton(self.tr("Cancelar"), QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(hide)
+            box.exec()
+            if box.clickedButton() is hide:
+                if element.visible:
+                    self.toggle_selected_game_visibility()
+                return
+            if box.clickedButton() is not delete:
+                return
+        try:
+            new_text = delete_control(self.document.render_text(), element.window_id)
+        except ControlError as error:
+            self._structure_error(error)
+            return
+        if self._push_structure(new_text, []):
+            self.statusBar().showMessage(self.tr("Controle {id} apagado. Ctrl+Z desfaz.").format(id=element.window_id), 8000)
+
+    def toggle_selected_game_visibility(self) -> None:
+        if self.document is None or self.selected_index in (None, 0):
+            return
+        index = self.selected_index
+        element = self.document.elements[index]
+        old = element.attrs.get("Visible")
+        new = "1" if not element.visible else "0"
+        self.undo_stack.push(AttributeCommand(self, index, "Visible", old, new))
+
+    def apply_attribute(self, index: int, name: str, value: str | None) -> None:
+        assert self.document is not None
+        element = self.document.elements[index]
+        if value is None:
+            element.attrs.pop(name, None)
+        else:
+            element.attrs[name] = value
+        if self.selected_index == index:
+            self.properties.set_element(element)
+            self._update_element_actions()
+        self._update_title()
+
+    def new_image(self) -> None:
+        if self.document is None or self.texture_cache is None:
+            return
+        text = self.document.render_text()
+        selected = self.document.elements[self.selected_index] if self.selected_index is not None else None
+        owner = None
+        if selected is not None:
+            owner = selected.window_id if "Container_Node" in selected.child_tags else owner_of(text, selected.window_id)
+        owner = owner or self.document.elements[0].window_id
+        folder = self.texture_cache.ui_directory
+        names = sorted(
+            (path.name for path in folder.iterdir() if path.suffix.lower() in (".dds", ".tga") and path.is_file()),
+            key=str.lower,
+        )
+        if not names:
+            QMessageBox.information(self, self.tr("Nova imagem"), self.tr("Não há arquivos .dds na pasta desta UI."))
+            return
+        default = selected.texture_name if selected is not None and selected.texture_name in names else names[0]
+        texture, accepted = QInputDialog.getItem(
+            self, self.tr("Nova imagem"), self.tr("Textura da imagem (depois você escolhe o recorte no atlas):"),
+            names, names.index(default), False,
+        )
+        if not accepted:
+            return
+        owner_element = next((element for element in self.document.elements if element.window_id == owner), self.document.elements[0])
+        new_id = free_window_id(text, "1", self._official_ids() or set())
+        try:
+            new_text = new_image_control(
+                text, owner, new_id, texture, UVRect(0, 0, 32, 32), (owner_element.x + 16, owner_element.y + 16)
+            )
+        except ControlError as error:
+            self._structure_error(error)
+            return
+        if not self._push_structure(new_text, [new_id]):
+            return
+        self.statusBar().showMessage(self.tr("Imagem {id} criada. Marque o recorte no atlas.").format(id=new_id), 10000)
+        QTimer.singleShot(0, self._open_atlas_for_new_image)
+
+    def _open_atlas_for_new_image(self) -> None:
+        self.open_selected_atlas()
+        dialog = getattr(self, "atlas_dialog", None)
+        if dialog is not None:
+            dialog.edit_button.setChecked(True)
+            dialog.resize_element.setChecked(True)
+            dialog.view.fit_texture()
 
     def resolve_game_error(self) -> None:
         """Do texto do erro do jogo até o XML e o controle que falta."""

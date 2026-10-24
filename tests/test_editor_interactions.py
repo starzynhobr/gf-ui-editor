@@ -1161,3 +1161,49 @@ def test_texture_of_a_control_can_be_changed_undone_and_saved(tmp_path: Path) ->
                                 'BGmap="meu.dds"><NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="4" NorUVHeight="4" /></BackGroundMap>\n      </BaseWndProperty>')
     assert saved.count('BGmap="main.dds"') == 1  # o controle 1 continua com a textura dele
     window.close()
+
+
+def test_duplicate_hide_and_delete_controls_with_undo(tmp_path: Path) -> None:
+    import zlib
+
+    from PySide6.QtCore import QSettings
+
+    application = QApplication.instance() or QApplication([])
+    xml = (
+        '<?xml version="1.0" ?>\n<Root_Node UI_File_Name="Storage.xml">\n'
+        '  <BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80">\n'
+        '    <Container_Node Child_Cnt="1">\n      <Style CtrlType="268435456" />\n'
+        '      <BaseWndProperty WindowID="2" WindowLeft="10" WindowTop="10" WindowHeight="20" WindowWidth="20" />\n'
+        "    </Container_Node>\n  </BaseWndProperty>\n</Root_Node>\n"
+    )
+    game = tmp_path / "Game"
+    (game / "UI").mkdir(parents=True)
+    data = xml.encode("big5")
+    (game / "UI" / "Storage.xml").write_bytes(data)
+    (game / "client.ini").write_text("[Option]\n", encoding="utf-8")
+    (game / "GameDataFileList.txt").write_text(f"UI\\Storage.xml|{len(data)}|{zlib.crc32(data):08X}|1|0|\n", encoding="latin-1")
+    path = tmp_path / "Downloads" / "Storage.xml"
+    path.parent.mkdir()
+    path.write_bytes(data)
+    QSettings("Local", "GF UI Editor").setValue("game_dir", str(game))
+
+    window = EditorWindow(path)
+    window.select_element(1)
+    window.duplicate_selected()
+    assert [element.window_id for element in window.document.elements] == ["1", "2", "3"]
+    copy = window.document.elements[2]
+    assert window.selected_index == 2 and (copy.x, copy.y) == (18, 18)
+
+    window.toggle_selected_game_visibility()
+    assert not window.document.elements[2].visible
+    window.undo_stack.undo()
+    assert window.document.elements[2].visible
+
+    window.select_element(2)
+    window.delete_selected()  # o 3 não existe no oficial: apaga sem perguntar
+    assert [element.window_id for element in window.document.elements] == ["1", "2"]
+    window.undo_stack.undo()
+    window.undo_stack.undo()
+    assert [element.window_id for element in window.document.elements] == ["1", "2"]
+    assert not window.document.is_dirty
+    window.close()

@@ -131,6 +131,14 @@ O executável fica em `dist\GF-UI-Editor\` e o instalador em `dist\installer\`. 
 
 Ao publicar uma release, envie o instalador também com o nome `GF-UI-Editor-Setup.exe` para manter o botão de download apontando para a versão mais recente.
 
+## Contribuir
+
+Problemas, sugestões e pull requests são bem-vindos. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para relatar um problema, preparar o ambiente e enviar código.
+
+## Licença
+
+O código é distribuído sob a [GPL-3.0](LICENSE): você pode usar, estudar, modificar e redistribuir, desde que versões modificadas distribuídas continuem abertas sob a mesma licença. Fontes, ícones e imagens de terceiros mantêm as licenças próprias; veja [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). O jogo e seus arquivos não fazem parte do projeto.
+
 ## Cores da interface
 
 A paleta fica em `src/gf_ui_editor/theme.py`. O stylesheet e os desenhos do canvas/atlas usam os mesmos tokens; altere os valores ali para ajustar as cores sem procurar por literais espalhados pelo código.

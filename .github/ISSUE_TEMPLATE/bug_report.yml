@@ -1,0 +1,40 @@
+name: Problema / Bug
+description: Algo no editor não funciona como deveria. / Something in the editor doesn't work as expected.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Versão do editor / Editor version
+      description: Ajuda → Sobre o GF UI Editor / Help → About GF UI Editor
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: O que você fez / What you did
+      description: Passo a passo para chegar no problema. / Steps to reproduce.
+      placeholder: |
+        1. Abri o projeto…
+        2. Selecionei o controle…
+        3. Cliquei em…
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: O que aconteceu e o que você esperava / What happened and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: game-error
+    attributes:
+      label: Mensagem de erro do jogo (se houver) / In-game error message (if any)
+      placeholder: "..\\MiniInfo.cpp ERROR: ID=8301 Child control can not found!"
+      render: text
+  - type: textarea
+    id: files
+    attributes:
+      label: Arquivos e prints / Files and screenshots
+      description: Anexe o XML envolvido em .zip e um print da tela. / Attach the XML involved as a .zip and a screenshot.

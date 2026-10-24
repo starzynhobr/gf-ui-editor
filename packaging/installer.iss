@@ -28,6 +28,9 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
 Source: "..\dist\GF-UI-Editor\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+; A GPL exige que a licença acompanhe o programa distribuído.
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
