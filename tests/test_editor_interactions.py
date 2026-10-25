@@ -1315,3 +1315,23 @@ def test_portrait_marker_can_be_hidden_from_the_floating_bar(tmp_path: Path) -> 
     window.set_game_resolution(None)
     assert window.game_drawn_item is None and window.game_drawn_button.isHidden()
     window.close()
+
+
+def test_missing_official_reference_shows_a_banner_until_dismissed(tmp_path: Path, monkeypatch) -> None:
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    (tmp_path / "GameDataFileList.txt").write_text("", encoding="latin-1")
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_document_game_dir", lambda: tmp_path)
+    monkeypatch.setattr(app_module, "reference_ready", lambda game_dir: False)
+    window._update_reference_chip()
+    assert not window.reference_banner.isHidden()
+    window._dismiss_reference_banner()
+    window._update_reference_chip()
+    assert window.reference_banner.isHidden()  # dispensado vale até fechar o editor
+    window.reference_banner_dismissed = False
+    monkeypatch.setattr(app_module, "reference_ready", lambda game_dir: True)
+    window._update_reference_chip()
+    assert window.reference_banner.isHidden()  # quem já tem a referência não vê nada
+    window.close()

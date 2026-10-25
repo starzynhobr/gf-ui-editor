@@ -1419,6 +1419,36 @@ class EditorWindow(QMainWindow):
         banner_layout.addWidget(banner_close)
         self.official_banner.setVisible(False)
         canvas_layout.addWidget(self.official_banner)
+        # Sem a UI oficial guardada o editor não percebe controles novos de uma atualização;
+        # o chip do rodapé passa despercebido, então avisa aqui também.
+        self.reference_banner = QFrame()
+        self.reference_banner.setObjectName("updateBanner")
+        reference_layout = QHBoxLayout(self.reference_banner)
+        reference_layout.setContentsMargins(14, 8, 8, 8)
+        reference_layout.setSpacing(10)
+        reference_icon = QLabel()
+        reference_icon.setPixmap(icon("info", COLORS["SELECTION_GOLD"], 18).pixmap(18, 18))
+        reference_text = QLabel(
+            self.tr(
+                "A UI oficial desta versão do jogo não está guardada: sem ela o editor não avisa "
+                "quando uma atualização traz controles novos."
+            )
+        )
+        reference_text.setWordWrap(True)
+        reference_button = QPushButton(self.tr("Guardar UI oficial"))
+        reference_button.clicked.connect(lambda: self.open_official_reference())
+        reference_close = QToolButton()
+        reference_close.setIcon(icon("x", COLORS["WARNING_TEXT"], 16))
+        reference_close.setAutoRaise(True)
+        reference_close.setToolTip(self.tr("Dispensar"))
+        reference_close.clicked.connect(self._dismiss_reference_banner)
+        reference_layout.addWidget(reference_icon)
+        reference_layout.addWidget(reference_text, 1)
+        reference_layout.addWidget(reference_button)
+        reference_layout.addWidget(reference_close)
+        self.reference_banner.setVisible(False)
+        self.reference_banner_dismissed = False
+        canvas_layout.addWidget(self.reference_banner)
         canvas_layout.addWidget(self.view, 1)
         self.center_stack.addWidget(self.canvas_page)
         canvas_panel = self.center_stack
@@ -4210,8 +4240,10 @@ class EditorWindow(QMainWindow):
         game_dir = self._document_game_dir() or self._game_dir()
         if game_dir is None or not (game_dir / "GameDataFileList.txt").is_file():
             self.reference_chip.setVisible(False)
+            self.reference_banner.setVisible(False)
             return
         ready = reference_ready(game_dir)
+        self.reference_banner.setVisible(not ready and not self.reference_banner_dismissed)
         self.reference_chip.setText(
             self.tr("UI oficial: guardada") if ready else self.tr("UI oficial: não guardada · guardar")
         )
@@ -4219,6 +4251,10 @@ class EditorWindow(QMainWindow):
         self.reference_chip.style().unpolish(self.reference_chip)
         self.reference_chip.style().polish(self.reference_chip)
         self.reference_chip.setVisible(True)
+
+    def _dismiss_reference_banner(self) -> None:
+        self.reference_banner_dismissed = True
+        self.reference_banner.setVisible(False)
 
     def open_official_reference(self) -> None:
         game_dir = self._document_game_dir() or self._game_dir()
