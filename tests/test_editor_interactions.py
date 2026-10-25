@@ -1400,3 +1400,29 @@ def test_checked_files_show_as_reference_layers_where_the_game_draws_them(tmp_pa
     assert not [item for item in window.scene.items() if isinstance(item, ReferenceLayerItem)]
     window.set_game_resolution(None)
     window.close()
+
+
+def test_default_hud_checks_the_always_visible_windows_and_lists_them_first(tmp_path: Path) -> None:
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("Menu.xml", "Radar.xml", "Channel.xml", "Bank.xml"):
+        (source / name).write_bytes(
+            f'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="{name}">\r\n'
+            '\t<BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="40" />\r\n</Root_Node>\r\n'.encode("big5")
+        )
+    project = Project.create("Hud", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.build_default_hud()
+    application.processEvents()
+    assert sorted(window.project.reference_layers) == ["Channel.xml", "Menu.xml", "Radar.xml"]  # Bank não é HUD
+    first_group = window.files_tree.topLevelItem(0)
+    assert first_group.text(0).startswith("CAMADAS") or first_group.text(0).startswith("LAYERS")
+    assert first_group.childCount() == 3
+    window.set_reference_layers([])
+    application.processEvents()
+    assert window.project.reference_layers == []
+    window.close()

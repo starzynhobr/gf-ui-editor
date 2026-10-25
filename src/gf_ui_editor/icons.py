@@ -39,6 +39,7 @@ _PATHS = {
     "trash": '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3"/>',
     "x": '<path d="M6 6l12 12M18 6L6 18"/>',
     "plus": '<path d="M12 5v14M5 12h14"/>',
+    "layers": '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
 }
 
 

@@ -170,6 +170,11 @@ from .xml_document import (
 # Áreas que o jogo desenha por código, sem textura no XML: arquivo -> x, y, largura, altura na
 # tela do jogo. A foto do BasicChar fica sempre no canto da tela, mesmo movendo a janela
 # (medida em prints do jogo, aproximada).
+# Janelas sempre visíveis no jogo, para "Montar HUD padrão".
+DEFAULT_HUD = (
+    "BasicChar.xml", "Target.xml", "Radar.xml", "TinyClock.xml", "QuestTraceWnd.xml",
+    "Channel.xml", "ShortcutBar.xml", "Menu.xml",
+)
 GAME_DRAWN_AREAS = {"basicchar.xml": (23, 7, 76, 76)}
 TEXTURE_SUFFIXES = (".dds", ".tga")
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
@@ -2703,9 +2708,38 @@ class EditorWindow(QMainWindow):
         layers = [layer for layer in self.project.reference_layers if layer.lower() != name.lower()]
         if enabled:
             layers.append(name)
-        self.project.reference_layers = layers
+        self.set_reference_layers(layers)
+
+    def set_reference_layers(self, layers: list[str]) -> None:
+        if self.project is None:
+            return
+        self.project.reference_layers = list(layers)
         self.project.save_manifest()
         self._refresh_reference_layers()
+        # Depois do sinal da caixa: a lista é refeita para a camada subir para o topo.
+        QTimer.singleShot(0, self._refresh_files_keeping_scroll)
+
+    def _refresh_files_keeping_scroll(self) -> None:
+        bar = self.files_tree.verticalScrollBar()
+        position = bar.value()
+        self._refresh_files()
+        bar.setValue(position)
+
+    def build_default_hud(self) -> None:
+        """Liga como camadas as janelas que o jogo mostra sempre na tela."""
+        if self.project is None:
+            return
+        available = {path.as_posix().lower(): path.as_posix() for path in self.project.files()}
+        layers = list(self.project.reference_layers)
+        for name in DEFAULT_HUD:
+            match = available.get(name.lower())
+            if match is not None and match.lower() not in (layer.lower() for layer in layers):
+                layers.append(match)
+        self.set_reference_layers(layers)
+        if self.game_resolution is None:
+            self.statusBar().showMessage(
+                self.tr("As camadas aparecem no Preview do jogo: escolha uma resolução na barra do canvas."), 6000
+            )
 
     def _refresh_game_screen(self) -> None:
         self._clear_reference_layers()
@@ -4301,6 +4335,17 @@ class EditorWindow(QMainWindow):
         user_ini.setText("User.ini")
         self.saved_positions_action.changed.connect(lambda: user_ini.setText("User.ini"))
         self.game_drawn_button = bar_button(action=self.game_drawn_action)
+        layers_menu = QMenu(self)
+        layers_menu.addAction(self.tr("Montar HUD padrão"), self.build_default_hud)
+        layers_menu.addAction(self.tr("Limpar camadas"), lambda: self.set_reference_layers([]))
+        self.layers_button = bar_button(self.tr("Camadas"))
+        self.layers_button.setIcon(icon("layers", size=15))
+        self.layers_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.layers_button.setMenu(layers_menu)
+        self.layers_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.layers_button.setToolTip(
+            self.tr("Outras janelas do projeto, onde o jogo as desenha. Marque arquivos no painel Arquivos ou monte o HUD padrão.")
+        )
         self.text_mode_button = bar_button(self.tr("Texto"))
         self.text_mode_button.setIcon(icon("type", size=15))
         self.text_mode_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -5068,6 +5113,10 @@ class EditorWindow(QMainWindow):
         changed = [path for path in files if path.as_posix() in modified]
         layers = set(self.project.reference_layers) if self.project is not None else set()
         blocker = QSignalBlocker(self.files_tree)  # caixas marcadas aqui não são cliques
+        # Camadas marcadas no topo: fica fácil ver o que está ligado e desmarcar.
+        layered = [path for path in files if path.as_posix() in layers]
+        if layered:
+            groups.append((self.tr("CAMADAS · {count}").format(count=len(layered)), layered))
         if changed:
             groups.append((self.tr("ALTERADOS · {count}").format(count=len(changed)), changed))
         groups.append((self.tr("TODOS · {count}").format(count=len(files)), files))
