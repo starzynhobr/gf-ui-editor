@@ -3,9 +3,34 @@ r"""Texto que cada .cpp do cliente põe em cada controle (extraído do GrandFant
 O jogo preenche o rótulo dos controles pelo código, não pelo XML: uma chamada como
 ``SetChildText(janela, WindowID, TextID, "..\FamilyWnd.cpp")`` busca o TextID no
 ``data/Translate/T_TextIndex.ini``. Aqui ficam só os números; o texto vem da pasta do jogo.
+
+CPP_XML completa error_sources.CPP_TO_XML para os .cpp que não carregam o XML pelo nome:
+o XML oficial precisa ter todos os WindowIDs do .cpp e um nome compatível.
 """
 
+CPP_XML: dict[str, tuple[str, ...]] = {
+    'AudioSetWnd.cpp': ('Option_audio.xml',),
+    'ElfCollectWnd.cpp': ('ElfCollect.xml',),
+    'ElfDecomposeWnd.cpp': ('ElfDecompose.xml',),
+    'ElfTrainWnd.cpp': ('ElfTrain.xml',),
+    'ElfUIWnd.cpp': ('ElfUI.xml',),
+    'ElfWorkWnd.cpp': ('ElfWork.xml',),
+    'FamilyAffairWnd.cpp': ('Fellowship_FamilyAffairs.xml',),
+    'FamilyBulletinWnd.cpp': ('FamilyBulletin.xml',),
+    'ItemMallWnd.cpp': ('ItemMall.xml',),
+    'RentStorageBagDlg.cpp': ('RentStorageBag.xml',),
+    'RollWnd.cpp': ('Roll.xml',),
+    'UISetingWnd.cpp': ('Option_ui.xml',),
+    'VideoSetWnd.cpp': ('Option_video.xml',),
+    'WorldMapWnd.cpp': ('WorldMap1.xml', 'WorldMap2.xml', 'WorldMap3.xml', 'WorldMap4.xml'),
+}
+
 CHILD_TEXTS: dict[str, dict[int, int]] = {
+    'AchievementMonsterInfoWnd.cpp': {
+        2000: 11030,
+        2001: 11031,
+        2002: 11032,
+    },
     'AchievementWnd.cpp': {
         3: 352,
         9: 9981,
@@ -293,6 +318,23 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         4010: 296,
         4040: 18667,
     },
+    'ChairCombineWnd.cpp': {
+        101: 15768,
+        102: 15769,
+        103: 15770,
+        104: 295,
+        105: 296,
+        200: 15767,
+        1201: 15771,
+        1202: 15772,
+        2401: 15771,
+        2402: 15775,
+        2403: 15776,
+        2404: 15777,
+        3501: 15771,
+        3503: 15772,
+        3504: 15777,
+    },
     'ChannelGroupContentWnd.cpp': {
         1100: 488,
         2090: 296,
@@ -389,6 +431,14 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         4000: 662,
         7009: 278,
     },
+    'CustomKeyWnd.cpp': {
+        100: 10739,
+        101: 10740,
+        102: 10741,
+        2000: 564,
+        2001: 295,
+        2002: 296,
+    },
     'DailyAwardsWnd.cpp': {
         21000: 11426,
         21001: 11427,
@@ -401,6 +451,16 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         3002: 17877,
         3003: 17878,
         4001: 17875,
+    },
+    'DressRoomWnd.cpp': {
+        1010: 9881,
+        1020: 10020,
+        1030: 10021,
+        1040: 10022,
+        2000: 10010,
+    },
+    'DynamicEventWnd.cpp': {
+        110: 12720,
     },
     'ElfAttackWnd.cpp': {
         20000: 665,
@@ -418,6 +478,16 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     'ElfBetWnd.cpp': {
         3001: 500,
         3002: 295,
+    },
+    'ElfBoxingScheduleWnd.cpp': {
+        2001: 11130,
+        2002: 11142,
+        2004: 11131,
+        2005: 11143,
+        2010: 11130,
+        2011: 11131,
+        2012: 11144,
+        2500: 11138,
     },
     'ElfBoxingWnd.cpp': {
         401: 11130,
@@ -454,6 +524,15 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         2006: 9464,
         5004: 591,
     },
+    'ElfDuelWnd.cpp': {
+        3: 10197,
+        4: 10198,
+        6: 10412,
+        5000: 10200,
+        5001: 296,
+        5002: 10520,
+        5003: 13127,
+    },
     'ElfFaceChangeWnd.cpp': {
         2: 11010,
         3: 11011,
@@ -466,6 +545,20 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         5000: 295,
         5001: 591,
         5002: 577,
+    },
+    'ElfFightKingWnd.cpp': {
+        2001: 13328,
+        2002: 13329,
+        2003: 10940,
+        2005: 13286,
+        2008: 12095,
+        2010: 11001,
+        2012: 13287,
+        5001: 637,
+        5002: 12153,
+        5003: 13288,
+        9100: 13372,
+        9101: 295,
     },
     'ElfGladiatorWnd.cpp': {
         1001: 10412,
@@ -492,6 +585,20 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     },
     'ElfRacingRewardWnd.cpp': {
         2000: 14628,
+    },
+    'ElfRacingWnd.cpp': {
+        504: 14624,
+        505: 14625,
+        506: 14710,
+        507: 9086,
+        508: 14630,
+        509: 14631,
+        601: 11001,
+        2000: 14623,
+        10000: 14626,
+        10001: 14627,
+        10002: 14628,
+        10003: 14629,
     },
     'ElfReturnWnd.cpp': {
         1010: 852,
@@ -663,6 +770,19 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         50002: 13129,
         50025: 295,
     },
+    'ElfUIWnd_Game.cpp': {
+        1001: 10409,
+        13001: 10269,
+        13002: 10270,
+        13003: 10271,
+        13004: 10272,
+        13005: 10273,
+        13006: 10274,
+        14001: 10275,
+        14002: 10276,
+        14003: 10277,
+        14004: 13124,
+    },
     'ElfWorkWnd.cpp': {
         2001: 9454,
         2002: 9455,
@@ -724,6 +844,20 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         5200: 431,
         5300: 436,
         5400: 437,
+        5800: 11710,
+    },
+    'FamilyAffairWnd.cpp': {
+        3: 428,
+        4: 444,
+        5: 445,
+        21: 839,
+        22: 841,
+        23: 9907,
+        27: 934,
+        29: 935,
+        5400: 933,
+        5500: 842,
+        5600: 932,
         5800: 11710,
     },
     'FamilyBattleResultWnd.cpp': {
@@ -835,6 +969,13 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         100: 295,
         300: 296,
     },
+    'FamilyStorageWnd.cpp': {
+        101: 10376,
+        102: 10377,
+        103: 10378,
+        301: 296,
+        2001: 10375,
+    },
     'FamilyTransformWnd.cpp': {
         301: 10716,
         403: 296,
@@ -860,6 +1001,12 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         3002: 14122,
         10000: 14134,
         10001: 295,
+    },
+    'FamilyWishingWellWnd.cpp': {
+        2502: 16567,
+        2503: 16740,
+        2505: 16568,
+        3101: 16639,
     },
     'FamilyWnd.cpp': {
         3: 428,
@@ -929,6 +1076,16 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         3000: 295,
         3100: 296,
     },
+    'IsleCookWnd.cpp': {
+        20000: 12415,
+        20001: 12416,
+        20002: 12417,
+        20003: 12418,
+        20004: 12419,
+        31000: 12420,
+        31001: 296,
+        50000: 17542,
+    },
     'IsleCropWnd.cpp': {
         20000: 12072,
         23000: 11734,
@@ -950,6 +1107,19 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         21003: 12024,
         21004: 12025,
         21005: 11720,
+    },
+    'IsleInfoWnd.cpp': {
+        20100: 11958,
+        20101: 296,
+        30000: 12013,
+        30001: 12017,
+        30002: 12058,
+        30003: 12059,
+        30004: 12061,
+        30005: 12016,
+        30006: 12015,
+        30007: 12014,
+        30008: 14019,
     },
     'IsleMatchWnd.cpp': {
         20000: 12421,
@@ -975,6 +1145,22 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     'IsleSummonWnd.cpp': {
         20000: 13586,
         32000: 158,
+    },
+    'IsleWnd.cpp': {
+        20000: 11913,
+        20001: 296,
+        20100: 11860,
+        20101: 11861,
+        20200: 11862,
+        20201: 296,
+        30000: 11914,
+        30001: 11852,
+        30002: 11853,
+        30101: 11856,
+        30102: 11857,
+        30200: 11855,
+        30201: 11856,
+        30202: 11858,
     },
     'ItemExchangeWnd.cpp': {
         20000: 15401,
@@ -1084,6 +1270,16 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         23001: 16052,
         24001: 14460,
         24002: 14460,
+    },
+    'LuckyBarElfWnd.cpp': {
+        2501: 12094,
+        2503: 11001,
+        2504: 12095,
+        2507: 12096,
+        2508: 11041,
+        3003: 10998,
+        3004: 12153,
+        3005: 637,
     },
     'LuckyBarWnd.cpp': {
         3003: 296,
@@ -1242,6 +1438,9 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         3001: 17876,
         3002: 17877,
         3003: 17878,
+    },
+    'OtherEquipmentUI.cpp': {
+        4001: 325,
     },
     'PartBreakingDropWnd.cpp': {
         2000: 15319,
@@ -1461,6 +1660,11 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         6002: 540,
         6003: 541,
         6004: 542,
+        99999: 12691,
+    },
+    'SpellNormalWnd.cpp': {
+        2060: 296,
+        3000: 670,
         99999: 12691,
     },
     'SpellOverviewWnd.cpp': {

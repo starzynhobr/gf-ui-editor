@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .child_texts import CHILD_TEXTS
+from .child_texts import CHILD_TEXTS, CPP_XML
 from .error_sources import CPP_TO_XML
 
 TEXT_INDEX = Path("data") / "Translate" / "T_TextIndex.ini"
@@ -47,7 +47,9 @@ def text_ids_for(xml_name: str) -> dict[str, int]:
     """WindowID -> TextID de todos os .cpp que carregam este XML."""
     name = xml_name.lower()
     result: dict[str, int] = {}
-    for cpp, xml_files in CPP_TO_XML.items():
+    # CPP_XML primeiro: ele confere os WindowIDs, enquanto CPP_TO_XML às vezes aponta a
+    # fábrica genérica (o Fellowship_FamilyAffairs.xml aparece lá como CastingBarWnd.cpp).
+    for cpp, xml_files in [*CPP_XML.items(), *CPP_TO_XML.items()]:
         if name in (xml.lower() for xml in xml_files):
             for window_id, text_id in CHILD_TEXTS.get(cpp, {}).items():
                 result.setdefault(str(window_id), text_id)

@@ -5,12 +5,13 @@ import math
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF, QSizeF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
     QFontDatabase,
     QFontMetricsF,
+    QImage,
     QKeyEvent,
     QPainter,
     QPainterPath,
@@ -178,6 +179,8 @@ class GameTextItem(QGraphicsItem):
             # ("Ranque da Guilda" 99 px em vez de 84).
             self.font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
         self.overflows = False
+        self._image: QImage | None = None
+        self._image_origin = QPointF()
 
     def _box(self) -> QRectF:
         return self.owner.rect()
@@ -201,36 +204,67 @@ class GameTextItem(QGraphicsItem):
         # Só estouro na largura conta: linhas de lista têm a altura justa do texto.
         # Caixas minúsculas são reposicionadas pelo próprio jogo.
         self.overflows = bool(text) and box.width() >= 4 and needed.width() > box.width() + 0.5
+        self._render(box, needed)
         self.update()
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
-        box = self._box()
-        if not self.text:
-            return QRectF()
-        needed = QFontMetricsF(self.font).boundingRect(box, self._flags(), self.text)
-        return box.united(needed).adjusted(-2, -2, 2, 2)
+    def _render(self, box: QRectF, needed: QRectF) -> None:
+        """Desenha o texto uma vez, em pixels do jogo; com zoom só a imagem é ampliada.
 
-    def paint(self, painter: QPainter, _option, _widget=None) -> None:
+        Desenhar o texto direto na cena com zoom deixa o Qt reposicionar cada cópia do
+        contorno de um jeito e o contorno sai com falhas, o que o jogo não faz.
+        """
+        self._image = None
         if not self.text:
             return
-        box = self._box()
-        painter.save()
+        margin = TEXT_OUTLINE + 1
+        area = box.united(needed).adjusted(-margin, -margin, margin, margin)
+        left, top = math.floor(area.left()), math.floor(area.top())
+        image = QImage(
+            math.ceil(area.right()) - left, math.ceil(area.bottom()) - top,
+            QImage.Format.Format_ARGB32_Premultiplied,
+        )
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
         painter.setFont(self.font)
         flags = self._flags()
+        target = box.translated(-left, -top)
         if self.outline:
-            painter.setPen(QColor(0, 0, 0))
+            # Uma máscara do texto, carimbada em preto nos 8 vizinhos: contorno sem falhas.
+            mask = QImage(image.size(), QImage.Format.Format_ARGB32_Premultiplied)
+            mask.fill(Qt.GlobalColor.transparent)
+            mask_painter = QPainter(mask)
+            mask_painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
+            mask_painter.setFont(self.font)
+            mask_painter.setPen(QColor(0, 0, 0))
+            mask_painter.drawText(target, flags, self.text)
+            mask_painter.end()
             for dx in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
                 for dy in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
                     if dx or dy:
-                        painter.drawText(box.translated(dx, dy), flags, self.text)
+                        painter.drawImage(dx, dy, mask)
         painter.setPen(self.color)
-        painter.drawText(box, flags, self.text)
+        painter.drawText(target, flags, self.text)
+        painter.end()
+        self._image = image
+        self._image_origin = QPointF(left, top)
+
+    def boundingRect(self) -> QRectF:  # noqa: N802
+        if self._image is None:
+            return QRectF()
+        return QRectF(self._image_origin, QSizeF(self._image.size())).united(self._box())
+
+    def paint(self, painter: QPainter, _option, _widget=None) -> None:
+        if self._image is None:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._image_origin, self._image)
         if self.overflows:
             # Texto maior que a caixa: no jogo ele vaza por cima dos vizinhos.
             painter.setPen(QPen(QColor(255, 60, 60), 0))
-            painter.drawRect(box)
+            painter.drawRect(self._box())
         painter.restore()
 
 

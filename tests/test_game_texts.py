@@ -15,3 +15,10 @@ def test_labels_come_from_the_exe_table_and_the_game_text_index(tmp_path: Path) 
     assert "4100" not in labels  # TextID 421 não está neste T_TextIndex
     assert game_texts.labels_for("Fellowship_family.xml", None) == {}
     assert game_texts.labels_for("NaoExiste.xml", tmp_path) == {}
+
+
+def test_cpp_files_found_by_window_ids_also_label_their_xml(tmp_path: Path) -> None:
+    # FamilyAffairWnd.cpp não carrega o XML pelo nome; o gerador o ligou pelos WindowIDs.
+    ids = game_texts.text_ids_for("Fellowship_FamilyAffairs.xml")
+    assert ids["4"] == 444  # "Ranques da Guilda"
+    assert ids["5"] == 445  # "Poderes - Guilda"
