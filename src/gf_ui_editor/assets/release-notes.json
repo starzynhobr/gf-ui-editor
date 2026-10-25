@@ -1,166 +1,46 @@
 {
-  "version": "0.3.2",
+  "version": "0.3.3",
   "date": "2026-10-25",
   "notes": {
     "pt_BR": {
-      "new": [
-        [
-          "Renomear e apagar arquivos.",
-          "No painel Arquivos, clique com o botão direito para renomear ou apagar. Ao renomear uma textura, o editor oferece trocar o nome nos XMLs que a usam. Uma cópia sempre fica no histórico do projeto."
-        ],
-        [
-          "Abas XML e Texturas.",
-          "O painel Arquivos separa os XMLs das texturas em duas abas."
-        ],
-        [
-          "Mover o recorte no atlas.",
-          "Arraste por dentro do recorte amarelo para movê-lo sem mudar o tamanho."
-        ],
-        [
-          "Marcação da foto do personagem.",
-          "No BasicChar, uma caixa ciano mostra onde o jogo desenha a foto, que fica fixa na tela. O botão Foto na barra do canvas liga e desliga a marcação."
-        ]
-      ],
+      "new": [],
       "improved": [
         [
-          "Esc desmarca a seleção.",
-          "Editar → Desmarcar seleção (Esc) limpa a seleção do canvas e da lista."
-        ],
-        [
-          "Resolver erro do jogo procura pelo ID.",
-          "Quando o nome do .cpp não aponta um arquivo, o editor procura o WindowID nos XMLs oficiais."
+          "Aviso quando falta a UI oficial.",
+          "Se a UI oficial da versão atual do jogo não estiver guardada, um aviso no topo do canvas mostra o botão Guardar UI oficial. Sem essa referência o editor não consegue avisar sobre controles novos de uma atualização."
         ]
       ],
-      "fixed": [
-        [
-          "Aviso dos novos IDs do BasicChar.",
-          "Os controles 5130, 5131 e 5132 da atualização do jogo agora aparecem como novos, mesmo sem histórico da UI oficial."
-        ],
-        [
-          "Estado preenchido some no atlas.",
-          "Ao marcar um recorte perto da borda, a caixa ciano volta para dentro da textura em vez de sumir."
-        ]
-      ]
+      "fixed": []
     },
     "en_US": {
-      "new": [
-        [
-          "Rename and delete files.",
-          "Right-click in the Files panel to rename or delete. When you rename a texture, the editor offers to update the XML files that use it. A copy always stays in the project history."
-        ],
-        [
-          "XML and Textures tabs.",
-          "The Files panel splits XML files and textures into two tabs."
-        ],
-        [
-          "Move the slice in the atlas.",
-          "Drag inside the yellow slice to move it without changing its size."
-        ],
-        [
-          "Character portrait marker.",
-          "In BasicChar, a cyan box shows where the game draws the portrait, which stays fixed on screen. The Portrait button on the canvas bar turns the marker on and off."
-        ]
-      ],
+      "new": [],
       "improved": [
         [
-          "Esc clears the selection.",
-          "Edit → Clear selection (Esc) clears the selection in the canvas and the list."
-        ],
-        [
-          "Fix game error searches by ID.",
-          "When the .cpp name doesn't point to a file, the editor looks for the WindowID in the official XML files."
+          "Notice when the official UI is missing.",
+          "If the official UI for the current game version isn't saved, a notice at the top of the canvas shows a Save official UI button. Without this reference the editor can't warn you about new controls from an update."
         ]
       ],
-      "fixed": [
-        [
-          "Notice for the new BasicChar IDs.",
-          "Controls 5130, 5131 and 5132 from the game update now show up as new, even without official UI history."
-        ],
-        [
-          "Filled state vanishing in the atlas.",
-          "When you mark a slice near the edge, the cyan box moves back inside the texture instead of disappearing."
-        ]
-      ]
+      "fixed": []
     },
     "es_ES": {
-      "new": [
-        [
-          "Renombrar y eliminar archivos.",
-          "En el panel Archivos, haz clic derecho para renombrar o eliminar. Al renombrar una textura, el editor ofrece cambiar el nombre en los XML que la usan. Siempre queda una copia en el historial del proyecto."
-        ],
-        [
-          "Pestañas XML y Texturas.",
-          "El panel Archivos separa los XML de las texturas en dos pestañas."
-        ],
-        [
-          "Mover el recorte en el atlas.",
-          "Arrastra por dentro del recorte amarillo para moverlo sin cambiar su tamaño."
-        ],
-        [
-          "Marca de la foto del personaje.",
-          "En BasicChar, una caja cian muestra dónde el juego dibuja la foto, que queda fija en la pantalla. El botón Foto de la barra del lienzo activa y desactiva la marca."
-        ]
-      ],
+      "new": [],
       "improved": [
         [
-          "Esc quita la selección.",
-          "Editar → Quitar selección (Esc) limpia la selección del lienzo y de la lista."
-        ],
-        [
-          "Resolver error del juego busca por ID.",
-          "Cuando el nombre del .cpp no indica un archivo, el editor busca el WindowID en los XML oficiales."
+          "Aviso cuando falta la UI oficial.",
+          "Si la UI oficial de la versión actual del juego no está guardada, un aviso arriba del lienzo muestra el botón Guardar UI oficial. Sin esa referencia el editor no puede avisar de controles nuevos de una actualización."
         ]
       ],
-      "fixed": [
-        [
-          "Aviso de los nuevos ID de BasicChar.",
-          "Los controles 5130, 5131 y 5132 de la actualización del juego ahora aparecen como nuevos, incluso sin historial de la UI oficial."
-        ],
-        [
-          "Estado lleno que desaparecía en el atlas.",
-          "Al marcar un recorte cerca del borde, la caja cian vuelve dentro de la textura en vez de desaparecer."
-        ]
-      ]
+      "fixed": []
     },
     "fr_FR": {
-      "new": [
-        [
-          "Renommer et supprimer des fichiers.",
-          "Clic droit dans le panneau Fichiers pour renommer ou supprimer. Quand vous renommez une texture, l'éditeur propose de mettre à jour les XML qui l'utilisent. Une copie reste toujours dans l'historique du projet."
-        ],
-        [
-          "Onglets XML et Textures.",
-          "Le panneau Fichiers sépare les XML et les textures en deux onglets."
-        ],
-        [
-          "Déplacer la zone dans l'atlas.",
-          "Glissez à l'intérieur de la zone jaune pour la déplacer sans changer sa taille."
-        ],
-        [
-          "Repère du portrait du personnage.",
-          "Dans BasicChar, un cadre cyan montre où le jeu dessine le portrait, qui reste fixe à l'écran. Le bouton Portrait de la barre du canevas active ou désactive le repère."
-        ]
-      ],
+      "new": [],
       "improved": [
         [
-          "Échap désélectionne.",
-          "Édition → Désélectionner (Échap) vide la sélection du canevas et de la liste."
-        ],
-        [
-          "Résoudre l'erreur du jeu cherche par ID.",
-          "Quand le nom du .cpp n'indique aucun fichier, l'éditeur cherche le WindowID dans les XML officiels."
+          "Avis quand l'UI officielle manque.",
+          "Si l'UI officielle de la version actuelle du jeu n'est pas enregistrée, un avis en haut du canevas affiche le bouton Enregistrer l'UI officielle. Sans cette référence, l'éditeur ne peut pas signaler les nouveaux contrôles d'une mise à jour."
         ]
       ],
-      "fixed": [
-        [
-          "Avis des nouveaux ID de BasicChar.",
-          "Les contrôles 5130, 5131 et 5132 de la mise à jour du jeu apparaissent maintenant comme nouveaux, même sans historique de l'UI officielle."
-        ],
-        [
-          "État rempli qui disparaissait dans l'atlas.",
-          "Quand vous tracez une zone près du bord, le cadre cyan revient dans la texture au lieu de disparaître."
-        ]
-      ]
+      "fixed": []
     }
   }
 }
