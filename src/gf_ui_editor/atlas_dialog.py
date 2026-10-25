@@ -84,6 +84,8 @@ class AtlasView(QGraphicsView):
         self.offset_editable = False
         self._offset_drag_start: QPointF | None = None
         self._offset_at_drag: tuple[int, int] | None = None
+        self._move_start: QPointF | None = None
+        self._move_rect: QRectF | None = None
         self._selection_start: QPointF | None = None
         self._resize_corner: str | None = None
         self._resize_rect: QRectF | None = None
@@ -261,6 +263,13 @@ class AtlasView(QGraphicsView):
                 self._resize_rect = self._selection_item.rect().normalized()
                 event.accept()
                 return
+            if self._over_selection(scene_point):
+                # Arrastar por dentro move o recorte inteiro, sem mudar o tamanho.
+                self._move_start = scene_point
+                self._move_rect = self._selection_item.rect().normalized()
+                self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+                event.accept()
+                return
             self._selection_start = self._clamp(
                 self.mapToScene(event.position().toPoint())
             )
@@ -300,6 +309,20 @@ class AtlasView(QGraphicsView):
                 self.offset_changed.emit(*offset)
             event.accept()
             return
+        if self._move_start is not None and self._move_rect is not None:
+            raw = self.mapToScene(event.position().toPoint())
+            dx = round(raw.x() - self._move_start.x())
+            dy = round(raw.y() - self._move_start.y())
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                if abs(dx) >= abs(dy):
+                    dy = 0
+                else:
+                    dx = 0
+            uv = self._moved(dx, dy)
+            self.set_selection(uv)
+            self.selection_changed.emit(uv)
+            event.accept()
+            return
         if self._selection_start is not None:
             self._selection_item.setRect(
                 QRectF(self._selection_start, point).normalized()
@@ -317,7 +340,8 @@ class AtlasView(QGraphicsView):
             super().mouseMoveEvent(event)
             return
         corner = self._corner_at(event.position().toPoint())
-        if corner is None and self._over_offset_box(self.mapToScene(event.position().toPoint())):
+        hovered = self.mapToScene(event.position().toPoint())
+        if corner is None and (self._over_offset_box(hovered) or self._over_selection(hovered)):
             self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
             super().mouseMoveEvent(event)
             return
@@ -332,6 +356,36 @@ class AtlasView(QGraphicsView):
         else:
             self.viewport().unsetCursor()
         super().mouseMoveEvent(event)
+
+    def _over_selection(self, scene_point: QPointF) -> bool:
+        rect = self._selection_item.rect().normalized()
+        return self.editable and not rect.isEmpty() and rect.contains(scene_point)
+
+    def _moved(self, dx: int, dy: int) -> UVRect:
+        assert self._move_rect is not None
+        bounds = self._pixmap_item.boundingRect()
+        rect = self._move_rect
+        width, height = round(rect.width()), round(rect.height())
+        left = max(0, min(round(rect.left()) + dx, int(bounds.width()) - width))
+        top = max(0, min(round(rect.top()) + dy, int(bounds.height()) - height))
+        return UVRect(left, top, width, height)
+
+    def _keep_progress_inside(self) -> None:
+        """Recorte novo perto da borda: puxa o estado preenchido de volta pra dentro da textura.
+
+        Sem isso a caixa ciano caía fora do atlas, sumia e não dava mais pra arrastar.
+        """
+        if self._progress_offset is None or not self._progress_item.isVisible():
+            return
+        bounds = self._pixmap_item.boundingRect()
+        selection = self._selection_item.rect().normalized()
+        box = self._progress_item.rect().normalized()
+        left = max(bounds.left(), min(box.left(), bounds.right() - box.width()))
+        top = max(bounds.top(), min(box.top(), bounds.bottom() - box.height()))
+        offset = (round(left - selection.left()), round(top - selection.top()))
+        if offset != self._progress_offset:
+            self.set_progress_offset(offset)
+            self.offset_changed.emit(*offset)
 
     def _over_offset_box(self, scene_point: QPointF) -> bool:
         return (
@@ -353,6 +407,13 @@ class AtlasView(QGraphicsView):
             self.viewport().unsetCursor()
             event.accept()
             return
+        if self._move_start is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._move_start = None
+            self._move_rect = None
+            self.viewport().unsetCursor()
+            self._keep_progress_inside()
+            event.accept()
+            return
         if self._panning and event.button() == self._pan_button:
             self._panning = False
             self._pan_start = None
@@ -365,6 +426,7 @@ class AtlasView(QGraphicsView):
             self._selection_start = None
             self.set_selection(uv)
             self.selection_changed.emit(uv)
+            self._keep_progress_inside()
             event.accept()
             return
         if self._resize_corner is not None and event.button() == Qt.MouseButton.LeftButton:
@@ -374,6 +436,7 @@ class AtlasView(QGraphicsView):
             self._resize_rect = None
             self.set_selection(uv)
             self.selection_changed.emit(uv)
+            self._keep_progress_inside()
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -539,7 +602,7 @@ class AtlasDialog(QDialog):
         self.title.setText(texture_name)
         self.explanation = explanation
         self.view_hint = self.tr("Arraste para mover a vista · roda = zoom · Editar posição libera o recorte")
-        self.edit_hint = self.tr("Arraste para marcar · cantos e bordas ajustam · botão do meio navega · roda = zoom")
+        self.edit_hint = self.tr("Arraste para marcar · arraste por dentro para mover · cantos e bordas ajustam · botão do meio navega · roda = zoom")
 
         self.uv_heading = QLabel(self.tr("RECORTE NORMAL (NorUV)"))
         uv_card = self._card(

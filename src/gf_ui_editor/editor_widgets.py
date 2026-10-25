@@ -684,6 +684,27 @@ class ElementItem(QGraphicsRectItem):
             )
 
 
+class GameDrawnItem(QGraphicsRectItem):
+    """Área que o jogo desenha por código (sem textura no XML), como a foto do personagem.
+
+    O jogo a desenha num ponto fixo da tela, não relativo à janela: mover a janela no
+    XML não leva a marcação junto. Fica por cima dos elementos para as texturas não a esconderem.
+    """
+
+    def __init__(self, rect: QRectF, label: str):
+        super().__init__(rect)
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setBrush(qcolor("POSITION_CYAN", 40))
+        self.setPen(QPen(qcolor("POSITION_CYAN", 220), 0, Qt.PenStyle.DashLine))
+        self.setZValue(ElementItem.SELECTION_Z_BASE * 2)
+        self.setToolTip(label)
+        text = QGraphicsSimpleTextItem(label, self)
+        text.setBrush(qcolor("POSITION_CYAN"))
+        text.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        text.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        text.setPos(rect.left() + 2, rect.bottom() - 12)
+
+
 class GhostAreaItem(QGraphicsRectItem):
     """Área que o jogo ainda trata como janela, longe do conteúdo; não interage."""
 

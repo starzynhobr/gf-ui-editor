@@ -39,6 +39,14 @@ _CPP_RE = re.compile(r"([A-Za-z_]\w*\.cpp)\b", re.IGNORECASE)
 _ID_RE = re.compile(r"\bID\s*=\s*(\d+)", re.IGNORECASE)
 
 
+# Controles que o jogo passou a exigir em atualizações anteriores ao histórico de
+# versões oficiais do editor (sem a versão antiga guardada, não dá para deduzi-los).
+# Atualização de 24/10/2026: o MiniInfo procura 5130, 5131 e 5132 no BasicChar.
+KNOWN_UPDATE_IDS: dict[str, frozenset[str]] = {
+    "basicchar.xml": frozenset({"5130", "5131", "5132"}),
+}
+
+
 @dataclass(frozen=True)
 class OfficialEntry:
     relative: str  # "BasicChar.xml" ou "sub/arquivo.xml", relativo a UI/
@@ -399,7 +407,8 @@ def file_diff(
     base = base_bytes(entry.relative) if base_bytes is not None else None
     if base is not None and _crc(base) != entry.crc:
         references.append(official_version_of(base))
-    new: set[str] = set()
+    # Controles que atualizações já conhecidas acrescentaram e que o jogo procura.
+    new: set[str] = set(KNOWN_UPDATE_IDS.get(entry.relative.lower(), ()))
     for reference in references:
         old_text = _read_text(reference) if reference is not None else None
         if old_text is not None:
@@ -456,6 +465,22 @@ def parse_game_error(text: str) -> tuple[str, str] | None:
     # O .cpp que interessa é o da linha do ID; "FrameWnd.cpp" antes é só onde o erro é exibido.
     sources = _CPP_RE.findall(text[: id_match.start()])
     return (sources[-1], id_match.group(1)) if sources else None
+
+
+def files_missing_id(game_dir: Path, ui_dir: Path, window_id: str) -> list[str]:
+    """XMLs cuja versão oficial tem o controle e a UI do projeto não tem."""
+    pattern = re.compile(r'\bWindowID\s*=\s*"%s"' % re.escape(window_id))
+    found = []
+    for entry in official_entries(game_dir).values():
+        official = official_xml(game_dir, entry)
+        mine = ui_dir / entry.relative
+        if official is None or not mine.is_file():
+            continue
+        if pattern.search(official.read_bytes().decode(UIDocument.encoding, "replace")) and not pattern.search(
+            mine.read_bytes().decode(UIDocument.encoding, "replace")
+        ):
+            found.append(entry.relative)
+    return sorted(found, key=str.lower)
 
 
 def error_candidates(game_dir: Path, cpp: str, window_id: str) -> list[str]:

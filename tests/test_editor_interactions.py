@@ -663,6 +663,36 @@ def test_dragging_filled_state_box_changes_soffset() -> None:
     dialog.close()
 
 
+def test_dragging_inside_cut_moves_it_and_filled_state_stays_on_texture() -> None:
+    application = QApplication.instance() or QApplication([])
+    dialog = AtlasDialog(
+        "main.dds",
+        QPixmap(200, 200),
+        UVRect(10, 20, 30, 8),
+        lambda uv, resize, offset: None,
+        progress_offset=(0, 12),
+        offset_editable=True,
+    )
+    dialog.resize(900, 700)
+    dialog.show()
+    dialog.edit_button.setChecked(True)
+    application.processEvents()
+    view = dialog.view
+    view.resetTransform()
+    view.fitInView(0, 0, 200, 200)
+    application.processEvents()
+    start = view.mapFromScene(QPointF(25, 24))  # dentro do recorte amarelo
+    end = view.mapFromScene(QPointF(25, 214))  # bem abaixo da textura
+    QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
+    QTest.mouseMove(view.viewport(), end, 20)
+    QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=end)
+    application.processEvents()
+
+    assert dialog.current_uv() == UVRect(10, 192, 30, 8)  # mesmo tamanho, parou na borda
+    assert dialog.current_offset() == (0, 0)  # a caixa ciano foi puxada de volta pra dentro
+    dialog.close()
+
+
 def test_atlas_dialog_has_native_maximize_button() -> None:
     application = QApplication.instance() or QApplication([])
     dialog = AtlasDialog(
@@ -1207,4 +1237,81 @@ def test_duplicate_hide_and_delete_controls_with_undo(tmp_path: Path) -> None:
     window.undo_stack.undo()
     assert [element.window_id for element in window.document.elements] == ["1", "2"]
     assert not window.document.is_dirty
+    window.close()
+
+
+def test_renaming_a_texture_can_update_the_xml_that_use_it(tmp_path: Path, monkeypatch) -> None:
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "T.xml").write_bytes(
+        b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="T.xml">\n'
+        b'  <BaseWndProperty WindowID="1"><BackGroundMap BGmap="main2.dds" /></BaseWndProperty>\n</Root_Node>\n'
+    )
+    Image.new("RGBA", (4, 4)).save(source / "main2.dds")
+    project = Project.create("Tex", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    monkeypatch.setattr(app_module.QInputDialog, "getText", lambda *args, **kwargs: ("main.dds", True))
+    monkeypatch.setattr(app_module.QMessageBox, "question", lambda *args, **kwargs: app_module.QMessageBox.StandardButton.Yes)
+    window.rename_project_file(project.ui_dir / "main2.dds")
+    assert (project.ui_dir / "main.dds").exists() and not (project.ui_dir / "main2.dds").exists()
+    assert b'BGmap="main.dds"' in (project.ui_dir / "T.xml").read_bytes()
+
+    window.delete_project_file(project.ui_dir / "T.xml")
+    assert not (project.ui_dir / "T.xml").exists()
+    window.close()
+
+
+def test_escape_clears_the_selection(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Teste.xml"
+    path.write_bytes(SAMPLE.encode("big5"))
+    window = EditorWindow(path)
+    window.select_element(0)
+    assert window.selected_index == 0
+    window.deselect_action.trigger()
+    assert window.selected_index is None
+    assert not any(item.isSelected() for item in window.items.values())
+    window.close()
+
+
+def test_basicchar_portrait_marker_stays_fixed_on_the_game_screen(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "BasicChar.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="BasicChar.xml">\r\n'
+        b'\t<BaseWndProperty WindowID="1" WindowLeft="0" WindowTop="0" WindowHeight="181" WindowWidth="88" />\r\n'
+        b"</Root_Node>\r\n"
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    application.processEvents()
+    marker = window.game_drawn_item
+    if window.game_screen_item is None:
+        assert marker is None  # sem tela do jogo não há onde fixar
+    else:
+        assert marker is not None and marker.scene() is window.scene
+        offset = marker.pos() - window.game_screen_item.pos()
+        assert (offset.x(), offset.y()) == (23, 7)  # canto da tela, não da janela
+    window.close()
+
+
+def test_portrait_marker_can_be_hidden_from_the_floating_bar(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "BasicChar.xml"
+    path.write_bytes(b'<?xml version="1.0" ?>\n<Root_Node UI_File_Name="BasicChar.xml">\n  <BaseWndProperty WindowID="1" WindowHeight="181" WindowWidth="88" />\n</Root_Node>\n')
+    window = EditorWindow()
+    window.open_document(path)
+    window.set_game_resolution((1024, 768))
+    application.processEvents()
+    assert window.game_drawn_item is not None and not window.game_drawn_button.isHidden()
+    window.game_drawn_action.setChecked(False)
+    assert not window.game_drawn_item.isVisible()
+    window.game_drawn_action.setChecked(True)
+    assert window.game_drawn_item.isVisible()
+    window.set_game_resolution(None)
+    assert window.game_drawn_item is None and window.game_drawn_button.isHidden()
     window.close()

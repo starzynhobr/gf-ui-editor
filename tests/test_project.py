@@ -225,3 +225,19 @@ def test_projects_publishing_to_finds_projects_sharing_a_custom_folder(tmp_path:
     assert project_module.projects_publishing_to("UI-HERO", exclude=second.root) == ["UI-HERO"]
     assert project_module.projects_publishing_to("UI-HERO2") == []
     assert first.custom_name == "UI-HERO"
+
+
+def test_rename_replaces_existing_file_keeping_it_in_history_and_delete_keeps_a_copy(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    project = Project.create("R", game / "UI", game, projects_root=tmp_path / "p")
+    (project.ui_dir / "Radar2.xml").write_text("<novo/>", encoding="utf-8")
+
+    target, backup = project.rename_file(project.ui_dir / "Radar2.xml", "Radar.xml")
+    assert target == project.ui_dir / "Radar.xml" and target.read_text(encoding="utf-8") == "<novo/>"
+    assert backup is not None and backup.read_text(encoding="utf-8") == "<a/>"
+    assert not (project.ui_dir / "Radar2.xml").exists()
+    assert Path("Radar2.xml") not in project.files()
+
+    copy = project.delete_file(project.ui_dir / "Radar.xml")
+    assert copy.read_text(encoding="utf-8") == "<novo/>"
+    assert Path("Radar.xml") not in project.files()

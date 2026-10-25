@@ -306,6 +306,30 @@ class Project:
         self._files = None
         return target, backup
 
+    def rename_file(self, file_path: Path, new_name: str) -> tuple[Path, Path | None]:
+        """Renomeia na mesma pasta. Se já existir um arquivo com o nome novo, ele vai
+        para o histórico antes de ser substituído. Devolve o destino e esse backup."""
+        target = file_path.with_name(new_name)
+        backup = None
+        same_file = os.path.normcase(str(target)) == os.path.normcase(str(file_path))
+        if target.exists() and not same_file:
+            self.remember_original(target)
+            backup = self.history_path_for(target)
+            shutil.copy2(target, backup)
+            target.unlink()
+        os.replace(file_path, target)
+        self._files = None
+        return target, backup
+
+    def delete_file(self, file_path: Path) -> Path:
+        """Tira o arquivo do projeto, guardando uma cópia no histórico. Devolve a cópia."""
+        self.remember_original(file_path)
+        backup = self.history_path_for(file_path)
+        shutil.copy2(file_path, backup)
+        file_path.unlink()
+        self._files = None
+        return backup
+
     def contains(self, file_path: Path) -> bool:
         try:
             file_path.resolve().relative_to(self.ui_dir.resolve())

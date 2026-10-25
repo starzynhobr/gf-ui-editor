@@ -71,7 +71,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
-from .editor_widgets import EditorView, ElementItem, GameScreenItem, GhostAreaItem
+from .editor_widgets import EditorView, ElementItem, GameDrawnItem, GameScreenItem, GhostAreaItem
 from .game_layout import (
     client_resolution,
     load_user_positions,
@@ -94,6 +94,7 @@ from .game_updates import (
     FileDiff,
     control_info,
     error_candidates,
+    files_missing_id,
     file_diff,
     insert_controls,
     missing_controls,
@@ -158,6 +159,11 @@ from .xml_document import (
 )
 
 
+# Áreas que o jogo desenha por código, sem textura no XML: arquivo -> x, y, largura, altura na
+# tela do jogo. A foto do BasicChar fica sempre no canto da tela, mesmo movendo a janela
+# (medida em prints do jogo, aproximada).
+GAME_DRAWN_AREAS = {"basicchar.xml": (23, 7, 76, 76)}
+TEXTURE_SUFFIXES = (".dds", ".tga")
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
@@ -1243,6 +1249,7 @@ class EditorWindow(QMainWindow):
             settings.value("background_mode", "custom" if self.game_background_path else "builtin")
         )
         self.game_screen_item: GameScreenItem | None = None
+        self.game_drawn_item: GameDrawnItem | None = None
         self.ghost_item: GhostAreaItem | None = None
 
         self.undo_stack = QUndoStack(self)
@@ -1343,6 +1350,25 @@ class EditorWindow(QMainWindow):
             lambda: self.new_project(loose_dir=self._files_directory())
         )
         files_layout.addWidget(self.loose_project_button)
+        # XML ou texturas: duas listas separadas em vez de uma seção escondida no fim.
+        self.files_mode = "xml"
+        segments = QWidget()
+        segments.setObjectName("segmented")
+        segments_layout = QHBoxLayout(segments)
+        segments_layout.setContentsMargins(3, 3, 3, 3)
+        segments_layout.setSpacing(2)
+        self.files_mode_buttons = {}
+        for mode, label in (("xml", self.tr("XML")), ("textures", self.tr("Texturas"))):
+            button = QPushButton(label)
+            button.setObjectName("segment")
+            button.setCheckable(True)
+            button.setChecked(mode == "xml")
+            button.clicked.connect(lambda _checked=False, value=mode: self._set_files_mode(value))
+            segments_layout.addWidget(button)
+            self.files_mode_buttons[mode] = button
+        segments.setVisible(False)
+        self.files_mode_bar = segments
+        files_layout.addWidget(segments)
         files_layout.addWidget(self.file_filter_edit)
         files_layout.addWidget(self.files_tree)
 
@@ -1568,6 +1594,13 @@ class EditorWindow(QMainWindow):
             self.tr("Janelas arrastadas no jogo ficam na posição gravada no User.ini da pasta do jogo")
         )
         self.saved_positions_action.toggled.connect(lambda _checked: self._place_game_screen())
+        # Marcação das áreas que o jogo desenha sozinho (foto do personagem): ajuda a encaixar a
+        # moldura, mas polui a tela quando não se está mexendo nisso.
+        self.game_drawn_action = QAction(self.tr("Foto"), self)
+        self.game_drawn_action.setCheckable(True)
+        self.game_drawn_action.setChecked(True)
+        self.game_drawn_action.setToolTip(self.tr("Mostrar onde o jogo desenha a foto do personagem"))
+        self.game_drawn_action.toggled.connect(self._sync_game_drawn_visibility)
         self.background_actions = QActionGroup(self)
         self.background_actions.setExclusive(True)
         self.builtin_background_action = QAction(self.tr("Fundo do jogo (embutido)"), self)
@@ -1617,6 +1650,9 @@ class EditorWindow(QMainWindow):
         self.game_hide_action.setToolTip(self.tr("Grava Visible=\"0\": o controle continua no XML, mas o jogo não o mostra"))
         self.game_hide_action.setEnabled(False)
         self.game_hide_action.triggered.connect(self.toggle_selected_game_visibility)
+        self.deselect_action = QAction(self.tr("Desmarcar seleção"), self)
+        self.deselect_action.setShortcut("Esc")
+        self.deselect_action.triggered.connect(self.clear_selection)
         self.new_image_action = QAction(self.tr("Nova imagem…"), self)
         self.new_image_action.setIcon(icon("image", size=16))
         self.new_image_action.setEnabled(False)
@@ -1653,6 +1689,7 @@ class EditorWindow(QMainWindow):
         edit_menu = self.menuBar().addMenu(self.tr("Editar"))
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
+        edit_menu.addAction(self.deselect_action)
         edit_menu.addSeparator()
         edit_menu.addAction(self.new_image_action)
         edit_menu.addAction(self.duplicate_action)
@@ -2164,6 +2201,10 @@ class EditorWindow(QMainWindow):
             QToolButton#chip { background: ${CHIP_BG}; color: ${TEXT_MUTED}; border: 0; border-radius: 9px; padding: 1px 9px; margin: 3px 2px; font-size: 11px; }
             QToolButton#chipWarning { background: #3a2e12; color: ${SELECTION_GOLD}; border: 0; border-radius: 9px; padding: 1px 9px; margin: 3px 2px; font-size: 11px; font-weight: 600; }
             QToolButton#chip:hover, QToolButton#chipWarning:hover { color: ${TEXT_BRIGHT}; }
+            QWidget#segmented { background: ${INPUT_BG}; border: 1px solid ${BORDER_INPUT}; border-radius: 8px; }
+            QPushButton#segment { background: transparent; border: 0; border-radius: 6px; padding: 4px 10px; color: ${TEXT_MUTED}; }
+            QPushButton#segment:hover { color: ${TEXT_PRIMARY}; }
+            QPushButton#segment:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; font-weight: 600; }
             QFrame#pickRow { background: ${CARD_BG}; border: 1px solid ${CARD_BORDER}; border-radius: 8px; }
             QFrame#pickRow:hover { border-color: ${BUTTON_HOVER_BORDER}; }
             QFrame#pickRow[checked="true"] { background: ${ACCENT_SOFT_BG}; border-color: ${ACCENT_BG}; }
@@ -2484,10 +2525,15 @@ class EditorWindow(QMainWindow):
             self.scene.addItem(item)
             self.items[element.index] = item
         self.game_screen_item = None
+        self.game_drawn_item = None
         self.ghost_item = None  # a cena foi refeita
         self._refresh_game_screen()
 
     def _refresh_game_screen(self) -> None:
+        if self.game_drawn_item is not None and self.game_drawn_item.scene() is self.scene:
+            self.scene.removeItem(self.game_drawn_item)
+        self.game_drawn_item = None
+        self._sync_game_drawn_visibility()
         if self.game_screen_item is not None:
             self.scene.removeItem(self.game_screen_item)
             self.game_screen_item = None
@@ -2527,6 +2573,16 @@ class EditorWindow(QMainWindow):
             saved = self._saved_root_position()
             screen_x, screen_y = self._root_screen_for(root.geometry)
             self.game_screen_item.setPos(root.x - screen_x, root.y - screen_y)
+            drawn = GAME_DRAWN_AREAS.get(name.lower())
+            if drawn is not None:
+                if self.game_drawn_item is None:
+                    self.game_drawn_item = GameDrawnItem(
+                        QRectF(0, 0, drawn[2], drawn[3]),
+                        self.tr("Foto do personagem: o jogo desenha fixa aqui na tela"),
+                    )
+                    self.scene.addItem(self.game_drawn_item)
+                self.game_drawn_item.setPos(self.game_screen_item.pos() + QPointF(drawn[0], drawn[1]))
+            self._sync_game_drawn_visibility()
             caption += " · " + self.tr("janela no jogo em ({x}, {y})").format(x=screen_x, y=screen_y)
             if mode != "auto":
                 caption += " · " + self.tr("posição escolhida por você")
@@ -2551,6 +2607,12 @@ class EditorWindow(QMainWindow):
         self._sync_window_frame()
         self._sync_manual_position_warning()
         self._refresh_screen_position()
+
+    def _sync_game_drawn_visibility(self, _checked: bool = False) -> None:
+        if self.game_drawn_item is not None:
+            self.game_drawn_item.setVisible(self.game_drawn_action.isChecked())
+        if hasattr(self, "game_drawn_button"):
+            self.game_drawn_button.setVisible(self.game_drawn_item is not None)
 
     def _sync_manual_position_warning(self) -> None:
         if not hasattr(self, "manual_position_button"):
@@ -3082,6 +3144,12 @@ class EditorWindow(QMainWindow):
                 id=self.document.elements[index].window_id, index=index
             ) + suffix
         )
+
+    def clear_selection(self) -> None:
+        if self.document is None:
+            return
+        self.scene.clearSelection()
+        self._canvas_selection_changed(-1)
 
     def _canvas_selection_changed(self, changed_index: int) -> None:
         if self.document is None or self._syncing_selection:
@@ -4051,6 +4119,8 @@ class EditorWindow(QMainWindow):
         user_ini = bar_button(action=self.saved_positions_action)
         user_ini.setText("User.ini")
         self.saved_positions_action.changed.connect(lambda: user_ini.setText("User.ini"))
+        self.game_drawn_button = bar_button(action=self.game_drawn_action)
+        self.game_drawn_button.setVisible(False)
         # Aviso de posição manual: o preview deixa de seguir o jogo neste arquivo.
         self.manual_position_button = bar_button(self.tr("Posição manual · voltar ao automático"))
         self.manual_position_button.setObjectName("pillWarning")
@@ -4564,6 +4634,10 @@ class EditorWindow(QMainWindow):
         cpp, window_id = parsed
         game_dir = self._document_game_dir() or self._game_dir()
         candidates = error_candidates(game_dir, cpp, window_id) if game_dir is not None else []
+        if not candidates and game_dir is not None and self.project is not None:
+            # Erro com .cpp genérico (ex.: "Filename.cpp"): procura pelo ID nos XMLs do
+            # oficial que o projeto não tem.
+            candidates = files_missing_id(game_dir, self.project.ui_dir, window_id)
         if not candidates:
             QMessageBox.information(
                 self,
@@ -4731,6 +4805,11 @@ class EditorWindow(QMainWindow):
         if self.project is not None:
             modified = self.project.modified_files()
             files = [path for path in self.project.files() if path.suffix.lower() == ".xml"]
+            # Só as da pasta principal da UI: as de subpastas (mapas, ícones) são milhares.
+            textures = [
+                path for path in self.project.files()
+                if path.suffix.lower() in TEXTURE_SUFFIXES and len(path.parts) == 1
+            ]
             self.project_label.setText(self.project.name)
             self.project_path_label.setText(
                 self.tr("{count} arquivos XML · {modified} alterados").format(
@@ -4780,6 +4859,7 @@ class EditorWindow(QMainWindow):
             self.loose_project_button.setVisible(directory is not None)
             modified = set()
             files = []
+            textures = []
             if directory is not None:
                 files = sorted(
                     (path.relative_to(directory) for path in directory.glob("*.xml") if not is_backup_file(path.name)),
@@ -4788,6 +4868,9 @@ class EditorWindow(QMainWindow):
         current = os.path.normcase(str(self.document.path)) if self.document is not None else None
         bold = self.files_tree.font()
         bold.setBold(True)
+        self.files_mode_bar.setVisible(bool(textures))
+        if self.files_mode == "textures" and textures:
+            files = textures
         groups: list[tuple[str, list[Path]]] = []
         changed = [path for path in files if path.as_posix() in modified]
         if changed:
@@ -4808,7 +4891,14 @@ class EditorWindow(QMainWindow):
                 item = QTreeWidgetItem([key, "●" if key in modified else ""])
                 full_path = (directory / relative) if directory is not None else relative
                 item.setData(0, Qt.ItemDataRole.UserRole, str(full_path))
-                item.setIcon(0, icon("file", COLORS["ACCENT_TEXT"] if key in modified else COLORS["TEXT_DISABLED"], 14))
+                item.setIcon(
+                    0,
+                    icon(
+                        "image" if relative.suffix.lower() in TEXTURE_SUFFIXES else "file",
+                        COLORS["ACCENT_TEXT"] if key in modified else COLORS["TEXT_DISABLED"],
+                        14,
+                    ),
+                )
                 item.setForeground(1, QColor(COLORS["SELECTION_GOLD"]))
                 item.setToolTip(1, self.tr("alterado") if key in modified else "")
                 diff = self._official_diffs.get(key.lower()) if self.project is not None else None
@@ -4818,8 +4908,8 @@ class EditorWindow(QMainWindow):
                     item.setToolTip(
                         1, self.tr("A atualização do jogo trouxe {count} controle(s) que este arquivo não tem").format(count=len(diff.new_ids))
                     )
-                elif diff is not None and diff.other_ids and key not in modified:
-                    item.setText(1, str(len(diff.other_ids)))
+                elif diff is not None and diff.other_ids:
+                    item.setText(1, ("● " if key in modified else "") + str(len(diff.other_ids)))
                     item.setForeground(1, QColor(COLORS["TEXT_DISABLED"]))
                     item.setToolTip(
                         1, self.tr("A UI oficial tem {count} controle(s) que este arquivo não tem (podem ter sido removidos de propósito)").format(count=len(diff.other_ids))
@@ -4829,6 +4919,15 @@ class EditorWindow(QMainWindow):
                 header.addChild(item)
             header.setExpanded(True)
         self._filter_files(self.file_filter_edit.text())
+
+    def _set_files_mode(self, mode: str) -> None:
+        self.files_mode = mode
+        for value, button in self.files_mode_buttons.items():
+            button.setChecked(value == mode)
+        self.file_filter_edit.setPlaceholderText(
+            self.tr("Filtrar texturas…") if mode == "textures" else self.tr("Filtrar arquivos…")
+        )
+        self._refresh_files()
 
     def _filter_files(self, text: str) -> None:
         needle = text.strip().lower()
@@ -4847,6 +4946,9 @@ class EditorWindow(QMainWindow):
         if not data:
             return
         path = Path(data)
+        if path.suffix.lower() in TEXTURE_SUFFIXES:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+            return
         if self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path)):
             self.side_tabs.setCurrentIndex(1)
             return
@@ -4927,6 +5029,12 @@ class EditorWindow(QMainWindow):
         menu = QMenu(self)
         open_action = menu.addAction(self.tr("Abrir"))
         open_action.triggered.connect(lambda: self._file_activated(item))
+        if self.project is not None and self.project.contains(path):
+            rename = menu.addAction(self.tr("Renomear…"))
+            rename.triggered.connect(lambda: self.rename_project_file(path))
+            delete = menu.addAction(self.tr("Apagar…"))
+            delete.triggered.connect(lambda: self.delete_project_file(path))
+            menu.addSeparator()
         history_menu = menu.addMenu(self.tr("Restaurar versão anterior"))
         history_menu.setEnabled(bool(backups))
         for backup in backups:
@@ -4944,6 +5052,127 @@ class EditorWindow(QMainWindow):
         if folder is not None:
             reveal.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))))
         menu.exec(self.files_tree.viewport().mapToGlobal(position))
+
+    def _is_open(self, path: Path) -> bool:
+        return self.document is not None and os.path.normcase(str(self.document.path.resolve())) == os.path.normcase(str(path.resolve()))
+
+    def _xml_using_texture(self, name: str) -> list[Path]:
+        """XMLs do projeto com BGmap apontando para a textura `name`."""
+        assert self.project is not None
+        pattern = re.compile(rb'BGmap\s*=\s*"' + re.escape(name.encode("latin-1", "ignore")) + rb'"', re.IGNORECASE)
+        found = []
+        for relative in self.project.files():
+            if relative.suffix.lower() != ".xml":
+                continue
+            path = self.project.ui_dir / relative
+            try:
+                if pattern.search(path.read_bytes()):
+                    found.append(path)
+            except OSError:
+                continue
+        return found
+
+    def rename_project_file(self, path: Path) -> None:
+        if self.project is None:
+            return
+        name, accepted = QInputDialog.getText(self, self.tr("Renomear"), self.tr("Novo nome:"), text=path.name)
+        name = name.strip()
+        if not accepted or not name or name == path.name:
+            return
+        if any(char in name for char in '\\/:*?"<>|'):
+            QMessageBox.warning(self, self.tr("Renomear"), self.tr("O nome não pode ter \\ / : * ? \" < > |."))
+            return
+        if not Path(name).suffix:
+            name += path.suffix
+        target = path.with_name(name)
+        replacing = target.exists() and os.path.normcase(str(target)) != os.path.normcase(str(path))
+        if replacing:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Substituir arquivo?"),
+                self.tr("Já existe {name} no projeto. Substituir? A versão atual vai para o histórico.").format(name=name),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        reopen = self._is_open(path) or (replacing and self._is_open(target))
+        if reopen and not self._confirm_discard_changes():
+            return
+        is_texture = path.suffix.lower() in TEXTURE_SUFFIXES
+        users = self._xml_using_texture(path.name) if is_texture else []
+        if reopen:
+            self.close_document()
+        try:
+            new_path, _backup = self.project.rename_file(path, name)
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Renomear"), str(exc))
+            return
+        if users:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Atualizar XMLs?"),
+                self.tr("{count} XML(s) do projeto usam {old}. Trocar para {new} neles também?").format(
+                    count=len(users), old=path.name, new=new_path.name
+                ),
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self._retarget_texture(users, path.name, new_path.name)
+        self.project.files(refresh=True)
+        self._refresh_files()
+        if reopen and new_path.suffix.lower() == ".xml":
+            self.open_document(new_path)
+        self.statusBar().showMessage(self.tr("{old} agora se chama {new}.").format(old=path.name, new=new_path.name), 8000)
+
+    def _retarget_texture(self, paths: list[Path], old: str, new: str) -> None:
+        """Troca BGmap="old" por BGmap="new" mexendo só nesse atributo, com backup de cada XML."""
+        assert self.project is not None
+        pattern = re.compile(r'(BGmap\s*=\s*")' + re.escape(old) + r'(")', re.IGNORECASE)
+        for path in paths:
+            try:
+                raw = path.read_bytes()
+                text = raw.decode("big5")
+            except (OSError, UnicodeDecodeError):
+                continue
+            changed = pattern.sub(lambda match: match.group(1) + new + match.group(2), text)
+            if changed == text:
+                continue
+            self.project.remember_original(path)
+            shutil.copy2(path, self.project.history_path_for(path))
+            path.write_bytes(changed.encode("big5"))
+
+    def delete_project_file(self, path: Path) -> None:
+        if self.project is None:
+            return
+        details = self.tr("Uma cópia fica no histórico do projeto.")
+        game_dir = self.project.game_dir
+        if path.suffix.lower() == ".xml" and game_dir is not None:
+            relative = path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+            if official_text_for(game_dir, relative) is not None:
+                details = self.tr(
+                    "Este arquivo existe na UI oficial: sem ele, o jogo pode usar o da UI padrão ou acusar erro. "
+                    "Uma cópia fica no histórico do projeto."
+                )
+        elif path.suffix.lower() in TEXTURE_SUFFIXES:
+            users = self._xml_using_texture(path.name)
+            if users:
+                details = self.tr(
+                    "{count} XML(s) do projeto ainda usam esta textura e ficariam sem imagem. "
+                    "Uma cópia fica no histórico do projeto."
+                ).format(count=len(users))
+        answer = QMessageBox.question(self, self.tr("Apagar {name}?").format(name=path.name), details)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        if self._is_open(path):
+            if not self._confirm_discard_changes():
+                return
+            self.close_document()
+        try:
+            self.project.delete_file(path)
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Apagar"), str(exc))
+            return
+        self.project.files(refresh=True)
+        self._refresh_files()
+        self.statusBar().showMessage(self.tr("{name} apagado. A cópia está no histórico do projeto.").format(name=path.name), 8000)
 
     def restore_file(self, path: Path, source: Path) -> None:
         is_open = self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path))
