@@ -26,6 +26,9 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsSimpleTextItem,
     QGraphicsView,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QWidget,
 )
 
@@ -1230,3 +1233,48 @@ class EditorView(QGraphicsView):
             event.accept()
             return
         super().keyPressEvent(event)
+
+
+# Ícones de estado na lista de elementos, como nas camadas de um editor de imagem.
+STATE_SLOTS = ("hidden", "locked", "isolated")
+STATE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
+STATE_ICON_SIZE = 14
+STATE_SLOT_WIDTH = 20
+
+
+def state_slot_at(rect_left: float, x: float) -> str | None:
+    """Qual ícone (ocultar, bloquear, isolar) está na posição x da célula."""
+    slot = int((x - rect_left - 4) // STATE_SLOT_WIDTH)
+    return STATE_SLOTS[slot] if 0 <= slot < len(STATE_SLOTS) else None
+
+
+class ElementStateDelegate(QStyledItemDelegate):
+    """Desenha olho, cadeado e foco: apagados quando desligados, acesos quando ligados."""
+
+    def __init__(self, icons: dict[tuple[str, bool], "QIcon"], parent=None):
+        super().__init__(parent)
+        self._icons = icons
+
+    def sizeHint(self, option: QStyleOptionViewItem, index) -> "QSize":  # noqa: N802
+        hint = super().sizeHint(option, index)
+        hint.setWidth(STATE_SLOT_WIDTH * len(STATE_SLOTS) + 8)
+        return hint
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        clean = QStyleOptionViewItem(option)
+        clean.text = ""
+        style = option.widget.style() if option.widget is not None else None
+        if style is not None:
+            style.drawControl(QStyle.ControlElement.CE_ItemViewItem, clean, painter, option.widget)
+        states = index.data(STATE_ROLE) or ()
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        top = option.rect.top() + (option.rect.height() - STATE_ICON_SIZE) // 2
+        for slot, name in enumerate(STATE_SLOTS):
+            active = name in states
+            if not active and not hovered:
+                painter.setOpacity(0.18)
+            elif not active:
+                painter.setOpacity(0.55)
+            left = option.rect.left() + 4 + slot * STATE_SLOT_WIDTH + (STATE_SLOT_WIDTH - STATE_ICON_SIZE) // 2
+            self._icons[(name, active)].paint(painter, left, top, STATE_ICON_SIZE, STATE_ICON_SIZE)
+            painter.setOpacity(1.0)

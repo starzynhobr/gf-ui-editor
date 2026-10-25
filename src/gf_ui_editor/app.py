@@ -16,7 +16,7 @@ import tempfile
 import time
 import zipfile
 
-from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QFileSystemWatcher, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -77,8 +77,11 @@ from .editor_widgets import (
     ElementItem,
     GameDrawnItem,
     GameScreenItem,
+    STATE_ROLE,
+    ElementStateDelegate,
     GhostAreaItem,
     ReferenceLayerItem,
+    state_slot_at,
 )
 from .game_layout import (
     client_resolution,
@@ -1287,6 +1290,18 @@ class EditorWindow(QMainWindow):
             QAbstractItemView.SelectionMode.ExtendedSelection
         )
         self.tree.itemSelectionChanged.connect(self._tree_selection_changed)
+        # Estado primeiro, como as camadas de um editor de imagem: olho, cadeado e foco clicáveis.
+        self.tree.header().moveSection(3, 0)
+        self.tree.setMouseTracking(True)
+        self.tree.setItemDelegateForColumn(3, ElementStateDelegate({
+            ("hidden", False): icon("eye", size=16),
+            ("hidden", True): icon("eye-off", COLORS["ACCENT_TEXT"], 16),
+            ("locked", False): icon("lock", size=16),
+            ("locked", True): icon("lock", COLORS["ACCENT_TEXT"], 16),
+            ("isolated", False): icon("focus", size=16),
+            ("isolated", True): icon("focus", COLORS["WARNING_TEXT"], 16),
+        }, self.tree))
+        self.tree.viewport().installEventFilter(self)
         elements_page = QWidget()
         elements_page.setObjectName("treePanel")
         tree_layout = QVBoxLayout(elements_page)
@@ -2524,6 +2539,7 @@ class EditorWindow(QMainWindow):
         self.locked_indexes.clear()
         self.hidden_indexes.clear()
         self.isolated_index = None
+        self._sync_isolation_warning()
         self.search_edit.clear()
         self.properties.set_element(None)
         self._rebuild_scene(load_textures=False)
@@ -3211,6 +3227,11 @@ class EditorWindow(QMainWindow):
         })
         self._textures_pending = set(names)
         self._texture_total = len(names)
+        # Texturas já no cache (lidas pelas camadas de referência, por exemplo) não entram
+        # na fila: aplica agora, senão os elementos ficariam sem imagem.
+        for element in self.document.elements:
+            if element.texture_name and element.uv and self.texture_cache.has_source(element.texture_name):
+                self._refresh_element_texture(element.index)
         if not names:
             self.statusBar().showMessage(self.tr("{count} elementos carregados").format(count=len(self.document.elements)))
             return
@@ -3270,6 +3291,8 @@ class EditorWindow(QMainWindow):
             )
             item.setData(0, Qt.ItemDataRole.UserRole, element.index)
             self.tree_items[element.index] = item
+            item.setData(3, STATE_ROLE, ())
+            item.setToolTip(3, self.tr("Ocultar · Bloquear · Isolar"))
             id_map.setdefault(element.window_id, item)
             pending.append((element, item))
         for element, item in pending:
@@ -3351,6 +3374,7 @@ class EditorWindow(QMainWindow):
             self._apply_visibility_state()
             self._refresh_tree_state(previous_isolated_index)
             self._refresh_tree_state(index)
+            self._sync_isolation_warning()
         self._update_element_actions()
         suffix = self.tr(" · {count} selecionados").format(count=selection_count) if selection_count > 1 else ""
         self.statusBar().showMessage(
@@ -3924,23 +3948,45 @@ class EditorWindow(QMainWindow):
         for item in self.items.values():
             item.set_texture_visible(visible)
 
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        if (
+            watched is self.tree.viewport()
+            and event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            model_index = self.tree.indexAt(event.position().toPoint())
+            if model_index.isValid() and model_index.column() == 3:
+                rect = self.tree.visualRect(model_index)
+                slot = state_slot_at(rect.left(), event.position().x())
+                item = self.tree.itemFromIndex(model_index)
+                element_index = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+                if slot is not None and element_index is not None:
+                    {"hidden": self.toggle_hidden, "locked": self.toggle_lock, "isolated": self.toggle_isolation_of}[slot](
+                        int(element_index)
+                    )
+                    return True  # o clique no ícone não muda a seleção
+        return super().eventFilter(watched, event)
+
     def toggle_selected_lock(self) -> None:
-        if self.selected_index is None:
-            return
-        index = self.selected_index
+        if self.selected_index is not None:
+            self.toggle_lock(self.selected_index)
+
+    def toggle_lock(self, index: int) -> None:
         if index in self.locked_indexes:
             self.locked_indexes.remove(index)
         else:
             self.locked_indexes.add(index)
         self.items[index].set_locked(index in self.locked_indexes)
-        self.properties.set_enabled(index not in self.locked_indexes)
+        if index == self.selected_index:
+            self.properties.set_enabled(index not in self.locked_indexes)
         self._refresh_tree_state(index)
         self._update_element_actions()
 
     def toggle_selected_hidden(self) -> None:
-        if self.selected_index is None:
-            return
-        index = self.selected_index
+        if self.selected_index is not None:
+            self.toggle_hidden(self.selected_index)
+
+    def toggle_hidden(self, index: int) -> None:
         if index in self.hidden_indexes:
             self.hidden_indexes.remove(index)
         else:
@@ -3950,16 +3996,33 @@ class EditorWindow(QMainWindow):
         self._update_element_actions()
 
     def toggle_isolation(self) -> None:
-        if self.selected_index is None:
-            return
+        if self.isolated_index is not None:
+            self.toggle_isolation_of(self.isolated_index)
+        elif self.selected_index is not None:
+            self.toggle_isolation_of(self.selected_index)
+
+    def toggle_isolation_of(self, index: int) -> None:
         previous = self.isolated_index
-        self.isolated_index = None if previous is not None else self.selected_index
+        self.isolated_index = None if previous == index else index
         self._apply_visibility_state()
         if previous is not None:
             self._refresh_tree_state(previous)
-        if self.selected_index is not None:
-            self._refresh_tree_state(self.selected_index)
+        self._refresh_tree_state(index)
         self._update_element_actions()
+        self._sync_isolation_warning()
+
+    def _sync_isolation_warning(self) -> None:
+        """Isolar some com o resto da janela: o aviso na barra explica e desfaz."""
+        if not hasattr(self, "isolation_button"):
+            return
+        if self.isolated_index is None or self.document is None:
+            self.isolation_button.setVisible(False)
+            return
+        element = self.document.elements[self.isolated_index]
+        self.isolation_button.setText(
+            self.tr("Isolado: WindowID {id} · mostrar tudo").format(id=element.window_id)
+        )
+        self.isolation_button.setVisible(True)
 
     def _apply_visibility_state(self) -> None:
         for index, item in self.items.items():
@@ -3979,7 +4042,15 @@ class EditorWindow(QMainWindow):
             states.append(self.tr("Oculto"))
         if index == self.isolated_index:
             states.append(self.tr("Isolado"))
-        tree_item.setText(3, ", ".join(states))
+        tree_item.setToolTip(3, ", ".join(states) or self.tr("Ocultar · Bloquear · Isolar"))
+        active = []
+        if index in self.hidden_indexes:
+            active.append("hidden")
+        if index in self.locked_indexes:
+            active.append("locked")
+        if index == self.isolated_index:
+            active.append("isolated")
+        tree_item.setData(3, STATE_ROLE, tuple(active))
 
     def _update_element_actions(self) -> None:
         enabled = self.selected_index is not None
@@ -4236,6 +4307,7 @@ class EditorWindow(QMainWindow):
         self.locked_indexes.clear()
         self.hidden_indexes.clear()
         self.isolated_index = None
+        self._sync_isolation_warning()
         self.scene.clear()
         self.reference_layer_items = []  # a cena apagou os itens
         self.items.clear()
@@ -4364,6 +4436,11 @@ class EditorWindow(QMainWindow):
         )
         self.manual_position_button.clicked.connect(lambda: self.set_root_mode("auto"))
         self.manual_position_button.setVisible(False)
+        self.isolation_button = bar_button("")
+        self.isolation_button.setObjectName("pillWarning")
+        self.isolation_button.setToolTip(self.tr("Só o elemento isolado está à mostra. Clique para mostrar tudo de novo."))
+        self.isolation_button.clicked.connect(self.toggle_isolation)
+        self.isolation_button.setVisible(False)
         self.view.add_overlay(bar, "top")
 
         zoom = QFrame(self.view)
@@ -4692,6 +4769,7 @@ class EditorWindow(QMainWindow):
         self.locked_indexes.clear()
         self.hidden_indexes.clear()
         self.isolated_index = None
+        self._sync_isolation_warning()
         self.properties.set_element(None)
         self._rebuild_scene()
         self._rebuild_tree()

@@ -1426,3 +1426,69 @@ def test_default_hud_checks_the_always_visible_windows_and_lists_them_first(tmp_
     application.processEvents()
     assert window.project.reference_layers == []
     window.close()
+
+
+def test_textures_already_cached_by_layers_still_reach_the_open_file(tmp_path: Path) -> None:
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(source / "main.dds")
+    for name in ("Menu.xml", "Channel.xml"):
+        (source / name).write_bytes(
+            f'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="{name}">\r\n'
+            '\t<BaseWndProperty WindowID="1" WindowHeight="8" WindowWidth="8">\r\n'
+            '\t\t<BackGroundMap BGmap="main.dds">\r\n'
+            '\t\t\t<NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="8" NorUVHeight="8" />\r\n'
+            '\t\t</BackGroundMap>\r\n\t</BaseWndProperty>\r\n</Root_Node>\r\n'.encode("big5")
+        )
+    project = Project.create("Cache", source, None, projects_root=tmp_path / "projects")
+    project.reference_layers = ["Menu.xml"]
+    project.save_manifest()
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.set_game_resolution((800, 600))
+    window.open_document(project.ui_dir / "Channel.xml")  # a camada Menu já leu o main.dds
+    application.processEvents()
+    texture = window.items[0].texture_item
+    assert texture is not None and not texture.pixmap().isNull()
+    window.set_game_resolution(None)
+    window.close()
+
+
+def test_state_icons_in_the_element_list_hide_lock_and_isolate(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Teste.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Teste.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80">'
+        b'<Container_Node Child_Cnt="1"><Style ParentNode="1" CtrlType="1" />'
+        b'<BaseWndProperty WindowID="5" WindowLeft="4" WindowTop="4" WindowHeight="20" WindowWidth="10" />'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    window.show()
+    application.processEvents()
+    tree_item = window.tree_items[1]
+    window.tree.scrollToItem(tree_item)
+    rect = window.tree.visualRect(window.tree.indexFromItem(tree_item, 3))
+
+    def click(slot: int) -> None:
+        point = QPoint(rect.left() + 4 + slot * 20 + 10, rect.center().y())
+        QTest.mouseClick(window.tree.viewport(), Qt.MouseButton.LeftButton, pos=point)
+        application.processEvents()
+
+    click(0)
+    assert 1 in window.hidden_indexes and not window.items[1].isVisible()
+    assert window.selected_index is None  # o clique no ícone não seleciona a linha
+    click(0)
+    click(1)
+    assert 1 in window.locked_indexes
+    click(2)
+    assert window.isolated_index == 1 and not window.isolation_button.isHidden()
+    assert not window.items[0].isVisible()
+    window.isolation_button.click()
+    assert window.isolated_index is None and window.isolation_button.isHidden()
+    window.close()
