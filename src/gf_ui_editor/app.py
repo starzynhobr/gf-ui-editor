@@ -4190,6 +4190,12 @@ class EditorWindow(QMainWindow):
         user_ini.setText("User.ini")
         self.saved_positions_action.changed.connect(lambda: user_ini.setText("User.ini"))
         self.game_drawn_button = bar_button(action=self.game_drawn_action)
+        self.text_mode_button = bar_button(self.tr("Texto"))
+        self.text_mode_button.setIcon(icon("type", size=15))
+        self.text_mode_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.text_mode_button.setMenu(self.text_mode_menu)
+        self.text_mode_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.text_mode_button.setToolTip(self.tr("Texto como no jogo: amostras com a fonte do jogo e aviso quando não cabem"))
         self.game_drawn_button.setVisible(False)
         # Aviso de posição manual: o preview deixa de seguir o jogo neste arquivo.
         self.manual_position_button = bar_button(self.tr("Posição manual · voltar ao automático"))
