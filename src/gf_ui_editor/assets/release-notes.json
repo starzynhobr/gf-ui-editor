@@ -1,46 +1,46 @@
 {
-  "version": "0.3.3",
+  "version": "0.3.4",
   "date": "2026-10-25",
   "notes": {
     "pt_BR": {
       "new": [],
-      "improved": [
+      "improved": [],
+      "fixed": [
         [
-          "Aviso quando falta a UI oficial.",
-          "Se a UI oficial da versão atual do jogo não estiver guardada, um aviso no topo do canvas mostra o botão Guardar UI oficial. Sem essa referência o editor não consegue avisar sobre controles novos de uma atualização."
+          "Fundo de janelas no Preview do jogo.",
+          "Em janelas que o jogo centraliza sozinho, como a da guilda, o fundo da janela principal sumia com o Preview do jogo ligado. Agora ele aparece no lugar certo, como no modo Sem moldura."
         ]
-      ],
-      "fixed": []
+      ]
     },
     "en_US": {
       "new": [],
-      "improved": [
+      "improved": [],
+      "fixed": [
         [
-          "Notice when the official UI is missing.",
-          "If the official UI for the current game version isn't saved, a notice at the top of the canvas shows a Save official UI button. Without this reference the editor can't warn you about new controls from an update."
+          "Window background in the game preview.",
+          "In windows the game centers on its own, such as the guild window, the main window background disappeared with the game preview on. It now shows in the right place, as in No frame mode."
         ]
-      ],
-      "fixed": []
+      ]
     },
     "es_ES": {
       "new": [],
-      "improved": [
+      "improved": [],
+      "fixed": [
         [
-          "Aviso cuando falta la UI oficial.",
-          "Si la UI oficial de la versión actual del juego no está guardada, un aviso arriba del lienzo muestra el botón Guardar UI oficial. Sin esa referencia el editor no puede avisar de controles nuevos de una actualización."
+          "Fondo de ventanas en la vista previa del juego.",
+          "En ventanas que el juego centra por sí mismo, como la del gremio, el fondo de la ventana principal desaparecía con la vista previa del juego activada. Ahora aparece en su lugar, como en el modo Sin marco."
         ]
-      ],
-      "fixed": []
+      ]
     },
     "fr_FR": {
       "new": [],
-      "improved": [
+      "improved": [],
+      "fixed": [
         [
-          "Avis quand l'UI officielle manque.",
-          "Si l'UI officielle de la version actuelle du jeu n'est pas enregistrée, un avis en haut du canevas affiche le bouton Enregistrer l'UI officielle. Sans cette référence, l'éditeur ne peut pas signaler les nouveaux contrôles d'une mise à jour."
+          "Fond des fenêtres dans l'aperçu en jeu.",
+          "Dans les fenêtres que le jeu centre lui-même, comme celle de la guilde, le fond de la fenêtre principale disparaissait avec l'aperçu en jeu activé. Il s'affiche maintenant au bon endroit, comme en mode Sans cadre."
         ]
-      ],
-      "fixed": []
+      ]
     }
   }
 }
