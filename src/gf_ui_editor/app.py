@@ -1566,6 +1566,22 @@ class EditorWindow(QMainWindow):
         self.labels_action.setIcon(icon("type"))
         self.labels_action.setToolTip(self.tr("Mostrar identificadores (I)"))
         self.labels_action.toggled.connect(self.set_labels_visible)
+        # Texto no canvas como o jogo desenha. A maior parte dos textos vem do código do jogo,
+        # então as amostras servem para ver se cabem na caixa.
+        self.text_mode = "off"
+        self.text_mode_actions = QActionGroup(self)
+        self.text_mode_menu = QMenu(self.tr("Texto como no jogo"), self)
+        for mode, label in (
+            ("off", self.tr("Desligado")),
+            ("xml", self.tr("Só o texto do XML")),
+            ("short", self.tr("Amostra curta")),
+            ("long", self.tr("Amostra longa")),
+        ):
+            action = QAction(label, self, checkable=True)
+            action.setChecked(mode == "off")
+            action.triggered.connect(lambda _checked=False, value=mode: self.set_text_mode(value))
+            self.text_mode_actions.addAction(action)
+            self.text_mode_menu.addAction(action)
         self.textures_action = QAction(self.tr("Mostrar texturas"), self)
         self.textures_action.setCheckable(True)
         self.textures_action.setChecked(True)
@@ -1728,6 +1744,7 @@ class EditorWindow(QMainWindow):
         view_menu = self.menuBar().addMenu(self.tr("Visualização"))
         view_menu.addAction(self.fit_action)
         view_menu.addAction(self.labels_action)
+        view_menu.addMenu(self.text_mode_menu)
         view_menu.addAction(self.textures_action)
         view_menu.addAction(self.atlas_action)
         view_menu.addAction(self.reload_textures_action)
@@ -2550,6 +2567,7 @@ class EditorWindow(QMainWindow):
                 element, pixmap, self._canvas_selection_changed, self.elements_dragged
             )
             item.set_labels_visible(self.labels_action.isChecked())
+            item.set_game_text(self._game_text_for(element))
             item.set_texture_visible(self.textures_action.isChecked())
             item.set_preview_mode(self.preview_action.isChecked())
             self.scene.addItem(item)
@@ -2558,6 +2576,28 @@ class EditorWindow(QMainWindow):
         self.game_drawn_item = None
         self.ghost_item = None  # a cena foi refeita
         self._refresh_game_screen()
+
+    def _game_text_for(self, element) -> str:
+        if self.text_mode == "off":
+            return ""
+        if element.window_text or self.text_mode == "xml":
+            return element.window_text
+        if "TextNode" not in element.child_tags and "ButtonNode" not in element.child_tags:
+            return ""
+        if not element.text_props or element.width < 4:
+            return ""
+        if self.text_mode == "short":
+            return self.tr("Texto")
+        return self.tr("Texto de exemplo bem comprido para testar o espaço")
+
+    def set_text_mode(self, mode: str) -> None:
+        self.text_mode = mode
+        if self.document is None:
+            return
+        for element in self.document.elements:
+            item = self.items.get(element.index)
+            if item is not None:
+                item.set_game_text(self._game_text_for(element))
 
     def _refresh_game_screen(self) -> None:
         if self.game_drawn_item is not None and self.game_drawn_item.scene() is self.scene:

@@ -104,6 +104,9 @@ class UIElement:
     progress_offset: tuple[int, int] | None = None
     original_progress_offset: tuple[int, int] | None = None
     child_tags: tuple[str, ...] = field(default_factory=tuple)
+    # Como o jogo escreve o texto do controle: FontColor/FontStyle (BaseCtrlProperty)
+    # e TextAlign/MultiLine (TextNode). Vazio quando o controle não tem texto.
+    text_props: dict[str, str] = field(default_factory=dict)
 
     @staticmethod
     def _number(attrs: dict[str, str], name: str, default: int = 0) -> int:
@@ -480,6 +483,11 @@ class UIDocument:
                         _integer(node.attrib, state + suffix)
                         for suffix in ("Left", "Top", "Width", "Height")
                     ))
+        text_props: dict[str, str] = {}
+        for tag in ("BaseCtrlProperty", "TextNode"):
+            node = base.find(tag)
+            if node is not None:
+                text_props.update(node.attrib)
         return UIElement(
             index=len(self.elements),
             window_id=attrs.get("WindowID", "?"),
@@ -497,6 +505,7 @@ class UIDocument:
             progress_offset=progress_offset,
             original_progress_offset=progress_offset,
             child_tags=tuple(child.tag for child in base),
+            text_props=text_props,
         )
 
     def set_geometry(self, index: int, geometry: tuple[int, int, int, int]) -> None:

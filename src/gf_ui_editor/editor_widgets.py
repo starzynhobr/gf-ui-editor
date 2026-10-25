@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
+import os
+from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
+    QColor,
     QFont,
+    QFontDatabase,
+    QFontMetricsF,
     QKeyEvent,
     QPainter,
     QPainterPath,
@@ -112,6 +117,111 @@ class WindowFrameItem(QGraphicsRectItem):
         self.owner.mouseReleaseEvent(event)
 
 
+# Fonte da UI no cliente em português/inglês (Font.ini: DefMainFont=Arial, DefMainFontSize=8).
+# O FontFace do XML (細明體) só vale no cliente chinês.
+GAME_FONT_FAMILY = "Arial"
+GAME_FONT_PIXELS = 11
+TEXT_OUTLINE = 1  # FontStyle="1": contorno preto em volta das letras
+
+
+_game_font_family: str | None = None
+
+
+def game_font_family() -> str:
+    """Carrega a Arial do Windows uma vez: sem ela o Qt troca por outra fonte e as medidas mudam."""
+    global _game_font_family
+    if _game_font_family is None:
+        _game_font_family = GAME_FONT_FAMILY
+        windows_font = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / "arial.ttf"
+        if windows_font.is_file():
+            font_id = QFontDatabase.addApplicationFont(str(windows_font))
+            families = QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
+            if families:
+                _game_font_family = families[0]
+    return _game_font_family
+
+
+def game_color(value: str) -> QColor:
+    """FontColor vem como inteiro BGR do Windows (65535 = amarelo)."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = 0xFFFFFF
+    return QColor(number & 0xFF, (number >> 8) & 0xFF, (number >> 16) & 0xFF)
+
+
+class GameTextItem(QGraphicsItem):
+    """Texto desenhado como o jogo: Arial 8 sem suavização, cor, contorno e alinhamento do XML."""
+
+    def __init__(self, parent: "ElementItem", props: dict[str, str], is_button: bool = False):
+        super().__init__(parent)
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setZValue(1)
+        self.text = ""
+        self.color = game_color(props.get("FontColor", "16777215"))
+        self.outline = props.get("FontStyle") == "1"
+        # Botões o jogo centraliza sempre; os demais seguem o TextAlign.
+        self.align = "1" if is_button else props.get("TextAlign", "0")
+        self.multiline = props.get("MultiLine") == "1"
+        self.font = QFont(game_font_family())
+        self.font.setPixelSize(GAME_FONT_PIXELS)
+        self.font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+        self.overflows = False
+
+    def _box(self) -> QRectF:
+        return self.parentItem().rect()
+
+    def _flags(self) -> int:
+        horizontal = {"1": Qt.AlignmentFlag.AlignHCenter, "2": Qt.AlignmentFlag.AlignRight}.get(
+            self.align, Qt.AlignmentFlag.AlignLeft
+        )
+        vertical = Qt.AlignmentFlag.AlignTop if self.multiline else Qt.AlignmentFlag.AlignVCenter
+        flags = int(horizontal | vertical)
+        if self.multiline:
+            flags |= int(Qt.TextFlag.TextWordWrap)
+        return flags
+
+    def set_text(self, text: str) -> None:
+        self.prepareGeometryChange()
+        self.text = text
+        box = self._box()
+        needed = QFontMetricsF(self.font).boundingRect(box, self._flags(), text)
+        # Só estouro na largura conta: linhas de lista têm a altura justa do texto.
+        # Caixas minúsculas são reposicionadas pelo próprio jogo.
+        self.overflows = bool(text) and box.width() >= 4 and needed.width() > box.width() + 0.5
+        self.update()
+
+    def boundingRect(self) -> QRectF:  # noqa: N802
+        box = self._box()
+        if not self.text:
+            return QRectF()
+        needed = QFontMetricsF(self.font).boundingRect(box, self._flags(), self.text)
+        return box.united(needed).adjusted(-2, -2, 2, 2)
+
+    def paint(self, painter: QPainter, _option, _widget=None) -> None:
+        if not self.text:
+            return
+        box = self._box()
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
+        painter.setFont(self.font)
+        flags = self._flags()
+        if self.outline:
+            painter.setPen(QColor(0, 0, 0))
+            for dx in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
+                for dy in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
+                    if dx or dy:
+                        painter.drawText(box.translated(dx, dy), flags, self.text)
+        painter.setPen(self.color)
+        painter.drawText(box, flags, self.text)
+        if self.overflows:
+            # Texto maior que a caixa: no jogo ele vaza por cima dos vizinhos.
+            painter.setPen(QPen(QColor(255, 60, 60), 0))
+            painter.drawRect(box)
+        painter.restore()
+
+
 class ElementItem(QGraphicsRectItem):
     SELECTION_Z_BASE = 1_000_000.0
     WINDOW_HANDLE_AXES = {
@@ -180,6 +290,9 @@ class ElementItem(QGraphicsRectItem):
         self.setPen(self._normal_pen)
 
         self.texture_item: QGraphicsPixmapItem | None = None
+        self.text_item: GameTextItem | None = None
+        self._text_props = dict(element.text_props)
+        self._is_button = "ButtonNode" in element.child_tags
         if pixmap is not None:
             self.texture_item = QGraphicsPixmapItem(pixmap, self)
             self.texture_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
@@ -285,6 +398,19 @@ class ElementItem(QGraphicsRectItem):
 
     def _idle_pen(self) -> QPen:
         return QPen(Qt.PenStyle.NoPen) if self._preview_mode else self._normal_pen
+
+    def setRect(self, *args) -> None:  # noqa: N802
+        super().setRect(*args)
+        if getattr(self, "text_item", None) is not None:
+            self.text_item.set_text(self.text_item.text)
+
+    def set_game_text(self, text: str) -> None:
+        """Mostra (ou some com, se vazio) o texto como o jogo desenharia."""
+        if self.text_item is None:
+            if not text:
+                return
+            self.text_item = GameTextItem(self, self._text_props, self._is_button)
+        self.text_item.set_text(text)
 
     def set_texture_visible(self, visible: bool) -> None:
         self._textures_enabled = visible

@@ -1335,3 +1335,35 @@ def test_missing_official_reference_shows_a_banner_until_dismissed(tmp_path: Pat
     window._update_reference_chip()
     assert window.reference_banner.isHidden()  # quem já tem a referência não vê nada
     window.close()
+
+
+def test_text_mode_draws_samples_like_the_game_and_flags_overflow(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "T.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="T.xml">\r\n'
+        b'\t<BaseWndProperty WindowID="1" WindowHeight="200" WindowWidth="100">\r\n'
+        b'\t\t<Container_Node Child_Cnt="2">\r\n'
+        b'\t\t\t<Style ParentNode="1" CtrlType="2" />\r\n'
+        b'\t\t\t<BaseWndProperty WindowID="10" WindowLeft="0" WindowTop="0" WindowHeight="150" WindowWidth="14">\r\n'
+        b'\t\t\t\t<BaseCtrlProperty FontColor="65535" FontStyle="1" />\r\n\t\t\t\t<TextNode TextAlign="1" />\r\n'
+        b'\t\t\t</BaseWndProperty>\r\n'
+        b'\t\t\t<Style ParentNode="1" CtrlType="2" />\r\n'
+        b'\t\t\t<BaseWndProperty WindowID="11" WindowLeft="0" WindowTop="20" WindowHeight="10" WindowWidth="14">\r\n'
+        b'\t\t\t\t<BaseCtrlProperty FontColor="16777215" FontStyle="0" />\r\n\t\t\t\t<TextNode TextAlign="0" />\r\n'
+        b'\t\t\t</BaseWndProperty>\r\n'
+        b'\t\t</Container_Node>\r\n\t</BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    wide, narrow = (window.items[element.index] for element in window.document.elements[1:])
+    assert window.document.elements[1].text_props == {"FontColor": "65535", "FontStyle": "1", "TextAlign": "1"}
+    assert wide.text_item is None  # desligado por padrão
+    window.set_text_mode("short")
+    assert wide.text_item.text and wide.text_item.outline and wide.text_item.align == "1"
+    assert wide.text_item.color.name() == "#ffff00"  # FontColor é BGR
+    assert not wide.text_item.overflows
+    assert narrow.text_item.overflows  # 10 px não cabe "Texto"
+    window.set_text_mode("off")
+    assert wide.text_item.text == ""
+    window.close()
