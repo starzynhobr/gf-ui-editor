@@ -1,100 +1,164 @@
 {
-  "version": "0.3.1",
-  "date": "2026-10-24",
+  "version": "0.3.2",
+  "date": "2026-10-25",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Duplicar, criar e apagar controles.",
-          "Editar → Duplicar controle (Ctrl+D) cria uma cópia com um WindowID livre, logo ao lado do original. Nova imagem… cria uma imagem a partir de um .dds e abre o atlas para marcar o recorte. Apagar avisa quando o jogo pode procurar aquele controle e sugere ocultar no lugar. Tudo pode ser desfeito e só é gravado ao salvar."
+          "Renomear e apagar arquivos.",
+          "No painel Arquivos, clique com o botão direito para renomear ou apagar. Ao renomear uma textura, o editor oferece trocar o nome nos XMLs que a usam. Uma cópia sempre fica no histórico do projeto."
         ],
         [
-          "Ocultar no jogo.",
-          "Editar → Ocultar no jogo grava Visible=\"0\": o controle continua no XML, mas não aparece no jogo."
+          "Abas XML e Texturas.",
+          "O painel Arquivos separa os XMLs das texturas em duas abas."
+        ],
+        [
+          "Mover o recorte no atlas.",
+          "Arraste por dentro do recorte amarelo para movê-lo sem mudar o tamanho."
+        ],
+        [
+          "Marcação da foto do personagem.",
+          "No BasicChar, uma caixa ciano mostra onde o jogo desenha a foto, que fica fixa na tela. O botão Foto na barra do canvas liga e desliga a marcação."
         ]
       ],
       "improved": [
         [
-          "Código aberto sob GPL-3.0.",
-          "O editor agora tem licença GPL-3.0, que acompanha o instalador, e um guia para relatar problemas e contribuir pelo GitHub."
+          "Esc desmarca a seleção.",
+          "Editar → Desmarcar seleção (Esc) limpa a seleção do canvas e da lista."
+        ],
+        [
+          "Resolver erro do jogo procura pelo ID.",
+          "Quando o nome do .cpp não aponta um arquivo, o editor procura o WindowID nos XMLs oficiais."
         ]
       ],
       "fixed": [
         [
-          "Botão de fechar do aviso de atualização.",
-          "O botão de dispensar o aviso no topo do canvas usa um ícone e não aparece mais como um quadrado em algumas fontes."
+          "Aviso dos novos IDs do BasicChar.",
+          "Os controles 5130, 5131 e 5132 da atualização do jogo agora aparecem como novos, mesmo sem histórico da UI oficial."
+        ],
+        [
+          "Estado preenchido some no atlas.",
+          "Ao marcar um recorte perto da borda, a caixa ciano volta para dentro da textura em vez de sumir."
         ]
       ]
     },
     "en_US": {
       "new": [
         [
-          "Duplicate, create and delete controls.",
-          "Edit → Duplicate control (Ctrl+D) creates a copy with a free WindowID right next to the original. New image… creates an image from a .dds and opens the atlas to mark the slice. Delete warns when the game may look for that control and suggests hiding it instead. Everything can be undone and is only written when you save."
+          "Rename and delete files.",
+          "Right-click in the Files panel to rename or delete. When you rename a texture, the editor offers to update the XML files that use it. A copy always stays in the project history."
         ],
         [
-          "Hide in game.",
-          "Edit → Hide in game writes Visible=\"0\": the control stays in the XML but doesn't show up in the game."
+          "XML and Textures tabs.",
+          "The Files panel splits XML files and textures into two tabs."
+        ],
+        [
+          "Move the slice in the atlas.",
+          "Drag inside the yellow slice to move it without changing its size."
+        ],
+        [
+          "Character portrait marker.",
+          "In BasicChar, a cyan box shows where the game draws the portrait, which stays fixed on screen. The Portrait button on the canvas bar turns the marker on and off."
         ]
       ],
       "improved": [
         [
-          "Open source under GPL-3.0.",
-          "The editor is now licensed under GPL-3.0, included with the installer, with a guide to report problems and contribute on GitHub."
+          "Esc clears the selection.",
+          "Edit → Clear selection (Esc) clears the selection in the canvas and the list."
+        ],
+        [
+          "Fix game error searches by ID.",
+          "When the .cpp name doesn't point to a file, the editor looks for the WindowID in the official XML files."
         ]
       ],
       "fixed": [
         [
-          "Update notice close button.",
-          "The button that dismisses the notice at the top of the canvas uses an icon and no longer shows as a box in some fonts."
+          "Notice for the new BasicChar IDs.",
+          "Controls 5130, 5131 and 5132 from the game update now show up as new, even without official UI history."
+        ],
+        [
+          "Filled state vanishing in the atlas.",
+          "When you mark a slice near the edge, the cyan box moves back inside the texture instead of disappearing."
         ]
       ]
     },
     "es_ES": {
       "new": [
         [
-          "Duplicar, crear y eliminar controles.",
-          "Editar → Duplicar control (Ctrl+D) crea una copia con un WindowID libre, junto al original. Nueva imagen… crea una imagen a partir de un .dds y abre el atlas para marcar el recorte. Eliminar avisa cuando el juego puede buscar ese control y sugiere ocultarlo. Todo se puede deshacer y solo se graba al guardar."
+          "Renombrar y eliminar archivos.",
+          "En el panel Archivos, haz clic derecho para renombrar o eliminar. Al renombrar una textura, el editor ofrece cambiar el nombre en los XML que la usan. Siempre queda una copia en el historial del proyecto."
         ],
         [
-          "Ocultar en el juego.",
-          "Editar → Ocultar en el juego escribe Visible=\"0\": el control sigue en el XML, pero no aparece en el juego."
+          "Pestañas XML y Texturas.",
+          "El panel Archivos separa los XML de las texturas en dos pestañas."
+        ],
+        [
+          "Mover el recorte en el atlas.",
+          "Arrastra por dentro del recorte amarillo para moverlo sin cambiar su tamaño."
+        ],
+        [
+          "Marca de la foto del personaje.",
+          "En BasicChar, una caja cian muestra dónde el juego dibuja la foto, que queda fija en la pantalla. El botón Foto de la barra del lienzo activa y desactiva la marca."
         ]
       ],
       "improved": [
         [
-          "Código abierto bajo GPL-3.0.",
-          "El editor ahora tiene licencia GPL-3.0, incluida en el instalador, y una guía para informar problemas y contribuir en GitHub."
+          "Esc quita la selección.",
+          "Editar → Quitar selección (Esc) limpia la selección del lienzo y de la lista."
+        ],
+        [
+          "Resolver error del juego busca por ID.",
+          "Cuando el nombre del .cpp no indica un archivo, el editor busca el WindowID en los XML oficiales."
         ]
       ],
       "fixed": [
         [
-          "Botón de cerrar del aviso de actualización.",
-          "El botón que descarta el aviso arriba del lienzo usa un icono y ya no aparece como un cuadrado con algunas fuentes."
+          "Aviso de los nuevos ID de BasicChar.",
+          "Los controles 5130, 5131 y 5132 de la actualización del juego ahora aparecen como nuevos, incluso sin historial de la UI oficial."
+        ],
+        [
+          "Estado lleno que desaparecía en el atlas.",
+          "Al marcar un recorte cerca del borde, la caja cian vuelve dentro de la textura en vez de desaparecer."
         ]
       ]
     },
     "fr_FR": {
       "new": [
         [
-          "Dupliquer, créer et supprimer des contrôles.",
-          "Édition → Dupliquer le contrôle (Ctrl+D) crée une copie avec un WindowID libre, juste à côté de l'original. Nouvelle image… crée une image à partir d'un .dds et ouvre l'atlas pour tracer la zone. Supprimer prévient quand le jeu peut chercher ce contrôle et propose de le masquer à la place. Tout est annulable et n'est écrit qu'à l'enregistrement."
+          "Renommer et supprimer des fichiers.",
+          "Clic droit dans le panneau Fichiers pour renommer ou supprimer. Quand vous renommez une texture, l'éditeur propose de mettre à jour les XML qui l'utilisent. Une copie reste toujours dans l'historique du projet."
         ],
         [
-          "Masquer en jeu.",
-          "Édition → Masquer en jeu écrit Visible=\"0\" : le contrôle reste dans le XML mais n'apparaît pas en jeu."
+          "Onglets XML et Textures.",
+          "Le panneau Fichiers sépare les XML et les textures en deux onglets."
+        ],
+        [
+          "Déplacer la zone dans l'atlas.",
+          "Glissez à l'intérieur de la zone jaune pour la déplacer sans changer sa taille."
+        ],
+        [
+          "Repère du portrait du personnage.",
+          "Dans BasicChar, un cadre cyan montre où le jeu dessine le portrait, qui reste fixe à l'écran. Le bouton Portrait de la barre du canevas active ou désactive le repère."
         ]
       ],
       "improved": [
         [
-          "Open source sous GPL-3.0.",
-          "L'éditeur est maintenant sous licence GPL-3.0, fournie avec l'installateur, avec un guide pour signaler des problèmes et contribuer sur GitHub."
+          "Échap désélectionne.",
+          "Édition → Désélectionner (Échap) vide la sélection du canevas et de la liste."
+        ],
+        [
+          "Résoudre l'erreur du jeu cherche par ID.",
+          "Quand le nom du .cpp n'indique aucun fichier, l'éditeur cherche le WindowID dans les XML officiels."
         ]
       ],
       "fixed": [
         [
-          "Bouton de fermeture de l'avis de mise à jour.",
-          "Le bouton qui ferme l'avis en haut du canevas utilise une icône et ne s'affiche plus comme un carré avec certaines polices."
+          "Avis des nouveaux ID de BasicChar.",
+          "Les contrôles 5130, 5131 et 5132 de la mise à jour du jeu apparaissent maintenant comme nouveaux, même sans historique de l'UI officielle."
+        ],
+        [
+          "État rempli qui disparaissait dans l'atlas.",
+          "Quand vous tracez une zone près du bord, le cadre cyan revient dans la texture au lieu de disparaître."
         ]
       ]
     }
