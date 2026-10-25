@@ -903,6 +903,41 @@ class GameDrawnItem(QGraphicsRectItem):
         text.setPos(rect.left() + 2, rect.bottom() - 12)
 
 
+class ReferenceLayerItem(QGraphicsRectItem):
+    """Outra janela do projeto desenhada onde o jogo a põe, só para referência.
+
+    Fica abaixo do arquivo em edição e não recebe cliques: serve para montar a tela
+    do jogo (BasicChar, Radar, Menu…) em volta do que está sendo editado.
+    """
+
+    Z_VALUE = -1000.0
+
+    def __init__(self, name: str, bounds: QRectF):
+        super().__init__(bounds)
+        self.name = name
+        self.setPen(QPen(Qt.PenStyle.NoPen))
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setZValue(self.Z_VALUE)
+        self.setToolTip(name)
+        self._owners: list[QGraphicsRectItem] = []
+
+    def add_control(self, rect: QRectF, pixmap: QPixmap | None, text: str = "",
+                    props: dict[str, str] | None = None, is_button: bool = False) -> None:
+        if pixmap is not None and not pixmap.isNull():
+            picture = QGraphicsPixmapItem(pixmap, self)
+            picture.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            picture.setPos(rect.topLeft())
+        if text:
+            # GameTextItem mede a caixa pelo dono; aqui o dono é só um retângulo fora da cena.
+            owner = QGraphicsRectItem(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
+            self._owners.append(owner)
+            label = GameTextItem(owner, props or {}, is_button)  # type: ignore[arg-type]
+            label.setParentItem(self)
+            label.setZValue(1)
+            label.setPos(rect.topLeft())
+            label.set_text(text)
+
+
 class GhostAreaItem(QGraphicsRectItem):
     """Área que o jogo ainda trata como janela, longe do conteúdo; não interage."""
 

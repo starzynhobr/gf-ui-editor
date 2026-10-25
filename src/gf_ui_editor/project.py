@@ -109,6 +109,8 @@ class Project:
     # Pasta já existente de UICustom adotada como destino (nome exato). Nela o
     # F5 só adiciona e atualiza arquivos; nunca apaga o que o usuário tem lá.
     publish_folder: str = ""
+    # XMLs mostrados como camadas de referência no Preview do jogo (só para ver).
+    reference_layers: list[str] = field(default_factory=list)
     # (tamanho, mtime) -> hash, para não reler arquivos que não mudaram.
     _hash_cache: dict[str, tuple[int, int, str]] = field(default_factory=dict, repr=False)
     _files: list[Path] | None = field(default=None, repr=False)
@@ -170,6 +172,7 @@ class Project:
             bool(data.get("include_assets", False)),
             dict(data.get("root_modes", {})),
             str(data.get("publish_folder", "")),
+            [str(name) for name in data.get("reference_layers", [])],
         )
 
     def save_manifest(self) -> None:
@@ -179,6 +182,7 @@ class Project:
             "include_assets": self.include_assets,
             "root_modes": self.root_modes,
             "publish_folder": self.publish_folder,
+            "reference_layers": self.reference_layers,
             "base_hashes": self.base_hashes,
         }
         self.root.mkdir(parents=True, exist_ok=True)

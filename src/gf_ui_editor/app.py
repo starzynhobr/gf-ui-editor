@@ -72,7 +72,14 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from . import game_texts
-from .editor_widgets import EditorView, ElementItem, GameDrawnItem, GameScreenItem, GhostAreaItem
+from .editor_widgets import (
+    EditorView,
+    ElementItem,
+    GameDrawnItem,
+    GameScreenItem,
+    GhostAreaItem,
+    ReferenceLayerItem,
+)
 from .game_layout import (
     client_resolution,
     load_user_positions,
@@ -1251,6 +1258,8 @@ class EditorWindow(QMainWindow):
         )
         self.game_screen_item: GameScreenItem | None = None
         self.game_drawn_item: GameDrawnItem | None = None
+        self.reference_layer_items: list[ReferenceLayerItem] = []
+        self._layer_documents: dict[Path, tuple[int, UIDocument]] = {}
         self.ghost_item: GhostAreaItem | None = None
 
         self.undo_stack = QUndoStack(self)
@@ -1313,6 +1322,8 @@ class EditorWindow(QMainWindow):
         self.files_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.files_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.files_tree.itemClicked.connect(self._file_activated)
+        self.files_tree.itemChanged.connect(self._file_layer_toggled)
+        self._layer_click = False
         self.files_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.files_tree.customContextMenuRequested.connect(self._files_context_menu)
         self.files_tree.itemActivated.connect(self._file_activated)
@@ -2558,6 +2569,7 @@ class EditorWindow(QMainWindow):
         assert self.document is not None and self.texture_cache is not None
         self.view.set_interaction_priority(None)
         self.scene.clear()
+        self.reference_layer_items = []  # a cena apagou os itens
         self.items.clear()
         for element in self.document.elements:
             pixmap = (
@@ -2616,8 +2628,87 @@ class EditorWindow(QMainWindow):
             item = self.items.get(element.index)
             if item is not None:
                 item.set_game_text(self._game_text_for(element))
+        self._refresh_reference_layers()
+
+    def _clear_reference_layers(self) -> None:
+        for layer in self.reference_layer_items:
+            if layer.scene() is self.scene:
+                self.scene.removeItem(layer)
+        self.reference_layer_items = []
+
+    def _layer_document(self, path: Path) -> UIDocument | None:
+        """Abre (e guarda) um XML de camada; relê só quando o arquivo muda."""
+        try:
+            modified = path.stat().st_mtime_ns
+        except OSError:
+            return None
+        cached = self._layer_documents.get(path)
+        if cached is not None and cached[0] == modified:
+            return cached[1]
+        try:
+            document = UIDocument.load(path)
+        except Exception:
+            return None
+        self._layer_documents[path] = (modified, document)
+        return document
+
+    def _refresh_reference_layers(self) -> None:
+        """Desenha os XMLs marcados como camada onde o jogo os põe na tela."""
+        self._clear_reference_layers()
+        if (
+            self.project is None or self.document is None or self.game_screen_item is None
+            or self.game_resolution is None or self.texture_cache is None
+        ):
+            return
+        current = self.document.path.name.lower()
+        game_dir = self._document_game_dir()
+        positions = (
+            load_user_positions(game_dir / "User.ini")
+            if game_dir is not None and self.saved_positions_action.isChecked() else {}
+        )
+        screen = self.game_screen_item.pos()
+        for name in self.project.reference_layers:
+            if name.lower() == current:
+                continue
+            document = self._layer_document(self.project.ui_dir / name)
+            if document is None or not document.elements:
+                continue
+            root = document.elements[0]
+            section = saved_section_for(name)
+            screen_x, screen_y = root_screen_position(
+                name, self.game_resolution, root.geometry, positions.get(section) if section else None,
+                mode=self.project.root_modes.get(name, "auto"), game_dir=game_dir,
+            )
+            labels = game_texts.labels_for(name, game_dir) if self.text_mode == "game" else {}
+            # Mesmo espaço do XML para todos os elementos: tela = raiz na tela + (elemento - raiz).
+            origin = screen + QPointF(screen_x - root.x, screen_y - root.y)
+            layer = ReferenceLayerItem(name, QRectF())
+            layer.setPos(origin)
+            for element in document.elements:
+                if not element.visible:
+                    continue
+                takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
+                text = labels.get(element.window_id, element.window_text if takes_text else "")
+                layer.add_control(
+                    QRectF(element.x, element.y, element.width, element.height),
+                    self.texture_cache.pixmap_for(element),
+                    text, element.text_props, "ButtonNode" in element.child_tags,
+                )
+            self.scene.addItem(layer)
+            self.reference_layer_items.append(layer)
+
+    def set_reference_layer(self, name: str, enabled: bool) -> None:
+        if self.project is None:
+            return
+        layers = [layer for layer in self.project.reference_layers if layer.lower() != name.lower()]
+        if enabled:
+            layers.append(name)
+        self.project.reference_layers = layers
+        self.project.save_manifest()
+        self._refresh_reference_layers()
 
     def _refresh_game_screen(self) -> None:
+        self._clear_reference_layers()
         if self.game_drawn_item is not None and self.game_drawn_item.scene() is self.scene:
             self.scene.removeItem(self.game_drawn_item)
         self.game_drawn_item = None
@@ -2671,6 +2762,7 @@ class EditorWindow(QMainWindow):
                     self.scene.addItem(self.game_drawn_item)
                 self.game_drawn_item.setPos(self.game_screen_item.pos() + QPointF(drawn[0], drawn[1]))
             self._sync_game_drawn_visibility()
+            self._refresh_reference_layers()
             caption += " · " + self.tr("janela no jogo em ({x}, {y})").format(x=screen_x, y=screen_y)
             if mode != "auto":
                 caption += " · " + self.tr("posição escolhida por você")
@@ -4111,6 +4203,7 @@ class EditorWindow(QMainWindow):
         self.hidden_indexes.clear()
         self.isolated_index = None
         self.scene.clear()
+        self.reference_layer_items = []  # a cena apagou os itens
         self.items.clear()
         self.tree.clear()
         self.tree_items.clear()
@@ -4973,6 +5066,8 @@ class EditorWindow(QMainWindow):
             files = textures
         groups: list[tuple[str, list[Path]]] = []
         changed = [path for path in files if path.as_posix() in modified]
+        layers = set(self.project.reference_layers) if self.project is not None else set()
+        blocker = QSignalBlocker(self.files_tree)  # caixas marcadas aqui não são cliques
         if changed:
             groups.append((self.tr("ALTERADOS · {count}").format(count=len(changed)), changed))
         groups.append((self.tr("TODOS · {count}").format(count=len(files)), files))
@@ -5016,8 +5111,14 @@ class EditorWindow(QMainWindow):
                     )
                 if current is not None and os.path.normcase(str(full_path)) == current:
                     item.setFont(0, bold)
+                if self.project is not None and relative.suffix.lower() == ".xml":
+                    # Marcar = mostrar como camada de referência no Preview do jogo.
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    item.setCheckState(0, Qt.CheckState.Checked if key in layers else Qt.CheckState.Unchecked)
+                    item.setToolTip(0, self.tr("Marque para ver esta janela junto, onde o jogo a desenha (Preview do jogo)"))
                 header.addChild(item)
             header.setExpanded(True)
+        del blocker
         self._filter_files(self.file_filter_edit.text())
 
     def _set_files_mode(self, mode: str) -> None:
@@ -5041,7 +5142,29 @@ class EditorWindow(QMainWindow):
                 visible += not hidden
             group.setHidden(visible == 0)
 
+    def _file_layer_toggled(self, item: QTreeWidgetItem, _column: int) -> None:
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data or self.project is None or not item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            return
+        # O clique na caixa também dispara itemClicked: não abre o arquivo nesse caso.
+        self._layer_click = True
+        QTimer.singleShot(0, lambda: setattr(self, "_layer_click", False))
+        name = Path(data).resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+        checked = item.checkState(0) == Qt.CheckState.Checked
+        self.set_reference_layer(name, checked)
+        # O mesmo arquivo aparece em "Alterados" e "Todos": mantém as duas caixas iguais.
+        with QSignalBlocker(self.files_tree):
+            for index in range(self.files_tree.topLevelItemCount()):
+                group = self.files_tree.topLevelItem(index)
+                for child_index in range(group.childCount()):
+                    child = group.child(child_index)
+                    if child is not item and child.data(0, Qt.ItemDataRole.UserRole) == data:
+                        child.setCheckState(0, item.checkState(0))
+
     def _file_activated(self, item: QTreeWidgetItem, _column: int = 0) -> None:
+        if self._layer_click:
+            self._layer_click = False
+            return
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return

@@ -1367,3 +1367,36 @@ def test_text_mode_draws_samples_like_the_game_and_flags_overflow(tmp_path: Path
     window.set_text_mode("off")
     assert wide.text_item.text == ""
     window.close()
+
+
+def test_checked_files_show_as_reference_layers_where_the_game_draws_them(tmp_path: Path) -> None:
+    from gf_ui_editor.editor_widgets import ReferenceLayerItem
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("Menu.xml", "BasicChar.xml"):
+        (source / name).write_bytes(
+            f'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="{name}">\r\n'
+            '\t<BaseWndProperty WindowID="1" WindowLeft="0" WindowTop="0" WindowHeight="100" WindowWidth="40" />\r\n'
+            "</Root_Node>\r\n".encode("big5")
+        )
+    project = Project.create("Camadas", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Menu.xml")
+    window.set_game_resolution((800, 600))
+    application.processEvents()
+
+    window.set_reference_layer("BasicChar.xml", True)
+    assert Project.load(project.root).reference_layers == ["BasicChar.xml"]  # fica salvo no projeto
+    layers = [item for item in window.scene.items() if isinstance(item, ReferenceLayerItem)]
+    assert [layer.name for layer in layers] == ["BasicChar.xml"]
+    assert layers[0].zValue() < 0  # por baixo do arquivo em edição
+    assert not layers[0].acceptedMouseButtons()  # não rouba cliques
+
+    window.set_reference_layer("BasicChar.xml", False)
+    assert not [item for item in window.scene.items() if isinstance(item, ReferenceLayerItem)]
+    window.set_game_resolution(None)
+    window.close()

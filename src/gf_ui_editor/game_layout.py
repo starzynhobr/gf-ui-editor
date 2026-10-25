@@ -192,6 +192,10 @@ PLACED: dict[str, AnchorRule] = {
     "auctionbuy.xml": AnchorRule("centro em X = 1/3 da tela, centrado em Y", _AUCTION),  # 0x00726C20
     "auctionsell.xml": AnchorRule("centro em X = 1/3 da tela, centrado em Y", _AUCTION),  # 0x007280F0
     "awake.xml": AnchorRule("centro da tela - 4/5 do tamanho", _FOUR_FIFTHS),  # 0x008F39A0
+    "castingbar.xml": AnchorRule(  # 0x0084BC60
+        "centralizada, a 4/5 da altura da tela",
+        _from_screen(lambda w, width: _div(w, 2) - _div(width, 2), lambda h, height: _div(h, 5) * 4),
+    ),
     "carvingcombownd.xml": AnchorRule("centro da tela - 4/5 do tamanho", _FOUR_FIFTHS),  # 0x008A1650
     "newstarcombo.xml": AnchorRule("centro da tela - 4/5 do tamanho", _FOUR_FIFTHS),  # 0x008EFF50
     "elfsend.xml": AnchorRule("centrado em X, centro em Y = 1/3 da tela", _THIRD_OF_SCREEN),  # 0x00826BA0
@@ -286,10 +290,11 @@ CENTERED = frozenset(
 
 # Janelas cujo Create (slot 2), resize (slot 24) e abertura (slot 33) não mexem
 # na raiz: o jogo usa o X/Y do XML (ou a posição salva no User.ini). Não cobre
-# quem abre a janela de fora e a move depois.
+# quem abre a janela de fora e a move depois. BasicChar.xml (CMiniInfo) foi medido
+# no jogo em 25/10/2026: a raiz em X=82 e X=16 moveu a janela exatamente isso.
 XML_POSITIONED = frozenset(
     """
-    addressbook.xml autoaltarwnd.xml autoawake.xml constantmessagewnd.xml contractwnd.xml
+    addressbook.xml autoaltarwnd.xml autoawake.xml basicchar.xml constantmessagewnd.xml contractwnd.xml
     elfcollect.xml elfdecompose.xml elfpicksetting.xml elftrain.xml elfwork.xml equiptrain.xml
     familyeditschedulemsginfo.xml familytreeitemviewwnd.xml fullenchantlist.xml hidui.xml
     lootrule.xml lotterygospecial.xml mailread.xml quickenchantlist.xml raid.xml
