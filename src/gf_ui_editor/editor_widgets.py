@@ -151,12 +151,19 @@ def game_color(value: str) -> QColor:
 
 
 class GameTextItem(QGraphicsItem):
-    """Texto desenhado como o jogo: Arial 8 sem suavização, cor, contorno e alinhamento do XML."""
+    """Texto desenhado como o jogo: Arial 8 sem suavização, cor, contorno e alinhamento do XML.
 
-    def __init__(self, parent: "ElementItem", props: dict[str, str], is_button: bool = False):
-        super().__init__(parent)
+    O jogo escreve os textos por cima de todas as texturas, então o item fica acima dos
+    elementos na cena e acompanha o controle dono (ver ElementItem.itemChange).
+    """
+
+    Z_VALUE = 900_000.0
+
+    def __init__(self, owner: "ElementItem", props: dict[str, str], is_button: bool = False):
+        super().__init__()
+        self.owner = owner
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        self.setZValue(1)
+        self.setZValue(self.Z_VALUE)
         self.text = ""
         self.color = game_color(props.get("FontColor", "16777215"))
         self.outline = props.get("FontStyle") == "1"
@@ -166,17 +173,22 @@ class GameTextItem(QGraphicsItem):
         self.font = QFont(game_font_family())
         self.font.setPixelSize(GAME_FONT_PIXELS)
         self.font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+        if self.outline:
+            # Medido no jogo: texto com contorno sai com 1 px a mais entre as letras
+            # ("Ranque da Guilda" 99 px em vez de 84).
+            self.font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
         self.overflows = False
 
     def _box(self) -> QRectF:
-        return self.parentItem().rect()
+        return self.owner.rect()
 
     def _flags(self) -> int:
         horizontal = {"1": Qt.AlignmentFlag.AlignHCenter, "2": Qt.AlignmentFlag.AlignRight}.get(
             self.align, Qt.AlignmentFlag.AlignLeft
         )
         vertical = Qt.AlignmentFlag.AlignTop if self.multiline else Qt.AlignmentFlag.AlignVCenter
-        flags = int(horizontal | vertical)
+        # Caixas minúsculas (1-2 px) são comuns: o jogo escreve o texto mesmo assim, para fora.
+        flags = int(horizontal | vertical) | int(Qt.TextFlag.TextDontClip)
         if self.multiline:
             flags |= int(Qt.TextFlag.TextWordWrap)
         return flags
@@ -411,7 +423,15 @@ class ElementItem(QGraphicsRectItem):
             if not text:
                 return
             self.text_item = GameTextItem(self, self._text_props, self._is_button)
+            if self.scene() is not None:
+                self.scene().addItem(self.text_item)
+            self._sync_text_item()
         self.text_item.set_text(text)
+
+    def _sync_text_item(self) -> None:
+        if self.text_item is not None:
+            self.text_item.setPos(self.scenePos())
+            self.text_item.setVisible(self.isVisible())
 
     def set_texture_visible(self, visible: bool) -> None:
         self._textures_enabled = visible
@@ -503,6 +523,17 @@ class ElementItem(QGraphicsRectItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             position = QPointF(value)
             return QPointF(round(position.x()), round(position.y()))
+        if change in (
+            QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged,
+            QGraphicsItem.GraphicsItemChange.ItemVisibleHasChanged,
+        ):
+            self._sync_text_item()
+        if change == QGraphicsItem.GraphicsItemChange.ItemSceneChange and self.text_item is not None:
+            # Elemento saindo da cena (apagado, cena refeita): o texto vai junto.
+            if self.text_item.scene() is not None:
+                self.text_item.scene().removeItem(self.text_item)
+            if value is not None:
+                value.addItem(self.text_item)
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedChange:
             self.prepareGeometryChange()
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:

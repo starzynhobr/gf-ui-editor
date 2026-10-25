@@ -71,6 +71,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
+from . import game_texts
 from .editor_widgets import EditorView, ElementItem, GameDrawnItem, GameScreenItem, GhostAreaItem
 from .game_layout import (
     client_resolution,
@@ -1573,6 +1574,7 @@ class EditorWindow(QMainWindow):
         self.text_mode_menu = QMenu(self.tr("Texto como no jogo"), self)
         for mode, label in (
             ("off", self.tr("Desligado")),
+            ("game", self.tr("Textos do jogo")),
             ("xml", self.tr("Só o texto do XML")),
             ("short", self.tr("Amostra curta")),
             ("long", self.tr("Amostra longa")),
@@ -2580,6 +2582,13 @@ class EditorWindow(QMainWindow):
     def _game_text_for(self, element) -> str:
         if self.text_mode == "off":
             return ""
+        if self.text_mode == "game":
+            # O jogo troca o WindowText pelo rótulo que o código escreve, quando há um.
+            # O jogo só escreve o WindowText em controles de texto ou botões; painéis e a
+            # raiz guardam ali só um nome interno ("PX1-1").
+            takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
+            fallback = element.window_text if takes_text else ""
+            return self._game_labels().get(element.window_id, fallback)
         if element.window_text or self.text_mode == "xml":
             return element.window_text
         if "TextNode" not in element.child_tags and "ButtonNode" not in element.child_tags:
@@ -2589,6 +2598,15 @@ class EditorWindow(QMainWindow):
         if self.text_mode == "short":
             return self.tr("Texto")
         return self.tr("Texto de exemplo bem comprido para testar o espaço")
+
+    def _game_labels(self) -> dict[str, str]:
+        if self.document is None:
+            return {}
+        key = (self.document.path.name.lower(), self._document_game_dir())
+        if getattr(self, "_game_labels_key", None) != key:
+            self._game_labels_key = key
+            self._game_labels_cache = game_texts.labels_for(key[0], key[1])
+        return self._game_labels_cache
 
     def set_text_mode(self, mode: str) -> None:
         self.text_mode = mode
