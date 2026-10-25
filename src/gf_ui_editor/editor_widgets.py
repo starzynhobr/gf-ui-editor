@@ -166,6 +166,7 @@ class ElementItem(QGraphicsRectItem):
         self._active_resize_scale = (1.0, 1.0)
         self._followers: list[tuple["ElementItem", QPointF]] = []
         self._base_z = float(element.index)
+        self._element_position = QPointF(element.x, element.y)
         self.setPos(element.x, element.y)
         self.setZValue(self._base_z)
         self.setFlags(
@@ -289,7 +290,7 @@ class ElementItem(QGraphicsRectItem):
     def set_texture_visible(self, visible: bool) -> None:
         self._textures_enabled = visible
         if self.texture_item is not None:
-            self.texture_item.setVisible(visible and not self._frame_mode)
+            self.texture_item.setVisible(visible)
 
     def set_pixmap(self, pixmap: QPixmap | None) -> None:
         if self.texture_item is None:
@@ -300,7 +301,7 @@ class ElementItem(QGraphicsRectItem):
             self.texture_item.setZValue(-1)
         else:
             self.texture_item.setPixmap(pixmap or QPixmap())
-        self.texture_item.setVisible(self._textures_enabled and pixmap is not None and not self._frame_mode)
+        self.texture_item.setVisible(self._textures_enabled and pixmap is not None)
         self._update_texture_transform()
 
     def set_locked(self, locked: bool) -> None:
@@ -317,6 +318,7 @@ class ElementItem(QGraphicsRectItem):
         self._element_height = element.height
         self._frame_mode = False
         self._frame_geometry = None
+        self._element_position = QPointF(element.x, element.y)
         self.resize_handle.axes = None
         self.window_bounds_item.setVisible(False)
         self.setPos(element.x, element.y)
@@ -367,8 +369,9 @@ class ElementItem(QGraphicsRectItem):
         self.setRect(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
         self._update_overlays()
         self.resize_handle.setVisible(self.isSelected() and not self._locked)
-        if self.texture_item is not None:
-            self.texture_item.setVisible(False)  # a textura da raiz não é a do conteúdo
+        # A textura da raiz continua onde a raiz está no XML (como em "Sem moldura"):
+        # em várias janelas, como a da guilda, ela é o fundo dos painéis.
+        self._update_texture_transform()
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):  # noqa: N802
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
@@ -528,11 +531,15 @@ class ElementItem(QGraphicsRectItem):
         if self.texture_item is None or self.texture_item.pixmap().isNull():
             return
         pixmap = self.texture_item.pixmap()
+        if self._frame_mode:
+            # A moldura cobre o conteúdo; a textura fica no retângulo real da raiz.
+            width, height = self._element_width, self._element_height
+            self.texture_item.setPos(self._element_position - self.pos())
+        else:
+            width, height = self.rect().width(), self.rect().height()
+            self.texture_item.setPos(0, 0)
         self.texture_item.setTransform(
-            QTransform.fromScale(
-                self.rect().width() / pixmap.width(),
-                self.rect().height() / pixmap.height(),
-            )
+            QTransform.fromScale(max(1, width) / pixmap.width(), max(1, height) / pixmap.height())
         )
 
     def begin_resize(
