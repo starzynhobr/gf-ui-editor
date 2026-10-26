@@ -4,7 +4,7 @@ from collections.abc import Callable
 import math
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QSignalBlocker, QTimer, Signal, QUrl
+from PySide6.QtCore import QFileSystemWatcher, QPoint, QPointF, QRectF, Qt, QSignalBlocker, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -862,3 +862,82 @@ class AtlasDialog(QDialog):
             self._button_apply_callback(dict(self._button_uvs), self.resize_element.isChecked())
             return
         self._apply_callback(self.current_uv(), self.resize_element.isChecked(), self.current_offset())
+
+
+class TexturePreviewDialog(QDialog):
+    """Olhar uma textura antes de abrir no editor de imagem: só zoom e arrastar, sem recorte."""
+
+    def __init__(self, texture_path: Path, users: int, parent=None):
+        super().__init__(parent)
+        self.texture_path = texture_path
+        self.setWindowTitle(self.tr("Textura — {name}").format(name=texture_path.name))
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
+        self.view = AtlasView()
+        self.view.set_editable(False)  # clique esquerdo arrasta a vista
+        side = QVBoxLayout()
+        title = QLabel(texture_path.name)
+        title.setObjectName("panelTitle")
+        self.size_label = QLabel()
+        self.size_label.setObjectName("panelSubtitle")
+        users_label = QLabel(
+            self.tr("Usada por {count} XML(s) do projeto").format(count=users)
+            if users else self.tr("Nenhum XML do projeto usa esta textura")
+        )
+        users_label.setWordWrap(True)
+        fit_button = QPushButton(icon("frame", size=16), self.tr("Atlas inteiro"))
+        fit_button.setAutoDefault(False)
+        fit_button.clicked.connect(self.view.fit_texture)
+        open_button = QPushButton(icon("image", size=16), self.tr("Abrir .dds"))
+        open_button.setAutoDefault(False)
+        open_button.setToolTip(self.tr("Abre no programa padrão do Windows para .dds (Paint.NET, por exemplo)"))
+        open_button.clicked.connect(self._open_dds)
+        hint = QLabel(self.tr("Arraste para mover · roda = zoom · a imagem se atualiza ao salvar no editor"))
+        hint.setWordWrap(True)
+        hint.setObjectName("panelSubtitle")
+        close_button = QPushButton(self.tr("Fechar"))
+        close_button.clicked.connect(self.accept)
+        side.setContentsMargins(16, 16, 16, 16)
+        side.setSpacing(8)
+        for widget in (title, self.size_label, users_label, fit_button, open_button):
+            side.addWidget(widget)
+        side.addStretch(1)
+        side.addWidget(hint)
+        side.addWidget(close_button)
+        panel = QWidget()
+        panel.setObjectName("propertiesPanel")
+        panel.setLayout(side)
+        panel.setFixedWidth(300)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.view, 1)
+        layout.addWidget(panel)
+        self.resize(1100, 720)
+        self._watcher = QFileSystemWatcher([str(texture_path)], self)
+        self._watcher.fileChanged.connect(lambda _path: QTimer.singleShot(300, self.reload))
+        self.reload()
+        QTimer.singleShot(0, self.view.fit_texture)
+
+    def reload(self) -> None:
+        from .texture_cache import open_dds_rgba
+
+        try:
+            image = open_dds_rgba(self.texture_path)
+        except Exception:  # noqa: BLE001 - arquivo sendo gravado ou formato estranho
+            self.size_label.setText(self.tr("Não foi possível ler a imagem."))
+            return
+        from PIL.ImageQt import ImageQt
+
+        self.view.set_pixmap(QPixmap.fromImage(ImageQt(image)))
+        self.size_label.setText(f"{image.width} × {image.height} px")
+        if str(self.texture_path) not in self._watcher.files() and self.texture_path.is_file():
+            self._watcher.addPath(str(self.texture_path))  # editores salvam trocando o arquivo
+
+    def _open_dds(self) -> None:
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.texture_path.resolve()))):
+            QMessageBox.warning(
+                self,
+                self.tr("Abrir .dds"),
+                self.tr("Não foi possível abrir {name}. Verifique o aplicativo padrão para arquivos .dds no sistema.").format(
+                    name=self.texture_path.name
+                ),
+            )

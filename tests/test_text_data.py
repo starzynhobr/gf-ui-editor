@@ -102,10 +102,12 @@ def test_canvas_labels_show_project_edits_before_they_are_sent(tmp_path: Path) -
     window.set_text_mode("game")
     label = window.items[1].text_item
     assert label.text == "message slots remaining."
+    assert window.tree_items[1].text(1) == "Texto · message slots remaining." or window.tree_items[1].text(1).endswith("· message slots remaining.")
 
     text_data.save_edits(project.root, {"T_TextIndex.ini": {"935": TextEdit(["slots remaining."], ["message slots remaining."])}})
     window.texts_panel.edits_changed.emit()
     assert window.items[1].text_item.text == "slots remaining."  # sem enviar para o jogo
+    assert window.tree_items[1].text(1).endswith("· slots remaining.")  # a lista também
     window.close()
 
 
@@ -174,3 +176,24 @@ def test_text_mode_is_remembered_and_lights_up_the_bar_button() -> None:
     assert reopened.text_mode == "game" and reopened.text_mode_button.isChecked()
     assert [action.data() for action in reopened.text_mode_actions.actions() if action.isChecked()] == ["game"]
     reopened.close()
+
+
+def test_texts_changed_by_a_game_update_after_editing_are_flagged(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    from gf_ui_editor import texts_panel
+
+    application = QApplication.instance() or QApplication([])
+    # A atualização trocou o original ("Runa") por "Runa Antiga"; a edição era "Runa Nova".
+    game = _game(tmp_path, "T_Item.ini", b"539|Runa Antiga|Uma runa.|\r\n540|Pedra|Uma pedra.|\r\n")
+    project = tmp_path / "project"
+    text_data.save_edits(project, {"T_Item.ini": {
+        "539": TextEdit(["Runa Nova", "Uma runa."], ["Runa", "Uma runa."]),
+        "540": TextEdit(["Pedra Nova", "Uma pedra."], ["Pedra", "Uma pedra."]),
+    }})
+    panel = texts_panel.TextsPanel()
+    panel.set_context(game, project)
+    marks = {panel.results.topLevelItem(i).text(2): panel.results.topLevelItem(i).text(0)[0] for i in range(panel.results.topLevelItemCount())}
+    assert marks == {"539": "⚠", "540": "●"}
+    assert "⚠ 1" in panel.summary.text()
+    panel.close()

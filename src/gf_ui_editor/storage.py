@@ -24,6 +24,7 @@ from pathlib import Path
 
 PROJECT_DB = "project.db"
 SHARED_DB = "gf-ui-editor.db"
+TEXT_INDEX_DB = "text-index.db"
 
 PROJECT_MIGRATIONS: Sequence[str] = (
     # 1: tudo o que ficava em project.json, .hash-cache.json e data/text-edits.json.
@@ -57,6 +58,36 @@ SHARED_MIGRATIONS: Sequence[str] = (
         PRIMARY KEY (relative, crc)
     );
     """,
+    # 2: primeira versão do índice de textos, aqui dentro (substituída pela 3).
+    """
+    CREATE TABLE text_index_files (
+        game_dir TEXT NOT NULL, file TEXT NOT NULL, mtime_ns INTEGER NOT NULL, size INTEGER NOT NULL,
+        PRIMARY KEY (game_dir, file)
+    );
+    CREATE VIRTUAL TABLE text_index USING fts5(
+        game_dir UNINDEXED, file UNINDEXED, record_id UNINDEXED, fields UNINDEXED, body, tokenize = 'trigram'
+    );
+    """,
+    # 3: o índice (~150 MB) foi para text-index.db: este banco guarda só dados do usuário.
+    """
+    DROP TABLE text_index;
+    DROP TABLE text_index_files;
+    """,
+)
+
+# Cache que pode ser apagado: o editor o refaz a partir de data/Translate.
+INDEX_MIGRATIONS: Sequence[str] = (
+    # 1: índice de busca dos textos do jogo. O trigram acha trechos no meio das palavras,
+    # como a busca em memória, e responde em poucos ms (MATCH com a frase entre aspas).
+    """
+    CREATE TABLE indexed_files (
+        game_dir TEXT NOT NULL, file TEXT NOT NULL, mtime_ns INTEGER NOT NULL, size INTEGER NOT NULL,
+        PRIMARY KEY (game_dir, file)
+    );
+    CREATE VIRTUAL TABLE texts USING fts5(
+        game_dir UNINDEXED, file UNINDEXED, record_id UNINDEXED, body, tokenize = 'trigram', columnsize = 0
+    );
+    """,
 )
 
 _lock = threading.RLock()
@@ -72,6 +103,23 @@ class Database:
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA synchronous=NORMAL")
         self._migrate(migrations)
+        self._compact_if_bloated()
+
+    def _compact_if_bloated(self) -> None:
+        """Arquivo bem maior que os dados (tabelas apagadas numa migração): devolve o espaço.
+
+        Com outro processo usando o banco o Windows não deixa encolher o arquivo; tenta de
+        novo na próxima abertura.
+        """
+        try:
+            pages = self._connection.execute("PRAGMA page_count").fetchone()[0]
+            page_size = self._connection.execute("PRAGMA page_size").fetchone()[0]
+            if self.path.stat().st_size > max(pages * page_size * 2, 8 * 1024 * 1024):
+                with _lock:
+                    self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    self._connection.execute("VACUUM")
+        except (OSError, sqlite3.Error):
+            pass
 
     def _migrate(self, migrations: Sequence[str]) -> None:
         with _lock:
@@ -126,6 +174,10 @@ def project_database(root: Path) -> Database:
 
 def shared_database(projects_root: Path) -> Database:
     return _database(projects_root / SHARED_DB, SHARED_MIGRATIONS)
+
+
+def text_index_database(projects_root: Path) -> Database:
+    return _database(projects_root / TEXT_INDEX_DB, INDEX_MIGRATIONS)
 
 
 def close_all() -> None:
@@ -304,3 +356,53 @@ class SharedStore:
                     "INSERT OR IGNORE INTO official_versions (relative, crc, position) VALUES (?, ?, ?)",
                     [(relative.lower(), crc, position) for position, crc in enumerate(crcs)],
                 )
+
+
+# ---- índice de textos (cache) -----------------------------------------------------
+class TextIndexStore:
+    """Índice FTS5 dos textos do jogo; campos de um registro = body separado por " | "
+    (o jogo não aceita "|" dentro do texto, então a separação é exata)."""
+
+    def __init__(self, projects_root: Path):
+        self.db = text_index_database(projects_root)
+
+    def indexed_files(self, game_dir: Path) -> dict[str, tuple[int, int]]:
+        """Arquivos já indexados deste jogo: nome -> (mtime_ns, tamanho)."""
+        return {
+            file: (mtime_ns, size)
+            for file, mtime_ns, size in self.db.query(
+                "SELECT file, mtime_ns, size FROM indexed_files WHERE game_dir = ?", (str(game_dir),)
+            )
+        }
+
+    def replace_file(
+        self, game_dir: Path, file: str, signature: tuple[int, int] | None, rows: Iterable[tuple[str, list[str]]]
+    ) -> None:
+        """Troca os registros indexados de um arquivo (signature None = arquivo sumiu)."""
+        key = str(game_dir)
+        with self.db.transaction() as connection:
+            connection.execute("DELETE FROM texts WHERE game_dir = ? AND file = ?", (key, file))
+            connection.execute("DELETE FROM indexed_files WHERE game_dir = ? AND file = ?", (key, file))
+            if signature is None:
+                return
+            connection.executemany(
+                "INSERT INTO texts (game_dir, file, record_id, body) VALUES (?, ?, ?, ?)",
+                [(key, file, record_id, " | ".join(fields)) for record_id, fields in rows],
+            )
+            connection.execute(
+                "INSERT INTO indexed_files (game_dir, file, mtime_ns, size) VALUES (?, ?, ?, ?)",
+                (key, file, *signature),
+            )
+
+    def search(self, game_dir: Path, needle: str, limit: int) -> tuple[list[tuple[str, str, list[str]]], int]:
+        """Registros cujo texto contém `needle` (sem diferenciar maiúsculas): (até `limit`
+        resultados, total). Precisa de 3+ letras, o mínimo que o trigram indexa."""
+        phrase = '"' + needle.replace('"', '""') + '"'  # frase literal: sem operadores do FTS5
+        where = "texts MATCH ? AND game_dir = ?"
+        total = self.db.query(f"SELECT count(*) FROM texts WHERE {where}", (phrase, str(game_dir)))[0][0]
+        rows = self.db.query(
+            f"SELECT file, record_id, body FROM texts WHERE {where} ORDER BY file, rowid LIMIT ?",
+            (phrase, str(game_dir), limit),
+        )
+        return [(file, record_id, body.split(" | ")) for file, record_id, body in rows], total
+

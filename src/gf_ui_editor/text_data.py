@@ -144,6 +144,30 @@ def save_edits(project_root: Path, edits: dict[str, dict[str, TextEdit]]) -> Non
     })
 
 
+def sync_text_index(game_dir: Path, projects_root: Path) -> int:
+    """Atualiza o índice de busca (banco compartilhado) com os arquivos que mudaram.
+
+    Só relê os arquivos cuja data ou tamanho mudou desde a última vez (o launcher troca
+    arquivos ao atualizar ou mudar o idioma). Devolve quantos arquivos foram reindexados.
+    """
+    store = storage.TextIndexStore(projects_root)
+    indexed = store.indexed_files(game_dir)
+    current: dict[str, tuple[int, int]] = {}
+    for path in translate_files(game_dir):
+        stat = path.stat()
+        current[path.name] = (stat.st_mtime_ns, stat.st_size)
+    rebuilt = 0
+    for name, signature in current.items():
+        if indexed.get(name) == signature:
+            continue
+        text_file = TextFile.load(game_dir / TRANSLATE_DIR / name)
+        store.replace_file(game_dir, name, signature, ((record.record_id, record.fields) for record in text_file.records))
+        rebuilt += 1
+    for name in set(indexed) - set(current):
+        store.replace_file(game_dir, name, None, ())
+    return rebuilt
+
+
 def history_baseline(project_root: Path) -> dict[str, TextFile]:
     """Arquivos do jogo como estavam antes do primeiro envio (backup mais antigo de cada um).
 

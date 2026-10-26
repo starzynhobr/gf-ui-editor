@@ -133,7 +133,7 @@ from .project import (
     projects_publishing_to,
     safe_name,
 )
-from .atlas_dialog import AtlasDialog
+from .atlas_dialog import AtlasDialog, TexturePreviewDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
 GAME_RESOLUTIONS = (
@@ -823,18 +823,11 @@ class PropertyPanel(QWidget):
         self.visible_value = QCheckBox()
         self.visible_value.setEnabled(False)
 
-        self.lock_button = QToolButton()
-        self.hide_button = QToolButton()
-        self.isolate_button = QToolButton()
+        # Bloquear/ocultar/isolar ficam nos ícones da lista de elementos; aqui só duplicar e apagar.
         self.actions_row = QWidget()
-        actions_layout = QHBoxLayout(self.actions_row)
-        actions_layout.setContentsMargins(0, 0, 0, 0)
-        actions_layout.setSpacing(6)
-        for button in (self.lock_button, self.hide_button, self.isolate_button):
-            button.setObjectName("inspectorAction")
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-            actions_layout.addWidget(button)
+        self._actions_layout = QHBoxLayout(self.actions_row)
+        self._actions_layout.setContentsMargins(0, 0, 0, 0)
+        self._actions_layout.setSpacing(6)
         self.actions_row.setVisible(False)
 
         self.x_spin = self._spinbox()
@@ -1008,30 +1001,14 @@ class PropertyPanel(QWidget):
         form.addRow(label, value)
         form.labelForField(value).setObjectName("fieldLabel")
 
-    def set_context_actions(
-        self, lock_action: QAction, hide_action: QAction, isolate_action: QAction, *structure_actions: QAction
-    ) -> None:
-        for button, action in zip(
-            (self.lock_button, self.hide_button, self.isolate_button),
-            (lock_action, hide_action, isolate_action),
-            strict=True,
-        ):
-            button.setDefaultAction(action)
-        # Duplicar/apagar numa segunda fileira, logo abaixo: cinco botões não cabem numa só.
-        self.structure_row = QWidget()
-        layout = QHBoxLayout(self.structure_row)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        parent_layout = self.actions_row.parentWidget().layout()
-        parent_layout.insertWidget(parent_layout.indexOf(self.actions_row) + 1, self.structure_row)
-        self.structure_row.setVisible(self.actions_row.isVisibleTo(self))
+    def set_context_actions(self, *structure_actions: QAction) -> None:
         for action in structure_actions:
             button = QToolButton()
             button.setObjectName("inspectorAction")
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             button.setDefaultAction(action)
-            layout.addWidget(button)
+            self._actions_layout.addWidget(button)
 
     @staticmethod
     def _spinbox(minimum: int = -100000) -> QSpinBox:
@@ -1050,7 +1027,7 @@ class PropertyPanel(QWidget):
             if element is None:
                 self.screen_position_label.setVisible(False)
                 self.actions_row.setVisible(False)
-                getattr(self, "structure_row", self.actions_row).setVisible(False)
+                self.actions_row.setVisible(False)
                 self.badge_row.setVisible(False)
                 self.selection_subtitle.setVisible(True)
                 self.details_container.setVisible(False)
@@ -1079,7 +1056,7 @@ class PropertyPanel(QWidget):
             self.badge_row.setVisible(True)
             self.selection_subtitle.setVisible(False)
             self.actions_row.setVisible(True)
-            getattr(self, "structure_row", self.actions_row).setVisible(True)
+            self.actions_row.setVisible(True)
             self.details_container.setVisible(True)
             self.selection_subtitle.setText(kind_label(element.kind, element.ctrl_type))
             self.id_value.setText(element.window_id)
@@ -1304,6 +1281,20 @@ class EditorWindow(QMainWindow):
             ("isolated", True): icon("focus", COLORS["WARNING_TEXT"], 16),
         }, self.tree))
         self.tree.viewport().installEventFilter(self)
+        # Tipo (com o texto do jogo) fica com o espaço; WindowID compacto; ParentNode
+        # escondido por padrão (a árvore já mostra quem é filho de quem).
+        header = self.tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setTreePosition(1)  # recuo e seta de expandir no Tipo, mesmo sem WindowID
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._tree_header_menu)
+        hidden = QSettings("Local", "GF UI Editor").value("tree_hidden_columns", "2")
+        for column in (0, 2):
+            self.tree.setColumnHidden(column, str(column) in str(hidden).split(","))
         elements_page = QWidget()
         elements_page.setObjectName("treePanel")
         tree_layout = QVBoxLayout(elements_page)
@@ -1503,7 +1494,7 @@ class EditorWindow(QMainWindow):
 
         self._create_actions()
         self.properties.set_context_actions(
-            self.lock_action, self.hide_action, self.isolate_action, self.duplicate_action, self.delete_action
+            self.duplicate_action, self.delete_action
         )
         self._create_menus_and_toolbar()
         self._build_canvas_overlays()
@@ -2671,6 +2662,7 @@ class EditorWindow(QMainWindow):
         # Edição salva na aba Textos: o canvas e as camadas mostram o texto novo na hora.
         self._text_overrides_version += 1
         self.set_text_mode(self.text_mode)
+        self._refresh_tree_labels()
 
     def set_text_mode(self, mode: str) -> None:
         if mode != self.text_mode:
@@ -3335,6 +3327,7 @@ class EditorWindow(QMainWindow):
             item.setData(0, Qt.ItemDataRole.UserRole, element.index)
             self.tree_items[element.index] = item
             item.setData(3, STATE_ROLE, ())
+            item.setForeground(0, QColor(COLORS["TEXT_MUTED"]))  # WindowID discreto: o nome é o Tipo
             item.setToolTip(3, self.tr("Ocultar · Bloquear · Isolar"))
             id_map.setdefault(element.window_id, item)
             pending.append((element, item))
@@ -3344,8 +3337,38 @@ class EditorWindow(QMainWindow):
                 parent_item.addChild(item)
             else:
                 self.tree.addTopLevelItem(item)
+        self._refresh_tree_labels()
         self.tree.resizeColumnToContents(0)
         self.tree.resizeColumnToContents(3)
+
+    def _tree_header_menu(self, position) -> None:
+        """Botão direito no cabeçalho: mostrar ou esconder WindowID e ParentNode."""
+        menu = QMenu(self)
+        for column, label in ((0, "WindowID"), (2, "ParentNode")):
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(not self.tree.isColumnHidden(column))
+            action.toggled.connect(lambda shown, value=column: self._set_tree_column_shown(value, shown))
+        menu.exec(self.tree.header().mapToGlobal(position))
+
+    def _set_tree_column_shown(self, column: int, shown: bool) -> None:
+        self.tree.setColumnHidden(column, not shown)
+        hidden = [str(value) for value in (0, 2) if self.tree.isColumnHidden(value)]
+        QSettings("Local", "GF UI Editor").setValue("tree_hidden_columns", ",".join(hidden))
+
+    def _refresh_tree_labels(self) -> None:
+        """Tipo + o texto que o jogo mostra no controle ("Botão · Nome"), quando se sabe."""
+        if self.document is None:
+            return
+        labels = self._game_labels()
+        for element in self.document.elements:
+            tree_item = self.tree_items.get(element.index)
+            if tree_item is None:
+                continue
+            kind = kind_label(element.kind, element.ctrl_type)
+            label = labels.get(element.window_id, "").strip()
+            tree_item.setText(1, f"{kind} · {label}" if label else kind)
+            tree_item.setToolTip(1, label)
 
     def select_element(self, index: int) -> None:
         if self.document is None or self._syncing_selection:
@@ -4075,11 +4098,30 @@ class EditorWindow(QMainWindow):
         )
         self.isolation_button.setVisible(True)
 
+    def _isolated_family(self) -> set[int]:
+        """O elemento isolado e tudo o que está dentro dele (como o isolar do Blender)."""
+        if self.isolated_index is None:
+            return set()
+        family = {self.isolated_index}
+        pending = [self.tree_items.get(self.isolated_index)]
+        while pending:
+            tree_item = pending.pop()
+            if tree_item is None:
+                continue
+            for child_number in range(tree_item.childCount()):
+                child = tree_item.child(child_number)
+                index = child.data(0, Qt.ItemDataRole.UserRole)
+                if index is not None:
+                    family.add(int(index))
+                pending.append(child)
+        return family
+
     def _apply_visibility_state(self) -> None:
+        family = self._isolated_family()
         for index, item in self.items.items():
             visible = index not in self.hidden_indexes
             if self.isolated_index is not None:
-                visible = visible and index == self.isolated_index
+                visible = visible and index in family
             item.setVisible(visible)
 
     def _refresh_tree_state(self, index: int) -> None:
@@ -4171,6 +4213,7 @@ class EditorWindow(QMainWindow):
                         element.window_text,
                         element.texture_name or "",
                         element.ctrl_type or "",
+                        self._game_labels().get(element.window_id, ""),
                     )
                 ).casefold()
                 own_match = not query or query in searchable
@@ -5367,7 +5410,8 @@ class EditorWindow(QMainWindow):
             return
         path = Path(data)
         if path.suffix.lower() in TEXTURE_SUFFIXES:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+            # Primeiro uma prévia dentro do editor; o botão "Abrir .dds" leva ao editor de imagem.
+            TexturePreviewDialog(path, len(self._xml_using_texture(path.name)), self).exec()
             return
         if self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path)):
             self.side_tabs.setCurrentIndex(1)

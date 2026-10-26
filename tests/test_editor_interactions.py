@@ -1546,3 +1546,55 @@ def test_guild_tabs_open_where_the_guild_window_is_and_layers_button_lights_up(t
     window.set_reference_layers([])
     assert not window.layers_button.isChecked()
     window.close()
+
+
+def test_isolating_a_panel_keeps_its_children_visible(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Grupo.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Grupo.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="100"><Container_Node Child_Cnt="3">'
+        b'<Style ParentNode="1" CtrlType="1" /><BaseWndProperty WindowID="10" WindowHeight="50" WindowWidth="50" />'
+        b'<Style ParentNode="10" CtrlType="1" /><BaseWndProperty WindowID="11" WindowHeight="5" WindowWidth="5" />'
+        b'<Style ParentNode="1" CtrlType="1" /><BaseWndProperty WindowID="20" WindowHeight="5" WindowWidth="5" />'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    panel, child, other = (
+        next(element.index for element in window.document.elements if element.window_id == window_id)
+        for window_id in ("10", "11", "20")
+    )
+    window.toggle_isolation_of(panel)
+    assert window.items[panel].isVisible() and window.items[child].isVisible()  # o filho fica junto
+    assert not window.items[other].isVisible() and not window.items[0].isVisible()
+    window.close()
+
+
+
+def test_texture_preview_shows_the_image_and_reloads_when_saved(tmp_path: Path) -> None:
+    from gf_ui_editor.atlas_dialog import TexturePreviewDialog
+
+    application = QApplication.instance() or QApplication([])
+    texture = tmp_path / "main.dds"
+    Image.new("RGBA", (40, 20), (255, 0, 0, 255)).save(texture)
+    dialog = TexturePreviewDialog(texture, users=3)
+    assert dialog.size_label.text() == "40 × 20 px"
+    assert not dialog.view.editable  # só olhar: sem recorte nem alças
+    Image.new("RGBA", (64, 32), (0, 0, 255, 255)).save(texture)
+    dialog.reload()
+    assert dialog.size_label.text() == "64 × 32 px"
+    dialog.close()
+
+
+def test_element_list_hides_parentnode_by_default_and_remembers_column_choice() -> None:
+    application = QApplication.instance() or QApplication([])
+    window = EditorWindow()
+    assert window.tree.isColumnHidden(2) and not window.tree.isColumnHidden(0)
+    window._set_tree_column_shown(0, False)
+    window._set_tree_column_shown(2, True)
+    window.close()
+    reopened = EditorWindow()
+    assert reopened.tree.isColumnHidden(0) and not reopened.tree.isColumnHidden(2)
+    assert reopened.tree.treePosition() == 1
+    reopened.close()

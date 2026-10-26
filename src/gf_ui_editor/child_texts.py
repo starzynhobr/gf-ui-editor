@@ -45,6 +45,8 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         2500: 10653,
     },
     'AddressBookWnd.cpp': {
+        2010: 634,
+        2020: 635,
         2030: 636,
         2040: 295,
         2050: 296,
@@ -199,6 +201,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     },
     'BotBackWnd.cpp': {
         50: 10582,
+        101: 301,
         102: 9630,
         103: 9632,
         104: 10616,
@@ -228,6 +231,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     },
     'BotBattleWnd.cpp': {
         50: 10582,
+        101: 301,
         102: 9630,
         103: 9632,
         104: 10616,
@@ -247,6 +251,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     },
     'BotNormalWnd.cpp': {
         50: 10582,
+        101: 301,
         102: 9630,
         103: 9632,
         104: 10616,
@@ -282,6 +287,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     },
     'BotOtherWnd.cpp': {
         50: 10582,
+        101: 301,
         102: 9630,
         103: 9632,
         104: 10616,
@@ -430,6 +436,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         6002: 295,
         6003: 591,
         6004: 630,
+        6005: 18706,
     },
     'CreateCharacterWnd.cpp': {
         4: 654,
@@ -460,6 +467,9 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         2000: 564,
         2001: 295,
         2002: 296,
+        2006: 10820,
+        2007: 10821,
+        2008: 10822,
     },
     'DailyAwardsWnd.cpp': {
         21000: 11426,
@@ -836,7 +846,10 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         32: 296,
     },
     'EquipmentUI.cpp': {
+        2001: 340,
+        2002: 326,
         4001: 325,
+        5002: 17875,
     },
     'FBDeepfathomWnd.cpp': {
         20000: 14366,
@@ -884,6 +897,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         23: 9907,
         27: 934,
         29: 935,
+        103: 428,
         104: 441,
         105: 9898,
         106: 14112,
@@ -1004,6 +1018,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     },
     'FamilySetCadreWnd.cpp': {
         3: 444,
+        100: 295,
         200: 296,
     },
     'FamilySetPrivilegeWnd.cpp': {
@@ -1067,6 +1082,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         13: 854,
         14: 10518,
         15: 10522,
+        103: 428,
         104: 441,
         105: 9898,
         106: 14112,
@@ -1111,6 +1127,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         1003: 296,
     },
     'InventoryUI.cpp': {
+        5002: 296,
         7000: 13646,
     },
     'IsleAltarWnd.cpp': {
@@ -1467,6 +1484,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
     'NewRecommendEventsWnd.cpp': {
         2000: 11183,
         2002: 11428,
+        8002: 295,
         8003: 296,
         8100: 11426,
         8101: 11427,
@@ -1519,6 +1537,8 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         3003: 17878,
     },
     'OtherEquipmentUI.cpp': {
+        2001: 340,
+        2002: 326,
         4001: 325,
     },
     'PartBreakingDropWnd.cpp': {
@@ -1555,6 +1575,7 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         2300: 379,
         2400: 9942,
         2500: 10653,
+        6100: 354,
         6200: 355,
         6300: 296,
     },
@@ -1584,7 +1605,12 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         23003: 13493,
         23004: 13495,
         23005: 13496,
+        30000: 405,
+        30001: 418,
         30002: 296,
+        30003: 10228,
+        30004: 13400,
+        30005: 14448,
         31000: 13474,
         31001: 296,
         32000: 13415,
@@ -1732,7 +1758,12 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         5040: 295,
     },
     'SpellAAWnd.cpp': {
+        2010: 670,
+        2020: 671,
         2060: 296,
+        2070: 301,
+        2080: 9855,
+        2081: 11333,
         2090: 417,
         2091: 18043,
         3000: 9856,
@@ -1742,8 +1773,13 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         99999: 12691,
     },
     'SpellCardWnd.cpp': {
+        2080: 9855,
+        2090: 11333,
         3001: 670,
+        4001: 670,
+        4002: 671,
         4003: 296,
+        4007: 301,
         6001: 539,
         6002: 540,
         6003: 541,
@@ -1751,7 +1787,12 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         99999: 12691,
     },
     'SpellNormalWnd.cpp': {
+        2010: 670,
+        2020: 671,
         2060: 296,
+        2070: 301,
+        2080: 9855,
+        2090: 11333,
         3000: 670,
         99999: 12691,
     },
@@ -1766,6 +1807,11 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         32005: 15510,
     },
     'SpellSTWnd.cpp': {
+        2000: 301,
+        2010: 670,
+        2020: 671,
+        2030: 9855,
+        2040: 11333,
         3000: 11334,
         9000: 296,
         99999: 12691,
@@ -1776,7 +1822,12 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         31001: 296,
     },
     'SpellViewWnd.cpp': {
+        2010: 670,
+        2020: 671,
         2060: 296,
+        2070: 301,
+        2080: 9855,
+        2090: 11333,
         3000: 670,
         99999: 12691,
     },
@@ -1954,6 +2005,8 @@ CHILD_TEXTS: dict[str, dict[int, int]] = {
         3200: 591,
     },
     'ZoneMapFrameWnd.cpp': {
+        2010: 296,
+        2020: 387,
         2040: 12571,
         3000: 385,
         9020: 560,

@@ -28,4 +28,5 @@ def test_buttons_labelled_through_window_members_keep_the_direct_label_first() -
     ids = game_texts.text_ids_for("Fellowship_family.xml")
     assert ids["5600"] == 9896  # Imposto: SetText no membro ligado ao WindowID 5600
     assert ids["104"] == 441  # aba Social
+    assert ids["103"] == 428  # aba Guilda: o campo vinha por EDI, carregado no começo da função
     assert ids["4600"] == 423  # "Localização" vence o "Tempo offline" que o jogo põe depois

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+import time
+from threading import Thread
+
+from PySide6.QtCore import QCoreApplication, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -24,7 +27,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import text_data
+from . import project as project_module
+from . import storage, text_data
 from .text_data import TextEdit, TextFile, TextRecord
 from .theme import COLORS
 
@@ -104,12 +108,16 @@ class TextsPanel(QWidget):
     """Busca em todos os textos do jogo; as edições ficam no project.db do projeto."""
 
     edits_changed = Signal()
+    _index_done = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.game_dir: Path | None = None
         self.project_root: Path | None = None
         self.files: list[TextFile] | None = None
+        self._by_name: dict[str, TextFile] = {}
+        self._indexing: Path | None = None
+        self.index_game_dir: Path | None = None  # jogo cujo índice FTS5 está pronto
         self.edits: dict[str, dict[str, TextEdit]] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -146,17 +154,52 @@ class TextsPanel(QWidget):
         self._timer.setSingleShot(True)
         self._timer.setInterval(200)
         self._timer.timeout.connect(self.refresh_results)
+        self._index_done.connect(self._index_finished)
         self.set_context(None, None)
 
     def set_context(self, game_dir: Path | None, project_root: Path | None) -> None:
         if game_dir != self.game_dir:
             self.files = None  # relê na próxima busca
+            self._by_name = {}
         self.game_dir = game_dir
         self.project_root = project_root
         self._baseline = None
         self.edits = text_data.load_edits(project_root) if project_root is not None else {}
         self.search_edit.setEnabled(game_dir is not None)
+        self._start_indexing()
         self.refresh_results()
+
+    def _start_indexing(self) -> None:
+        """Atualiza o índice FTS5 em segundo plano; até ficar pronto, a busca é em memória."""
+        game_dir = self.game_dir
+        if game_dir is None or self._indexing == game_dir:
+            return
+        self._indexing = game_dir
+        projects_root = project_module.PROJECTS_ROOT
+
+        def work() -> None:
+            try:
+                text_data.sync_text_index(game_dir, projects_root)
+            except Exception:  # noqa: BLE001 - sem índice a busca continua em memória
+                return
+            self._index_done.emit(game_dir)
+
+        Thread(target=work, name="gf-ui-text-index", daemon=True).start()
+
+    def _index_finished(self, game_dir: Path) -> None:
+        self._indexing = None
+        if game_dir == self.game_dir:
+            self.index_game_dir = game_dir
+            if self.search_edit.text().strip():
+                self.refresh_results()
+
+    def wait_for_index(self, timeout: float = 30.0) -> bool:
+        """Para testes e scripts: espera o índice ficar pronto."""
+        deadline = time.monotonic() + timeout
+        while self.index_game_dir != self.game_dir and time.monotonic() < deadline:
+            QCoreApplication.processEvents()
+            time.sleep(0.01)
+        return self.index_game_dir == self.game_dir
 
     def _ensure_loaded(self) -> list[TextFile]:
         if self.files is None:
@@ -167,11 +210,23 @@ class TextsPanel(QWidget):
                         self.files.append(TextFile.load(path))
                     except OSError:
                         continue
+            self._by_name.update({text_file.name: text_file for text_file in self.files})
         return self.files
+
+    def _file(self, name: str) -> TextFile | None:
+        """Um arquivo do jogo, lido só quando preciso (abrir para editar, marcar alterados)."""
+        if name not in self._by_name and self.game_dir is not None:
+            path = self.game_dir / text_data.TRANSLATE_DIR / name
+            if path.is_file():
+                self._by_name[name] = TextFile.load(path)
+        return self._by_name.get(name)
 
     def reload(self) -> None:
         self.files = None
+        self._by_name = {}
         self._baseline = None
+        self.index_game_dir = None
+        self._start_indexing()
         self.refresh_results()
 
     def _history(self) -> dict[str, TextFile]:
@@ -179,29 +234,46 @@ class TextsPanel(QWidget):
             self._baseline = text_data.history_baseline(self.project_root) if self.project_root is not None else {}
         return self._baseline
 
-    def _changed_in_game(self, text_file: TextFile) -> set[str]:
+    def _changed_in_game(self, name: str) -> set[str]:
         """IDs cujo texto no jogo difere do backup original (enviados antes, sem edição guardada)."""
-        original = self._history().get(text_file.name)
-        if original is None:
+        original = self._history().get(name)
+        text_file = self._file(name) if original is not None else None
+        if original is None or text_file is None:
             return set()
         return {
             record_id for record_id, record in original.by_id.items()
             if record_id in text_file.by_id and text_file.by_id[record_id].fields != record.fields
         }
 
-    def _original_fields(self, text_file: TextFile, record: TextRecord) -> list[str] | None:
+    def _original_fields(self, name: str, record: TextRecord) -> list[str] | None:
         """Texto antes de qualquer edição: o guardado na edição ou, se não houver, o do
         backup mais antigo do envio. None quando o jogo nunca recebeu edição deste texto."""
-        edit = self.edits.get(text_file.name, {}).get(record.record_id)
+        edit = self.edits.get(name, {}).get(record.record_id)
         if edit is not None and edit.original:
             return list(edit.original)
-        original = self._history().get(text_file.name)
+        original = self._history().get(name)
         backup = original.by_id.get(record.record_id) if original is not None else None
         return list(backup.fields) if backup is not None else None
 
-    def _current_fields(self, text_file: TextFile, record: TextRecord) -> tuple[list[str], bool]:
-        edit = self.edits.get(text_file.name, {}).get(record.record_id)
+    def _updated_by_game(self, name: str, record: TextRecord) -> bool:
+        """O jogo trouxe outro texto para um registro editado: nem o original guardado
+        nem a edição. Reenviar sobrescreveria a novidade da atualização."""
+        edit = self.edits.get(name, {}).get(record.record_id)
+        return bool(edit is not None and edit.original and record.fields not in (edit.original, edit.fields))
+
+    def _current_fields(self, name: str, record: TextRecord) -> tuple[list[str], bool]:
+        edit = self.edits.get(name, {}).get(record.record_id)
         return (list(edit.fields), True) if edit is not None else (list(record.fields), False)
+
+    def _search(self, query: str) -> tuple[list[tuple[str, TextRecord]], int]:
+        """Registros do jogo que contêm `query`: pelo índice quando pronto, senão em memória."""
+        if self.index_game_dir == self.game_dir and len(query) >= 3:
+            rows, total = storage.TextIndexStore(project_module.PROJECTS_ROOT).search(
+                self.game_dir, query, RESULT_LIMIT
+            )
+            return [(name, TextRecord(record_id, 0, 0, fields)) for name, record_id, fields in rows], total
+        entries = [(text_file.name, record) for text_file in self._ensure_loaded() for record in text_file.find(query)]
+        return entries, len(entries)
 
     def refresh_results(self) -> None:
         self.results.clear()
@@ -209,44 +281,64 @@ class TextsPanel(QWidget):
             self.summary.setText(self.tr("Defina a pasta do jogo no projeto para ver os textos."))
             return
         query = self.search_edit.text().strip()
+        lowered = query.lower()
         # Sem busca, a aba mostra o que este projeto já mudou (editado ou já enviado).
         edited_only = self.edited_only.isChecked() or not query
-        if not query and not self.edits and not (self.project_root and (self.project_root / ".history" / "data").is_dir()):
+        if not query and not self.edits and not self._history():
             self.summary.setText(self.tr("Digite para buscar em data/Translate."))
             return
-        matches: list[tuple[TextFile, TextRecord]] = []
-        changed_in_game: dict[str, set[str]] = {}
-        for text_file in self._ensure_loaded():
-            edited = self.edits.get(text_file.name, {})
-            changed_in_game[text_file.name] = self._changed_in_game(text_file)
-            if edited_only:
-                ids = list(edited) + sorted(changed_in_game[text_file.name] - set(edited), key=lambda value: int(value))
-                candidates = [text_file.by_id[record_id] for record_id in ids if record_id in text_file.by_id]
-                if query:
-                    lowered = query.lower()
-                    candidates = [
-                        record for record in candidates
-                        if any(lowered in value.lower() for value in self._current_fields(text_file, record)[0])
-                    ]
-            else:
-                candidates = text_file.find(query)
-                # Texto editado que agora casa com a busca também aparece.
-                lowered = query.lower()
-                for record_id, edit in edited.items():
+        changed = {name: self._changed_in_game(name) for name in self._history()}
+        entries: list[tuple[str, TextRecord]] = []
+        if edited_only:
+            for name in sorted(set(self.edits) | set(changed)):
+                text_file = self._file(name)
+                if text_file is None:
+                    continue
+                edited = self.edits.get(name, {})
+                ids = list(edited) + sorted(changed.get(name, set()) - set(edited), key=int)
+                for record_id in ids:
                     record = text_file.by_id.get(record_id)
-                    if record is not None and record not in candidates and any(lowered in value.lower() for value in edit.fields):
-                        candidates.append(record)
-            matches.extend((text_file, record) for record in candidates)
-        shown = matches[:RESULT_LIMIT]
-        for text_file, record in shown:
-            fields, edited = self._current_fields(text_file, record)
-            item = QTreeWidgetItem([_one_line(" | ".join(fields)), text_file.name, record.record_id])
-            item.setData(0, Qt.ItemDataRole.UserRole, (text_file.name, record.record_id))
+                    if record is None:
+                        continue
+                    if query and not any(lowered in value.lower() for value in self._current_fields(name, record)[0]):
+                        continue
+                    entries.append((name, record))
+            total = len(entries)
+        else:
+            entries, total = self._search(query)
+            # Texto editado que agora casa com a busca também aparece.
+            seen = {(name, record.record_id) for name, record in entries}
+            for name, records in self.edits.items():
+                for record_id, edit in records.items():
+                    if (name, record_id) in seen or not any(lowered in value.lower() for value in edit.fields):
+                        continue
+                    text_file = self._file(name)
+                    record = text_file.by_id.get(record_id) if text_file is not None else None
+                    if record is not None:
+                        entries.append((name, record))
+                        total += 1
+        updates = 0
+        for name, record in entries[:RESULT_LIMIT]:
+            fields, edited = self._current_fields(name, record)
+            item = QTreeWidgetItem([_one_line(" | ".join(fields)), name, record.record_id])
+            item.setData(0, Qt.ItemDataRole.UserRole, (name, record.record_id))
             item.setToolTip(0, "\n".join(fields))
-            if edited:
+            if edited and self._updated_by_game(name, record):
+                updates += 1
+                item.setText(0, "⚠ " + item.text(0))
+                item.setForeground(0, QColor(COLORS["WARNING_TEXT"]))
+                item.setToolTip(0, self.tr(
+                    "Uma atualização do jogo mudou este texto depois da sua edição.\n"
+                    "Original quando você editou: {original}\nNo jogo agora: {game}\nSua edição: {mine}"
+                ).format(
+                    original=_one_line(" | ".join(self.edits[name][record.record_id].original)),
+                    game=_one_line(" | ".join(record.fields)),
+                    mine=_one_line(" | ".join(fields)),
+                ))
+            elif edited:
                 item.setText(0, "● " + item.text(0))
                 item.setForeground(0, QColor(COLORS["ACCENT_TEXT"]))
-            elif record.record_id in changed_in_game.get(text_file.name, set()):
+            elif record.record_id in changed.get(name, set()):
                 item.setText(0, "◐ " + item.text(0))
                 item.setForeground(0, QColor(COLORS["WARNING_TEXT"]))
                 item.setToolTip(0, self.tr(
@@ -254,26 +346,29 @@ class TextsPanel(QWidget):
                     "mas não há edição guardada neste projeto. Abra para voltar ao original."
                 ) + "\n\n" + "\n".join(fields))
             self.results.addTopLevelItem(item)
-        if not query and not matches:
-            self.summary.setText(self.tr("Digite para buscar em data/Translate. Nenhum texto editado neste projeto."))
+        if not query and not entries:
+            summary = self.tr("Digite para buscar em data/Translate. Nenhum texto editado neste projeto.")
         elif not query:
-            self.summary.setText(self.tr("{total} texto(s) mudado(s) neste projeto. Digite para buscar em todos.").format(total=len(matches)))
-        elif len(matches) > RESULT_LIMIT:
-            self.summary.setText(self.tr("{total} resultados; mostrando os primeiros {shown}.").format(total=len(matches), shown=RESULT_LIMIT))
+            summary = self.tr("{total} texto(s) mudado(s) neste projeto. Digite para buscar em todos.").format(total=total)
+        elif total > RESULT_LIMIT:
+            summary = self.tr("{total} resultados; mostrando os primeiros {shown}.").format(total=total, shown=RESULT_LIMIT)
         else:
-            self.summary.setText(self.tr("{total} resultado(s).").format(total=len(matches)))
+            summary = self.tr("{total} resultado(s).").format(total=total)
+        if updates:
+            summary += " " + self.tr("⚠ {count} mudou(aram) no jogo depois da edição: confira antes de enviar.").format(count=updates)
+        self.summary.setText(summary)
 
     def _open_item(self, item: QTreeWidgetItem, _column: int = 0) -> None:
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data or self.project_root is None:
             return
         name, record_id = data
-        text_file = next((loaded for loaded in self._ensure_loaded() if loaded.name == name), None)
+        text_file = self._file(name)
         record = text_file.by_id.get(record_id) if text_file is not None else None
         if text_file is None or record is None:
             return
-        fields, _edited = self._current_fields(text_file, record)
-        original = self._original_fields(text_file, record)
+        fields, _edited = self._current_fields(name, record)
+        original = self._original_fields(name, record)
         dialog = TextEditDialog(text_file, record, fields, original, self)
         dialog.move(QCursor.pos() + QPoint(12, 12))
         if dialog.exec() != QDialog.DialogCode.Accepted:
