@@ -16,7 +16,7 @@ import tempfile
 import time
 import zipfile
 
-from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QFileSystemWatcher, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -71,7 +71,20 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
-from .editor_widgets import EditorView, ElementItem, GameDrawnItem, GameScreenItem, GhostAreaItem
+from . import game_texts
+from . import storage, text_data
+from .texts_panel import TextsPanel
+from .editor_widgets import (
+    EditorView,
+    ElementItem,
+    GameDrawnItem,
+    GameScreenItem,
+    STATE_ROLE,
+    ElementStateDelegate,
+    GhostAreaItem,
+    ReferenceLayerItem,
+    state_slot_at,
+)
 from .game_layout import (
     client_resolution,
     load_user_positions,
@@ -109,6 +122,7 @@ from .game_updates import (
 from . import release_notes, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
+    CHANGES_TTL,
     PROJECTS_ROOT,
     Project,
     custom_ui_sources,
@@ -119,7 +133,7 @@ from .project import (
     projects_publishing_to,
     safe_name,
 )
-from .atlas_dialog import AtlasDialog
+from .atlas_dialog import AtlasDialog, TexturePreviewDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
 GAME_RESOLUTIONS = (
@@ -162,6 +176,12 @@ from .xml_document import (
 # Áreas que o jogo desenha por código, sem textura no XML: arquivo -> x, y, largura, altura na
 # tela do jogo. A foto do BasicChar fica sempre no canto da tela, mesmo movendo a janela
 # (medida em prints do jogo, aproximada).
+TEXT_MODES = ("off", "game", "xml", "short", "long")
+# Janelas sempre visíveis no jogo, para "Montar HUD padrão".
+DEFAULT_HUD = (
+    "BasicChar.xml", "Target.xml", "Radar.xml", "TinyClock.xml", "QuestTraceWnd.xml",
+    "Channel.xml", "ShortcutBar.xml", "Menu.xml",
+)
 GAME_DRAWN_AREAS = {"basicchar.xml": (23, 7, 76, 76)}
 TEXTURE_SUFFIXES = (".dds", ".tga")
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
@@ -803,18 +823,11 @@ class PropertyPanel(QWidget):
         self.visible_value = QCheckBox()
         self.visible_value.setEnabled(False)
 
-        self.lock_button = QToolButton()
-        self.hide_button = QToolButton()
-        self.isolate_button = QToolButton()
+        # Bloquear/ocultar/isolar ficam nos ícones da lista de elementos; aqui só duplicar e apagar.
         self.actions_row = QWidget()
-        actions_layout = QHBoxLayout(self.actions_row)
-        actions_layout.setContentsMargins(0, 0, 0, 0)
-        actions_layout.setSpacing(6)
-        for button in (self.lock_button, self.hide_button, self.isolate_button):
-            button.setObjectName("inspectorAction")
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-            actions_layout.addWidget(button)
+        self._actions_layout = QHBoxLayout(self.actions_row)
+        self._actions_layout.setContentsMargins(0, 0, 0, 0)
+        self._actions_layout.setSpacing(6)
         self.actions_row.setVisible(False)
 
         self.x_spin = self._spinbox()
@@ -988,30 +1001,14 @@ class PropertyPanel(QWidget):
         form.addRow(label, value)
         form.labelForField(value).setObjectName("fieldLabel")
 
-    def set_context_actions(
-        self, lock_action: QAction, hide_action: QAction, isolate_action: QAction, *structure_actions: QAction
-    ) -> None:
-        for button, action in zip(
-            (self.lock_button, self.hide_button, self.isolate_button),
-            (lock_action, hide_action, isolate_action),
-            strict=True,
-        ):
-            button.setDefaultAction(action)
-        # Duplicar/apagar numa segunda fileira, logo abaixo: cinco botões não cabem numa só.
-        self.structure_row = QWidget()
-        layout = QHBoxLayout(self.structure_row)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        parent_layout = self.actions_row.parentWidget().layout()
-        parent_layout.insertWidget(parent_layout.indexOf(self.actions_row) + 1, self.structure_row)
-        self.structure_row.setVisible(self.actions_row.isVisibleTo(self))
+    def set_context_actions(self, *structure_actions: QAction) -> None:
         for action in structure_actions:
             button = QToolButton()
             button.setObjectName("inspectorAction")
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             button.setDefaultAction(action)
-            layout.addWidget(button)
+            self._actions_layout.addWidget(button)
 
     @staticmethod
     def _spinbox(minimum: int = -100000) -> QSpinBox:
@@ -1030,7 +1027,7 @@ class PropertyPanel(QWidget):
             if element is None:
                 self.screen_position_label.setVisible(False)
                 self.actions_row.setVisible(False)
-                getattr(self, "structure_row", self.actions_row).setVisible(False)
+                self.actions_row.setVisible(False)
                 self.badge_row.setVisible(False)
                 self.selection_subtitle.setVisible(True)
                 self.details_container.setVisible(False)
@@ -1059,7 +1056,7 @@ class PropertyPanel(QWidget):
             self.badge_row.setVisible(True)
             self.selection_subtitle.setVisible(False)
             self.actions_row.setVisible(True)
-            getattr(self, "structure_row", self.actions_row).setVisible(True)
+            self.actions_row.setVisible(True)
             self.details_container.setVisible(True)
             self.selection_subtitle.setText(kind_label(element.kind, element.ctrl_type))
             self.id_value.setText(element.window_id)
@@ -1139,12 +1136,10 @@ class GeometryBatchCommand(QUndoCommand):
         self.changes = changes
 
     def redo(self) -> None:
-        for index, (_old, new) in self.changes.items():
-            self.window.apply_geometry(index, new)
+        self.window.apply_geometries({index: new for index, (_old, new) in self.changes.items()})
 
     def undo(self) -> None:
-        for index, (old, _new) in self.changes.items():
-            self.window.apply_geometry(index, old)
+        self.window.apply_geometries({index: old for index, (old, _new) in self.changes.items()})
 
 
 class UVCommand(QUndoCommand):
@@ -1250,6 +1245,8 @@ class EditorWindow(QMainWindow):
         )
         self.game_screen_item: GameScreenItem | None = None
         self.game_drawn_item: GameDrawnItem | None = None
+        self.reference_layer_items: list[ReferenceLayerItem] = []
+        self._layer_documents: dict[Path, tuple[int, UIDocument]] = {}
         self.ghost_item: GhostAreaItem | None = None
 
         self.undo_stack = QUndoStack(self)
@@ -1266,12 +1263,41 @@ class EditorWindow(QMainWindow):
         self.search_edit.textChanged.connect(self.filter_tree)
         self.tree = QTreeWidget()
         self.tree.setObjectName("elementTree")
-        self.tree.setHeaderLabels(["WindowID", self.tr("Tipo"), "ParentNode", self.tr("Estado")])
+        # "ID" deixa a coluna do tamanho dos números; a dica diz que é o WindowID.
+        self.tree.setHeaderLabels(["ID", self.tr("Tipo"), "ParentNode", self.tr("Estado")])
+        self.tree.headerItem().setToolTip(0, "WindowID")
         self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection
         )
         self.tree.itemSelectionChanged.connect(self._tree_selection_changed)
+        # Estado primeiro, como as camadas de um editor de imagem: olho, cadeado e foco clicáveis.
+        self.tree.header().moveSection(3, 0)
+        self.tree.setMouseTracking(True)
+        self.tree.setItemDelegateForColumn(3, ElementStateDelegate({
+            ("hidden", False): icon("eye", size=16),
+            ("hidden", True): icon("eye-off", COLORS["ACCENT_TEXT"], 16),
+            ("locked", False): icon("lock", size=16),
+            ("locked", True): icon("lock", COLORS["ACCENT_TEXT"], 16),
+            ("isolated", False): icon("focus", size=16),
+            ("isolated", True): icon("focus", COLORS["WARNING_TEXT"], 16),
+        }, self.tree))
+        self.tree.viewport().installEventFilter(self)
+        # Tipo (com o texto do jogo) fica com o espaço; WindowID compacto; ParentNode
+        # escondido por padrão (a árvore já mostra quem é filho de quem).
+        header = self.tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setTreePosition(1)  # recuo e seta de expandir no Tipo, mesmo sem WindowID
+        self.tree.setIndentation(14)
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._tree_header_menu)
+        hidden = QSettings("Local", "GF UI Editor").value("tree_hidden_columns", "2")
+        for column in (0, 2):
+            self.tree.setColumnHidden(column, str(column) in str(hidden).split(","))
         elements_page = QWidget()
         elements_page.setObjectName("treePanel")
         tree_layout = QVBoxLayout(elements_page)
@@ -1312,6 +1338,8 @@ class EditorWindow(QMainWindow):
         self.files_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.files_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.files_tree.itemClicked.connect(self._file_activated)
+        self.files_tree.itemChanged.connect(self._file_layer_toggled)
+        self._layer_click = False
         self.files_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.files_tree.customContextMenuRequested.connect(self._files_context_menu)
         self.files_tree.itemActivated.connect(self._file_activated)
@@ -1377,6 +1405,10 @@ class EditorWindow(QMainWindow):
         self.side_tabs.setDocumentMode(True)
         self.side_tabs.addTab(files_page, self.tr("Arquivos"))
         self.side_tabs.addTab(elements_page, self.tr("Elementos"))
+        self.texts_panel = TextsPanel()
+        self.texts_panel.edits_changed.connect(self._text_edits_changed)
+        self._text_overrides_version = 0
+        self.side_tabs.addTab(self.texts_panel, self.tr("Textos"))
         tree_panel = self.side_tabs
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
@@ -1465,7 +1497,7 @@ class EditorWindow(QMainWindow):
 
         self._create_actions()
         self.properties.set_context_actions(
-            self.lock_action, self.hide_action, self.isolate_action, self.duplicate_action, self.delete_action
+            self.duplicate_action, self.delete_action
         )
         self._create_menus_and_toolbar()
         self._build_canvas_overlays()
@@ -1487,7 +1519,7 @@ class EditorWindow(QMainWindow):
             self.open_document(initial_path)
         elif restore_last_project:
             last = str(QSettings("Local", "GF UI Editor").value("last_project", ""))
-            if last and (Path(last) / "project.json").is_file():
+            if last and storage.is_project(Path(last)):
                 self.open_project(Path(last))
 
     def _create_actions(self) -> None:
@@ -1512,6 +1544,11 @@ class EditorWindow(QMainWindow):
         self.export_action = QAction(self.tr("Exportar UI (.zip)…"), self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self.export_project_zip)
+        self.export_action.setIcon(icon("package"))
+        self.export_action.setIconText(self.tr("Exportar .zip"))
+        self.export_action.setToolTip(
+            self.tr("Gera o .zip só com a UI, que o launcher importa em \"Add Custom UI\". Os textos não vão no .zip.")
+        )
         self.import_action = QAction(self.tr("Importar arquivos…"), self)
         self.import_action.setIcon(icon("file-import"))
         self.import_action.setToolTip(
@@ -1566,6 +1603,26 @@ class EditorWindow(QMainWindow):
         self.labels_action.setIcon(icon("type"))
         self.labels_action.setToolTip(self.tr("Mostrar identificadores (I)"))
         self.labels_action.toggled.connect(self.set_labels_visible)
+        # Texto no canvas como o jogo desenha. A maior parte dos textos vem do código do jogo,
+        # então as amostras servem para ver se cabem na caixa.
+        # Última escolha do usuário; o canvas é preenchido quando um arquivo abre.
+        saved_mode = str(QSettings("Local", "GF UI Editor").value("text_mode", "off"))
+        self.text_mode = saved_mode if saved_mode in TEXT_MODES else "off"
+        self.text_mode_actions = QActionGroup(self)
+        self.text_mode_menu = QMenu(self.tr("Texto como no jogo"), self)
+        for mode, label in (
+            ("off", self.tr("Desligado")),
+            ("game", self.tr("Textos do jogo")),
+            ("xml", self.tr("Só o texto do XML")),
+            ("short", self.tr("Amostra curta")),
+            ("long", self.tr("Amostra longa")),
+        ):
+            action = QAction(label, self, checkable=True)
+            action.setData(mode)
+            action.setChecked(mode == self.text_mode)
+            action.triggered.connect(lambda _checked=False, value=mode: self.set_text_mode(value))
+            self.text_mode_actions.addAction(action)
+            self.text_mode_menu.addAction(action)
         self.textures_action = QAction(self.tr("Mostrar texturas"), self)
         self.textures_action.setCheckable(True)
         self.textures_action.setChecked(True)
@@ -1586,21 +1643,23 @@ class EditorWindow(QMainWindow):
         self.watch_textures_action.setCheckable(True)
         self.watch_textures_action.setChecked(True)
         self.watch_textures_action.toggled.connect(self._watch_texture_files)
-        self.preview_action = QAction(self.tr("Preview do jogo"), self)
-        self.preview_action.setCheckable(True)
-        self.preview_action.setShortcut("P")
-        self.preview_action.setIcon(icon("eye"))
-        self.preview_action.setToolTip(
-            self.tr("Esconde contornos e rótulos do editor para ver a interface como no jogo (P)")
+        # Contornos ligados = tracejados e rótulos do editor; desligados = só o que o jogo desenha.
+        self.outlines_action = QAction(self.tr("Contornos"), self)
+        self.outlines_action.setCheckable(True)
+        self.outlines_action.setChecked(True)
+        self.outlines_action.setShortcut("P")
+        self.outlines_action.setIcon(icon("frame"))
+        self.outlines_action.setToolTip(
+            self.tr("Mostra os contornos tracejados e rótulos dos elementos. Desligue para ver só o que o jogo desenha (P)")
         )
-        self.preview_action.toggled.connect(self.set_preview_mode)
+        self.outlines_action.toggled.connect(lambda shown: self.set_preview_mode(not shown))
         self.resolution_actions = QActionGroup(self)
         self.resolution_actions.setExclusive(True)
         self.resolution_game_action = QAction(self.tr("Igual ao jogo (client.ini)"), self)
         self.resolution_game_action.setCheckable(True)
         self.resolution_game_action.triggered.connect(self.follow_client_resolution)
         self.resolution_actions.addAction(self.resolution_game_action)
-        self.resolution_off_action = QAction(self.tr("Sem moldura"), self)
+        self.resolution_off_action = QAction(self.tr("Sem tela do jogo (janela solta)"), self)
         self.resolution_off_action.setCheckable(True)
         self.resolution_off_action.triggered.connect(lambda: self.set_game_resolution(None))
         self.resolution_actions.addAction(self.resolution_off_action)
@@ -1728,12 +1787,13 @@ class EditorWindow(QMainWindow):
         view_menu = self.menuBar().addMenu(self.tr("Visualização"))
         view_menu.addAction(self.fit_action)
         view_menu.addAction(self.labels_action)
+        view_menu.addMenu(self.text_mode_menu)
         view_menu.addAction(self.textures_action)
         view_menu.addAction(self.atlas_action)
         view_menu.addAction(self.reload_textures_action)
         view_menu.addAction(self.watch_textures_action)
         view_menu.addSeparator()
-        view_menu.addAction(self.preview_action)
+        view_menu.addAction(self.outlines_action)
         resolution_menu = view_menu.addMenu(self.tr("Resolução do jogo"))
         self.resolution_menu = resolution_menu
         resolution_menu.addAction(self.resolution_game_action)
@@ -1856,8 +1916,11 @@ class EditorWindow(QMainWindow):
                 self.breadcrumb.setObjectName("breadcrumb")
                 self.breadcrumb.setTextFormat(Qt.TextFormat.RichText)
                 self.breadcrumb_action = toolbar.addWidget(self.breadcrumb)
+        toolbar.addAction(self.export_action)
         toolbar.addAction(self.test_action)
-        for action, name in ((self.save_action, "saveButton"), (self.test_action, "accentButton")):
+        for action, name in (
+            (self.save_action, "saveButton"), (self.export_action, "saveButton"), (self.test_action, "accentButton")
+        ):
             button = toolbar.widgetForAction(action)
             button.setObjectName(name)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -2064,7 +2127,7 @@ class EditorWindow(QMainWindow):
         if self.document is not None:
             window.open_document(self.document.path)
         window.set_game_resolution(self.game_resolution)
-        window.preview_action.setChecked(self.preview_action.isChecked())
+        window.outlines_action.setChecked(self.outlines_action.isChecked())
         window.restoreGeometry(self.saveGeometry())
         window.show()
         application._main_window = window
@@ -2476,7 +2539,7 @@ class EditorWindow(QMainWindow):
         if self.project is not None and self.project.contains(document.path):
             QSettings("Local", "GF UI Editor").setValue(
                 f"last_file/{self.project.custom_name}",
-                document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix(),
+                self.project.relative_key(document.path),
             )
         self._texture_generation += 1
         ui_directory = document.path.parent.resolve()
@@ -2489,6 +2552,7 @@ class EditorWindow(QMainWindow):
         self.locked_indexes.clear()
         self.hidden_indexes.clear()
         self.isolated_index = None
+        self._sync_isolation_warning()
         self.search_edit.clear()
         self.properties.set_element(None)
         self._rebuild_scene(load_textures=False)
@@ -2539,6 +2603,7 @@ class EditorWindow(QMainWindow):
         assert self.document is not None and self.texture_cache is not None
         self.view.set_interaction_priority(None)
         self.scene.clear()
+        self.reference_layer_items = []  # a cena apagou os itens
         self.items.clear()
         for element in self.document.elements:
             pixmap = (
@@ -2550,8 +2615,9 @@ class EditorWindow(QMainWindow):
                 element, pixmap, self._canvas_selection_changed, self.elements_dragged
             )
             item.set_labels_visible(self.labels_action.isChecked())
+            item.set_game_text(self._game_text_for(element))
             item.set_texture_visible(self.textures_action.isChecked())
-            item.set_preview_mode(self.preview_action.isChecked())
+            item.set_preview_mode(not self.outlines_action.isChecked())
             self.scene.addItem(item)
             self.items[element.index] = item
         self.game_screen_item = None
@@ -2559,7 +2625,178 @@ class EditorWindow(QMainWindow):
         self.ghost_item = None  # a cena foi refeita
         self._refresh_game_screen()
 
+    def _game_text_for(self, element) -> str:
+        if self.text_mode == "off":
+            return ""
+        if self.text_mode == "game":
+            # O jogo troca o WindowText pelo rótulo que o código escreve, quando há um.
+            # O jogo só escreve o WindowText em controles de texto ou botões; painéis e a
+            # raiz guardam ali só um nome interno ("PX1-1").
+            takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
+            fallback = element.window_text if takes_text else ""
+            return self._game_labels().get(element.window_id, fallback)
+        if element.window_text or self.text_mode == "xml":
+            return element.window_text
+        if "TextNode" not in element.child_tags and "ButtonNode" not in element.child_tags:
+            return ""
+        if not element.text_props or element.width < 4:
+            return ""
+        if self.text_mode == "short":
+            return self.tr("Texto")
+        return self.tr("Texto de exemplo bem comprido para testar o espaço")
+
+    def _game_labels(self) -> dict[str, str]:
+        if self.document is None:
+            return {}
+        key = (self.document.path.name.lower(), self._document_game_dir(), self._text_overrides_version)
+        if getattr(self, "_game_labels_key", None) != key:
+            self._game_labels_key = key
+            self._game_labels_cache = game_texts.labels_for(key[0], key[1], self._text_overrides())
+        return self._game_labels_cache
+
+    def _text_overrides(self) -> dict[int, str]:
+        """Textos do T_TextIndex editados no projeto (TextID -> texto), que valem antes do jogo."""
+        if self.project is None:
+            return {}
+        edits = text_data.load_edits(self.project.root).get("T_TextIndex.ini", {})
+        return {int(text_id): edit.fields[0] for text_id, edit in edits.items() if text_id.isdigit() and edit.fields}
+
+    def _text_edits_changed(self) -> None:
+        # Edição salva na aba Textos: o canvas e as camadas mostram o texto novo na hora.
+        self._text_overrides_version += 1
+        self.set_text_mode(self.text_mode)
+        self._refresh_tree_labels()
+
+    def set_text_mode(self, mode: str) -> None:
+        if mode != self.text_mode:
+            QSettings("Local", "GF UI Editor").setValue("text_mode", mode)
+        self.text_mode = mode
+        for action in self.text_mode_actions.actions():
+            action.setChecked(action.data() == mode)
+        if hasattr(self, "text_mode_button"):
+            # Roxo como os outros botões ligados da barra quando há texto no canvas.
+            self.text_mode_button.setChecked(mode != "off")
+        if self.document is None:
+            return
+        for element in self.document.elements:
+            item = self.items.get(element.index)
+            if item is not None:
+                item.set_game_text(self._game_text_for(element))
+        self._refresh_reference_layers()
+
+    def _clear_reference_layers(self) -> None:
+        for layer in self.reference_layer_items:
+            if layer.scene() is self.scene:
+                self.scene.removeItem(layer)
+        self.reference_layer_items = []
+
+    def _layer_document(self, path: Path) -> UIDocument | None:
+        """Abre (e guarda) um XML de camada; relê só quando o arquivo muda."""
+        try:
+            modified = path.stat().st_mtime_ns
+        except OSError:
+            return None
+        cached = self._layer_documents.get(path)
+        if cached is not None and cached[0] == modified:
+            return cached[1]
+        try:
+            document = UIDocument.load(path)
+        except Exception:
+            return None
+        self._layer_documents[path] = (modified, document)
+        return document
+
+    def _refresh_reference_layers(self) -> None:
+        """Desenha os XMLs marcados como camada onde o jogo os põe na tela."""
+        self._clear_reference_layers()
+        if (
+            self.project is None or self.document is None or self.game_screen_item is None
+            or self.game_resolution is None or self.texture_cache is None
+        ):
+            return
+        current = self.document.path.name.lower()
+        game_dir = self._document_game_dir()
+        positions = (
+            load_user_positions(game_dir / "User.ini")
+            if game_dir is not None and self.saved_positions_action.isChecked() else {}
+        )
+        screen = self.game_screen_item.pos()
+        for name in self.project.reference_layers:
+            if name.lower() == current:
+                continue
+            document = self._layer_document(self.project.ui_dir / name)
+            if document is None or not document.elements:
+                continue
+            root = document.elements[0]
+            section = saved_section_for(name)
+            screen_x, screen_y = root_screen_position(
+                name, self.game_resolution, root.geometry, positions.get(section) if section else None,
+                mode=self.project.root_modes.get(name, "auto"), game_dir=game_dir,
+            )
+            labels = game_texts.labels_for(name, game_dir, self._text_overrides()) if self.text_mode == "game" else {}
+            # Mesmo espaço do XML para todos os elementos: tela = raiz na tela + (elemento - raiz).
+            origin = screen + QPointF(screen_x - root.x, screen_y - root.y)
+            layer = ReferenceLayerItem(name, QRectF())
+            layer.setPos(origin)
+            for element in document.elements:
+                if not element.visible:
+                    continue
+                takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
+                text = labels.get(element.window_id, element.window_text if takes_text else "")
+                layer.add_control(
+                    QRectF(element.x, element.y, element.width, element.height),
+                    self.texture_cache.pixmap_for(element),
+                    text, element.text_props, "ButtonNode" in element.child_tags,
+                )
+            self.scene.addItem(layer)
+            self.reference_layer_items.append(layer)
+
+    def set_reference_layer(self, name: str, enabled: bool) -> None:
+        if self.project is None:
+            return
+        layers = [layer for layer in self.project.reference_layers if layer.lower() != name.lower()]
+        if enabled:
+            layers.append(name)
+        self.set_reference_layers(layers)
+
+    def _sync_layers_button(self) -> None:
+        if hasattr(self, "layers_button"):
+            self.layers_button.setChecked(bool(self.project is not None and self.project.reference_layers))
+
+    def set_reference_layers(self, layers: list[str]) -> None:
+        if self.project is None:
+            return
+        self.project.reference_layers = list(layers)
+        self.project.save_manifest()
+        self._sync_layers_button()
+        self._refresh_reference_layers()
+        # Depois do sinal da caixa: a lista é refeita para a camada subir para o topo.
+        QTimer.singleShot(0, self._refresh_files_keeping_scroll)
+
+    def _refresh_files_keeping_scroll(self) -> None:
+        bar = self.files_tree.verticalScrollBar()
+        position = bar.value()
+        self._refresh_files()
+        bar.setValue(position)
+
+    def build_default_hud(self) -> None:
+        """Liga como camadas as janelas que o jogo mostra sempre na tela."""
+        if self.project is None:
+            return
+        available = {path.as_posix().lower(): path.as_posix() for path in self.project.files()}
+        layers = list(self.project.reference_layers)
+        for name in DEFAULT_HUD:
+            match = available.get(name.lower())
+            if match is not None and match.lower() not in (layer.lower() for layer in layers):
+                layers.append(match)
+        self.set_reference_layers(layers)
+        if self.game_resolution is None:
+            self.statusBar().showMessage(
+                self.tr("As camadas aparecem no Preview do jogo: escolha uma resolução na barra do canvas."), 6000
+            )
+
     def _refresh_game_screen(self) -> None:
+        self._clear_reference_layers()
         if self.game_drawn_item is not None and self.game_drawn_item.scene() is self.scene:
             self.scene.removeItem(self.game_drawn_item)
         self.game_drawn_item = None
@@ -2613,6 +2850,7 @@ class EditorWindow(QMainWindow):
                     self.scene.addItem(self.game_drawn_item)
                 self.game_drawn_item.setPos(self.game_screen_item.pos() + QPointF(drawn[0], drawn[1]))
             self._sync_game_drawn_visibility()
+            self._refresh_reference_layers()
             caption += " · " + self.tr("janela no jogo em ({x}, {y})").format(x=screen_x, y=screen_y)
             if mode != "auto":
                 caption += " · " + self.tr("posição escolhida por você")
@@ -2856,7 +3094,7 @@ class EditorWindow(QMainWindow):
     def _root_mode_key(self) -> str:
         assert self.document is not None
         if self.project is not None and self.project.contains(self.document.path):
-            return self.document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+            return self.project.relative_key(self.document.path)
         return self.document.path.name.lower()
 
     def _root_mode(self) -> str:
@@ -2902,9 +3140,9 @@ class EditorWindow(QMainWindow):
     def _sync_resolution_actions(self) -> None:
         if hasattr(self, "resolution_button"):
             if self.game_resolution is None:
-                text = self.tr("Sem moldura")
+                text = self.tr("Sem tela do jogo")
             else:
-                text = f"{self.game_resolution[0]} × {self.game_resolution[1]}"
+                text = self.tr("Tela {width} × {height}").format(width=self.game_resolution[0], height=self.game_resolution[1])
                 if self.follow_game_resolution:
                     text += " · " + self.tr("jogo")
             self.resolution_button.setText(text)
@@ -3027,6 +3265,11 @@ class EditorWindow(QMainWindow):
         })
         self._textures_pending = set(names)
         self._texture_total = len(names)
+        # Texturas já no cache (lidas pelas camadas de referência, por exemplo) não entram
+        # na fila: aplica agora, senão os elementos ficariam sem imagem.
+        for element in self.document.elements:
+            if element.texture_name and element.uv and self.texture_cache.has_source(element.texture_name):
+                self._refresh_element_texture(element.index)
         if not names:
             self.statusBar().showMessage(self.tr("{count} elementos carregados").format(count=len(self.document.elements)))
             return
@@ -3086,6 +3329,9 @@ class EditorWindow(QMainWindow):
             )
             item.setData(0, Qt.ItemDataRole.UserRole, element.index)
             self.tree_items[element.index] = item
+            item.setData(3, STATE_ROLE, ())
+            item.setForeground(0, QColor(COLORS["TEXT_MUTED"]))  # WindowID discreto: o nome é o Tipo
+            item.setToolTip(3, self.tr("Ocultar · Bloquear · Isolar"))
             id_map.setdefault(element.window_id, item)
             pending.append((element, item))
         for element, item in pending:
@@ -3094,8 +3340,40 @@ class EditorWindow(QMainWindow):
                 parent_item.addChild(item)
             else:
                 self.tree.addTopLevelItem(item)
+        # Sem hierarquia não há seta: o espaço dela no primeiro nível vira um vão antes do nome.
+        self.tree.setRootIsDecorated(any(self.tree.topLevelItem(row).childCount() for row in range(self.tree.topLevelItemCount())))
+        self._refresh_tree_labels()
         self.tree.resizeColumnToContents(0)
         self.tree.resizeColumnToContents(3)
+
+    def _tree_header_menu(self, position) -> None:
+        """Botão direito no cabeçalho: mostrar ou esconder WindowID e ParentNode."""
+        menu = QMenu(self)
+        for column, label in ((0, "WindowID"), (2, "ParentNode")):
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(not self.tree.isColumnHidden(column))
+            action.toggled.connect(lambda shown, value=column: self._set_tree_column_shown(value, shown))
+        menu.exec(self.tree.header().mapToGlobal(position))
+
+    def _set_tree_column_shown(self, column: int, shown: bool) -> None:
+        self.tree.setColumnHidden(column, not shown)
+        hidden = [str(value) for value in (0, 2) if self.tree.isColumnHidden(value)]
+        QSettings("Local", "GF UI Editor").setValue("tree_hidden_columns", ",".join(hidden))
+
+    def _refresh_tree_labels(self) -> None:
+        """Tipo + o texto que o jogo mostra no controle ("Botão · Nome"), quando se sabe."""
+        if self.document is None:
+            return
+        labels = self._game_labels()
+        for element in self.document.elements:
+            tree_item = self.tree_items.get(element.index)
+            if tree_item is None:
+                continue
+            kind = kind_label(element.kind, element.ctrl_type)
+            label = labels.get(element.window_id, "").strip()
+            tree_item.setText(1, f"{kind} · {label}" if label else kind)
+            tree_item.setToolTip(1, label)
 
     def select_element(self, index: int) -> None:
         if self.document is None or self._syncing_selection:
@@ -3167,6 +3445,7 @@ class EditorWindow(QMainWindow):
             self._apply_visibility_state()
             self._refresh_tree_state(previous_isolated_index)
             self._refresh_tree_state(index)
+            self._sync_isolation_warning()
         self._update_element_actions()
         suffix = self.tr(" · {count} selecionados").format(count=selection_count) if selection_count > 1 else ""
         self.statusBar().showMessage(
@@ -3391,15 +3670,23 @@ class EditorWindow(QMainWindow):
             self.statusBar().showMessage(self.tr("Os elementos selecionados estão bloqueados."), 3000)
 
     def apply_geometry(self, index: int, geometry: tuple[int, int, int, int]) -> None:
+        self.apply_geometries({index: geometry})
+
+    def apply_geometries(self, geometries: dict[int, tuple[int, int, int, int]]) -> None:
+        """Aplica várias geometrias e só então atualiza tela, painel e título, uma vez.
+
+        Arrastar 150 elementos chamava tudo isso 150 vezes ao soltar (vários segundos).
+        """
         assert self.document is not None
-        self.document.set_geometry(index, geometry)
-        self.items[index].apply_element(self.document.elements[index])
-        if index == 0:
+        for index, geometry in geometries.items():
+            self.document.set_geometry(index, geometry)
+            self.items[index].apply_element(self.document.elements[index])
+        if 0 in geometries:
             self._place_game_screen()
         else:
             self._sync_window_frame()
-        if self.selected_index == index:
-            self.properties.set_element(self.document.elements[index])
+        if self.selected_index in geometries:
+            self.properties.set_element(self.document.elements[self.selected_index])
             self._refresh_screen_position()
         elif self.selected_index == 0:
             self._refresh_screen_position()  # a moldura acompanha o conteúdo
@@ -3740,23 +4027,45 @@ class EditorWindow(QMainWindow):
         for item in self.items.values():
             item.set_texture_visible(visible)
 
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        if (
+            watched is self.tree.viewport()
+            and event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            model_index = self.tree.indexAt(event.position().toPoint())
+            if model_index.isValid() and model_index.column() == 3:
+                rect = self.tree.visualRect(model_index)
+                slot = state_slot_at(rect.left(), event.position().x())
+                item = self.tree.itemFromIndex(model_index)
+                element_index = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+                if slot is not None and element_index is not None:
+                    {"hidden": self.toggle_hidden, "locked": self.toggle_lock, "isolated": self.toggle_isolation_of}[slot](
+                        int(element_index)
+                    )
+                    return True  # o clique no ícone não muda a seleção
+        return super().eventFilter(watched, event)
+
     def toggle_selected_lock(self) -> None:
-        if self.selected_index is None:
-            return
-        index = self.selected_index
+        if self.selected_index is not None:
+            self.toggle_lock(self.selected_index)
+
+    def toggle_lock(self, index: int) -> None:
         if index in self.locked_indexes:
             self.locked_indexes.remove(index)
         else:
             self.locked_indexes.add(index)
         self.items[index].set_locked(index in self.locked_indexes)
-        self.properties.set_enabled(index not in self.locked_indexes)
+        if index == self.selected_index:
+            self.properties.set_enabled(index not in self.locked_indexes)
         self._refresh_tree_state(index)
         self._update_element_actions()
 
     def toggle_selected_hidden(self) -> None:
-        if self.selected_index is None:
-            return
-        index = self.selected_index
+        if self.selected_index is not None:
+            self.toggle_hidden(self.selected_index)
+
+    def toggle_hidden(self, index: int) -> None:
         if index in self.hidden_indexes:
             self.hidden_indexes.remove(index)
         else:
@@ -3766,22 +4075,58 @@ class EditorWindow(QMainWindow):
         self._update_element_actions()
 
     def toggle_isolation(self) -> None:
-        if self.selected_index is None:
-            return
+        if self.isolated_index is not None:
+            self.toggle_isolation_of(self.isolated_index)
+        elif self.selected_index is not None:
+            self.toggle_isolation_of(self.selected_index)
+
+    def toggle_isolation_of(self, index: int) -> None:
         previous = self.isolated_index
-        self.isolated_index = None if previous is not None else self.selected_index
+        self.isolated_index = None if previous == index else index
         self._apply_visibility_state()
         if previous is not None:
             self._refresh_tree_state(previous)
-        if self.selected_index is not None:
-            self._refresh_tree_state(self.selected_index)
+        self._refresh_tree_state(index)
         self._update_element_actions()
+        self._sync_isolation_warning()
+
+    def _sync_isolation_warning(self) -> None:
+        """Isolar some com o resto da janela: o aviso na barra explica e desfaz."""
+        if not hasattr(self, "isolation_button"):
+            return
+        if self.isolated_index is None or self.document is None:
+            self.isolation_button.setVisible(False)
+            return
+        element = self.document.elements[self.isolated_index]
+        self.isolation_button.setText(
+            self.tr("Isolado: WindowID {id} · mostrar tudo").format(id=element.window_id)
+        )
+        self.isolation_button.setVisible(True)
+
+    def _isolated_family(self) -> set[int]:
+        """O elemento isolado e tudo o que está dentro dele (como o isolar do Blender)."""
+        if self.isolated_index is None:
+            return set()
+        family = {self.isolated_index}
+        pending = [self.tree_items.get(self.isolated_index)]
+        while pending:
+            tree_item = pending.pop()
+            if tree_item is None:
+                continue
+            for child_number in range(tree_item.childCount()):
+                child = tree_item.child(child_number)
+                index = child.data(0, Qt.ItemDataRole.UserRole)
+                if index is not None:
+                    family.add(int(index))
+                pending.append(child)
+        return family
 
     def _apply_visibility_state(self) -> None:
+        family = self._isolated_family()
         for index, item in self.items.items():
             visible = index not in self.hidden_indexes
             if self.isolated_index is not None:
-                visible = visible and index == self.isolated_index
+                visible = visible and index in family
             item.setVisible(visible)
 
     def _refresh_tree_state(self, index: int) -> None:
@@ -3795,7 +4140,15 @@ class EditorWindow(QMainWindow):
             states.append(self.tr("Oculto"))
         if index == self.isolated_index:
             states.append(self.tr("Isolado"))
-        tree_item.setText(3, ", ".join(states))
+        tree_item.setToolTip(3, ", ".join(states) or self.tr("Ocultar · Bloquear · Isolar"))
+        active = []
+        if index in self.hidden_indexes:
+            active.append("hidden")
+        if index in self.locked_indexes:
+            active.append("locked")
+        if index == self.isolated_index:
+            active.append("isolated")
+        tree_item.setData(3, STATE_ROLE, tuple(active))
 
     def _update_element_actions(self) -> None:
         enabled = self.selected_index is not None
@@ -3865,6 +4218,7 @@ class EditorWindow(QMainWindow):
                         element.window_text,
                         element.texture_name or "",
                         element.ctrl_type or "",
+                        self._game_labels().get(element.window_id, ""),
                     )
                 ).casefold()
                 own_match = not query or query in searchable
@@ -3928,6 +4282,8 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Falha ao salvar"), document_error_text(exc))
             return
         self.undo_stack.clear()
+        if self.project is not None:
+            self.project.invalidate_changes()
         self._update_title()
         if in_project:
             self.project.prune_history(self.document.path)
@@ -4017,7 +4373,7 @@ class EditorWindow(QMainWindow):
 
     def _recent_projects(self, limit: int) -> list[Path]:
         return sorted(
-            list_projects(), key=lambda root: (root / "project.json").stat().st_mtime, reverse=True
+            list_projects(), key=storage.last_modified, reverse=True
         )[:limit]
 
     def _fill_recent_menu(self) -> None:
@@ -4052,7 +4408,9 @@ class EditorWindow(QMainWindow):
         self.locked_indexes.clear()
         self.hidden_indexes.clear()
         self.isolated_index = None
+        self._sync_isolation_warning()
         self.scene.clear()
+        self.reference_layer_items = []  # a cena apagou os itens
         self.items.clear()
         self.tree.clear()
         self.tree_items.clear()
@@ -4131,12 +4489,19 @@ class EditorWindow(QMainWindow):
             bar_layout.addWidget(button)
             return button
 
-        bar_button(action=self.preview_action)
+        bar_button(action=self.outlines_action)
         self.resolution_button = bar_button()
         self.resolution_button.setIcon(icon("monitor", size=15))
         self.resolution_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.resolution_button.setMenu(self.resolution_menu)
         self.resolution_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.resolution_button.setToolTip(
+            self.tr(
+                "Tela do jogo: com uma resolução, a janela aparece onde o jogo a desenha (centralizada, "
+                "num canto ou na posição salva no User.ini) e as camadas ficam em volta. "
+                "Sem tela do jogo, a janela fica solta, no X/Y do XML."
+            )
+        )
         background_menu = QMenu(self)
         background_menu.addAction(self.builtin_background_action)
         background_menu.addAction(self.background_action)
@@ -4150,6 +4515,30 @@ class EditorWindow(QMainWindow):
         user_ini.setText("User.ini")
         self.saved_positions_action.changed.connect(lambda: user_ini.setText("User.ini"))
         self.game_drawn_button = bar_button(action=self.game_drawn_action)
+        layers_menu = QMenu(self)
+        layers_menu.addAction(self.tr("Montar HUD padrão"), self.build_default_hud)
+        layers_menu.addAction(self.tr("Limpar camadas"), lambda: self.set_reference_layers([]))
+        self.layers_button = bar_button(self.tr("Camadas"))
+        self.layers_button.setIcon(icon("layers", size=15))
+        self.layers_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.layers_button.setMenu(layers_menu)
+        self.layers_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.layers_button.setCheckable(True)
+        # Roxo enquanto houver camadas ligadas; clicar só abre o menu.
+        self.layers_button.clicked.connect(lambda _checked: self._sync_layers_button())
+        self.layers_button.setToolTip(
+            self.tr("Outras janelas do projeto, onde o jogo as desenha. Marque arquivos no painel Arquivos ou monte o HUD padrão.")
+        )
+        self.text_mode_button = bar_button(self.tr("Texto"))
+        self.text_mode_button.setIcon(icon("type", size=15))
+        self.text_mode_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.text_mode_button.setMenu(self.text_mode_menu)
+        self.text_mode_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.text_mode_button.setToolTip(self.tr("Texto como no jogo: amostras com a fonte do jogo e aviso quando não cabem"))
+        self.text_mode_button.setCheckable(True)
+        self.text_mode_button.setChecked(self.text_mode != "off")
+        # O clique abre o menu; o estado ligado/desligado vem só da escolha nele.
+        self.text_mode_button.clicked.connect(lambda _checked: self.text_mode_button.setChecked(self.text_mode != "off"))
         self.game_drawn_button.setVisible(False)
         # Aviso de posição manual: o preview deixa de seguir o jogo neste arquivo.
         self.manual_position_button = bar_button(self.tr("Posição manual · voltar ao automático"))
@@ -4162,6 +4551,11 @@ class EditorWindow(QMainWindow):
         )
         self.manual_position_button.clicked.connect(lambda: self.set_root_mode("auto"))
         self.manual_position_button.setVisible(False)
+        self.isolation_button = bar_button("")
+        self.isolation_button.setObjectName("pillWarning")
+        self.isolation_button.setToolTip(self.tr("Só o elemento isolado está à mostra. Clique para mostrar tudo de novo."))
+        self.isolation_button.clicked.connect(self.toggle_isolation)
+        self.isolation_button.setVisible(False)
         self.view.add_overlay(bar, "top")
 
         zoom = QFrame(self.view)
@@ -4395,7 +4789,7 @@ class EditorWindow(QMainWindow):
         if self.document is None:
             return None
         if self.project is not None and self.project.contains(self.document.path):
-            return self.document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix().lower()
+            return self.project.relative_key(self.document.path).lower()
         return self.document.path.name.lower()
 
     def _update_official_banner(self) -> None:
@@ -4424,7 +4818,7 @@ class EditorWindow(QMainWindow):
         project, key = self.project, self._official_key()
         if project is None or project.game_dir is None or key is None or self.document is None:
             return
-        relative = self.document.path.resolve().relative_to(project.ui_dir.resolve()).as_posix()
+        relative = project.relative_key(self.document.path)
         diff = file_diff(project.game_dir, project.ui_dir, relative, self._project_base_bytes)
         if diff is None:
             self._official_diffs.pop(key, None)
@@ -4490,6 +4884,7 @@ class EditorWindow(QMainWindow):
         self.locked_indexes.clear()
         self.hidden_indexes.clear()
         self.isolated_index = None
+        self._sync_isolation_warning()
         self.properties.set_element(None)
         self._rebuild_scene()
         self._rebuild_tree()
@@ -4794,8 +5189,8 @@ class EditorWindow(QMainWindow):
         )
         if not folder:
             return
-        if not (Path(folder) / "project.json").is_file():
-            QMessageBox.warning(self, self.tr("Não é um projeto"), self.tr("A pasta escolhida não tem project.json."))
+        if not storage.is_project(Path(folder)):
+            QMessageBox.warning(self, self.tr("Não é um projeto"), self.tr("A pasta escolhida não é um projeto do editor."))
             return
         self.open_project(Path(folder))
 
@@ -4806,6 +5201,9 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Não foi possível abrir o projeto"), str(exc))
             return
         self.project = project
+        project.changes_ttl = CHANGES_TTL  # a tela pergunta várias vezes seguidas
+        self._sync_layers_button()
+        self.texts_panel.set_context(project.game_dir, project.root)
         if self.document is not None and not project.contains(self.document.path):
             self.close_document()
         QSettings("Local", "GF UI Editor").setValue("last_project", str(root))
@@ -4909,6 +5307,12 @@ class EditorWindow(QMainWindow):
             files = textures
         groups: list[tuple[str, list[Path]]] = []
         changed = [path for path in files if path.as_posix() in modified]
+        layers = set(self.project.reference_layers) if self.project is not None else set()
+        blocker = QSignalBlocker(self.files_tree)  # caixas marcadas aqui não são cliques
+        # Camadas marcadas no topo: fica fácil ver o que está ligado e desmarcar.
+        layered = [path for path in files if path.as_posix() in layers]
+        if layered:
+            groups.append((self.tr("CAMADAS · {count}").format(count=len(layered)), layered))
         if changed:
             groups.append((self.tr("ALTERADOS · {count}").format(count=len(changed)), changed))
         groups.append((self.tr("TODOS · {count}").format(count=len(files)), files))
@@ -4952,8 +5356,14 @@ class EditorWindow(QMainWindow):
                     )
                 if current is not None and os.path.normcase(str(full_path)) == current:
                     item.setFont(0, bold)
+                if self.project is not None and relative.suffix.lower() == ".xml":
+                    # Marcar = mostrar como camada de referência no Preview do jogo.
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    item.setCheckState(0, Qt.CheckState.Checked if key in layers else Qt.CheckState.Unchecked)
+                    item.setToolTip(0, self.tr("Marque para ver esta janela junto, onde o jogo a desenha (Preview do jogo)"))
                 header.addChild(item)
             header.setExpanded(True)
+        del blocker
         self._filter_files(self.file_filter_edit.text())
 
     def _set_files_mode(self, mode: str) -> None:
@@ -4977,13 +5387,36 @@ class EditorWindow(QMainWindow):
                 visible += not hidden
             group.setHidden(visible == 0)
 
+    def _file_layer_toggled(self, item: QTreeWidgetItem, _column: int) -> None:
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data or self.project is None or not item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            return
+        # O clique na caixa também dispara itemClicked: não abre o arquivo nesse caso.
+        self._layer_click = True
+        QTimer.singleShot(0, lambda: setattr(self, "_layer_click", False))
+        name = self.project.relative_key(Path(data))
+        checked = item.checkState(0) == Qt.CheckState.Checked
+        self.set_reference_layer(name, checked)
+        # O mesmo arquivo aparece em "Alterados" e "Todos": mantém as duas caixas iguais.
+        with QSignalBlocker(self.files_tree):
+            for index in range(self.files_tree.topLevelItemCount()):
+                group = self.files_tree.topLevelItem(index)
+                for child_index in range(group.childCount()):
+                    child = group.child(child_index)
+                    if child is not item and child.data(0, Qt.ItemDataRole.UserRole) == data:
+                        child.setCheckState(0, item.checkState(0))
+
     def _file_activated(self, item: QTreeWidgetItem, _column: int = 0) -> None:
+        if self._layer_click:
+            self._layer_click = False
+            return
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
         path = Path(data)
         if path.suffix.lower() in TEXTURE_SUFFIXES:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+            # Primeiro uma prévia dentro do editor; o botão "Abrir .dds" leva ao editor de imagem.
+            TexturePreviewDialog(path, len(self._xml_using_texture(path.name)), self).exec()
             return
         if self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path)):
             self.side_tabs.setCurrentIndex(1)
@@ -5174,6 +5607,7 @@ class EditorWindow(QMainWindow):
             self.project.remember_original(path)
             shutil.copy2(path, self.project.history_path_for(path))
             path.write_bytes(changed.encode("big5"))
+        self.project.invalidate_changes()
 
     def delete_project_file(self, path: Path) -> None:
         if self.project is None:
@@ -5181,7 +5615,7 @@ class EditorWindow(QMainWindow):
         details = self.tr("Uma cópia fica no histórico do projeto.")
         game_dir = self.project.game_dir
         if path.suffix.lower() == ".xml" and game_dir is not None:
-            relative = path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+            relative = self.project.relative_key(path)
             if official_text_for(game_dir, relative) is not None:
                 details = self.tr(
                     "Este arquivo existe na UI oficial: sem ele, o jogo pode usar o da UI padrão ou acusar erro. "
@@ -5328,6 +5762,19 @@ class EditorWindow(QMainWindow):
             result = self._run_with_progress(
                 self.tr("Publicando no jogo…"), lambda progress: project.publish(progress=progress)
             )
+            # Textos editados vão para data/Translate; o launcher pode ter baixado os originais de novo.
+            text_edits = text_data.load_edits(project.root)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            texts_changed, text_warnings = text_data.publish_edits(
+                project.game_dir, text_edits, project.history_dir / "data" / stamp
+            ) if text_edits else (0, [])
+            # Textos que voltaram ao original já foram gravados no jogo: a edição sai do projeto.
+            reverted = {
+                name: {record_id: edit for record_id, edit in records.items() if edit.fields != edit.original}
+                for name, records in text_edits.items()
+            }
+            if reverted != text_edits:
+                text_data.save_edits(project.root, reverted)
         except OSError as exc:
             QMessageBox.critical(
                 self,
@@ -5336,12 +5783,21 @@ class EditorWindow(QMainWindow):
             )
             return
         self._update_status_chips()
-        self.statusBar().showMessage(
-            self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
-                count=result.copied_to_ui
-            ),
-            12000,
+        message = self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
+            count=result.copied_to_ui
         )
+        if texts_changed:
+            message += " " + self.tr("Textos: {count} arquivo(s) de data/Translate atualizados.").format(count=texts_changed)
+            self.texts_panel.reload()
+        self.statusBar().showMessage(message, 12000)
+        if text_warnings:
+            QMessageBox.warning(
+                self,
+                self.tr("Textos não aplicados"),
+                self.tr("Estes textos editados não existem mais no jogo (a atualização pode ter mudado os arquivos):\n\n{items}").format(
+                    items="\n".join(text_warnings[:20])
+                ),
+            )
         wanted = f"custom:{project.custom_name}"
         if result.launcher_running and result.previous_selection != wanted:
             QMessageBox.information(

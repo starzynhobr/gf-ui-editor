@@ -32,6 +32,15 @@ def _no_real_game_folder(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(project, "PROJECTS_ROOT", missing / "projects")
 
 
+@pytest.fixture(autouse=True)
+def _close_databases():
+    """Fecha os SQLite abertos no teste: no Windows um banco aberto prende a pasta temporária."""
+    yield
+    from gf_ui_editor import storage
+
+    storage.close_all()
+
+
 
 def pytest_unconfigure(config):
     """Fecha as janelas e espera as threads do Qt antes de o Python sair: no CI do Windows,

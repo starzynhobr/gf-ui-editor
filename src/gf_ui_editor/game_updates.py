@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 import zlib
 
 from . import project as project_module
+from . import storage
 from .xml_document import ANY_TAG_RE, UIDocument, _kind_for
 
 
@@ -76,10 +77,32 @@ def _crc(data: bytes) -> str:
 
 
 # ---- UI oficial ---------------------------------------------------------------
+# Caches por arquivo, valendo enquanto data e tamanho não mudam: a comparação com a
+# UI oficial consultava estes arquivos uma vez por XML e travava o começo do editor.
+_entries_cache: dict[str, tuple[tuple[int, int], dict[str, "OfficialEntry"]]] = {}
+_versions_cache: tuple[Path, dict[str, list[str]]] | None = None
+_cached_names: tuple[int, frozenset[str]] | None = None
+
+
+def _signature(path: Path) -> tuple[int, int] | None:
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
 def official_entries(game_dir: Path) -> dict[str, OfficialEntry]:
     """XMLs oficiais da UI segundo o launcher, por nome relativo em minúsculas."""
+    path = game_dir / FILE_LIST
+    signature = _signature(path)
+    if signature is None:
+        return {}
+    cached = _entries_cache.get(str(path))
+    if cached is not None and cached[0] == signature:
+        return cached[1]
     try:
-        lines = (game_dir / FILE_LIST).read_text(encoding="latin-1").splitlines()
+        lines = path.read_text(encoding="latin-1").splitlines()
     except OSError:
         return {}
     entries: dict[str, OfficialEntry] = {}
@@ -95,6 +118,7 @@ def official_entries(game_dir: Path) -> dict[str, OfficialEntry]:
         except ValueError:
             continue
         entries[name[3:].lower()] = OfficialEntry(name[3:], size, parts[2].strip().upper())
+    _entries_cache[str(path)] = (signature, entries)
     return entries
 
 
@@ -103,28 +127,55 @@ def cache_dir() -> Path:
 
 
 def _versions() -> dict[str, list[str]]:
-    try:
-        data = json.loads((cache_dir() / VERSIONS).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    """CRCs já vistos de cada XML oficial (banco compartilhado), lidos uma vez por sessão."""
+    global _versions_cache
+    root = project_module.PROJECTS_ROOT
+    if _versions_cache is None or _versions_cache[0] != root:
+        store = storage.SharedStore(root)
+        legacy = cache_dir() / VERSIONS
+        if legacy.is_file():
+            # versions.json de versões anteriores do editor: importa uma vez e guarda o original.
+            try:
+                data = json.loads(legacy.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    store.import_official_versions(data)
+            except (OSError, ValueError):
+                pass
+            legacy.replace(legacy.with_name(legacy.name + ".migrated"))
+        _versions_cache = (root, store.official_versions())
+    return _versions_cache[1]
 
 
 def _record_version(relative: str, crc: str) -> None:
+    global _versions_cache
     versions = _versions()
-    seen = versions.setdefault(relative.lower(), [])
-    if crc in seen:
+    key = relative.lower()
+    if crc in versions.get(key, []):
         return
-    seen.append(crc)
-    path = cache_dir() / VERSIONS
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(versions, indent=1, sort_keys=True), encoding="utf-8")
-    os.replace(temporary, path)
+    storage.SharedStore(project_module.PROJECTS_ROOT).add_official_version(key, crc)
+    _versions_cache = (project_module.PROJECTS_ROOT, {**versions, key: [*versions.get(key, []), crc]})
+
+
+def _cached_crc_names() -> frozenset[str]:
+    """Nomes (em maiúsculas) dos XMLs no cache oficial.
+
+    A pasta muda de data quando ganha um arquivo: lista uma vez em vez de um stat por CRC.
+    """
+    global _cached_names
+    folder = cache_dir()
+    try:
+        modified = os.stat(folder).st_mtime_ns
+    except OSError:
+        return frozenset()
+    if _cached_names is None or _cached_names[0] != modified:
+        with os.scandir(folder) as entries:
+            _cached_names = (modified, frozenset(entry.name.upper() for entry in entries))
+    return _cached_names[1]
 
 
 def cached_version(crc: str) -> Path | None:
-    path = cache_dir() / f"{crc}.xml"
-    return path if path.is_file() else None
+    name = f"{crc}.xml"
+    return cache_dir() / name if name.upper() in _cached_crc_names() else None
 
 
 def official_xml(game_dir: Path, entry: OfficialEntry) -> Path | None:
@@ -167,7 +218,8 @@ def snapshot_official_ui(game_dir: Path) -> tuple[int, int]:
 def cached_count(game_dir: Path) -> tuple[int, int]:
     """(XMLs oficiais atuais já guardados no cache, total na lista do launcher). Não lê a pasta UI."""
     entries = official_entries(game_dir)
-    return sum(1 for entry in entries.values() if cached_version(entry.crc) is not None), len(entries)
+    names = _cached_crc_names()
+    return sum(1 for entry in entries.values() if f"{entry.crc}.xml".upper() in names), len(entries)
 
 
 def reference_ready(game_dir: Path) -> bool:

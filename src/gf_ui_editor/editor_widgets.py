@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
+import os
+from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF, QSizeF, Qt, Signal
 from PySide6.QtGui import (
+    QColor,
     QFont,
+    QFontDatabase,
+    QFontMetricsF,
+    QImage,
     QKeyEvent,
     QPainter,
     QPainterPath,
@@ -20,6 +26,9 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsSimpleTextItem,
     QGraphicsView,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QWidget,
 )
 
@@ -112,6 +121,156 @@ class WindowFrameItem(QGraphicsRectItem):
         self.owner.mouseReleaseEvent(event)
 
 
+# Fonte da UI no cliente em português/inglês (Font.ini: DefMainFont=Arial, DefMainFontSize=8).
+# O FontFace do XML (細明體) só vale no cliente chinês.
+GAME_FONT_FAMILY = "Arial"
+GAME_FONT_PIXELS = 11
+TEXT_OUTLINE = 1  # FontStyle="1": contorno preto em volta das letras
+
+
+_game_font_family: str | None = None
+
+
+def game_font_family() -> str:
+    """Carrega a Arial do Windows uma vez: sem ela o Qt troca por outra fonte e as medidas mudam."""
+    global _game_font_family
+    if _game_font_family is None:
+        _game_font_family = GAME_FONT_FAMILY
+        windows_font = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / "arial.ttf"
+        if windows_font.is_file():
+            font_id = QFontDatabase.addApplicationFont(str(windows_font))
+            families = QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
+            if families:
+                _game_font_family = families[0]
+    return _game_font_family
+
+
+def game_color(value: str) -> QColor:
+    """FontColor vem como inteiro BGR do Windows (65535 = amarelo)."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = 0xFFFFFF
+    return QColor(number & 0xFF, (number >> 8) & 0xFF, (number >> 16) & 0xFF)
+
+
+class GameTextItem(QGraphicsItem):
+    """Texto desenhado como o jogo: Arial 8 sem suavização, cor, contorno e alinhamento do XML.
+
+    O jogo escreve os textos por cima de todas as texturas, então o item fica acima dos
+    elementos na cena e acompanha o controle dono (ver ElementItem.itemChange).
+    """
+
+    Z_VALUE = 900_000.0
+
+    def __init__(self, owner: "ElementItem", props: dict[str, str], is_button: bool = False):
+        super().__init__()
+        self.owner = owner
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setZValue(self.Z_VALUE)
+        self.text = ""
+        self.color = game_color(props.get("FontColor", "16777215"))
+        self.outline = props.get("FontStyle") == "1"
+        # Botões o jogo centraliza sempre; os demais seguem o TextAlign.
+        self.align = "1" if is_button else props.get("TextAlign", "0")
+        self.multiline = props.get("MultiLine") == "1"
+        self.font = QFont(game_font_family())
+        self.font.setPixelSize(GAME_FONT_PIXELS)
+        self.font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+        if self.outline:
+            # Medido no jogo: texto com contorno sai com 1 px a mais entre as letras
+            # ("Ranque da Guilda" 99 px em vez de 84).
+            self.font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
+        self.overflows = False
+        self._image: QImage | None = None
+        self._image_origin = QPointF()
+
+    def _box(self) -> QRectF:
+        return self.owner.rect()
+
+    def _flags(self) -> int:
+        horizontal = {"1": Qt.AlignmentFlag.AlignHCenter, "2": Qt.AlignmentFlag.AlignRight}.get(
+            self.align, Qt.AlignmentFlag.AlignLeft
+        )
+        vertical = Qt.AlignmentFlag.AlignTop if self.multiline else Qt.AlignmentFlag.AlignVCenter
+        # Caixas minúsculas (1-2 px) são comuns: o jogo escreve o texto mesmo assim, para fora.
+        flags = int(horizontal | vertical) | int(Qt.TextFlag.TextDontClip)
+        if self.multiline:
+            flags |= int(Qt.TextFlag.TextWordWrap)
+        return flags
+
+    def set_text(self, text: str) -> None:
+        self.prepareGeometryChange()
+        self.text = text
+        box = self._box()
+        needed = QFontMetricsF(self.font).boundingRect(box, self._flags(), text)
+        # Só estouro na largura conta: linhas de lista têm a altura justa do texto.
+        # Caixas minúsculas são reposicionadas pelo próprio jogo.
+        self.overflows = bool(text) and box.width() >= 4 and needed.width() > box.width() + 0.5
+        self._render(box, needed)
+        self.update()
+
+    def _render(self, box: QRectF, needed: QRectF) -> None:
+        """Desenha o texto uma vez, em pixels do jogo; com zoom só a imagem é ampliada.
+
+        Desenhar o texto direto na cena com zoom deixa o Qt reposicionar cada cópia do
+        contorno de um jeito e o contorno sai com falhas, o que o jogo não faz.
+        """
+        self._image = None
+        if not self.text:
+            return
+        margin = TEXT_OUTLINE + 1
+        area = box.united(needed).adjusted(-margin, -margin, margin, margin)
+        left, top = math.floor(area.left()), math.floor(area.top())
+        image = QImage(
+            math.ceil(area.right()) - left, math.ceil(area.bottom()) - top,
+            QImage.Format.Format_ARGB32_Premultiplied,
+        )
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
+        painter.setFont(self.font)
+        flags = self._flags()
+        target = box.translated(-left, -top)
+        if self.outline:
+            # Uma máscara do texto, carimbada em preto nos 8 vizinhos: contorno sem falhas.
+            mask = QImage(image.size(), QImage.Format.Format_ARGB32_Premultiplied)
+            mask.fill(Qt.GlobalColor.transparent)
+            mask_painter = QPainter(mask)
+            mask_painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
+            mask_painter.setFont(self.font)
+            mask_painter.setPen(QColor(0, 0, 0))
+            mask_painter.drawText(target, flags, self.text)
+            mask_painter.end()
+            for dx in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
+                for dy in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
+                    if dx or dy:
+                        painter.drawImage(dx, dy, mask)
+        painter.setPen(self.color)
+        painter.drawText(target, flags, self.text)
+        painter.end()
+        self._image = image
+        self._image_origin = QPointF(left, top)
+
+    def boundingRect(self) -> QRectF:  # noqa: N802
+        if self._image is None:
+            return QRectF()
+        return QRectF(self._image_origin, QSizeF(self._image.size())).united(self._box())
+
+    def paint(self, painter: QPainter, _option, _widget=None) -> None:
+        if self._image is None:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._image_origin, self._image)
+        if self.overflows:
+            # Texto maior que a caixa: no jogo ele vaza por cima dos vizinhos.
+            painter.setPen(QPen(QColor(255, 60, 60), 0))
+            painter.drawRect(self._box())
+        painter.restore()
+
+
 class ElementItem(QGraphicsRectItem):
     SELECTION_Z_BASE = 1_000_000.0
     WINDOW_HANDLE_AXES = {
@@ -181,6 +340,9 @@ class ElementItem(QGraphicsRectItem):
         self.setPen(self._normal_pen)
 
         self.texture_item: QGraphicsPixmapItem | None = None
+        self.text_item: GameTextItem | None = None
+        self._text_props = dict(element.text_props)
+        self._is_button = "ButtonNode" in element.child_tags
         if pixmap is not None:
             self.texture_item = QGraphicsPixmapItem(pixmap, self)
             self.texture_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
@@ -287,6 +449,27 @@ class ElementItem(QGraphicsRectItem):
     def _idle_pen(self) -> QPen:
         return QPen(Qt.PenStyle.NoPen) if self._preview_mode else self._normal_pen
 
+    def setRect(self, *args) -> None:  # noqa: N802
+        super().setRect(*args)
+        if getattr(self, "text_item", None) is not None:
+            self.text_item.set_text(self.text_item.text)
+
+    def set_game_text(self, text: str) -> None:
+        """Mostra (ou some com, se vazio) o texto como o jogo desenharia."""
+        if self.text_item is None:
+            if not text:
+                return
+            self.text_item = GameTextItem(self, self._text_props, self._is_button)
+            if self.scene() is not None:
+                self.scene().addItem(self.text_item)
+            self._sync_text_item()
+        self.text_item.set_text(text)
+
+    def _sync_text_item(self) -> None:
+        if self.text_item is not None:
+            self.text_item.setPos(self.scenePos())
+            self.text_item.setVisible(self.isVisible())
+
     def set_texture_visible(self, visible: bool) -> None:
         self._textures_enabled = visible
         if self.texture_item is not None:
@@ -369,7 +552,7 @@ class ElementItem(QGraphicsRectItem):
         self.setRect(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
         self._update_overlays()
         self.resize_handle.setVisible(self.isSelected() and not self._locked)
-        # A textura da raiz continua onde a raiz está no XML (como em "Sem moldura"):
+        # A textura da raiz continua onde a raiz está no XML (como em "Sem tela do jogo"):
         # em várias janelas, como a da guilda, ela é o fundo dos painéis.
         self._update_texture_transform()
 
@@ -377,6 +560,17 @@ class ElementItem(QGraphicsRectItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             position = QPointF(value)
             return QPointF(round(position.x()), round(position.y()))
+        if change in (
+            QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged,
+            QGraphicsItem.GraphicsItemChange.ItemVisibleHasChanged,
+        ):
+            self._sync_text_item()
+        if change == QGraphicsItem.GraphicsItemChange.ItemSceneChange and self.text_item is not None:
+            # Elemento saindo da cena (apagado, cena refeita): o texto vai junto.
+            if self.text_item.scene() is not None:
+                self.text_item.scene().removeItem(self.text_item)
+            if value is not None:
+                value.addItem(self.text_item)
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedChange:
             self.prepareGeometryChange()
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
@@ -712,6 +906,41 @@ class GameDrawnItem(QGraphicsRectItem):
         text.setPos(rect.left() + 2, rect.bottom() - 12)
 
 
+class ReferenceLayerItem(QGraphicsRectItem):
+    """Outra janela do projeto desenhada onde o jogo a põe, só para referência.
+
+    Fica abaixo do arquivo em edição e não recebe cliques: serve para montar a tela
+    do jogo (BasicChar, Radar, Menu…) em volta do que está sendo editado.
+    """
+
+    Z_VALUE = -1000.0
+
+    def __init__(self, name: str, bounds: QRectF):
+        super().__init__(bounds)
+        self.name = name
+        self.setPen(QPen(Qt.PenStyle.NoPen))
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setZValue(self.Z_VALUE)
+        self.setToolTip(name)
+        self._owners: list[QGraphicsRectItem] = []
+
+    def add_control(self, rect: QRectF, pixmap: QPixmap | None, text: str = "",
+                    props: dict[str, str] | None = None, is_button: bool = False) -> None:
+        if pixmap is not None and not pixmap.isNull():
+            picture = QGraphicsPixmapItem(pixmap, self)
+            picture.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            picture.setPos(rect.topLeft())
+        if text:
+            # GameTextItem mede a caixa pelo dono; aqui o dono é só um retângulo fora da cena.
+            owner = QGraphicsRectItem(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
+            self._owners.append(owner)
+            label = GameTextItem(owner, props or {}, is_button)  # type: ignore[arg-type]
+            label.setParentItem(self)
+            label.setZValue(1)
+            label.setPos(rect.topLeft())
+            label.set_text(text)
+
+
 class GhostAreaItem(QGraphicsRectItem):
     """Área que o jogo ainda trata como janela, longe do conteúdo; não interage."""
 
@@ -1004,3 +1233,48 @@ class EditorView(QGraphicsView):
             event.accept()
             return
         super().keyPressEvent(event)
+
+
+# Ícones de estado na lista de elementos, como nas camadas de um editor de imagem.
+STATE_SLOTS = ("hidden", "locked", "isolated")
+STATE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
+STATE_ICON_SIZE = 14
+STATE_SLOT_WIDTH = 20
+
+
+def state_slot_at(rect_left: float, x: float) -> str | None:
+    """Qual ícone (ocultar, bloquear, isolar) está na posição x da célula."""
+    slot = int((x - rect_left - 4) // STATE_SLOT_WIDTH)
+    return STATE_SLOTS[slot] if 0 <= slot < len(STATE_SLOTS) else None
+
+
+class ElementStateDelegate(QStyledItemDelegate):
+    """Desenha olho, cadeado e foco: apagados quando desligados, acesos quando ligados."""
+
+    def __init__(self, icons: dict[tuple[str, bool], "QIcon"], parent=None):
+        super().__init__(parent)
+        self._icons = icons
+
+    def sizeHint(self, option: QStyleOptionViewItem, index) -> "QSize":  # noqa: N802
+        hint = super().sizeHint(option, index)
+        hint.setWidth(STATE_SLOT_WIDTH * len(STATE_SLOTS) + 8)
+        return hint
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        clean = QStyleOptionViewItem(option)
+        clean.text = ""
+        style = option.widget.style() if option.widget is not None else None
+        if style is not None:
+            style.drawControl(QStyle.ControlElement.CE_ItemViewItem, clean, painter, option.widget)
+        states = index.data(STATE_ROLE) or ()
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        top = option.rect.top() + (option.rect.height() - STATE_ICON_SIZE) // 2
+        for slot, name in enumerate(STATE_SLOTS):
+            active = name in states
+            if not active and not hovered:
+                painter.setOpacity(0.18)
+            elif not active:
+                painter.setOpacity(0.55)
+            left = option.rect.left() + 4 + slot * STATE_SLOT_WIDTH + (STATE_SLOT_WIDTH - STATE_ICON_SIZE) // 2
+            self._icons[(name, active)].paint(painter, left, top, STATE_ICON_SIZE, STATE_ICON_SIZE)
+            painter.setOpacity(1.0)

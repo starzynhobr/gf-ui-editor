@@ -740,9 +740,9 @@ def _check_game_screen_frame(tmp_path: Path, parse_resolution) -> None:
     assert window.game_screen_item.zValue() < min(item.zValue() for item in window.items.values())
 
     item = window.items[0]
-    window.preview_action.setChecked(True)
+    window.outlines_action.setChecked(False)
     assert item.pen().style() == Qt.PenStyle.NoPen
-    window.preview_action.setChecked(False)
+    window.outlines_action.setChecked(True)
     assert item.pen().style() == Qt.PenStyle.DashLine
 
     background = tmp_path / "tela.png"
@@ -1335,3 +1335,266 @@ def test_missing_official_reference_shows_a_banner_until_dismissed(tmp_path: Pat
     window._update_reference_chip()
     assert window.reference_banner.isHidden()  # quem já tem a referência não vê nada
     window.close()
+
+
+def test_text_mode_draws_samples_like_the_game_and_flags_overflow(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "T.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="T.xml">\r\n'
+        b'\t<BaseWndProperty WindowID="1" WindowHeight="200" WindowWidth="100">\r\n'
+        b'\t\t<Container_Node Child_Cnt="2">\r\n'
+        b'\t\t\t<Style ParentNode="1" CtrlType="2" />\r\n'
+        b'\t\t\t<BaseWndProperty WindowID="10" WindowLeft="0" WindowTop="0" WindowHeight="150" WindowWidth="14">\r\n'
+        b'\t\t\t\t<BaseCtrlProperty FontColor="65535" FontStyle="1" />\r\n\t\t\t\t<TextNode TextAlign="1" />\r\n'
+        b'\t\t\t</BaseWndProperty>\r\n'
+        b'\t\t\t<Style ParentNode="1" CtrlType="2" />\r\n'
+        b'\t\t\t<BaseWndProperty WindowID="11" WindowLeft="0" WindowTop="20" WindowHeight="10" WindowWidth="14">\r\n'
+        b'\t\t\t\t<BaseCtrlProperty FontColor="16777215" FontStyle="0" />\r\n\t\t\t\t<TextNode TextAlign="0" />\r\n'
+        b'\t\t\t</BaseWndProperty>\r\n'
+        b'\t\t</Container_Node>\r\n\t</BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    wide, narrow = (window.items[element.index] for element in window.document.elements[1:])
+    assert window.document.elements[1].text_props == {"FontColor": "65535", "FontStyle": "1", "TextAlign": "1"}
+    assert wide.text_item is None  # desligado por padrão
+    window.set_text_mode("short")
+    assert wide.text_item.text and wide.text_item.outline and wide.text_item.align == "1"
+    assert wide.text_item.color.name() == "#ffff00"  # FontColor é BGR
+    assert not wide.text_item.overflows
+    assert narrow.text_item.overflows  # 10 px não cabe "Texto"
+    window.set_text_mode("off")
+    assert wide.text_item.text == ""
+    window.close()
+
+
+def test_checked_files_show_as_reference_layers_where_the_game_draws_them(tmp_path: Path) -> None:
+    from gf_ui_editor.editor_widgets import ReferenceLayerItem
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("Menu.xml", "BasicChar.xml"):
+        (source / name).write_bytes(
+            f'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="{name}">\r\n'
+            '\t<BaseWndProperty WindowID="1" WindowLeft="0" WindowTop="0" WindowHeight="100" WindowWidth="40" />\r\n'
+            "</Root_Node>\r\n".encode("big5")
+        )
+    project = Project.create("Camadas", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Menu.xml")
+    window.set_game_resolution((800, 600))
+    application.processEvents()
+
+    window.set_reference_layer("BasicChar.xml", True)
+    assert Project.load(project.root).reference_layers == ["BasicChar.xml"]  # fica salvo no projeto
+    layers = [item for item in window.scene.items() if isinstance(item, ReferenceLayerItem)]
+    assert [layer.name for layer in layers] == ["BasicChar.xml"]
+    assert layers[0].zValue() < 0  # por baixo do arquivo em edição
+    assert not layers[0].acceptedMouseButtons()  # não rouba cliques
+
+    window.set_reference_layer("BasicChar.xml", False)
+    assert not [item for item in window.scene.items() if isinstance(item, ReferenceLayerItem)]
+    window.set_game_resolution(None)
+    window.close()
+
+
+def test_default_hud_checks_the_always_visible_windows_and_lists_them_first(tmp_path: Path) -> None:
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("Menu.xml", "Radar.xml", "Channel.xml", "Bank.xml"):
+        (source / name).write_bytes(
+            f'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="{name}">\r\n'
+            '\t<BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="40" />\r\n</Root_Node>\r\n'.encode("big5")
+        )
+    project = Project.create("Hud", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.build_default_hud()
+    application.processEvents()
+    assert sorted(window.project.reference_layers) == ["Channel.xml", "Menu.xml", "Radar.xml"]  # Bank não é HUD
+    first_group = window.files_tree.topLevelItem(0)
+    assert first_group.text(0).startswith("CAMADAS") or first_group.text(0).startswith("LAYERS")
+    assert first_group.childCount() == 3
+    window.set_reference_layers([])
+    application.processEvents()
+    assert window.project.reference_layers == []
+    window.close()
+
+
+def test_textures_already_cached_by_layers_still_reach_the_open_file(tmp_path: Path) -> None:
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(source / "main.dds")
+    for name in ("Menu.xml", "Channel.xml"):
+        (source / name).write_bytes(
+            f'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="{name}">\r\n'
+            '\t<BaseWndProperty WindowID="1" WindowHeight="8" WindowWidth="8">\r\n'
+            '\t\t<BackGroundMap BGmap="main.dds">\r\n'
+            '\t\t\t<NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="8" NorUVHeight="8" />\r\n'
+            '\t\t</BackGroundMap>\r\n\t</BaseWndProperty>\r\n</Root_Node>\r\n'.encode("big5")
+        )
+    project = Project.create("Cache", source, None, projects_root=tmp_path / "projects")
+    project.reference_layers = ["Menu.xml"]
+    project.save_manifest()
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.set_game_resolution((800, 600))
+    window.open_document(project.ui_dir / "Channel.xml")  # a camada Menu já leu o main.dds
+    application.processEvents()
+    texture = window.items[0].texture_item
+    assert texture is not None and not texture.pixmap().isNull()
+    window.set_game_resolution(None)
+    window.close()
+
+
+def test_state_icons_in_the_element_list_hide_lock_and_isolate(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Teste.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Teste.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80">'
+        b'<Container_Node Child_Cnt="1"><Style ParentNode="1" CtrlType="1" />'
+        b'<BaseWndProperty WindowID="5" WindowLeft="4" WindowTop="4" WindowHeight="20" WindowWidth="10" />'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    window.show()
+    application.processEvents()
+    tree_item = window.tree_items[1]
+    window.tree.scrollToItem(tree_item)
+    rect = window.tree.visualRect(window.tree.indexFromItem(tree_item, 3))
+
+    def click(slot: int) -> None:
+        point = QPoint(rect.left() + 4 + slot * 20 + 10, rect.center().y())
+        QTest.mouseClick(window.tree.viewport(), Qt.MouseButton.LeftButton, pos=point)
+        application.processEvents()
+
+    click(0)
+    assert 1 in window.hidden_indexes and not window.items[1].isVisible()
+    assert window.selected_index is None  # o clique no ícone não seleciona a linha
+    click(0)
+    click(1)
+    assert 1 in window.locked_indexes
+    click(2)
+    assert window.isolated_index == 1 and not window.isolation_button.isHidden()
+    assert not window.items[0].isVisible()
+    window.isolation_button.click()
+    assert window.isolated_index is None and window.isolation_button.isHidden()
+    window.close()
+
+
+def test_moving_many_elements_refreshes_the_window_once(tmp_path: Path, monkeypatch) -> None:
+    application = QApplication.instance() or QApplication([])
+    children = "".join(
+        f'<Style ParentNode="1" CtrlType="1" /><BaseWndProperty WindowID="{100 + n}" WindowLeft="{n}" WindowTop="0" WindowHeight="5" WindowWidth="5" />'
+        for n in range(60)
+    )
+    path = tmp_path / "Muitos.xml"
+    path.write_bytes(
+        ('<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Muitos.xml">\r\n'
+         '<BaseWndProperty WindowID="1" WindowHeight="300" WindowWidth="100">'
+         f'<Container_Node Child_Cnt="60">{children}</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n').encode("big5")
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    calls = []
+    monkeypatch.setattr(window, "_update_title", lambda: calls.append(1))
+    changes = {
+        element.index: (element.geometry, (element.x + 3, element.y, element.width, element.height))
+        for element in window.document.elements[1:]
+    }
+    window.elements_dragged(changes)
+    assert len(calls) == 1  # antes: uma vez por elemento (segundos ao soltar 150 elementos)
+    assert all(window.document.elements[index].x == new[0] for index, (_old, new) in changes.items())
+    window.undo_stack.undo()
+    assert len(calls) == 2
+    window.close()
+
+
+def test_guild_tabs_open_where_the_guild_window_is_and_layers_button_lights_up(tmp_path: Path) -> None:
+    from gf_ui_editor.game_layout import placement, root_screen_position, saved_section_for
+    from gf_ui_editor.project import Project
+
+    rect = (0, 0, 676, 416)
+    main = root_screen_position("Fellowship_family.xml", (1920, 1080), rect)
+    for tab in ("Fellowship_FamilyAffairs.xml", "FamilyAchievement.xml", "FamilyTreeWnd.xml"):
+        assert root_screen_position(tab, (1920, 1080), rect) == main
+        assert placement(tab) == placement("Fellowship_family.xml")
+    assert saved_section_for("ShortcutBar.xml") == "SHORTCUT01"
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Menu.xml").write_bytes(b'<?xml version="1.0" ?>\r\n<Root_Node><BaseWndProperty WindowID="1" /></Root_Node>\r\n')
+    project = Project.create("Botao", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    assert not window.layers_button.isChecked()
+    window.set_reference_layers(["Menu.xml"])
+    assert window.layers_button.isChecked()
+    window.set_reference_layers([])
+    assert not window.layers_button.isChecked()
+    window.close()
+
+
+def test_isolating_a_panel_keeps_its_children_visible(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Grupo.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Grupo.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="100"><Container_Node Child_Cnt="3">'
+        b'<Style ParentNode="1" CtrlType="1" /><BaseWndProperty WindowID="10" WindowHeight="50" WindowWidth="50" />'
+        b'<Style ParentNode="10" CtrlType="1" /><BaseWndProperty WindowID="11" WindowHeight="5" WindowWidth="5" />'
+        b'<Style ParentNode="1" CtrlType="1" /><BaseWndProperty WindowID="20" WindowHeight="5" WindowWidth="5" />'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    panel, child, other = (
+        next(element.index for element in window.document.elements if element.window_id == window_id)
+        for window_id in ("10", "11", "20")
+    )
+    window.toggle_isolation_of(panel)
+    assert window.items[panel].isVisible() and window.items[child].isVisible()  # o filho fica junto
+    assert not window.items[other].isVisible() and not window.items[0].isVisible()
+    window.close()
+
+
+
+def test_texture_preview_shows_the_image_and_reloads_when_saved(tmp_path: Path) -> None:
+    from gf_ui_editor.atlas_dialog import TexturePreviewDialog
+
+    application = QApplication.instance() or QApplication([])
+    texture = tmp_path / "main.dds"
+    Image.new("RGBA", (40, 20), (255, 0, 0, 255)).save(texture)
+    dialog = TexturePreviewDialog(texture, users=3)
+    assert dialog.size_label.text() == "40 × 20 px"
+    assert not dialog.view.editable  # só olhar: sem recorte nem alças
+    Image.new("RGBA", (64, 32), (0, 0, 255, 255)).save(texture)
+    dialog.reload()
+    assert dialog.size_label.text() == "64 × 32 px"
+    dialog.close()
+
+
+def test_element_list_hides_parentnode_by_default_and_remembers_column_choice() -> None:
+    application = QApplication.instance() or QApplication([])
+    window = EditorWindow()
+    assert window.tree.isColumnHidden(2) and not window.tree.isColumnHidden(0)
+    window._set_tree_column_shown(0, False)
+    window._set_tree_column_shown(2, True)
+    window.close()
+    reopened = EditorWindow()
+    assert reopened.tree.isColumnHidden(0) and not reopened.tree.isColumnHidden(2)
+    assert reopened.tree.treePosition() == 1
+    reopened.close()

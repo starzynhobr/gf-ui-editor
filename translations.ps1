@@ -8,6 +8,7 @@ $sources = @(
     (Join-Path $root "src\gf_ui_editor\atlas_dialog.py"),
     (Join-Path $root "src\gf_ui_editor\editor_widgets.py"),
     (Join-Path $root "src\gf_ui_editor\i18n.py"),
+    (Join-Path $root "src\gf_ui_editor\texts_panel.py"),
     (Join-Path $root "src\gf_ui_editor\update_dialog.py")
 )
 
