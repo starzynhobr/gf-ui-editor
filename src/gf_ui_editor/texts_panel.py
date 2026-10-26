@@ -98,7 +98,7 @@ class TextEditDialog(QDialog):
 
 
 class TextsPanel(QWidget):
-    """Busca em todos os textos do jogo; as edições ficam no projeto (data/text-edits.json)."""
+    """Busca em todos os textos do jogo; as edições ficam no project.db do projeto."""
 
     edits_changed = Signal()
 

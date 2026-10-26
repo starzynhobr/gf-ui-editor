@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 import zlib
 
 from . import project as project_module
+from . import storage
 from .xml_document import ANY_TAG_RE, UIDocument, _kind_for
 
 
@@ -79,7 +80,7 @@ def _crc(data: bytes) -> str:
 # Caches por arquivo, valendo enquanto data e tamanho não mudam: a comparação com a
 # UI oficial consultava estes arquivos uma vez por XML e travava o começo do editor.
 _entries_cache: dict[str, tuple[tuple[int, int], dict[str, "OfficialEntry"]]] = {}
-_versions_cache: tuple[tuple[int, int], dict[str, list[str]]] | None = None
+_versions_cache: tuple[Path, dict[str, list[str]]] | None = None
 _cached_names: tuple[int, frozenset[str]] | None = None
 
 
@@ -126,32 +127,33 @@ def cache_dir() -> Path:
 
 
 def _versions() -> dict[str, list[str]]:
+    """CRCs já vistos de cada XML oficial (banco compartilhado), lidos uma vez por sessão."""
     global _versions_cache
-    path = cache_dir() / VERSIONS
-    signature = _signature(path)
-    if signature is None:
-        return {}
-    if _versions_cache is not None and _versions_cache[0] == signature:
-        return _versions_cache[1]
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    data = data if isinstance(data, dict) else {}
-    _versions_cache = (signature, data)
-    return data
+    root = project_module.PROJECTS_ROOT
+    if _versions_cache is None or _versions_cache[0] != root:
+        store = storage.SharedStore(root)
+        legacy = cache_dir() / VERSIONS
+        if legacy.is_file():
+            # versions.json de versões anteriores do editor: importa uma vez e guarda o original.
+            try:
+                data = json.loads(legacy.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    store.import_official_versions(data)
+            except (OSError, ValueError):
+                pass
+            legacy.replace(legacy.with_name(legacy.name + ".migrated"))
+        _versions_cache = (root, store.official_versions())
+    return _versions_cache[1]
 
 
 def _record_version(relative: str, crc: str) -> None:
+    global _versions_cache
     versions = _versions()
-    if crc in versions.get(relative.lower(), []):
+    key = relative.lower()
+    if crc in versions.get(key, []):
         return
-    versions = {key: list(value) for key, value in versions.items()}  # não mexe no cache
-    versions.setdefault(relative.lower(), []).append(crc)
-    path = cache_dir() / VERSIONS
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(versions, indent=1, sort_keys=True), encoding="utf-8")
-    os.replace(temporary, path)
+    storage.SharedStore(project_module.PROJECTS_ROOT).add_official_version(key, crc)
+    _versions_cache = (project_module.PROJECTS_ROOT, {**versions, key: [*versions.get(key, []), crc]})
 
 
 def _cached_crc_names() -> frozenset[str]:

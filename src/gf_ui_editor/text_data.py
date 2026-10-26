@@ -7,19 +7,19 @@ original, com as mesmas quebras de linha.
 
 O launcher baixa estes arquivos de novo ao atualizar ou trocar o idioma
 (GameDataFileListT.txt guarda o CRC de cada um), então o projeto guarda só as
-mudanças (arquivo -> ID -> campos) e as reaplica ao enviar para o jogo.
+mudanças (arquivo -> ID -> campos, no project.db) e as reaplica ao enviar para o jogo.
 """
 
 from __future__ import annotations
 
 import bisect
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import storage
+
 TRANSLATE_DIR = Path("data") / "Translate"
-EDITS_FILE = Path("data") / "text-edits.json"
 GAME_ENCODING = "cp1252"
 _RECORD_START = re.compile(r"(?m)^(\d+)\|")
 
@@ -128,25 +128,20 @@ class TextEdit:
 
 
 def load_edits(project_root: Path) -> dict[str, dict[str, TextEdit]]:
-    path = project_root / EDITS_FILE
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    """Edições guardadas no project.db do projeto."""
+    if not (project_root / storage.PROJECT_DB).is_file():
         return {}
     return {
-        name: {record_id: TextEdit(list(entry["fields"]), list(entry.get("original", []))) for record_id, entry in records.items()}
-        for name, records in data.items()
+        name: {record_id: TextEdit(fields, original) for record_id, (fields, original) in records.items()}
+        for name, records in storage.ProjectStore(project_root).text_edits().items()
     }
 
 
 def save_edits(project_root: Path, edits: dict[str, dict[str, TextEdit]]) -> None:
-    path = project_root / EDITS_FILE
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = {
-        name: {record_id: {"fields": edit.fields, "original": edit.original} for record_id, edit in records.items()}
-        for name, records in sorted(edits.items()) if records
-    }
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    storage.ProjectStore(project_root).replace_text_edits({
+        name: {record_id: (edit.fields, edit.original) for record_id, edit in records.items()}
+        for name, records in edits.items() if records
+    })
 
 
 def publish_edits(

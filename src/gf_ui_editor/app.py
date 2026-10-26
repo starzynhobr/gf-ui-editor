@@ -72,7 +72,7 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from . import game_texts
-from . import text_data
+from . import storage, text_data
 from .texts_panel import TextsPanel
 from .editor_widgets import (
     EditorView,
@@ -1524,7 +1524,7 @@ class EditorWindow(QMainWindow):
             self.open_document(initial_path)
         elif restore_last_project:
             last = str(QSettings("Local", "GF UI Editor").value("last_project", ""))
-            if last and (Path(last) / "project.json").is_file():
+            if last and storage.is_project(Path(last)):
                 self.open_project(Path(last))
 
     def _create_actions(self) -> None:
@@ -4307,7 +4307,7 @@ class EditorWindow(QMainWindow):
 
     def _recent_projects(self, limit: int) -> list[Path]:
         return sorted(
-            list_projects(), key=lambda root: (root / "project.json").stat().st_mtime, reverse=True
+            list_projects(), key=storage.last_modified, reverse=True
         )[:limit]
 
     def _fill_recent_menu(self) -> None:
@@ -5109,8 +5109,8 @@ class EditorWindow(QMainWindow):
         )
         if not folder:
             return
-        if not (Path(folder) / "project.json").is_file():
-            QMessageBox.warning(self, self.tr("Não é um projeto"), self.tr("A pasta escolhida não tem project.json."))
+        if not storage.is_project(Path(folder)):
+            QMessageBox.warning(self, self.tr("Não é um projeto"), self.tr("A pasta escolhida não é um projeto do editor."))
             return
         self.open_project(Path(folder))
 

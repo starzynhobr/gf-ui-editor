@@ -2,7 +2,9 @@
 
 Um projeto é uma pasta com:
 
-- `project.json`: nome, pasta do jogo e hashes dos arquivos na criação;
+- `project.db` (SQLite, ver storage.py): nome, pasta do jogo, camadas, hashes dos
+  arquivos na criação e textos editados. Projetos antigos em `project.json` são
+  importados na primeira abertura;
 - `ui/`: os arquivos da interface que estão sendo editados;
 - `.history/`: backups automáticos de cada salvamento.
 
@@ -17,7 +19,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
-import json
 import os
 import time
 from pathlib import Path
@@ -25,11 +26,10 @@ import re
 import shutil
 import zipfile
 
+from . import storage
 
 PROJECTS_ROOT = Path.home() / "Documents" / "GF UI Projects"
-MANIFEST = "project.json"
 CHANGES_TTL = 2.0
-HASH_CACHE = ".hash-cache.json"
 ORIGINAL_NAME = "original"
 HISTORY_LIMIT = 20
 
@@ -163,35 +163,43 @@ class Project:
             stat = (ui_dir / key).stat()
             project._hash_cache[key] = (stat.st_size, stat.st_mtime_ns, digest)
         project.save_manifest()
+        store = storage.ProjectStore(root)
+        store.save_base_hashes(hashes)
+        store.save_file_hashes(project._hash_cache)
         return project
 
     @classmethod
     def load(cls, root: Path) -> "Project":
-        data = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
-        game_dir = data.get("game_dir")
+        storage.migrate_project_json(root)
+        if not (root / storage.PROJECT_DB).is_file():
+            raise FileNotFoundError(root / storage.PROJECT_DB)
+        store = storage.ProjectStore(root)
+        settings = store.settings()
+        game_dir = settings.get("game_dir")
         return cls(
             root,
-            data.get("name", root.name),
-            Path(game_dir) if game_dir else None,
-            dict(data.get("base_hashes", {})),
-            bool(data.get("include_assets", False)),
-            dict(data.get("root_modes", {})),
-            str(data.get("publish_folder", "")),
-            [str(name) for name in data.get("reference_layers", [])],
+            str(settings.get("name") or root.name),
+            Path(str(game_dir)) if game_dir else None,
+            store.base_hashes(),
+            bool(settings.get("include_assets", False)),
+            store.root_modes(),
+            str(settings.get("publish_folder") or ""),
+            store.reference_layers(),
         )
 
     def save_manifest(self) -> None:
-        data = {
-            "name": self.name,
-            "game_dir": str(self.game_dir) if self.game_dir else None,
-            "include_assets": self.include_assets,
-            "root_modes": self.root_modes,
-            "publish_folder": self.publish_folder,
-            "reference_layers": self.reference_layers,
-            "base_hashes": self.base_hashes,
-        }
+        """Grava as configurações do projeto (nome, pasta do jogo, camadas, modos)."""
         self.root.mkdir(parents=True, exist_ok=True)
-        (self.root / MANIFEST).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        storage.ProjectStore(self.root).save_settings(
+            {
+                "name": self.name,
+                "game_dir": str(self.game_dir) if self.game_dir else None,
+                "include_assets": self.include_assets,
+                "publish_folder": self.publish_folder,
+            },
+            self.root_modes,
+            self.reference_layers,
+        )
 
     # ---- estado ------------------------------------------------------------
     def files(self, refresh: bool = False) -> list[Path]:
@@ -222,31 +230,17 @@ class Project:
 
     def _compute_modified_files(self) -> set[str]:
         if not self._hash_cache:
-            self._load_hash_cache()
-        before = len(self._hash_cache), dict(self._hash_cache)
+            self._hash_cache = storage.ProjectStore(self.root).file_hashes()
+        before = dict(self._hash_cache)
         changed: set[str] = set()
         for relative in self.files():
             key = relative.as_posix()
             if self.base_hashes.get(key) != self._cached_hash(relative):
                 changed.add(key)
-        if (len(self._hash_cache), self._hash_cache) != before:
-            self._save_hash_cache()
+        updated = {key: value for key, value in self._hash_cache.items() if before.get(key) != value}
+        if updated:
+            storage.ProjectStore(self.root).save_file_hashes(updated)
         return changed
-
-    def _load_hash_cache(self) -> None:
-        try:
-            data = json.loads((self.root / HASH_CACHE).read_text(encoding="utf-8"))
-            self._hash_cache = {key: (int(size), int(mtime), digest) for key, (size, mtime, digest) in data.items()}
-        except (OSError, ValueError, TypeError):
-            self._hash_cache = {}
-
-    def _save_hash_cache(self) -> None:
-        try:
-            (self.root / HASH_CACHE).write_text(
-                json.dumps({key: list(value) for key, value in self._hash_cache.items()}), encoding="utf-8"
-            )
-        except OSError:
-            pass
 
     def _cached_hash(self, relative: Path) -> str:
         path = self.ui_dir / relative
@@ -601,4 +595,4 @@ def projects_publishing_to(folder: str, exclude: Path | None = None) -> list[str
 def list_projects(projects_root: Path = PROJECTS_ROOT) -> list[Path]:
     if not projects_root.is_dir():
         return []
-    return sorted(path for path in projects_root.iterdir() if (path / MANIFEST).is_file())
+    return sorted(path for path in projects_root.iterdir() if storage.is_project(path))
