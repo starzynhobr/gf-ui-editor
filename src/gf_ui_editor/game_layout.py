@@ -364,6 +364,7 @@ INI_SECTIONS = {
     "storage.xml": "STORAGE",
     "maillist.xml": "MAIL",
     "tinyclock.xml": "TINYCLOCK",
+    "shortcutbar.xml": "SHORTCUT01",  # barra de atalhos flutuante
     "diary_autoacceptmission.xml": "AAMISSION",
     "race_timer.xml": "RACETIMER",
     "questtracewnd.xml": "QUESTTRACE",
@@ -450,9 +451,21 @@ def is_unused(filename: str) -> bool:
     return filename.lower() in UNUSED
 
 
+# Abas que são janelas próprias: o jogo abre a aba nova no lugar da janela principal do
+# grupo, então ela segue a regra da principal (todas têm o mesmo tamanho, 676x416).
+TAB_OF = {
+    "fellowship_familyaffairs.xml": "fellowship_family.xml",  # Guilda → Social
+    "familyachievement.xml": "fellowship_family.xml",  # Guilda → Prestígio
+    "familytreewnd.xml": "fellowship_family.xml",  # Guilda → Yggdrasil
+}
+
+
 def placement(filename: str, game_dir: Path | None = None) -> str | None:
     """Como o cliente decide onde fica a raiz: "anchor", "placed", "centered",
     "xml", "unused" ou None (ainda não mapeado)."""
+    leader = TAB_OF.get(filename.lower())
+    if leader is not None:
+        return placement(leader, game_dir)
     if rule_for(filename) is not None:
         return "anchor"
     if filename.lower() in OFF_SCREEN_ONLY:
@@ -494,6 +507,9 @@ def root_screen_position(
         return _clamp(screen[0], screen[1], rect)
     if mode == "center":
         return _center(screen[0], screen[1], rect)
+    leader = TAB_OF.get(filename.lower())
+    if leader is not None:
+        return root_screen_position(leader, screen, rect, saved, game_dir=game_dir)
     rule = rule_for(filename)
     if rule is None and saved is not None and saved_position_applies(screen, rect, saved):
         return saved[0], saved[1]

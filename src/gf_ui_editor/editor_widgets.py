@@ -552,7 +552,7 @@ class ElementItem(QGraphicsRectItem):
         self.setRect(QRectF(0, 0, max(1, rect.width()), max(1, rect.height())))
         self._update_overlays()
         self.resize_handle.setVisible(self.isSelected() and not self._locked)
-        # A textura da raiz continua onde a raiz está no XML (como em "Sem moldura"):
+        # A textura da raiz continua onde a raiz está no XML (como em "Sem tela do jogo"):
         # em várias janelas, como a da guilda, ela é o fundo dos painéis.
         self._update_texture_transform()
 

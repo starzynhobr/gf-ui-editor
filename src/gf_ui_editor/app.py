@@ -1649,21 +1649,23 @@ class EditorWindow(QMainWindow):
         self.watch_textures_action.setCheckable(True)
         self.watch_textures_action.setChecked(True)
         self.watch_textures_action.toggled.connect(self._watch_texture_files)
-        self.preview_action = QAction(self.tr("Preview do jogo"), self)
-        self.preview_action.setCheckable(True)
-        self.preview_action.setShortcut("P")
-        self.preview_action.setIcon(icon("eye"))
-        self.preview_action.setToolTip(
-            self.tr("Esconde contornos e rótulos do editor para ver a interface como no jogo (P)")
+        # Contornos ligados = tracejados e rótulos do editor; desligados = só o que o jogo desenha.
+        self.outlines_action = QAction(self.tr("Contornos"), self)
+        self.outlines_action.setCheckable(True)
+        self.outlines_action.setChecked(True)
+        self.outlines_action.setShortcut("P")
+        self.outlines_action.setIcon(icon("frame"))
+        self.outlines_action.setToolTip(
+            self.tr("Mostra os contornos tracejados e rótulos dos elementos. Desligue para ver só o que o jogo desenha (P)")
         )
-        self.preview_action.toggled.connect(self.set_preview_mode)
+        self.outlines_action.toggled.connect(lambda shown: self.set_preview_mode(not shown))
         self.resolution_actions = QActionGroup(self)
         self.resolution_actions.setExclusive(True)
         self.resolution_game_action = QAction(self.tr("Igual ao jogo (client.ini)"), self)
         self.resolution_game_action.setCheckable(True)
         self.resolution_game_action.triggered.connect(self.follow_client_resolution)
         self.resolution_actions.addAction(self.resolution_game_action)
-        self.resolution_off_action = QAction(self.tr("Sem moldura"), self)
+        self.resolution_off_action = QAction(self.tr("Sem tela do jogo (janela solta)"), self)
         self.resolution_off_action.setCheckable(True)
         self.resolution_off_action.triggered.connect(lambda: self.set_game_resolution(None))
         self.resolution_actions.addAction(self.resolution_off_action)
@@ -1797,7 +1799,7 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.reload_textures_action)
         view_menu.addAction(self.watch_textures_action)
         view_menu.addSeparator()
-        view_menu.addAction(self.preview_action)
+        view_menu.addAction(self.outlines_action)
         resolution_menu = view_menu.addMenu(self.tr("Resolução do jogo"))
         self.resolution_menu = resolution_menu
         resolution_menu.addAction(self.resolution_game_action)
@@ -2131,7 +2133,7 @@ class EditorWindow(QMainWindow):
         if self.document is not None:
             window.open_document(self.document.path)
         window.set_game_resolution(self.game_resolution)
-        window.preview_action.setChecked(self.preview_action.isChecked())
+        window.outlines_action.setChecked(self.outlines_action.isChecked())
         window.restoreGeometry(self.saveGeometry())
         window.show()
         application._main_window = window
@@ -2621,7 +2623,7 @@ class EditorWindow(QMainWindow):
             item.set_labels_visible(self.labels_action.isChecked())
             item.set_game_text(self._game_text_for(element))
             item.set_texture_visible(self.textures_action.isChecked())
-            item.set_preview_mode(self.preview_action.isChecked())
+            item.set_preview_mode(not self.outlines_action.isChecked())
             self.scene.addItem(item)
             self.items[element.index] = item
         self.game_screen_item = None
@@ -2762,11 +2764,16 @@ class EditorWindow(QMainWindow):
             layers.append(name)
         self.set_reference_layers(layers)
 
+    def _sync_layers_button(self) -> None:
+        if hasattr(self, "layers_button"):
+            self.layers_button.setChecked(bool(self.project is not None and self.project.reference_layers))
+
     def set_reference_layers(self, layers: list[str]) -> None:
         if self.project is None:
             return
         self.project.reference_layers = list(layers)
         self.project.save_manifest()
+        self._sync_layers_button()
         self._refresh_reference_layers()
         # Depois do sinal da caixa: a lista é refeita para a camada subir para o topo.
         QTimer.singleShot(0, self._refresh_files_keeping_scroll)
@@ -3138,9 +3145,9 @@ class EditorWindow(QMainWindow):
     def _sync_resolution_actions(self) -> None:
         if hasattr(self, "resolution_button"):
             if self.game_resolution is None:
-                text = self.tr("Sem moldura")
+                text = self.tr("Sem tela do jogo")
             else:
-                text = f"{self.game_resolution[0]} × {self.game_resolution[1]}"
+                text = self.tr("Tela {width} × {height}").format(width=self.game_resolution[0], height=self.game_resolution[1])
                 if self.follow_game_resolution:
                     text += " · " + self.tr("jogo")
             self.resolution_button.setText(text)
@@ -4434,12 +4441,19 @@ class EditorWindow(QMainWindow):
             bar_layout.addWidget(button)
             return button
 
-        bar_button(action=self.preview_action)
+        bar_button(action=self.outlines_action)
         self.resolution_button = bar_button()
         self.resolution_button.setIcon(icon("monitor", size=15))
         self.resolution_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.resolution_button.setMenu(self.resolution_menu)
         self.resolution_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.resolution_button.setToolTip(
+            self.tr(
+                "Tela do jogo: com uma resolução, a janela aparece onde o jogo a desenha (centralizada, "
+                "num canto ou na posição salva no User.ini) e as camadas ficam em volta. "
+                "Sem tela do jogo, a janela fica solta, no X/Y do XML."
+            )
+        )
         background_menu = QMenu(self)
         background_menu.addAction(self.builtin_background_action)
         background_menu.addAction(self.background_action)
@@ -4461,6 +4475,9 @@ class EditorWindow(QMainWindow):
         self.layers_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.layers_button.setMenu(layers_menu)
         self.layers_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.layers_button.setCheckable(True)
+        # Roxo enquanto houver camadas ligadas; clicar só abre o menu.
+        self.layers_button.clicked.connect(lambda _checked: self._sync_layers_button())
         self.layers_button.setToolTip(
             self.tr("Outras janelas do projeto, onde o jogo as desenha. Marque arquivos no painel Arquivos ou monte o HUD padrão.")
         )
@@ -5137,6 +5154,7 @@ class EditorWindow(QMainWindow):
             return
         self.project = project
         project.changes_ttl = CHANGES_TTL  # a tela pergunta várias vezes seguidas
+        self._sync_layers_button()
         self.texts_panel.set_context(project.game_dir, project.root)
         if self.document is not None and not project.contains(self.document.path):
             self.close_document()

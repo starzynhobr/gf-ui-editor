@@ -740,9 +740,9 @@ def _check_game_screen_frame(tmp_path: Path, parse_resolution) -> None:
     assert window.game_screen_item.zValue() < min(item.zValue() for item in window.items.values())
 
     item = window.items[0]
-    window.preview_action.setChecked(True)
+    window.outlines_action.setChecked(False)
     assert item.pen().style() == Qt.PenStyle.NoPen
-    window.preview_action.setChecked(False)
+    window.outlines_action.setChecked(True)
     assert item.pen().style() == Qt.PenStyle.DashLine
 
     background = tmp_path / "tela.png"
@@ -1519,4 +1519,30 @@ def test_moving_many_elements_refreshes_the_window_once(tmp_path: Path, monkeypa
     assert all(window.document.elements[index].x == new[0] for index, (_old, new) in changes.items())
     window.undo_stack.undo()
     assert len(calls) == 2
+    window.close()
+
+
+def test_guild_tabs_open_where_the_guild_window_is_and_layers_button_lights_up(tmp_path: Path) -> None:
+    from gf_ui_editor.game_layout import placement, root_screen_position, saved_section_for
+    from gf_ui_editor.project import Project
+
+    rect = (0, 0, 676, 416)
+    main = root_screen_position("Fellowship_family.xml", (1920, 1080), rect)
+    for tab in ("Fellowship_FamilyAffairs.xml", "FamilyAchievement.xml", "FamilyTreeWnd.xml"):
+        assert root_screen_position(tab, (1920, 1080), rect) == main
+        assert placement(tab) == placement("Fellowship_family.xml")
+    assert saved_section_for("ShortcutBar.xml") == "SHORTCUT01"
+
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Menu.xml").write_bytes(b'<?xml version="1.0" ?>\r\n<Root_Node><BaseWndProperty WindowID="1" /></Root_Node>\r\n')
+    project = Project.create("Botao", source, None, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    assert not window.layers_button.isChecked()
+    window.set_reference_layers(["Menu.xml"])
+    assert window.layers_button.isChecked()
+    window.set_reference_layers([])
+    assert not window.layers_button.isChecked()
     window.close()
