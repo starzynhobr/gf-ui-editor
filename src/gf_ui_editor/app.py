@@ -72,6 +72,8 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from . import game_texts
+from . import text_data
+from .texts_panel import TextsPanel
 from .editor_widgets import (
     EditorView,
     ElementItem,
@@ -1409,6 +1411,8 @@ class EditorWindow(QMainWindow):
         self.side_tabs.setDocumentMode(True)
         self.side_tabs.addTab(files_page, self.tr("Arquivos"))
         self.side_tabs.addTab(elements_page, self.tr("Elementos"))
+        self.texts_panel = TextsPanel()
+        self.side_tabs.addTab(self.texts_panel, self.tr("Textos"))
         tree_panel = self.side_tabs
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
@@ -1544,6 +1548,11 @@ class EditorWindow(QMainWindow):
         self.export_action = QAction(self.tr("Exportar UI (.zip)…"), self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self.export_project_zip)
+        self.export_action.setIcon(icon("package"))
+        self.export_action.setIconText(self.tr("Exportar .zip"))
+        self.export_action.setToolTip(
+            self.tr("Gera o .zip só com a UI, que o launcher importa em \"Add Custom UI\". Os textos não vão no .zip.")
+        )
         self.import_action = QAction(self.tr("Importar arquivos…"), self)
         self.import_action.setIcon(icon("file-import"))
         self.import_action.setToolTip(
@@ -1906,8 +1915,11 @@ class EditorWindow(QMainWindow):
                 self.breadcrumb.setObjectName("breadcrumb")
                 self.breadcrumb.setTextFormat(Qt.TextFormat.RichText)
                 self.breadcrumb_action = toolbar.addWidget(self.breadcrumb)
+        toolbar.addAction(self.export_action)
         toolbar.addAction(self.test_action)
-        for action, name in ((self.save_action, "saveButton"), (self.test_action, "accentButton")):
+        for action, name in (
+            (self.save_action, "saveButton"), (self.export_action, "saveButton"), (self.test_action, "accentButton")
+        ):
             button = toolbar.widgetForAction(action)
             button.setObjectName(name)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -5086,6 +5098,7 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Não foi possível abrir o projeto"), str(exc))
             return
         self.project = project
+        self.texts_panel.set_context(project.game_dir, project.root)
         if self.document is not None and not project.contains(self.document.path):
             self.close_document()
         QSettings("Local", "GF UI Editor").setValue("last_project", str(root))
@@ -5642,6 +5655,12 @@ class EditorWindow(QMainWindow):
             result = self._run_with_progress(
                 self.tr("Publicando no jogo…"), lambda progress: project.publish(progress=progress)
             )
+            # Textos editados vão para data/Translate; o launcher pode ter baixado os originais de novo.
+            text_edits = text_data.load_edits(project.root)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            texts_changed, text_warnings = text_data.publish_edits(
+                project.game_dir, text_edits, project.history_dir / "data" / stamp
+            ) if text_edits else (0, [])
         except OSError as exc:
             QMessageBox.critical(
                 self,
@@ -5650,12 +5669,21 @@ class EditorWindow(QMainWindow):
             )
             return
         self._update_status_chips()
-        self.statusBar().showMessage(
-            self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
-                count=result.copied_to_ui
-            ),
-            12000,
+        message = self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
+            count=result.copied_to_ui
         )
+        if texts_changed:
+            message += " " + self.tr("Textos: {count} arquivo(s) de data/Translate atualizados.").format(count=texts_changed)
+            self.texts_panel.reload()
+        self.statusBar().showMessage(message, 12000)
+        if text_warnings:
+            QMessageBox.warning(
+                self,
+                self.tr("Textos não aplicados"),
+                self.tr("Estes textos editados não existem mais no jogo (a atualização pode ter mudado os arquivos):\n\n{items}").format(
+                    items="\n".join(text_warnings[:20])
+                ),
+            )
         wanted = f"custom:{project.custom_name}"
         if result.launcher_running and result.previous_selection != wanted:
             QMessageBox.information(
