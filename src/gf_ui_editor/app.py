@@ -1263,7 +1263,9 @@ class EditorWindow(QMainWindow):
         self.search_edit.textChanged.connect(self.filter_tree)
         self.tree = QTreeWidget()
         self.tree.setObjectName("elementTree")
-        self.tree.setHeaderLabels(["WindowID", self.tr("Tipo"), "ParentNode", self.tr("Estado")])
+        # "ID" deixa a coluna do tamanho dos números; a dica diz que é o WindowID.
+        self.tree.setHeaderLabels(["ID", self.tr("Tipo"), "ParentNode", self.tr("Estado")])
+        self.tree.headerItem().setToolTip(0, "WindowID")
         self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection
@@ -1290,6 +1292,7 @@ class EditorWindow(QMainWindow):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.setTreePosition(1)  # recuo e seta de expandir no Tipo, mesmo sem WindowID
+        self.tree.setIndentation(14)
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         header.customContextMenuRequested.connect(self._tree_header_menu)
         hidden = QSettings("Local", "GF UI Editor").value("tree_hidden_columns", "2")
@@ -3337,6 +3340,8 @@ class EditorWindow(QMainWindow):
                 parent_item.addChild(item)
             else:
                 self.tree.addTopLevelItem(item)
+        # Sem hierarquia não há seta: o espaço dela no primeiro nível vira um vão antes do nome.
+        self.tree.setRootIsDecorated(any(self.tree.topLevelItem(row).childCount() for row in range(self.tree.topLevelItemCount())))
         self._refresh_tree_labels()
         self.tree.resizeColumnToContents(0)
         self.tree.resizeColumnToContents(3)
