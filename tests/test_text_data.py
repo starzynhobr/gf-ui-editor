@@ -107,3 +107,70 @@ def test_canvas_labels_show_project_edits_before_they_are_sent(tmp_path: Path) -
     window.texts_panel.edits_changed.emit()
     assert window.items[1].text_item.text == "slots remaining."  # sem enviar para o jogo
     window.close()
+
+
+def test_restore_brings_back_the_original_even_after_it_was_sent(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QApplication, QDialog
+
+    from gf_ui_editor import texts_panel
+
+    application = QApplication.instance() or QApplication([])
+    # O jogo já recebeu a edição; o original só existe no backup do envio.
+    game = _game(tmp_path, "T_TextIndex.ini", b"935|slots remaining.|\r\n")
+    project = tmp_path / "project"
+    backup = project / ".history" / "data" / "20261026-111316"
+    backup.mkdir(parents=True)
+    (backup / "T_TextIndex.ini").write_bytes(b"935|message slots remaining.|\r\n")
+    panel = texts_panel.TextsPanel()
+    panel.set_context(game, project)
+    panel.search_edit.setText("slots")
+    panel.refresh_results()
+
+    def restore(dialog):
+        dialog._restore()
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(texts_panel.TextEditDialog, "exec", restore)
+    panel._open_item(panel.results.topLevelItem(0))
+    edits = text_data.load_edits(project)["T_TextIndex.ini"]
+    assert edits["935"].fields == ["message slots remaining."]  # fica guardado para o próximo envio
+    changed, _warnings = text_data.publish_edits(game, {"T_TextIndex.ini": edits})
+    assert changed == 1
+    assert (game / "data" / "Translate" / "T_TextIndex.ini").read_bytes() == b"935|message slots remaining.|\r\n"
+    panel.close()
+
+
+def test_empty_search_lists_texts_changed_in_the_project_including_already_sent(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    from gf_ui_editor import texts_panel
+
+    application = QApplication.instance() or QApplication([])
+    game = _game(tmp_path, "T_TextIndex.ini", b"934|There are|\r\n935|slots remaining.|\r\n")
+    project = tmp_path / "project"
+    backup = project / ".history" / "data" / "20261026-111316"
+    backup.mkdir(parents=True)
+    (backup / "T_TextIndex.ini").write_bytes(b"934|There are|\r\n935|message slots remaining.|\r\n")
+    panel = texts_panel.TextsPanel()
+    panel.set_context(game, project)  # sem busca, sem edição guardada
+    assert panel.results.topLevelItemCount() == 1
+    item = panel.results.topLevelItem(0)
+    assert item.text(2) == "935" and item.text(0).startswith("◐")
+    panel.close()
+
+
+def test_text_mode_is_remembered_and_lights_up_the_bar_button() -> None:
+    from PySide6.QtWidgets import QApplication
+
+    from gf_ui_editor.app import EditorWindow
+
+    application = QApplication.instance() or QApplication([])
+    window = EditorWindow()
+    assert window.text_mode == "off" and not window.text_mode_button.isChecked()
+    window.set_text_mode("game")
+    assert window.text_mode_button.isChecked()
+    window.close()
+    reopened = EditorWindow()
+    assert reopened.text_mode == "game" and reopened.text_mode_button.isChecked()
+    assert [action.data() for action in reopened.text_mode_actions.actions() if action.isChecked()] == ["game"]
+    reopened.close()

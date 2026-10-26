@@ -176,6 +176,7 @@ from .xml_document import (
 # Áreas que o jogo desenha por código, sem textura no XML: arquivo -> x, y, largura, altura na
 # tela do jogo. A foto do BasicChar fica sempre no canto da tela, mesmo movendo a janela
 # (medida em prints do jogo, aproximada).
+TEXT_MODES = ("off", "game", "xml", "short", "long")
 # Janelas sempre visíveis no jogo, para "Montar HUD padrão".
 DEFAULT_HUD = (
     "BasicChar.xml", "Target.xml", "Radar.xml", "TinyClock.xml", "QuestTraceWnd.xml",
@@ -1610,7 +1611,9 @@ class EditorWindow(QMainWindow):
         self.labels_action.toggled.connect(self.set_labels_visible)
         # Texto no canvas como o jogo desenha. A maior parte dos textos vem do código do jogo,
         # então as amostras servem para ver se cabem na caixa.
-        self.text_mode = "off"
+        # Última escolha do usuário; o canvas é preenchido quando um arquivo abre.
+        saved_mode = str(QSettings("Local", "GF UI Editor").value("text_mode", "off"))
+        self.text_mode = saved_mode if saved_mode in TEXT_MODES else "off"
         self.text_mode_actions = QActionGroup(self)
         self.text_mode_menu = QMenu(self.tr("Texto como no jogo"), self)
         for mode, label in (
@@ -1621,7 +1624,8 @@ class EditorWindow(QMainWindow):
             ("long", self.tr("Amostra longa")),
         ):
             action = QAction(label, self, checkable=True)
-            action.setChecked(mode == "off")
+            action.setData(mode)
+            action.setChecked(mode == self.text_mode)
             action.triggered.connect(lambda _checked=False, value=mode: self.set_text_mode(value))
             self.text_mode_actions.addAction(action)
             self.text_mode_menu.addAction(action)
@@ -2667,7 +2671,14 @@ class EditorWindow(QMainWindow):
         self.set_text_mode(self.text_mode)
 
     def set_text_mode(self, mode: str) -> None:
+        if mode != self.text_mode:
+            QSettings("Local", "GF UI Editor").setValue("text_mode", mode)
         self.text_mode = mode
+        for action in self.text_mode_actions.actions():
+            action.setChecked(action.data() == mode)
+        if hasattr(self, "text_mode_button"):
+            # Roxo como os outros botões ligados da barra quando há texto no canvas.
+            self.text_mode_button.setChecked(mode != "off")
         if self.document is None:
             return
         for element in self.document.elements:
@@ -4459,6 +4470,10 @@ class EditorWindow(QMainWindow):
         self.text_mode_button.setMenu(self.text_mode_menu)
         self.text_mode_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.text_mode_button.setToolTip(self.tr("Texto como no jogo: amostras com a fonte do jogo e aviso quando não cabem"))
+        self.text_mode_button.setCheckable(True)
+        self.text_mode_button.setChecked(self.text_mode != "off")
+        # O clique abre o menu; o estado ligado/desligado vem só da escolha nele.
+        self.text_mode_button.clicked.connect(lambda _checked: self.text_mode_button.setChecked(self.text_mode != "off"))
         self.game_drawn_button.setVisible(False)
         # Aviso de posição manual: o preview deixa de seguir o jogo neste arquivo.
         self.manual_position_button = bar_button(self.tr("Posição manual · voltar ao automático"))
@@ -5686,6 +5701,13 @@ class EditorWindow(QMainWindow):
             texts_changed, text_warnings = text_data.publish_edits(
                 project.game_dir, text_edits, project.history_dir / "data" / stamp
             ) if text_edits else (0, [])
+            # Textos que voltaram ao original já foram gravados no jogo: a edição sai do projeto.
+            reverted = {
+                name: {record_id: edit for record_id, edit in records.items() if edit.fields != edit.original}
+                for name, records in text_edits.items()
+            }
+            if reverted != text_edits:
+                text_data.save_edits(project.root, reverted)
         except OSError as exc:
             QMessageBox.critical(
                 self,

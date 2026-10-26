@@ -38,7 +38,9 @@ def _one_line(value: str) -> str:
 class TextEditDialog(QDialog):
     """Editor flutuante de um registro: um campo de texto por coluna do arquivo."""
 
-    def __init__(self, text_file: TextFile, record: TextRecord, current: list[str], edited: bool, parent=None):
+    def __init__(
+        self, text_file: TextFile, record: TextRecord, current: list[str], original: list[str] | None, parent=None
+    ):
         super().__init__(parent)
         self.setWindowTitle(self.tr("{file} · ID {id}").format(file=text_file.name, id=record.record_id))
         self.text_file = text_file
@@ -60,8 +62,9 @@ class TextEditDialog(QDialog):
         hint.setStyleSheet(f"color: {COLORS['TEXT_MUTED']};")
         layout.addWidget(hint)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        if edited:
-            restore = QPushButton(self.tr("Voltar ao texto do jogo"))
+        if original is not None and original != current:
+            restore = QPushButton(self.tr("Voltar ao texto original"))
+            restore.setToolTip(_one_line(" | ".join(original)))
             restore.clicked.connect(self._restore)
             buttons.addButton(restore, QDialogButtonBox.ButtonRole.ResetRole)
         buttons.accepted.connect(self._save)
@@ -150,6 +153,7 @@ class TextsPanel(QWidget):
             self.files = None  # relê na próxima busca
         self.game_dir = game_dir
         self.project_root = project_root
+        self._baseline = None
         self.edits = text_data.load_edits(project_root) if project_root is not None else {}
         self.search_edit.setEnabled(game_dir is not None)
         self.refresh_results()
@@ -167,7 +171,33 @@ class TextsPanel(QWidget):
 
     def reload(self) -> None:
         self.files = None
+        self._baseline = None
         self.refresh_results()
+
+    def _history(self) -> dict[str, TextFile]:
+        if self._baseline is None:
+            self._baseline = text_data.history_baseline(self.project_root) if self.project_root is not None else {}
+        return self._baseline
+
+    def _changed_in_game(self, text_file: TextFile) -> set[str]:
+        """IDs cujo texto no jogo difere do backup original (enviados antes, sem edição guardada)."""
+        original = self._history().get(text_file.name)
+        if original is None:
+            return set()
+        return {
+            record_id for record_id, record in original.by_id.items()
+            if record_id in text_file.by_id and text_file.by_id[record_id].fields != record.fields
+        }
+
+    def _original_fields(self, text_file: TextFile, record: TextRecord) -> list[str] | None:
+        """Texto antes de qualquer edição: o guardado na edição ou, se não houver, o do
+        backup mais antigo do envio. None quando o jogo nunca recebeu edição deste texto."""
+        edit = self.edits.get(text_file.name, {}).get(record.record_id)
+        if edit is not None and edit.original:
+            return list(edit.original)
+        original = self._history().get(text_file.name)
+        backup = original.by_id.get(record.record_id) if original is not None else None
+        return list(backup.fields) if backup is not None else None
 
     def _current_fields(self, text_file: TextFile, record: TextRecord) -> tuple[list[str], bool]:
         edit = self.edits.get(text_file.name, {}).get(record.record_id)
@@ -179,18 +209,19 @@ class TextsPanel(QWidget):
             self.summary.setText(self.tr("Defina a pasta do jogo no projeto para ver os textos."))
             return
         query = self.search_edit.text().strip()
-        edited_only = self.edited_only.isChecked()
-        if not query and not edited_only:
-            count = sum(len(records) for records in self.edits.values())
-            self.summary.setText(
-                self.tr("Digite para buscar em data/Translate. {count} texto(s) editado(s) neste projeto.").format(count=count)
-            )
+        # Sem busca, a aba mostra o que este projeto já mudou (editado ou já enviado).
+        edited_only = self.edited_only.isChecked() or not query
+        if not query and not self.edits and not (self.project_root and (self.project_root / ".history" / "data").is_dir()):
+            self.summary.setText(self.tr("Digite para buscar em data/Translate."))
             return
         matches: list[tuple[TextFile, TextRecord]] = []
+        changed_in_game: dict[str, set[str]] = {}
         for text_file in self._ensure_loaded():
             edited = self.edits.get(text_file.name, {})
+            changed_in_game[text_file.name] = self._changed_in_game(text_file)
             if edited_only:
-                candidates = [text_file.by_id[record_id] for record_id in edited if record_id in text_file.by_id]
+                ids = list(edited) + sorted(changed_in_game[text_file.name] - set(edited), key=lambda value: int(value))
+                candidates = [text_file.by_id[record_id] for record_id in ids if record_id in text_file.by_id]
                 if query:
                     lowered = query.lower()
                     candidates = [
@@ -215,8 +246,19 @@ class TextsPanel(QWidget):
             if edited:
                 item.setText(0, "● " + item.text(0))
                 item.setForeground(0, QColor(COLORS["ACCENT_TEXT"]))
+            elif record.record_id in changed_in_game.get(text_file.name, set()):
+                item.setText(0, "◐ " + item.text(0))
+                item.setForeground(0, QColor(COLORS["WARNING_TEXT"]))
+                item.setToolTip(0, self.tr(
+                    "O jogo está com um texto diferente do original (backup do primeiro envio), "
+                    "mas não há edição guardada neste projeto. Abra para voltar ao original."
+                ) + "\n\n" + "\n".join(fields))
             self.results.addTopLevelItem(item)
-        if len(matches) > RESULT_LIMIT:
+        if not query and not matches:
+            self.summary.setText(self.tr("Digite para buscar em data/Translate. Nenhum texto editado neste projeto."))
+        elif not query:
+            self.summary.setText(self.tr("{total} texto(s) mudado(s) neste projeto. Digite para buscar em todos.").format(total=len(matches)))
+        elif len(matches) > RESULT_LIMIT:
             self.summary.setText(self.tr("{total} resultados; mostrando os primeiros {shown}.").format(total=len(matches), shown=RESULT_LIMIT))
         else:
             self.summary.setText(self.tr("{total} resultado(s).").format(total=len(matches)))
@@ -230,16 +272,21 @@ class TextsPanel(QWidget):
         record = text_file.by_id.get(record_id) if text_file is not None else None
         if text_file is None or record is None:
             return
-        fields, edited = self._current_fields(text_file, record)
-        dialog = TextEditDialog(text_file, record, fields, edited, self)
+        fields, _edited = self._current_fields(text_file, record)
+        original = self._original_fields(text_file, record)
+        dialog = TextEditDialog(text_file, record, fields, original, self)
         dialog.move(QCursor.pos() + QPoint(12, 12))
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         records = self.edits.setdefault(name, {})
-        if dialog.restore_requested or dialog.values() == record.fields:
-            records.pop(record_id, None)
+        original = original if original is not None else list(record.fields)
+        values = list(original) if dialog.restore_requested else dialog.values()
+        if values == record.fields and values == original:
+            records.pop(record_id, None)  # jogo e original iguais: não há o que guardar
         else:
-            records[record_id] = TextEdit(dialog.values(), list(record.fields))
+            # Mesmo voltando ao original, a edição fica: o jogo pode estar com o texto
+            # enviado antes, e o próximo envio precisa gravar o original de volta.
+            records[record_id] = TextEdit(values, list(original))
         text_data.save_edits(self.project_root, self.edits)
         self.refresh_results()
         self.edits_changed.emit()

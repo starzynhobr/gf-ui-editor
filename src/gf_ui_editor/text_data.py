@@ -144,6 +144,31 @@ def save_edits(project_root: Path, edits: dict[str, dict[str, TextEdit]]) -> Non
     })
 
 
+def history_baseline(project_root: Path) -> dict[str, TextFile]:
+    """Arquivos do jogo como estavam antes do primeiro envio (backup mais antigo de cada um).
+
+    Cada envio guarda em .history/data/<data-hora> o arquivo do jogo de antes de aplicar as
+    edições; o mais antigo de cada arquivo tem o texto original, mesmo que a edição tenha
+    sido desfeita no meio do caminho.
+    """
+    folder = project_root / ".history" / "data"
+    baseline: dict[str, TextFile] = {}
+    if not folder.is_dir():
+        return baseline
+    for snapshot in sorted(path for path in folder.iterdir() if path.is_dir()):
+        for candidate in snapshot.glob("*.ini"):
+            if candidate.name not in baseline:
+                baseline[candidate.name] = TextFile.load(candidate)
+    return baseline
+
+
+def history_original(project_root: Path, file_name: str, record_id: str) -> list[str] | None:
+    """Campos do registro no backup mais antigo em .history/data, se houver."""
+    text_file = history_baseline(project_root).get(file_name)
+    record = text_file.by_id.get(record_id) if text_file is not None else None
+    return list(record.fields) if record is not None else None
+
+
 def publish_edits(
     game_dir: Path, edits: dict[str, dict[str, TextEdit]], backup_dir: Path | None = None
 ) -> tuple[int, list[str]]:
