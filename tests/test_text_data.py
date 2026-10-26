@@ -75,3 +75,35 @@ def test_texts_tab_searches_and_saves_edits_in_the_project(tmp_path: Path, monke
     assert panel.results.topLevelItem(0).text(0).startswith("●")  # marcado como editado
     assert (game / "data" / "Translate" / "T_Item.ini").read_bytes() == ITEMS.encode("cp1252")  # jogo só muda ao enviar
     panel.close()
+
+
+def test_canvas_labels_show_project_edits_before_they_are_sent(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    from gf_ui_editor.app import EditorWindow
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    game = _game(tmp_path, "T_TextIndex.ini", b"935|message slots remaining.|\r\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Fellowship_FamilyAffairs.xml").write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Fellowship_FamilyAffairs.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="300" WindowWidth="200">'
+        b'<Container_Node Child_Cnt="1"><Style ParentNode="1" CtrlType="2" />'
+        b'<BaseWndProperty WindowID="29" WindowLeft="4" WindowTop="4" WindowHeight="120" WindowWidth="12">'
+        b'<BaseCtrlProperty FontColor="16777215" FontStyle="0" /><TextNode TextAlign="0" /></BaseWndProperty>'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    project = Project.create("Textos", source, game, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Fellowship_FamilyAffairs.xml")
+    window.set_text_mode("game")
+    label = window.items[1].text_item
+    assert label.text == "message slots remaining."
+
+    text_data.save_edits(project.root, {"T_TextIndex.ini": {"935": TextEdit(["slots remaining."], ["message slots remaining."])}})
+    window.texts_panel.edits_changed.emit()
+    assert window.items[1].text_item.text == "slots remaining."  # sem enviar para o jogo
+    window.close()

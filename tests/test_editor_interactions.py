@@ -1492,3 +1492,31 @@ def test_state_icons_in_the_element_list_hide_lock_and_isolate(tmp_path: Path) -
     window.isolation_button.click()
     assert window.isolated_index is None and window.isolation_button.isHidden()
     window.close()
+
+
+def test_moving_many_elements_refreshes_the_window_once(tmp_path: Path, monkeypatch) -> None:
+    application = QApplication.instance() or QApplication([])
+    children = "".join(
+        f'<Style ParentNode="1" CtrlType="1" /><BaseWndProperty WindowID="{100 + n}" WindowLeft="{n}" WindowTop="0" WindowHeight="5" WindowWidth="5" />'
+        for n in range(60)
+    )
+    path = tmp_path / "Muitos.xml"
+    path.write_bytes(
+        ('<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Muitos.xml">\r\n'
+         '<BaseWndProperty WindowID="1" WindowHeight="300" WindowWidth="100">'
+         f'<Container_Node Child_Cnt="60">{children}</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n').encode("big5")
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    calls = []
+    monkeypatch.setattr(window, "_update_title", lambda: calls.append(1))
+    changes = {
+        element.index: (element.geometry, (element.x + 3, element.y, element.width, element.height))
+        for element in window.document.elements[1:]
+    }
+    window.elements_dragged(changes)
+    assert len(calls) == 1  # antes: uma vez por elemento (segundos ao soltar 150 elementos)
+    assert all(window.document.elements[index].x == new[0] for index, (_old, new) in changes.items())
+    window.undo_stack.undo()
+    assert len(calls) == 2
+    window.close()

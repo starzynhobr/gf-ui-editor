@@ -122,6 +122,7 @@ from .game_updates import (
 from . import release_notes, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
+    CHANGES_TTL,
     PROJECTS_ROOT,
     Project,
     custom_ui_sources,
@@ -1157,12 +1158,10 @@ class GeometryBatchCommand(QUndoCommand):
         self.changes = changes
 
     def redo(self) -> None:
-        for index, (_old, new) in self.changes.items():
-            self.window.apply_geometry(index, new)
+        self.window.apply_geometries({index: new for index, (_old, new) in self.changes.items()})
 
     def undo(self) -> None:
-        for index, (old, _new) in self.changes.items():
-            self.window.apply_geometry(index, old)
+        self.window.apply_geometries({index: old for index, (old, _new) in self.changes.items()})
 
 
 class UVCommand(QUndoCommand):
@@ -1412,6 +1411,8 @@ class EditorWindow(QMainWindow):
         self.side_tabs.addTab(files_page, self.tr("Arquivos"))
         self.side_tabs.addTab(elements_page, self.tr("Elementos"))
         self.texts_panel = TextsPanel()
+        self.texts_panel.edits_changed.connect(self._text_edits_changed)
+        self._text_overrides_version = 0
         self.side_tabs.addTab(self.texts_panel, self.tr("Textos"))
         tree_panel = self.side_tabs
         self.properties = PropertyPanel()
@@ -2538,7 +2539,7 @@ class EditorWindow(QMainWindow):
         if self.project is not None and self.project.contains(document.path):
             QSettings("Local", "GF UI Editor").setValue(
                 f"last_file/{self.project.custom_name}",
-                document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix(),
+                self.project.relative_key(document.path),
             )
         self._texture_generation += 1
         ui_directory = document.path.parent.resolve()
@@ -2647,11 +2648,23 @@ class EditorWindow(QMainWindow):
     def _game_labels(self) -> dict[str, str]:
         if self.document is None:
             return {}
-        key = (self.document.path.name.lower(), self._document_game_dir())
+        key = (self.document.path.name.lower(), self._document_game_dir(), self._text_overrides_version)
         if getattr(self, "_game_labels_key", None) != key:
             self._game_labels_key = key
-            self._game_labels_cache = game_texts.labels_for(key[0], key[1])
+            self._game_labels_cache = game_texts.labels_for(key[0], key[1], self._text_overrides())
         return self._game_labels_cache
+
+    def _text_overrides(self) -> dict[int, str]:
+        """Textos do T_TextIndex editados no projeto (TextID -> texto), que valem antes do jogo."""
+        if self.project is None:
+            return {}
+        edits = text_data.load_edits(self.project.root).get("T_TextIndex.ini", {})
+        return {int(text_id): edit.fields[0] for text_id, edit in edits.items() if text_id.isdigit() and edit.fields}
+
+    def _text_edits_changed(self) -> None:
+        # Edição salva na aba Textos: o canvas e as camadas mostram o texto novo na hora.
+        self._text_overrides_version += 1
+        self.set_text_mode(self.text_mode)
 
     def set_text_mode(self, mode: str) -> None:
         self.text_mode = mode
@@ -2712,7 +2725,7 @@ class EditorWindow(QMainWindow):
                 name, self.game_resolution, root.geometry, positions.get(section) if section else None,
                 mode=self.project.root_modes.get(name, "auto"), game_dir=game_dir,
             )
-            labels = game_texts.labels_for(name, game_dir) if self.text_mode == "game" else {}
+            labels = game_texts.labels_for(name, game_dir, self._text_overrides()) if self.text_mode == "game" else {}
             # Mesmo espaço do XML para todos os elementos: tela = raiz na tela + (elemento - raiz).
             origin = screen + QPointF(screen_x - root.x, screen_y - root.y)
             layer = ReferenceLayerItem(name, QRectF())
@@ -3068,7 +3081,7 @@ class EditorWindow(QMainWindow):
     def _root_mode_key(self) -> str:
         assert self.document is not None
         if self.project is not None and self.project.contains(self.document.path):
-            return self.document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+            return self.project.relative_key(self.document.path)
         return self.document.path.name.lower()
 
     def _root_mode(self) -> str:
@@ -3611,15 +3624,23 @@ class EditorWindow(QMainWindow):
             self.statusBar().showMessage(self.tr("Os elementos selecionados estão bloqueados."), 3000)
 
     def apply_geometry(self, index: int, geometry: tuple[int, int, int, int]) -> None:
+        self.apply_geometries({index: geometry})
+
+    def apply_geometries(self, geometries: dict[int, tuple[int, int, int, int]]) -> None:
+        """Aplica várias geometrias e só então atualiza tela, painel e título, uma vez.
+
+        Arrastar 150 elementos chamava tudo isso 150 vezes ao soltar (vários segundos).
+        """
         assert self.document is not None
-        self.document.set_geometry(index, geometry)
-        self.items[index].apply_element(self.document.elements[index])
-        if index == 0:
+        for index, geometry in geometries.items():
+            self.document.set_geometry(index, geometry)
+            self.items[index].apply_element(self.document.elements[index])
+        if 0 in geometries:
             self._place_game_screen()
         else:
             self._sync_window_frame()
-        if self.selected_index == index:
-            self.properties.set_element(self.document.elements[index])
+        if self.selected_index in geometries:
+            self.properties.set_element(self.document.elements[self.selected_index])
             self._refresh_screen_position()
         elif self.selected_index == 0:
             self._refresh_screen_position()  # a moldura acompanha o conteúdo
@@ -4195,6 +4216,8 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Falha ao salvar"), document_error_text(exc))
             return
         self.undo_stack.clear()
+        if self.project is not None:
+            self.project.invalidate_changes()
         self._update_title()
         if in_project:
             self.project.prune_history(self.document.path)
@@ -4686,7 +4709,7 @@ class EditorWindow(QMainWindow):
         if self.document is None:
             return None
         if self.project is not None and self.project.contains(self.document.path):
-            return self.document.path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix().lower()
+            return self.project.relative_key(self.document.path).lower()
         return self.document.path.name.lower()
 
     def _update_official_banner(self) -> None:
@@ -4715,7 +4738,7 @@ class EditorWindow(QMainWindow):
         project, key = self.project, self._official_key()
         if project is None or project.game_dir is None or key is None or self.document is None:
             return
-        relative = self.document.path.resolve().relative_to(project.ui_dir.resolve()).as_posix()
+        relative = project.relative_key(self.document.path)
         diff = file_diff(project.game_dir, project.ui_dir, relative, self._project_base_bytes)
         if diff is None:
             self._official_diffs.pop(key, None)
@@ -5098,6 +5121,7 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Não foi possível abrir o projeto"), str(exc))
             return
         self.project = project
+        project.changes_ttl = CHANGES_TTL  # a tela pergunta várias vezes seguidas
         self.texts_panel.set_context(project.game_dir, project.root)
         if self.document is not None and not project.contains(self.document.path):
             self.close_document()
@@ -5289,7 +5313,7 @@ class EditorWindow(QMainWindow):
         # O clique na caixa também dispara itemClicked: não abre o arquivo nesse caso.
         self._layer_click = True
         QTimer.singleShot(0, lambda: setattr(self, "_layer_click", False))
-        name = Path(data).resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+        name = self.project.relative_key(Path(data))
         checked = item.checkState(0) == Qt.CheckState.Checked
         self.set_reference_layer(name, checked)
         # O mesmo arquivo aparece em "Alterados" e "Todos": mantém as duas caixas iguais.
@@ -5501,6 +5525,7 @@ class EditorWindow(QMainWindow):
             self.project.remember_original(path)
             shutil.copy2(path, self.project.history_path_for(path))
             path.write_bytes(changed.encode("big5"))
+        self.project.invalidate_changes()
 
     def delete_project_file(self, path: Path) -> None:
         if self.project is None:
@@ -5508,7 +5533,7 @@ class EditorWindow(QMainWindow):
         details = self.tr("Uma cópia fica no histórico do projeto.")
         game_dir = self.project.game_dir
         if path.suffix.lower() == ".xml" and game_dir is not None:
-            relative = path.resolve().relative_to(self.project.ui_dir.resolve()).as_posix()
+            relative = self.project.relative_key(path)
             if official_text_for(game_dir, relative) is not None:
                 details = self.tr(
                     "Este arquivo existe na UI oficial: sem ele, o jogo pode usar o da UI padrão ou acusar erro. "

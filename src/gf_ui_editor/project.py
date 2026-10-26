@@ -19,6 +19,7 @@ from datetime import datetime
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 import re
 import shutil
@@ -27,6 +28,7 @@ import zipfile
 
 PROJECTS_ROOT = Path.home() / "Documents" / "GF UI Projects"
 MANIFEST = "project.json"
+CHANGES_TTL = 2.0
 HASH_CACHE = ".hash-cache.json"
 ORIGINAL_NAME = "original"
 HISTORY_LIMIT = 20
@@ -114,6 +116,9 @@ class Project:
     # (tamanho, mtime) -> hash, para não reler arquivos que não mudaram.
     _hash_cache: dict[str, tuple[int, int, str]] = field(default_factory=dict, repr=False)
     _files: list[Path] | None = field(default=None, repr=False)
+    changes_ttl: float = field(default=0.0, repr=False)
+    _changes_memo: tuple[float, frozenset[str]] | None = field(default=None, repr=False)
+    _unpublished_memo: tuple[float, frozenset[str]] | None = field(default=None, repr=False)
 
     @property
     def ui_dir(self) -> Path:
@@ -190,13 +195,32 @@ class Project:
 
     # ---- estado ------------------------------------------------------------
     def files(self, refresh: bool = False) -> list[Path]:
+        if refresh:
+            self.invalidate_changes()
         """Lista em cache; `refresh=True` relê a pasta (arquivos criados/apagados fora)."""
         if refresh or self._files is None:
             self._files = _ui_files(self.ui_dir, self.include_assets)
         return self._files
 
+    def invalidate_changes(self) -> None:
+        """Esquece o resultado guardado de modified_files/unpublished_files (algo foi gravado)."""
+        self._changes_memo = None
+        self._unpublished_memo = None
+
     def modified_files(self) -> set[str]:
-        """Arquivos alterados ou criados desde a criação do projeto."""
+        """Arquivos alterados ou criados desde a criação do projeto.
+
+        Olhar os ~700 arquivos custa caro e a tela pergunta várias vezes seguidas: o
+        resultado vale por `changes_ttl` segundos (o app usa CHANGES_TTL; 0 = sempre exato)
+        ou até invalidate_changes().
+        """
+        if self._changes_memo is not None and time.monotonic() - self._changes_memo[0] < self.changes_ttl:
+            return set(self._changes_memo[1])
+        changed = self._compute_modified_files()
+        self._changes_memo = (time.monotonic(), frozenset(changed))
+        return changed
+
+    def _compute_modified_files(self) -> set[str]:
         if not self._hash_cache:
             self._load_hash_cache()
         before = len(self._hash_cache), dict(self._hash_cache)
@@ -283,6 +307,7 @@ class Project:
 
     def restore(self, file_path: Path, source: Path) -> Path:
         """Substitui o arquivo por `source`, guardando antes o estado atual no histórico."""
+        self.invalidate_changes()
         backup = self.history_path_for(file_path)
         shutil.copy2(file_path, backup)
         temporary = file_path.with_name(f".{file_path.name}.gf-ui-editor.tmp")
@@ -300,6 +325,7 @@ class Project:
 
     def import_file(self, source: Path) -> tuple[Path, Path | None]:
         """Copia `source` para o projeto. Devolve o destino e o backup do arquivo substituído."""
+        self.invalidate_changes()
         target = self.import_target(source)
         if target.exists():
             self.remember_original(target)
@@ -313,6 +339,7 @@ class Project:
     def rename_file(self, file_path: Path, new_name: str) -> tuple[Path, Path | None]:
         """Renomeia na mesma pasta. Se já existir um arquivo com o nome novo, ele vai
         para o histórico antes de ser substituído. Devolve o destino e esse backup."""
+        self.invalidate_changes()
         target = file_path.with_name(new_name)
         backup = None
         same_file = os.path.normcase(str(target)) == os.path.normcase(str(file_path))
@@ -327,6 +354,7 @@ class Project:
 
     def delete_file(self, file_path: Path) -> Path:
         """Tira o arquivo do projeto, guardando uma cópia no histórico. Devolve a cópia."""
+        self.invalidate_changes()
         self.remember_original(file_path)
         backup = self.history_path_for(file_path)
         shutil.copy2(file_path, backup)
@@ -335,11 +363,13 @@ class Project:
         return backup
 
     def contains(self, file_path: Path) -> bool:
-        try:
-            file_path.resolve().relative_to(self.ui_dir.resolve())
-        except ValueError:
-            return False
-        return True
+        # Comparação de texto: Path.resolve() consulta o disco e era chamado centenas de vezes.
+        root = os.path.normcase(os.path.abspath(self.ui_dir)) + os.sep
+        return os.path.normcase(os.path.abspath(file_path)).startswith(root)
+
+    def relative_key(self, file_path: Path) -> str:
+        """Caminho de um arquivo do projeto relativo a ui/, com barras normais."""
+        return Path(os.path.relpath(os.path.abspath(file_path), os.path.abspath(self.ui_dir))).as_posix()
 
     # ---- saída -------------------------------------------------------------
     def export_zip(self, destination: Path, progress: Progress = None) -> Path:
@@ -357,6 +387,7 @@ class Project:
         self, *, copy_to_ui: bool = True, select_in_launcher: bool = True, progress: Progress = None
     ) -> PublishResult:
         """Atualiza `UICustom/<nome>` (espelho exato) e, opcionalmente, `UI/`."""
+        self.invalidate_changes()
         if self.game_dir is None:
             raise ValueError("Projeto sem pasta do jogo.")
         custom_dir = self.game_dir / "UICustom" / self.custom_name
@@ -395,6 +426,14 @@ class Project:
         """Arquivos alterados no projeto cujo conteúdo difere do que está na pasta UI do jogo."""
         if self.game_dir is None:
             return set()
+        if self._unpublished_memo is not None and time.monotonic() - self._unpublished_memo[0] < self.changes_ttl:
+            return set(self._unpublished_memo[1])
+        pending = self._compute_unpublished_files()
+        self._unpublished_memo = (time.monotonic(), frozenset(pending))
+        return pending
+
+    def _compute_unpublished_files(self) -> set[str]:
+        assert self.game_dir is not None
         pending: set[str] = set()
         for key in self.modified_files():
             source = self.ui_dir / key

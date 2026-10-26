@@ -56,11 +56,17 @@ def text_ids_for(xml_name: str) -> dict[str, int]:
     return result
 
 
-def labels_for(xml_name: str, game_dir: Path | None) -> dict[str, str]:
-    """WindowID -> texto que o jogo mostra; vazio sem a pasta do jogo."""
+def labels_for(xml_name: str, game_dir: Path | None, overrides: dict[int, str] | None = None) -> dict[str, str]:
+    """WindowID -> texto que o jogo mostra; vazio sem a pasta do jogo.
+
+    `overrides` (TextID -> texto) são as edições do projeto: valem antes do arquivo do
+    jogo, para o canvas mostrar o texto novo antes de enviar.
+    """
     if game_dir is None:
         return {}
     texts = text_index(game_dir)
+    if overrides:
+        texts = {**texts, **overrides}
     return {
         window_id: texts[text_id]
         for window_id, text_id in text_ids_for(xml_name).items()
