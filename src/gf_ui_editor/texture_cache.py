@@ -131,6 +131,17 @@ class TextureCache:
             self.missing.add(texture_name)
             return None
 
+    def region_pixmap(self, texture_name: str, rect: tuple[int, int, int, int]) -> QPixmap | None:
+        """Recorte (x, y, largura, altura) de uma textura, para o que o jogo desenha pelo código."""
+        texture_path = self.path_for(texture_name)
+        if texture_path is None:
+            return None
+        try:
+            x, y, width, height = rect
+            return QPixmap.fromImage(ImageQt(self._source_image(texture_path).crop((x, y, x + width, y + height))))
+        except Exception:
+            return None
+
     def pixmap_for(self, element: UIElement) -> QPixmap | None:
         if not element.texture_name or not element.uv:
             return None

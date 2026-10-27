@@ -71,7 +71,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
-from . import game_texts
+from . import game_texts, player_sample
 from . import storage, text_data
 from .texts_panel import TextsPanel
 from .editor_widgets import (
@@ -1683,12 +1683,15 @@ class EditorWindow(QMainWindow):
             self.tr("Janelas arrastadas no jogo ficam na posição gravada no User.ini da pasta do jogo")
         )
         self.saved_positions_action.toggled.connect(lambda _checked: self._place_game_screen())
-        # Marcação das áreas que o jogo desenha sozinho (foto do personagem): ajuda a encaixar a
-        # moldura, mas polui a tela quando não se está mexendo nisso.
-        self.game_drawn_action = QAction(self.tr("Foto"), self)
+        # O que o jogo desenha sozinho com os dados do personagem (foto, nick, nível, ícones):
+        # ajuda a encaixar a moldura, mas polui a tela quando não se está mexendo nisso.
+        self.game_drawn_action = QAction(self.tr("Personagem"), self)
         self.game_drawn_action.setCheckable(True)
         self.game_drawn_action.setChecked(True)
-        self.game_drawn_action.setToolTip(self.tr("Mostrar onde o jogo desenha a foto do personagem"))
+        self.game_drawn_action.setToolTip(self.tr(
+            "Mostrar um personagem de exemplo onde o jogo desenha os dados dele: foto, nick com "
+            "{max} caracteres (o máximo do jogo), nível, HP/MP, classe e reencarnação"
+        ).format(max=player_sample.NICK_MAX_LENGTH))
         self.game_drawn_action.toggled.connect(self._sync_game_drawn_visibility)
         self.background_actions = QActionGroup(self)
         self.background_actions.setExclusive(True)
@@ -2612,7 +2615,7 @@ class EditorWindow(QMainWindow):
                 else None
             )
             item = ElementItem(
-                element, pixmap, self._canvas_selection_changed, self.elements_dragged
+                element, self._sample_pixmap(element) or pixmap, self._canvas_selection_changed, self.elements_dragged
             )
             item.set_labels_visible(self.labels_action.isChecked())
             item.set_game_text(self._game_text_for(element))
@@ -2625,7 +2628,23 @@ class EditorWindow(QMainWindow):
         self.ghost_item = None  # a cena foi refeita
         self._refresh_game_screen()
 
+    def _sample_visible(self) -> bool:
+        return hasattr(self, "game_drawn_action") and self.game_drawn_action.isChecked()
+
+    def _sample_pixmap(self, element, xml_name: str | None = None) -> QPixmap | None:
+        """Ícone que o jogo põe pelo código (classe, reencarnação), com o personagem de exemplo."""
+        if self.texture_cache is None or not self._sample_visible():
+            return None
+        name = xml_name or (self.document.path.name if self.document is not None else "")
+        icon = player_sample.sample_icon(name, element.window_id)
+        return self.texture_cache.region_pixmap(*icon) if icon is not None else None
+
     def _game_text_for(self, element) -> str:
+        if self.document is not None and self._sample_visible():
+            # Nick, nível e HP/MP vêm dos dados do jogador, não do XML nem do T_TextIndex.
+            sample = player_sample.sample_text(self.document.path.name, element.window_id)
+            if sample:
+                return sample
         if self.text_mode == "off":
             return ""
         if self.text_mode == "game":
@@ -2743,9 +2762,11 @@ class EditorWindow(QMainWindow):
                     continue
                 takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
                 text = labels.get(element.window_id, element.window_text if takes_text else "")
+                if self._sample_visible():
+                    text = player_sample.sample_text(name, element.window_id) or text
                 layer.add_control(
                     QRectF(element.x, element.y, element.width, element.height),
-                    self.texture_cache.pixmap_for(element),
+                    self._sample_pixmap(element, name) or self.texture_cache.pixmap_for(element),
                     text, element.text_props, "ButtonNode" in element.child_tags,
                 )
             self.scene.addItem(layer)
@@ -2876,11 +2897,23 @@ class EditorWindow(QMainWindow):
         self._sync_manual_position_warning()
         self._refresh_screen_position()
 
-    def _sync_game_drawn_visibility(self, _checked: bool = False) -> None:
+    def _sync_game_drawn_visibility(self, checked: bool | None = None) -> None:
         if self.game_drawn_item is not None:
             self.game_drawn_item.setVisible(self.game_drawn_action.isChecked())
+        has_sample = self.document is not None and player_sample.has_sample(self.document.path.name)
         if hasattr(self, "game_drawn_button"):
-            self.game_drawn_button.setVisible(self.game_drawn_item is not None)
+            self.game_drawn_button.setVisible(self.game_drawn_item is not None or has_sample)
+        if checked is None or self.document is None:
+            return
+        # Ligou/desligou o personagem de exemplo: textos e ícones do arquivo e das camadas.
+        for element in self.document.elements:
+            item = self.items.get(element.index)
+            if item is None:
+                continue
+            item.set_game_text(self._game_text_for(element))
+            if player_sample.sample_icon(self.document.path.name, element.window_id) is not None:
+                self._refresh_element_texture(element.index)
+        self._refresh_reference_layers()
 
     def _sync_manual_position_warning(self) -> None:
         if not hasattr(self, "manual_position_button"):
@@ -3935,7 +3968,7 @@ class EditorWindow(QMainWindow):
         element = self.document.elements[index]
         if element.texture_name in self._textures_pending:
             return
-        self.items[index].set_pixmap(self.texture_cache.pixmap_for(element))
+        self.items[index].set_pixmap(self._sample_pixmap(element) or self.texture_cache.pixmap_for(element))
 
     def reload_all_textures(self) -> None:
         if self.project is not None:

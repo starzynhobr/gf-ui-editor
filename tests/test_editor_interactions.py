@@ -1313,7 +1313,40 @@ def test_portrait_marker_can_be_hidden_from_the_floating_bar(tmp_path: Path) -> 
     window.game_drawn_action.setChecked(True)
     assert window.game_drawn_item.isVisible()
     window.set_game_resolution(None)
-    assert window.game_drawn_item is None and window.game_drawn_button.isHidden()
+    # Sem tela não há foto, mas o botão fica para o nick, o nível e os ícones de exemplo.
+    assert window.game_drawn_item is None and not window.game_drawn_button.isHidden()
+    window.close()
+
+
+def test_basicchar_shows_a_sample_character_that_the_bar_button_hides(tmp_path: Path) -> None:
+    from PIL import Image
+
+    from gf_ui_editor import player_sample
+
+    application = QApplication.instance() or QApplication([])
+    Image.new("RGBA", (300, 540), (255, 0, 0, 255)).save(tmp_path / "main.dds", format="DDS")
+    path = tmp_path / "BasicChar.xml"
+    path.write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="BasicChar.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="88" WindowWidth="255"><Container_Node Child_Cnt="2">'
+        b'<Style ParentNode="1" CtrlType="33554432" />'
+        b'<BaseWndProperty WindowID="5010" WindowLeft="193" WindowTop="14" WindowHeight="0" WindowWidth="0">'
+        b'<BaseCtrlProperty FontColor="65535" FontStyle="1" /><TextNode TextAlign="1" /></BaseWndProperty>'
+        b'<Style ParentNode="1" CtrlType="268435456" />'
+        b'<BaseWndProperty WindowID="4011" WindowLeft="105" WindowTop="33" WindowHeight="20" WindowWidth="20">'
+        b'<BackGroundMap BGmap="Slot32.dds" /></BaseWndProperty>'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    window = EditorWindow()
+    window.open_document(path)
+    application.processEvents()
+    nick, rebirth = (window.items[index] for index in (1, 2))
+    assert len(player_sample.SAMPLE_NICK) == player_sample.NICK_MAX_LENGTH
+    assert nick.text_item is not None and nick.text_item.text == player_sample.SAMPLE_NICK
+    assert rebirth.texture_item is not None and rebirth.texture_item.pixmap().width() == 20
+    window.game_drawn_action.setChecked(False)
+    assert not nick.text_item.text
+    assert rebirth.texture_item is None or not rebirth.texture_item.isVisible()
     window.close()
 
 
