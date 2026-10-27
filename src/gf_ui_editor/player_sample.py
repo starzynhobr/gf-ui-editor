@@ -24,6 +24,14 @@ SAMPLE_TEXTS: dict[str, dict[str, str]] = {
         "5060": "96431/96431",
         "5070": "34494/34494",
     },
+    # CTargetWnd (FUN_00885b70): nível no 2020, "%d/%d" de HP e MP no 3100 e 3200. O nome
+    # vai no 2000, o único texto do quadro de cima que o código não preenche com número.
+    "target.xml": {
+        "2000": SAMPLE_NICK,
+        "2020": "100",
+        "3100": "96431/96431",
+        "3200": "34494/34494",
+    },
 }
 
 # arquivo -> WindowID -> (textura, (x, y, largura, altura))
