@@ -51,7 +51,10 @@ class TextFile:
         # O cliente lê estes arquivos na página de código do Windows (cp1252): os acentos
         # de T_Item, T_TextIndex etc. estão nela. Bytes sem caractere voltam iguais ao gravar.
         encoding = GAME_ENCODING
-        text = path.read_bytes().decode(encoding, "surrogateescape")
+        return cls.from_text(path, encoding, path.read_bytes().decode(encoding, "surrogateescape"))
+
+    @classmethod
+    def from_text(cls, path: Path, encoding: str, text: str) -> "TextFile":
         records = parse_records(text)
         loaded = cls(path, encoding, text, records)
         for record in records:
@@ -191,6 +194,101 @@ def history_original(project_root: Path, file_name: str, record_id: str) -> list
     text_file = history_baseline(project_root).get(file_name)
     record = text_file.by_id.get(record_id) if text_file is not None else None
     return list(record.fields) if record is not None else None
+
+
+@dataclass
+class TextImport:
+    """O que importar de uma pasta com T_*.ini já alterados, comparado ID a ID com o jogo."""
+
+    edits: dict[str, dict[str, TextEdit]] = field(default_factory=dict)  # só o que muda no projeto
+    replaced: int = 0  # já havia outra edição guardada para o ID
+    missing_ids: int = 0  # IDs que o jogo não tem mais
+    unsupported: int = 0  # texto com caractere fora da página de código do jogo
+    unknown_files: list[str] = field(default_factory=list)  # arquivos que o jogo não tem
+
+    @property
+    def count(self) -> int:
+        return sum(len(records) for records in self.edits.values())
+
+
+def import_source_folder(folder: Path) -> Path:
+    """Aceita a própria pasta Translate, a pasta data ou a pasta do jogo."""
+    for candidate in (folder / TRANSLATE_DIR, folder / TRANSLATE_DIR.name):
+        if candidate.is_dir():
+            return candidate
+    return folder
+
+
+def _load_external(path: Path) -> TextFile:
+    """Arquivo trazido de fora: pode ter sido salvo em UTF-8 por um editor de texto."""
+    data = path.read_bytes()
+    if data.startswith(b"\xef\xbb\xbf"):
+        return TextFile.from_text(path, "utf-8", data[3:].decode("utf-8", "surrogateescape"))
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return TextFile.load(path)
+    return TextFile.from_text(path, "utf-8" if not text.isascii() else GAME_ENCODING, text)
+
+
+def _same_text(first: list[str], second: list[str]) -> bool:
+    """Iguais a menos do tipo de quebra de linha."""
+    return [value.replace("\r\n", "\n") for value in first] == [value.replace("\r\n", "\n") for value in second]
+
+
+def plan_text_import(
+    source: Path,
+    game_dir: Path,
+    edits: dict[str, dict[str, TextEdit]],
+) -> TextImport:
+    """Compara os T_*.ini de `source` com os do jogo, ID por ID.
+
+    Os arquivos importados só fornecem textos: o que muda vira edição do projeto, e o
+    envio a aplica sobre o arquivo atual do jogo, então IDs que uma atualização trouxe
+    depois continuam com o texto oficial. Texto igual ao do jogo não gera edição.
+    """
+    result = TextImport()
+    folder = import_source_folder(source)
+    for path in sorted(folder.glob("*.ini")):
+        if path.name.count(".") != 1:
+            continue
+        game_path = game_dir / TRANSLATE_DIR / path.name
+        if not game_path.is_file():
+            result.unknown_files.append(path.name)
+            continue
+        game_file = TextFile.load(game_path)
+        imported = _load_external(path)
+        # Arquivos do jogo misturam CRLF e LF (T_Npc quebra o nome em LF); segue o do registro.
+        crlf = game_file.text.count("\r\n")
+        file_newline = "\r\n" if crlf * 2 >= game_file.text.count("\n") else "\n"
+        current = edits.get(path.name, {})
+        for record_id, record in imported.by_id.items():
+            game_record = game_file.by_id.get(record_id)
+            if game_record is None:
+                result.missing_ids += 1
+                continue
+            game_text = "|".join(game_record.fields)
+            newline = "\r\n" if "\r\n" in game_text else "\n" if "\n" in game_text else file_newline
+            fields = [value.replace("\r\n", "\n").replace("\n", newline) for value in record.fields]
+            try:
+                for value in fields:
+                    value.encode(game_file.encoding, "surrogateescape")
+            except UnicodeEncodeError:
+                result.unsupported += 1
+                continue
+            existing = current.get(record_id)
+            if existing is not None:
+                if _same_text(existing.fields, fields):
+                    continue
+            elif _same_text(fields, game_record.fields):
+                # Já está assim no jogo. Não compara com o backup em .history: ele pode ser
+                # de antes de o launcher trocar o idioma, e tudo pareceria diferente.
+                continue
+            original = list(existing.original) if existing is not None and existing.original else list(game_record.fields)
+            if existing is not None:
+                result.replaced += 1
+            result.edits.setdefault(path.name, {})[record_id] = TextEdit(fields, original)
+    return result
 
 
 def publish_edits(

@@ -11,9 +11,11 @@ from PySide6.QtCore import QCoreApplication, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -132,6 +134,13 @@ class TextsPanel(QWidget):
         self.edited_only.toggled.connect(lambda _checked: self.refresh_results())
         options.addWidget(self.edited_only)
         options.addStretch(1)
+        self.import_button = QPushButton(self.tr("Importar textos…"))
+        self.import_button.setToolTip(self.tr(
+            "Traz alterações de arquivos T_*.ini que você já tinha editado. Compara ID por ID com o jogo:\n"
+            "só o que mudou vira edição do projeto, e IDs novos de atualizações continuam com o texto oficial."
+        ))
+        self.import_button.clicked.connect(self.import_texts)
+        options.addWidget(self.import_button)
         layout.addLayout(options)
         self.summary = QLabel()
         self.summary.setWordWrap(True)
@@ -166,6 +175,7 @@ class TextsPanel(QWidget):
         self._baseline = None
         self.edits = text_data.load_edits(project_root) if project_root is not None else {}
         self.search_edit.setEnabled(game_dir is not None)
+        self.import_button.setEnabled(game_dir is not None and project_root is not None)
         self._start_indexing()
         self.refresh_results()
 
@@ -357,6 +367,54 @@ class TextsPanel(QWidget):
         if updates:
             summary += " " + self.tr("⚠ {count} mudou(aram) no jogo depois da edição: confira antes de enviar.").format(count=updates)
         self.summary.setText(summary)
+
+    def import_texts(self, folder: Path | None = None) -> None:
+        """Importa T_*.ini já alterados como edições do projeto (ID por ID, sem trocar o arquivo)."""
+        if self.game_dir is None or self.project_root is None:
+            return
+        if folder is None:
+            chosen = QFileDialog.getExistingDirectory(
+                self, self.tr("Pasta com os arquivos de texto alterados (T_*.ini)"), str(self.game_dir.parent)
+            )
+            if not chosen:
+                return
+            folder = Path(chosen)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            plan = text_data.plan_text_import(folder, self.game_dir, self.edits)
+        finally:
+            QApplication.restoreOverrideCursor()
+        notes = []
+        if plan.missing_ids:
+            notes.append(self.tr("{count} ID(s) não existem mais no jogo e foram ignorados.").format(count=plan.missing_ids))
+        if plan.unsupported:
+            notes.append(self.tr("{count} texto(s) têm caracteres que o jogo não aceita e foram ignorados.").format(count=plan.unsupported))
+        if plan.unknown_files:
+            notes.append(self.tr("Arquivos que o jogo não tem: {files}.").format(files=", ".join(plan.unknown_files)))
+        if not plan.count:
+            message = self.tr(
+                "Nenhum texto diferente do jogo foi encontrado em {folder}.\n\n"
+                "Se a pasta do jogo já está com esses arquivos copiados, deixe o launcher baixar os "
+                "originais de novo e importe depois."
+            ).format(folder=text_data.import_source_folder(folder))
+            QMessageBox.information(self, self.tr("Importar textos"), "\n\n".join([message, *notes]))
+            return
+        per_file = "\n".join(f"{name}: {len(records)}" for name, records in sorted(plan.edits.items()))
+        message = self.tr(
+            "{count} texto(s) diferentes do jogo serão guardados como edições deste projeto:\n\n{files}\n\n"
+            "IDs que não estão nos arquivos importados continuam com o texto do jogo."
+        ).format(count=plan.count, files=per_file)
+        if plan.replaced:
+            notes.insert(0, self.tr("{count} substituem edições que você já tinha.").format(count=plan.replaced))
+        answer = QMessageBox.question(self, self.tr("Importar textos"), "\n\n".join([message, *notes]))
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        for name, records in plan.edits.items():
+            self.edits.setdefault(name, {}).update(records)
+        text_data.save_edits(self.project_root, self.edits)
+        self.search_edit.clear()
+        self.refresh_results()
+        self.edits_changed.emit()
 
     def _open_item(self, item: QTreeWidgetItem, _column: int = 0) -> None:
         data = item.data(0, Qt.ItemDataRole.UserRole)

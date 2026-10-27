@@ -178,6 +178,59 @@ def test_text_mode_is_remembered_and_lights_up_the_bar_button() -> None:
     reopened.close()
 
 
+def test_import_takes_changed_texts_by_id_and_keeps_new_game_ids(tmp_path: Path) -> None:
+    # O jogo atualizou: trouxe o ID 60030, que o arquivo antigo do jogador não tem.
+    game = _game(tmp_path, "T_Npc.ini", b"60020|Mysterious Man|\r\n60021|Sprite\r\nCyerfu|\r\n60030|New NPC|\r\n")
+    old = tmp_path / "old" / "data" / "Translate"
+    old.mkdir(parents=True)
+    # Salvo pelo Bloco de Notas: LF e UTF-8; um ID que o jogo removeu; um arquivo que o jogo não tem.
+    (old / "T_Npc.ini").write_bytes("60020|Homem Misterioso|\n60021|Sprite\nCyerfu|\n60099|Sumiu|\n".encode("utf-8"))
+    (old / "T_Extra.ini").write_bytes(b"1|x|\r\n")
+    plan = text_data.plan_text_import(tmp_path / "old", game, {})
+    assert plan.count == 1 and plan.missing_ids == 1 and plan.unknown_files == ["T_Extra.ini"]
+    assert plan.edits["T_Npc.ini"]["60020"].fields == ["Homem Misterioso"]
+    assert plan.edits["T_Npc.ini"]["60020"].original == ["Mysterious Man"]  # quebras de linha não contam como diferença
+
+    changed, _warnings = text_data.publish_edits(game, plan.edits)
+    assert changed == 1
+    content = (game / "data" / "Translate" / "T_Npc.ini").read_bytes()
+    assert content == "60020|Homem Misterioso|\r\n60021|Sprite\r\nCyerfu|\r\n60030|New NPC|\r\n".encode("cp1252")
+
+
+def test_import_skips_texts_the_game_already_has_and_keeps_edit_originals(tmp_path: Path) -> None:
+    # T_Npc mistura CRLF entre registros e LF dentro do nome.
+    game = _game(tmp_path, "T_Npc.ini", b"60021|Sprite\nCyerfu|\r\n60022|Hunter\nLeis|\r\n")
+    source = tmp_path / "old"
+    source.mkdir()
+    (source / "T_Npc.ini").write_bytes(b"60021|Sprite\r\nCyerfu|\r\n60022|Ca\xe7ador\r\nLeis|\r\n")
+    edits = {"T_Npc.ini": {"60022": TextEdit(["Ranger\nLeis"], ["Hunter\nLeis"])}}
+    plan = text_data.plan_text_import(source, game, edits)
+    assert plan.count == 1 and plan.replaced == 1  # 60021 já está assim no jogo
+    assert plan.edits["T_Npc.ini"]["60022"] == TextEdit(["Caçador\nLeis"], ["Hunter\nLeis"])  # LF como no jogo
+    # Importar de novo o que já está guardado não muda nada.
+    assert text_data.plan_text_import(source, game, plan.edits).count == 0
+
+
+def test_texts_tab_imports_after_confirmation(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QApplication, QMessageBox
+
+    from gf_ui_editor import texts_panel
+
+    application = QApplication.instance() or QApplication([])
+    game = _game(tmp_path, "T_Item.ini", ITEMS.encode("cp1252"))
+    source = tmp_path / "old"
+    source.mkdir()
+    (source / "T_Item.ini").write_bytes(ITEMS.replace("539|Runa|", "539|Runa Velha|").encode("cp1252"))
+    project = tmp_path / "project"
+    panel = texts_panel.TextsPanel()
+    panel.set_context(game, project)
+    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Yes)
+    panel.import_texts(source)
+    assert text_data.load_edits(project)["T_Item.ini"]["539"].fields == ["Runa Velha", "Uma runa."]
+    assert panel.results.topLevelItemCount() == 1 and panel.results.topLevelItem(0).text(0).startswith("●")
+    panel.close()
+
+
 def test_texts_changed_by_a_game_update_after_editing_are_flagged(tmp_path: Path) -> None:
     from PySide6.QtWidgets import QApplication
 
