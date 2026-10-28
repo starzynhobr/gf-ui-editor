@@ -1,178 +1,118 @@
 {
-  "version": "0.4.0",
-  "date": "2026-10-26",
+  "version": "0.4.1",
+  "date": "2026-10-28",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Textos do jogo no canvas.",
-          "O botão Texto mostra os rótulos que o jogo escreve nos controles (tirados do GrandFantasia.exe e do T_TextIndex.ini da sua pasta do jogo), com a fonte, a cor e o contorno do jogo. As amostras curta e longa mostram em vermelho onde o texto não cabe."
+          "Importar textos.",
+          "Na aba Textos, Importar textos… traz as alterações de arquivos T_*.ini que você já tinha editado. A comparação é ID por ID com o jogo: só o que mudou vira edição do projeto, e IDs novos de atualizações continuam com o texto oficial."
         ],
         [
-          "Aba Textos.",
-          "Busca em todos os textos de data/Translate e edita sem abrir o Bloco de Notas. As edições ficam no projeto, são reaplicadas a cada Enviar para o jogo e podem voltar ao texto original. Um aviso aparece quando uma atualização do jogo muda um texto que você editou."
+          "Editar texto com duplo clique.",
+          "Duplo clique num texto do canvas, ou na linha do elemento na lista, abre direto o editor daquele texto, sem precisar buscar."
         ],
         [
-          "Camadas.",
-          "Marque outros XMLs no painel Arquivos para vê-los junto, onde o jogo os desenha. Camadas → Montar HUD padrão liga BasicChar, Radar, Menu, chat, tracker e as barras de uma vez."
-        ],
-        [
-          "Prévia de texturas.",
-          "Clicar num .dds abre uma prévia com zoom; Abrir .dds leva ao editor de imagem, e a prévia se atualiza ao salvar."
+          "Personagem de exemplo.",
+          "O botão Personagem (antes Foto) mostra no BasicChar e no Target um nick com 12 caracteres (o máximo do jogo), nível, HP/MP e os ícones de classe e reencarnação, onde o jogo os desenha."
         ]
       ],
       "improved": [
         [
-          "Lista de elementos.",
-          "Ícones de ocultar, bloquear e isolar em cada linha; isolar mantém os filhos; o tipo mostra o texto do jogo (\"Botão · Recruit\"); WindowID compacto e ParentNode escondido (botão direito no cabeçalho)."
-        ],
-        [
-          "Mais rápido.",
-          "A comparação com a UI oficial ficou cerca de 12 vezes mais rápida, soltar muitos elementos deixou de travar e abrir arquivos e camadas ficou mais leve."
-        ],
-        [
-          "Dados em SQLite.",
-          "Projetos, textos editados e versões da UI oficial agora ficam em bancos SQLite. Os projetos antigos são migrados sozinhos na primeira abertura; os JSON originais ficam com o sufixo .migrated."
-        ],
-        [
-          "Posições como no jogo.",
-          "As abas da guilda abrem no lugar da janela principal, a barra de atalhos usa a posição salva no User.ini e a barra de conjuração fica centralizada a 4/5 da tela."
-        ],
-        [
-          "Barra do canvas.",
-          "Contornos substitui o Preview do jogo, o botão de resolução virou Tela do jogo, e Exportar .zip ficou ao lado de Enviar para o jogo."
+          "Backups em outro idioma.",
+          "A aba Textos reconhece o idioma do jogo e dos backups: trocar o idioma no launcher não marca mais todos os textos como alterados."
         ]
       ],
-      "fixed": []
+      "fixed": [
+        [
+          "Travamento depois de Enviar para o jogo.",
+          "A aba Textos remontava o histórico devagar a cada envio; agora leva menos de um segundo."
+        ]
+      ]
     },
     "en_US": {
       "new": [
         [
-          "Game texts on the canvas.",
-          "The Text button shows the labels the game writes on controls (taken from GrandFantasia.exe and the T_TextIndex.ini in your game folder), with the game's font, color and outline. Short and long samples show in red where text doesn't fit."
+          "Import texts.",
+          "In the Texts tab, Import texts… brings in changes from T_*.ini files you had already edited. It compares ID by ID with the game: only what changed becomes a project edit, and new IDs from updates keep the official text."
         ],
         [
-          "Texts tab.",
-          "Searches every text in data/Translate and edits it without Notepad. Edits stay in the project, are reapplied on every Send to game and can be restored to the original. A warning shows when a game update changes a text you edited."
+          "Edit text by double-click.",
+          "Double-clicking a text on the canvas, or its element row in the list, opens that text in the editor without searching."
         ],
         [
-          "Layers.",
-          "Check other XML files in the Files panel to see them together, where the game draws them. Layers → Build default HUD turns on BasicChar, Radar, Menu, chat, tracker and the bars at once."
-        ],
-        [
-          "Texture preview.",
-          "Clicking a .dds opens a zoomable preview; Open .dds goes to your image editor, and the preview refreshes when you save."
+          "Sample character.",
+          "The Character button (formerly Portrait) shows in BasicChar and Target a 12-character name (the game's maximum), level, HP/MP and the class and rebirth icons, where the game draws them."
         ]
       ],
       "improved": [
         [
-          "Element list.",
-          "Hide, lock and isolate icons on each row; isolating keeps the children; the type shows the game text (\"Button · Recruit\"); compact WindowID and hidden ParentNode (right-click the header)."
-        ],
-        [
-          "Faster.",
-          "Comparing with the official UI is about 12 times faster, dropping many elements no longer freezes, and opening files and layers is lighter."
-        ],
-        [
-          "Data in SQLite.",
-          "Projects, edited texts and official UI versions now live in SQLite databases. Old projects are migrated on first open; the original JSON files are kept with a .migrated suffix."
-        ],
-        [
-          "Positions like in game.",
-          "Guild tabs open where the guild window is, the shortcut bar uses the position saved in User.ini and the casting bar is centered at 4/5 of the screen."
-        ],
-        [
-          "Canvas bar.",
-          "Outlines replaces Game preview, the resolution button is now Game screen, and Export .zip sits next to Send to game."
+          "Backups in another language.",
+          "The Texts tab recognizes the language of the game and of the backups: switching the language in the launcher no longer marks every text as changed."
         ]
       ],
-      "fixed": []
+      "fixed": [
+        [
+          "Freeze after Send to game.",
+          "The Texts tab rebuilt its history slowly after every send; it now takes less than a second."
+        ]
+      ]
     },
     "es_ES": {
       "new": [
         [
-          "Textos del juego en el lienzo.",
-          "El botón Texto muestra las etiquetas que el juego escribe en los controles (sacadas de GrandFantasia.exe y del T_TextIndex.ini de tu carpeta del juego), con la fuente, el color y el contorno del juego. Las muestras corta y larga marcan en rojo dónde el texto no cabe."
+          "Importar textos.",
+          "En la pestaña Textos, Importar textos… trae los cambios de archivos T_*.ini que ya habías editado. Compara ID por ID con el juego: solo lo que cambió se convierte en edición del proyecto, y los IDs nuevos de las actualizaciones mantienen el texto oficial."
         ],
         [
-          "Pestaña Textos.",
-          "Busca en todos los textos de data/Translate y los edita sin el Bloc de notas. Las ediciones quedan en el proyecto, se vuelven a aplicar en cada Enviar al juego y pueden volver al texto original. Aparece un aviso cuando una actualización del juego cambia un texto que editaste."
+          "Editar texto con doble clic.",
+          "Doble clic en un texto del canvas, o en la fila del elemento en la lista, abre ese texto en el editor sin buscarlo."
         ],
         [
-          "Capas.",
-          "Marca otros XML en el panel Archivos para verlos juntos, donde el juego los dibuja. Capas → Montar HUD predeterminado activa BasicChar, Radar, Menu, chat, rastreador y las barras de una vez."
-        ],
-        [
-          "Vista previa de texturas.",
-          "Al hacer clic en un .dds se abre una vista previa con zoom; Abrir .dds lleva a tu editor de imágenes y la vista se actualiza al guardar."
+          "Personaje de ejemplo.",
+          "El botón Personaje (antes Foto) muestra en BasicChar y Target un nick de 12 caracteres (el máximo del juego), nivel, HP/MP y los iconos de clase y reencarnación, donde el juego los dibuja."
         ]
       ],
       "improved": [
         [
-          "Lista de elementos.",
-          "Iconos de ocultar, bloquear y aislar en cada fila; aislar mantiene los hijos; el tipo muestra el texto del juego (\"Botón · Recruit\"); WindowID compacto y ParentNode oculto (clic derecho en el encabezado)."
-        ],
-        [
-          "Más rápido.",
-          "La comparación con la UI oficial es unas 12 veces más rápida, soltar muchos elementos ya no congela y abrir archivos y capas es más ligero."
-        ],
-        [
-          "Datos en SQLite.",
-          "Proyectos, textos editados y versiones de la UI oficial ahora están en bases SQLite. Los proyectos antiguos se migran solos al abrirlos; los JSON originales quedan con el sufijo .migrated."
-        ],
-        [
-          "Posiciones como en el juego.",
-          "Las pestañas del gremio se abren donde está la ventana del gremio, la barra de atajos usa la posición guardada en User.ini y la barra de lanzamiento queda centrada a 4/5 de la pantalla."
-        ],
-        [
-          "Barra del lienzo.",
-          "Contornos sustituye a Vista previa del juego, el botón de resolución ahora es Pantalla del juego y Exportar .zip está junto a Enviar al juego."
+          "Copias en otro idioma.",
+          "La pestaña Textos reconoce el idioma del juego y de las copias: cambiar el idioma en el launcher ya no marca todos los textos como modificados."
         ]
       ],
-      "fixed": []
+      "fixed": [
+        [
+          "Bloqueo después de Enviar al juego.",
+          "La pestaña Textos reconstruía el historial despacio tras cada envío; ahora tarda menos de un segundo."
+        ]
+      ]
     },
     "fr_FR": {
       "new": [
         [
-          "Textes du jeu sur le canevas.",
-          "Le bouton Texte affiche les libellés que le jeu écrit sur les contrôles (tirés de GrandFantasia.exe et du T_TextIndex.ini de votre dossier du jeu), avec la police, la couleur et le contour du jeu. Les échantillons court et long signalent en rouge le texte qui ne rentre pas."
+          "Importer des textes.",
+          "Dans l'onglet Textes, Importer des textes… récupère les modifications de fichiers T_*.ini déjà édités. La comparaison se fait ID par ID avec le jeu : seul ce qui a changé devient une modification du projet, et les nouveaux ID des mises à jour gardent le texte officiel."
         ],
         [
-          "Onglet Textes.",
-          "Recherche dans tous les textes de data/Translate et les modifie sans le Bloc-notes. Les modifications restent dans le projet, sont réappliquées à chaque Envoyer au jeu et peuvent revenir au texte d'origine. Un avertissement apparaît quand une mise à jour du jeu change un texte que vous avez modifié."
+          "Modifier un texte par double-clic.",
+          "Un double-clic sur un texte du canvas, ou sur la ligne de l'élément dans la liste, ouvre ce texte dans l'éditeur sans le chercher."
         ],
         [
-          "Calques.",
-          "Cochez d'autres XML dans le panneau Fichiers pour les voir ensemble, là où le jeu les dessine. Calques → Monter le HUD par défaut active BasicChar, Radar, Menu, chat, suivi et les barres d'un coup."
-        ],
-        [
-          "Aperçu des textures.",
-          "Cliquer sur un .dds ouvre un aperçu avec zoom ; Ouvrir le .dds mène à votre éditeur d'images, et l'aperçu se met à jour à l'enregistrement."
+          "Personnage d'exemple.",
+          "Le bouton Personnage (anciennement Portrait) affiche dans BasicChar et Target un pseudo de 12 caractères (le maximum du jeu), le niveau, les PV/PM et les icônes de classe et de réincarnation, là où le jeu les dessine."
         ]
       ],
       "improved": [
         [
-          "Liste des éléments.",
-          "Icônes masquer, verrouiller et isoler sur chaque ligne ; isoler garde les enfants ; le type affiche le texte du jeu (« Bouton · Recruit ») ; WindowID compact et ParentNode masqué (clic droit sur l'en-tête)."
-        ],
-        [
-          "Plus rapide.",
-          "La comparaison avec l'UI officielle est environ 12 fois plus rapide, relâcher de nombreux éléments ne bloque plus et ouvrir fichiers et calques est plus léger."
-        ],
-        [
-          "Données en SQLite.",
-          "Les projets, textes modifiés et versions de l'UI officielle sont maintenant dans des bases SQLite. Les anciens projets sont migrés à la première ouverture ; les JSON d'origine restent avec le suffixe .migrated."
-        ],
-        [
-          "Positions comme en jeu.",
-          "Les onglets de la guilde s'ouvrent à la place de la fenêtre de guilde, la barre de raccourcis utilise la position enregistrée dans User.ini et la barre d'incantation est centrée aux 4/5 de l'écran."
-        ],
-        [
-          "Barre du canevas.",
-          "Contours remplace Aperçu en jeu, le bouton de résolution devient Écran du jeu, et Exporter .zip est à côté d'Envoyer au jeu."
+          "Sauvegardes dans une autre langue.",
+          "L'onglet Textes reconnaît la langue du jeu et des sauvegardes : changer de langue dans le launcher ne marque plus tous les textes comme modifiés."
         ]
       ],
-      "fixed": []
+      "fixed": [
+        [
+          "Blocage après Envoyer au jeu.",
+          "L'onglet Textes reconstruisait l'historique lentement après chaque envoi ; cela prend maintenant moins d'une seconde."
+        ]
+      ]
     }
   }
 }
