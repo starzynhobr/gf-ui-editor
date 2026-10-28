@@ -139,7 +139,7 @@ class TextsPanel(QWidget):
             "Traz alterações de arquivos T_*.ini que você já tinha editado. Compara ID por ID com o jogo:\n"
             "só o que mudou vira edição do projeto, e IDs novos de atualizações continuam com o texto oficial."
         ))
-        self.import_button.clicked.connect(self.import_texts)
+        self.import_button.clicked.connect(lambda _checked: self.import_texts())
         options.addWidget(self.import_button)
         layout.addLayout(options)
         self.summary = QLabel()
@@ -241,8 +241,21 @@ class TextsPanel(QWidget):
 
     def _history(self) -> dict[str, TextFile]:
         if self._baseline is None:
-            self._baseline = text_data.history_baseline(self.project_root) if self.project_root is not None else {}
+            self._baseline = (
+                text_data.history_baseline(self.project_root, self._language())
+                if self.project_root is not None else {}
+            )
         return self._baseline
+
+    def _language(self) -> str | None:
+        """Idioma do jogo agora: o do launcher ou, sem ele, o do T_TextIndex.ini."""
+        if self.game_dir is None:
+            return None
+        language = text_data.game_language(self.game_dir)
+        if language is None:
+            index = self._file("T_TextIndex.ini")
+            language = text_data.detect_language(index) if index is not None else None
+        return language
 
     def _changed_in_game(self, name: str) -> set[str]:
         """IDs cujo texto no jogo difere do backup original (enviados antes, sem edição guardada)."""
@@ -250,10 +263,11 @@ class TextsPanel(QWidget):
         text_file = self._file(name) if original is not None else None
         if original is None or text_file is None:
             return set()
-        return {
+        changed = {
             record_id for record_id, record in original.by_id.items()
             if record_id in text_file.by_id and text_file.by_id[record_id].fields != record.fields
         }
+        return changed
 
     def _original_fields(self, name: str, record: TextRecord) -> list[str] | None:
         """Texto antes de qualquer edição: o guardado na edição ou, se não houver, o do
@@ -418,19 +432,23 @@ class TextsPanel(QWidget):
 
     def _open_item(self, item: QTreeWidgetItem, _column: int = 0) -> None:
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        if not data or self.project_root is None:
-            return
-        name, record_id = data
+        if data:
+            self.edit_record(*data)
+
+    def edit_record(self, name: str, record_id: str) -> bool:
+        """Abre o editor flutuante de um registro (também usado pelo duplo clique no canvas)."""
+        if self.project_root is None:
+            return False
         text_file = self._file(name)
         record = text_file.by_id.get(record_id) if text_file is not None else None
         if text_file is None or record is None:
-            return
+            return False
         fields, _edited = self._current_fields(name, record)
         original = self._original_fields(name, record)
         dialog = TextEditDialog(text_file, record, fields, original, self)
         dialog.move(QCursor.pos() + QPoint(12, 12))
         if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
+            return True
         records = self.edits.setdefault(name, {})
         original = original if original is not None else list(record.fields)
         values = list(original) if dialog.restore_requested else dialog.values()
@@ -443,3 +461,4 @@ class TextsPanel(QWidget):
         text_data.save_edits(self.project_root, self.edits)
         self.refresh_results()
         self.edits_changed.emit()
+        return True

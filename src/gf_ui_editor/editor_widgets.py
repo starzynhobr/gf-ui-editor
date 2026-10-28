@@ -1019,6 +1019,9 @@ class EditorView(QGraphicsView):
         self._space_held = False
         self.navigation_style = "corel"
         self._preferred_item: ElementItem | None = None
+        # Duplo clique num elemento (ou no texto que o jogo escreve nele, mesmo vazando
+        # para fora da caixa): a janela decide o que abrir.
+        self.element_double_clicked: Callable[[ElementItem], None] | None = None
         self.setRenderHints(
             QPainter.RenderHint.Antialiasing
             | QPainter.RenderHint.SmoothPixmapTransform
@@ -1043,6 +1046,20 @@ class EditorView(QGraphicsView):
 
     def set_interaction_priority(self, item: ElementItem | None) -> None:
         self._preferred_item = item
+
+    def mouseDoubleClickEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton and self.element_double_clicked is not None:
+            for item in self.items(event.position().toPoint()):
+                if isinstance(item, GameTextItem) and item.isVisible() and item.text:
+                    self.element_double_clicked(item.owner)
+                    event.accept()
+                    return
+            element = self._element_parent(self.itemAt(event.position().toPoint()))
+            if element is not None:
+                self.element_double_clicked(element)
+                event.accept()
+                return
+        super().mouseDoubleClickEvent(event)
 
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.MouseButton.MiddleButton or (

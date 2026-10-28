@@ -13,6 +13,7 @@ mudanças (arquivo -> ID -> campos, no project.db) e as reaplica ao enviar para 
 from __future__ import annotations
 
 import bisect
+from collections import Counter
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -171,12 +172,66 @@ def sync_text_index(game_dir: Path, projects_root: Path) -> int:
     return rebuilt
 
 
-def history_baseline(project_root: Path) -> dict[str, TextFile]:
+# Palavras curtas e frequentes de cada idioma que o launcher oferece; bastam para dizer em
+# que idioma está um arquivo de texto inteiro.
+_LANGUAGE_WORDS = {
+    "pt": ("você", "não", "para", "com", "uma", "seu", "sua", "ção", "ões", "do", "da"),
+    "en": ("the", "you", "your", "with", "and", "not", "this", "of", "is", "to"),
+    "es": ("el", "los", "las", "usted", "tu", "con", "una", "para", "ción", "del"),
+    "fr": ("le", "les", "vous", "votre", "avec", "une", "des", "est", "pas", "du"),
+    "de": ("der", "die", "das", "und", "nicht", "sie", "mit", "ist", "ein", "zu"),
+    "it": ("il", "gli", "della", "con", "una", "non", "per", "è", "di", "che"),
+}
+_WORD = re.compile(r"[^\W\d_]+")
+
+
+_LANGUAGE_SAMPLE = 200_000  # caracteres: sobra para decidir, e arquivos de 10 MB não travam
+_language_cache: dict[tuple[str, int, int], str | None] = {}
+
+
+def detect_language(text_file: TextFile) -> str | None:
+    """Idioma do arquivo pelas palavras mais comuns; None se não der para dizer."""
+    try:
+        stat = text_file.path.stat()
+        key = (str(text_file.path), stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        key = None
+    if key is not None and key in _language_cache:
+        return _language_cache[key]
+    sample = (text_file._lowered or text_file.text.lower())[:_LANGUAGE_SAMPLE]
+    frequency = Counter(_WORD.findall(sample))
+    counts = {}
+    for language, words in _LANGUAGE_WORDS.items():
+        suffixes = tuple(word for word in words if len(word) == 3 and not word.isascii())
+        total = sum(frequency[word] for word in words)
+        if suffixes:
+            total += sum(count for word, count in frequency.items() if len(word) > 4 and word.endswith(suffixes))
+        counts[language] = total
+    best = max(counts, key=counts.get)
+    ranked = sorted(counts.values(), reverse=True)
+    result = best if ranked[0] >= 20 and ranked[0] >= ranked[1] * 1.5 else None
+    if key is not None:
+        _language_cache[key] = result
+    return result
+
+
+def game_language(game_dir: Path) -> str | None:
+    """Idioma escolhido no launcher (Launcher.ini, [Config] Language)."""
+    try:
+        text = (game_dir / "Launcher.ini").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    match = re.search(r"(?im)^\s*Language\s*=\s*([a-z]{2})", text)
+    return match.group(1).lower() if match else None
+
+
+def history_baseline(project_root: Path, language: str | None = None) -> dict[str, TextFile]:
     """Arquivos do jogo como estavam antes do primeiro envio (backup mais antigo de cada um).
 
     Cada envio guarda em .history/data/<data-hora> o arquivo do jogo de antes de aplicar as
     edições; o mais antigo de cada arquivo tem o texto original, mesmo que a edição tenha
-    sido desfeita no meio do caminho.
+    sido desfeita no meio do caminho. Com `language`, pula backups de outro idioma: o
+    launcher troca todos os textos ao mudar o idioma, e comparar com eles marcaria tudo.
     """
     folder = project_root / ".history" / "data"
     baseline: dict[str, TextFile] = {}
@@ -184,8 +239,13 @@ def history_baseline(project_root: Path) -> dict[str, TextFile]:
         return baseline
     for snapshot in sorted(path for path in folder.iterdir() if path.is_dir()):
         for candidate in snapshot.glob("*.ini"):
-            if candidate.name not in baseline:
-                baseline[candidate.name] = TextFile.load(candidate)
+            if candidate.name in baseline:
+                continue
+            text_file = TextFile.load(candidate)
+            detected = detect_language(text_file) if language else None
+            if language and detected and detected != language:
+                continue
+            baseline[candidate.name] = text_file
     return baseline
 
 

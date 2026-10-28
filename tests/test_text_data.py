@@ -111,6 +111,45 @@ def test_canvas_labels_show_project_edits_before_they_are_sent(tmp_path: Path) -
     window.close()
 
 
+def test_double_clicking_an_element_opens_its_game_text(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QApplication, QDialog
+
+    from gf_ui_editor import texts_panel
+    from gf_ui_editor.app import EditorWindow
+    from gf_ui_editor.project import Project
+
+    application = QApplication.instance() or QApplication([])
+    game = _game(tmp_path, "T_TextIndex.ini", b"935|message slots remaining.|\r\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Fellowship_FamilyAffairs.xml").write_bytes(
+        b'<?xml version="1.0" ?>\r\n<Root_Node UI_File_Name="Fellowship_FamilyAffairs.xml">\r\n'
+        b'<BaseWndProperty WindowID="1" WindowHeight="300" WindowWidth="200">'
+        b'<Container_Node Child_Cnt="1"><Style ParentNode="1" CtrlType="2" />'
+        b'<BaseWndProperty WindowID="29" WindowLeft="4" WindowTop="4" WindowHeight="120" WindowWidth="12">'
+        b'<BaseCtrlProperty FontColor="16777215" FontStyle="0" /><TextNode TextAlign="0" /></BaseWndProperty>'
+        b'</Container_Node></BaseWndProperty>\r\n</Root_Node>\r\n'
+    )
+    project = Project.create("Textos", source, game, projects_root=tmp_path / "projects")
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Fellowship_FamilyAffairs.xml")
+    opened = []
+
+    def fake_exec(dialog):
+        opened.append(dialog.record.record_id)
+        dialog.editors[0].setPlainText("slots livres.")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(texts_panel.TextEditDialog, "exec", fake_exec)
+    window.edit_game_text(1)
+    assert opened == ["935"]
+    assert text_data.load_edits(project.root)["T_TextIndex.ini"]["935"].fields == ["slots livres."]
+    window.edit_game_text(0)  # a raiz não tem texto: só avisa
+    assert opened == ["935"]
+    window.close()
+
+
 def test_restore_brings_back_the_original_even_after_it_was_sent(tmp_path: Path, monkeypatch) -> None:
     from PySide6.QtWidgets import QApplication, QDialog
 
@@ -158,6 +197,29 @@ def test_empty_search_lists_texts_changed_in_the_project_including_already_sent(
     assert panel.results.topLevelItemCount() == 1
     item = panel.results.topLevelItem(0)
     assert item.text(2) == "935" and item.text(0).startswith("◐")
+    panel.close()
+
+
+def test_backup_from_another_language_does_not_flag_every_text(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    from gf_ui_editor import texts_panel
+
+    application = QApplication.instance() or QApplication([])
+    pt = "".join(f"{i}|Você não tem espaço para o item {i} da sua bolsa.|\r\n" for i in range(30))
+    en = "".join(f"{i}|You do not have space for the item {i} in your bag.|\r\n" for i in range(30))
+    game = _game(tmp_path, "T_TextIndex.ini", (pt + "99|slots restantes.|\r\n").encode("cp1252"))
+    (game / "Launcher.ini").write_text("[Config]\nLanguage=pt\n")
+    project = tmp_path / "project"
+    for stamp, content in (("20261026-111316", en + "99|slots remaining.|\r\n"), ("20261027-090000", pt + "99|slots livres.|\r\n")):
+        backup = project / ".history" / "data" / stamp
+        backup.mkdir(parents=True)
+        (backup / "T_TextIndex.ini").write_bytes(content.encode("cp1252"))
+    assert text_data.detect_language(TextFile.load(project / ".history" / "data" / "20261026-111316" / "T_TextIndex.ini")) == "en"
+    panel = texts_panel.TextsPanel()
+    panel.set_context(game, project)
+    # O backup em inglês fica de fora; o em português mostra só o texto que mudou.
+    assert [panel.results.topLevelItem(i).text(2) for i in range(panel.results.topLevelItemCount())] == ["99"]
     panel.close()
 
 
@@ -225,7 +287,11 @@ def test_texts_tab_imports_after_confirmation(tmp_path: Path, monkeypatch) -> No
     panel = texts_panel.TextsPanel()
     panel.set_context(game, project)
     monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Yes)
-    panel.import_texts(source)
+    # Pelo botão, como o usuário faz: a janela de pasta abre (aqui, devolve a pasta).
+    from PySide6.QtWidgets import QFileDialog
+
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args: str(source))
+    panel.import_button.click()
     assert text_data.load_edits(project)["T_Item.ini"]["539"].fields == ["Runa Velha", "Uma runa."]
     assert panel.results.topLevelItemCount() == 1 and panel.results.topLevelItem(0).text(0).startswith("●")
     panel.close()

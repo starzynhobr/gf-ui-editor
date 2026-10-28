@@ -21,16 +21,16 @@ SAMPLE_TEXTS: dict[str, dict[str, str]] = {
     "basicchar.xml": {
         "5000": "100",
         "5010": SAMPLE_NICK,
-        "5060": "96431/96431",
-        "5070": "34494/34494",
+        "5060": "9999999/9999999",
+        "5070": "999999/999999",
     },
     # CTargetWnd (FUN_00885b70): nível no 2020, "%d/%d" de HP e MP no 3100 e 3200. O nome
     # vai no 2000, o único texto do quadro de cima que o código não preenche com número.
     "target.xml": {
         "2000": SAMPLE_NICK,
         "2020": "100",
-        "3100": "96431/96431",
-        "3200": "34494/34494",
+        "3100": "9999999/9999999",
+        "3200": "999999/999999",
     },
 }
 
@@ -39,6 +39,11 @@ SAMPLE_ICONS: dict[str, dict[str, tuple[str, tuple[int, int, int, int]]]] = {
     "basicchar.xml": {
         "4010": ("main.dds", (812, 149, 16, 16)),  # classe 0 (Novato)
         "4011": ("main.dds", (229, 511, 20, 20)),  # 1 reencarnação
+    },
+    # CTargetWnd liga os mesmos 4010/4011 (FUN_00884d50) e põe os mesmos ícones.
+    "target.xml": {
+        "4010": ("main.dds", (812, 149, 16, 16)),
+        "4011": ("main.dds", (229, 511, 20, 20)),
     },
 }
 

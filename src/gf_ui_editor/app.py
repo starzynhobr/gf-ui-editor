@@ -1252,6 +1252,7 @@ class EditorWindow(QMainWindow):
         self.undo_stack = QUndoStack(self)
         self.scene = QGraphicsScene(self)
         self.view = EditorView(self.move_selected)
+        self.view.element_double_clicked = lambda item: self.edit_game_text(item.element_index)
         self.view.setFrameShape(QFrame.Shape.NoFrame)
         self.view.setScene(self.scene)
         self.cursor_position_label = QLabel(self.tr("Mouse: X — · Y —"))
@@ -1271,6 +1272,7 @@ class EditorWindow(QMainWindow):
             QAbstractItemView.SelectionMode.ExtendedSelection
         )
         self.tree.itemSelectionChanged.connect(self._tree_selection_changed)
+        self.tree.itemDoubleClicked.connect(self._tree_item_double_clicked)
         # Estado primeiro, como as camadas de um editor de imagem: olho, cadeado e foco clicáveis.
         self.tree.header().moveSection(3, 0)
         self.tree.setMouseTracking(True)
@@ -3521,6 +3523,30 @@ class EditorWindow(QMainWindow):
                 self._update_element_actions()
         finally:
             self._syncing_selection = False
+
+    def _tree_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        index = item.data(0, Qt.ItemDataRole.UserRole)
+        if isinstance(index, int) and column != 3:  # a coluna Estado tem os próprios cliques
+            self.edit_game_text(index)
+
+    def edit_game_text(self, index: int) -> None:
+        """Abre o texto do T_TextIndex que o jogo escreve neste elemento, sem precisar buscar."""
+        if self.document is None or not 0 <= index < len(self.document.elements):
+            return
+        element = self.document.elements[index]
+        text_id = game_texts.text_ids_for(self.document.path.name).get(element.window_id)
+        if text_id is None:
+            self.statusBar().showMessage(
+                self.tr("O WindowID {id} não tem texto do jogo mapeado.").format(id=element.window_id), 5000
+            )
+            return
+        if self.project is None or self.texts_panel.game_dir is None:
+            self.statusBar().showMessage(self.tr("Abra um projeto com a pasta do jogo para editar os textos."), 5000)
+            return
+        if not self.texts_panel.edit_record("T_TextIndex.ini", str(text_id)):
+            self.statusBar().showMessage(
+                self.tr("O texto {id} não existe no T_TextIndex.ini do jogo.").format(id=text_id), 5000
+            )
 
     def _tree_selection_changed(self) -> None:
         if self._syncing_selection:
