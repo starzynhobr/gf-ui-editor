@@ -61,3 +61,18 @@ def test_update_check_downloads_structured_notes(monkeypatch) -> None:
     release["assets"].pop()
     responses[updater.LATEST_RELEASE_API] = json.dumps(release).encode()
     assert updater.check_for_update("0.1.0").structured_notes is None
+
+
+def test_history_lists_every_version_newer_than_installed() -> None:
+    notes = release_notes.parse(json.dumps({
+        "version": "0.5.1",
+        "notes": {"en_US": {"fixed": [["Fix.", "b"]]}},
+        "history": [
+            {"version": "0.5.0", "notes": {"en_US": {"new": [["New.", "b"]]}}},
+            {"version": "0.4.1", "notes": {"en_US": {"new": [["Old.", "b"]]}}},
+            "garbage",
+        ],
+    }))
+    assert [release.version for release in notes.since("0.4.1")] == ["0.5.1", "0.5.0"]
+    assert [release.version for release in notes.since("0.5.0")] == ["0.5.1"]
+    assert [release.version for release in release_notes.bundled().since("0.4.1")][:2] == ["0.5.1", "0.5.0"]

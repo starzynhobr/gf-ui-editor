@@ -46,6 +46,7 @@ class WhatsNewDialog(QDialog):
         current_version: str | None = None,
         fallback_text: str = "",
         can_install: bool = True,
+        verified: bool = True,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -72,11 +73,23 @@ class WhatsNewDialog(QDialog):
         chip.setObjectName("versionChip")
         top.addWidget(chip)
         top.addStretch(1)
-        if notes is not None and notes.date:
+        # Quem pulou versões vê também as notas das que perdeu (histórico do release-notes.json).
+        if notes is None:
+            releases = []
+        elif offering:
+            releases = notes.since(current_version)
+        else:
+            releases = [notes]
+        grouped = len(releases) > 1
+        if notes is not None and notes.date and not grouped:
             date = QLabel(notes.date)
             date.setObjectName("monoCaption")
             top.addWidget(date)
-        title = QLabel(self.tr("O que chegou na {version}").format(version=version))
+        title = QLabel(
+            self.tr("O que chegou desde a {version}").format(version=current_version)
+            if grouped
+            else self.tr("O que chegou na {version}").format(version=version)
+        )
         title.setObjectName("heroTitle")
         header_layout.addLayout(top)
         header_layout.addWidget(title)
@@ -86,37 +99,46 @@ class WhatsNewDialog(QDialog):
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(28, 18, 28, 18)
         body_layout.setSpacing(18)
-        sections = notes.for_language(language) if notes is not None else {}
-        for name in SECTIONS:
-            entries = sections.get(name)
-            if not entries:
+        has_notes = False
+        for release in releases:
+            sections = release.for_language(language)
+            if not sections:
                 continue
-            color = COLORS[_SECTION_COLOR[name]]
-            heading = QLabel(_section_title(name))
-            heading.setObjectName("sectionLabel")
-            heading.setStyleSheet(f"color: {color};")
-            block = QVBoxLayout()
-            block.setSpacing(10)
-            block.addWidget(heading)
-            for entry_title, text in entries:
-                row = QHBoxLayout()
-                row.setSpacing(10)
-                dot = QLabel("●")
-                dot.setStyleSheet(f"color: {color}; font-size: 8px; background: transparent;")
-                dot.setAlignment(Qt.AlignmentFlag.AlignTop)
-                dot.setContentsMargins(0, 6, 0, 0)
-                label = QLabel(
-                    f"<span style='color:{COLORS['TEXT_BRIGHT']};font-weight:600'>{escape(entry_title)}</span> "
-                    f"<span style='color:{COLORS['TEXT_PRIMARY']}'>{escape(text)}</span>"
-                )
-                label.setTextFormat(Qt.TextFormat.RichText)
-                label.setWordWrap(True)
-                label.setObjectName("noteEntry")
-                row.addWidget(dot)
-                row.addWidget(label, 1)
-                block.addLayout(row)
-            body_layout.addLayout(block)
-        if not sections:
+            has_notes = True
+            if grouped:
+                caption = QLabel(f"{release.version}  ·  {release.date}" if release.date else release.version)
+                caption.setObjectName("monoCaption")
+                body_layout.addWidget(caption)
+            for name in SECTIONS:
+                entries = sections.get(name)
+                if not entries:
+                    continue
+                color = COLORS[_SECTION_COLOR[name]]
+                heading = QLabel(_section_title(name))
+                heading.setObjectName("sectionLabel")
+                heading.setStyleSheet(f"color: {color};")
+                block = QVBoxLayout()
+                block.setSpacing(10)
+                block.addWidget(heading)
+                for entry_title, text in entries:
+                    row = QHBoxLayout()
+                    row.setSpacing(10)
+                    dot = QLabel("●")
+                    dot.setStyleSheet(f"color: {color}; font-size: 8px; background: transparent;")
+                    dot.setAlignment(Qt.AlignmentFlag.AlignTop)
+                    dot.setContentsMargins(0, 6, 0, 0)
+                    label = QLabel(
+                        f"<span style='color:{COLORS['TEXT_BRIGHT']};font-weight:600'>{escape(entry_title)}</span> "
+                        f"<span style='color:{COLORS['TEXT_PRIMARY']}'>{escape(text)}</span>"
+                    )
+                    label.setTextFormat(Qt.TextFormat.RichText)
+                    label.setWordWrap(True)
+                    label.setObjectName("noteEntry")
+                    row.addWidget(dot)
+                    row.addWidget(label, 1)
+                    block.addLayout(row)
+                body_layout.addLayout(block)
+        if not has_notes:
             # Release sem notas estruturadas: mostra o texto da página, sem interpretar.
             plain = QLabel(fallback_text or self.tr("Sem notas para esta versão."))
             plain.setTextFormat(Qt.TextFormat.PlainText)
@@ -125,9 +147,16 @@ class WhatsNewDialog(QDialog):
             body_layout.addWidget(plain)
         if offering:
             safety = QLabel(
-                self.tr(
-                    "Seu trabalho fica salvo antes de atualizar. O download é conferido por SHA-256 "
-                    "antes de instalar, e nada é instalado sem a sua confirmação."
+                (
+                    self.tr(
+                        "Seu trabalho fica salvo antes de atualizar. O download é conferido por SHA-256 "
+                        "antes de instalar, e nada é instalado sem a sua confirmação."
+                    )
+                    if verified
+                    else self.tr(
+                        "Seu trabalho fica salvo antes de atualizar. O download vem direto da release no GitHub "
+                        "por HTTPS, e nada é instalado sem a sua confirmação."
+                    )
                 )
                 if can_install
                 else self.tr("Você está rodando pelo código-fonte; a página da release será aberta.")

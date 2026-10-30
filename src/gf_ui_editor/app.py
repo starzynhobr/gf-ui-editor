@@ -2202,6 +2202,7 @@ class EditorWindow(QMainWindow):
             current_version=__version__,
             fallback_text=info.notes,
             can_install=updater.is_installed_build(),
+            verified=info.sha256 is not None,
             parent=self,
         )
         dialog.exec()

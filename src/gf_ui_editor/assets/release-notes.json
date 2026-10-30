@@ -1,38 +1,252 @@
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "date": "2026-10-30",
   "notes": {
     "pt_BR": {
+      "improved": [
+        [
+          "Notas de todas as versões que você pulou.",
+          "Ao atualizar pulando versões, o aviso mostra as novidades de cada uma desde a sua, separadas por versão."
+        ]
+      ],
       "fixed": [
         [
-          "Verificação de atualizações sem erro 403.",
-          "Quando o GitHub limita as consultas (comum em redes compartilhadas), o editor confere a versão pelo download da release em vez de mostrar \"rate limit exceeded\"."
+          "Aviso de segurança correto.",
+          "Quando o editor não consegue conferir o SHA-256 do instalador, o aviso deixa de prometer essa conferência."
         ]
       ]
     },
     "en_US": {
+      "improved": [
+        [
+          "Notes for every version you skipped.",
+          "When an update skips versions, the dialog shows what's new in each one since yours, grouped by version."
+        ]
+      ],
       "fixed": [
         [
-          "Update check without error 403.",
-          "When GitHub limits requests (common on shared networks), the editor checks the version through the release download instead of showing \"rate limit exceeded\"."
+          "Accurate safety note.",
+          "When the editor can't check the installer's SHA-256, the note no longer promises that check."
         ]
       ]
     },
     "es_ES": {
+      "improved": [
+        [
+          "Notas de todas las versiones que saltaste.",
+          "Al actualizar saltando versiones, el aviso muestra las novedades de cada una desde la tuya, separadas por versión."
+        ]
+      ],
       "fixed": [
         [
-          "Búsqueda de actualizaciones sin error 403.",
-          "Cuando GitHub limita las consultas (común en redes compartidas), el editor comprueba la versión mediante la descarga de la release en lugar de mostrar \"rate limit exceeded\"."
+          "Aviso de seguridad correcto.",
+          "Cuando el editor no puede comprobar el SHA-256 del instalador, el aviso deja de prometer esa comprobación."
         ]
       ]
     },
     "fr_FR": {
+      "improved": [
+        [
+          "Notes de toutes les versions sautées.",
+          "Quand une mise à jour saute des versions, la fenêtre montre les nouveautés de chacune depuis la vôtre, regroupées par version."
+        ]
+      ],
       "fixed": [
         [
-          "Vérification des mises à jour sans erreur 403.",
-          "Quand GitHub limite les requêtes (courant sur les réseaux partagés), l'éditeur vérifie la version via le téléchargement de la release au lieu d'afficher « rate limit exceeded »."
+          "Avertissement de sécurité exact.",
+          "Quand l'éditeur ne peut pas vérifier le SHA-256 de l'installateur, l'avertissement ne promet plus cette vérification."
         ]
       ]
     }
-  }
+  },
+  "history": [
+    {
+      "version": "0.5.1",
+      "date": "2026-10-30",
+      "notes": {
+        "pt_BR": {
+          "fixed": [
+            [
+              "Verificação de atualizações sem erro 403.",
+              "Quando o GitHub limita as consultas (comum em redes compartilhadas), o editor confere a versão pelo download da release em vez de mostrar \"rate limit exceeded\"."
+            ]
+          ]
+        },
+        "en_US": {
+          "fixed": [
+            [
+              "Update check without error 403.",
+              "When GitHub limits requests (common on shared networks), the editor checks the version through the release download instead of showing \"rate limit exceeded\"."
+            ]
+          ]
+        },
+        "es_ES": {
+          "fixed": [
+            [
+              "Búsqueda de actualizaciones sin error 403.",
+              "Cuando GitHub limita las consultas (común en redes compartidas), el editor comprueba la versión mediante la descarga de la release en lugar de mostrar \"rate limit exceeded\"."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "fixed": [
+            [
+              "Vérification des mises à jour sans erreur 403.",
+              "Quand GitHub limite les requêtes (courant sur les réseaux partagés), l'éditeur vérifie la version via le téléchargement de la release au lieu d'afficher « rate limit exceeded »."
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "version": "0.5.0",
+      "date": "2026-10-30",
+      "notes": {
+        "pt_BR": {
+          "new": [
+            [
+              "Novo nome: STZ GF UI.",
+              "O GF UI Editor agora se chama STZ GF UI. Quem atualiza mantém projetos, recentes e configurações."
+            ],
+            [
+              "Barra lateral de ícones.",
+              "Arquivos XML, Texturas, Elementos e Textos ficam numa barra à esquerda. Os menus (Arquivo, Projeto, Editar, Visualização, Idioma e Ajuda) abrem pela engrenagem no rodapé dela."
+            ],
+            [
+              "STZ Labs e contribuidores.",
+              "O botão STZ Labs no topo mostra o site e quem ajudou a construir o editor, com o que cada pessoa trouxe."
+            ]
+          ],
+          "improved": [
+            [
+              "Barra superior mais limpa.",
+              "O projeto e o arquivo aberto ficam à esquerda (troque de projeto clicando no nome); Importar e Salvar viraram ícones."
+            ]
+          ],
+          "fixed": [
+            [
+              "Ordem do UV ao salvar.",
+              "Left/Top do UV voltam a ser gravados antes de Width/Height, como o jogo espera."
+            ],
+            [
+              "Rolagem do ElfInventory.",
+              "O nó de rolagem 9547 do ElfInventory é reconhecido."
+            ],
+            [
+              "Texto atrás dos chips do rodapé.",
+              "As mensagens da barra de status aparecem ao lado dos chips, sem ficar por baixo."
+            ]
+          ]
+        },
+        "en_US": {
+          "new": [
+            [
+              "New name: STZ GF UI.",
+              "GF UI Editor is now called STZ GF UI. Updating keeps your projects, recent list and settings."
+            ],
+            [
+              "Icon sidebar.",
+              "XML files, Textures, Elements and Texts live in a bar on the left. The menus (File, Project, Edit, View, Language and Help) open from the gear at its bottom."
+            ],
+            [
+              "STZ Labs and contributors.",
+              "The STZ Labs button at the top shows the website and the people who helped build the editor, with what each one brought."
+            ]
+          ],
+          "improved": [
+            [
+              "Cleaner top bar.",
+              "The project and the open file sit on the left (click the name to switch projects); Import and Save are now icons."
+            ]
+          ],
+          "fixed": [
+            [
+              "UV order on save.",
+              "UV Left/Top are written before Width/Height again, as the game expects."
+            ],
+            [
+              "ElfInventory scrolling.",
+              "ElfInventory's scroll node 9547 is recognized."
+            ],
+            [
+              "Text behind the footer chips.",
+              "Status bar messages now appear next to the chips instead of underneath them."
+            ]
+          ]
+        },
+        "es_ES": {
+          "new": [
+            [
+              "Nuevo nombre: STZ GF UI.",
+              "GF UI Editor ahora se llama STZ GF UI. Al actualizar se conservan los proyectos, los recientes y la configuración."
+            ],
+            [
+              "Barra lateral de iconos.",
+              "Archivos XML, Texturas, Elementos y Textos están en una barra a la izquierda. Los menús (Archivo, Proyecto, Editar, Ver, Idioma y Ayuda) se abren desde el engranaje en su parte inferior."
+            ],
+            [
+              "STZ Labs y colaboradores.",
+              "El botón STZ Labs arriba muestra el sitio y quiénes ayudaron a construir el editor, con lo que aportó cada uno."
+            ]
+          ],
+          "improved": [
+            [
+              "Barra superior más limpia.",
+              "El proyecto y el archivo abierto están a la izquierda (haz clic en el nombre para cambiar de proyecto); Importar y Guardar ahora son iconos."
+            ]
+          ],
+          "fixed": [
+            [
+              "Orden del UV al guardar.",
+              "Left/Top del UV vuelven a guardarse antes de Width/Height, como espera el juego."
+            ],
+            [
+              "Desplazamiento del ElfInventory.",
+              "Se reconoce el nodo de desplazamiento 9547 del ElfInventory."
+            ],
+            [
+              "Texto detrás de los chips del pie.",
+              "Los mensajes de la barra de estado aparecen junto a los chips, no debajo."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "new": [
+            [
+              "Nouveau nom : STZ GF UI.",
+              "GF UI Editor s'appelle désormais STZ GF UI. La mise à jour conserve vos projets, la liste récente et vos réglages."
+            ],
+            [
+              "Barre latérale d'icônes.",
+              "Fichiers XML, Textures, Éléments et Textes sont dans une barre à gauche. Les menus (Fichier, Projet, Édition, Affichage, Langue et Aide) s'ouvrent depuis l'engrenage en bas de celle-ci."
+            ],
+            [
+              "STZ Labs et contributeurs.",
+              "Le bouton STZ Labs en haut montre le site et les personnes qui ont aidé à construire l'éditeur, avec l'apport de chacun."
+            ]
+          ],
+          "improved": [
+            [
+              "Barre supérieure épurée.",
+              "Le projet et le fichier ouvert sont à gauche (cliquez sur le nom pour changer de projet) ; Importer et Enregistrer sont devenus des icônes."
+            ]
+          ],
+          "fixed": [
+            [
+              "Ordre des UV à l'enregistrement.",
+              "Left/Top des UV sont de nouveau écrits avant Width/Height, comme le jeu l'attend."
+            ],
+            [
+              "Défilement de l'ElfInventory.",
+              "Le nœud de défilement 9547 de l'ElfInventory est reconnu."
+            ],
+            [
+              "Texte derrière les puces du bas.",
+              "Les messages de la barre d'état s'affichent à côté des puces, et non plus en dessous."
+            ]
+          ]
+        }
+      }
+    }
+  ]
 }
