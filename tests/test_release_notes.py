@@ -75,4 +75,6 @@ def test_history_lists_every_version_newer_than_installed() -> None:
     }))
     assert [release.version for release in notes.since("0.4.1")] == ["0.5.1", "0.5.0"]
     assert [release.version for release in notes.since("0.5.0")] == ["0.5.1"]
-    assert [release.version for release in release_notes.bundled().since("0.4.1")][:2] == ["0.5.1", "0.5.0"]
+    bundled = release_notes.bundled()
+    assert bundled.history, "a versão embutida deve trazer o histórico das anteriores"
+    assert len(bundled.since("0.4.1")) == len(bundled.history) + 1
