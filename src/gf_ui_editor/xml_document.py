@@ -556,8 +556,32 @@ class UIDocument:
         closing = re.search(r"\s*/?>$", tag)
         return tag[:closing.start()] + f' {name}="{value}"' + tag[closing.start():]
 
+    @classmethod
+    def _replace_uv_attributes(
+        cls, tag: str, state: str, changes: dict[str, str], *, repair_order: bool = False
+    ) -> str:
+        if not changes and not repair_order:
+            return tag
+        for name, value in changes.items():
+            tag = cls._replace_attribute(tag, name, value)
+        # O cliente calcula Right = Left + Width ao ler Width (idem Top/Height).
+        # Troca apenas os atributos fora de ordem, preservando os demais bytes.
+        for position, size in (("Left", "Width"), ("Top", "Height")):
+            position_match = re.search(rf'\b{state}{position}\s*=\s*"[^"]*"', tag)
+            size_match = re.search(rf'\b{state}{size}\s*=\s*"[^"]*"', tag)
+            if position_match is not None and size_match is not None and position_match.start() > size_match.start():
+                tag = (
+                    tag[:size_match.start()] + position_match.group()
+                    + tag[size_match.end():position_match.start()] + size_match.group()
+                    + tag[position_match.end():]
+                )
+        return tag
+
     def render_text(self) -> str:
         replacements: list[tuple[int, int, str]] = []
+        # Qualquer edição salva também repara recortes gravados pela versão antiga.
+        # Apenas abrir/reabrir um arquivo continua sem mudar seus bytes.
+        repair_uv_order = self.is_dirty
         for element, match in zip(self.elements, self._start_tags, strict=True):
             tag = match.group(0)
             for name, value in element.changed_attributes.items():
@@ -566,9 +590,9 @@ class UIDocument:
 
         uv_elements = [element for element in self.elements if element.uv is not None]
         for element, match in zip(uv_elements, self._uv_start_tags, strict=True):
-            tag = match.group(0)
-            for name, value in element.changed_uv_attributes.items():
-                tag = self._replace_attribute(tag, name, value)
+            tag = self._replace_uv_attributes(
+                match.group(0), "NorUV", element.changed_uv_attributes, repair_order=repair_uv_order
+            )
             replacements.append((match.start(), match.end(), tag))
 
         if self.offsets_editable:
@@ -582,13 +606,16 @@ class UIDocument:
                     replacements.append((match.start(), match.end(), tag))
 
         for element in self.elements:
-            for state, changes in element.changed_button_uv_attributes.items():
-                if not self.button_states_editable:
+            state_changes = element.changed_button_uv_attributes
+            if not self.button_states_editable:
+                if state_changes:
                     raise DocumentError("Não foi possível relacionar os estados de botão ao XML.")
+                continue
+            for state in element.button_uvs:
                 match = self._button_uv_tags[(element.index, state)]
-                tag = match.group()
-                for name, value in changes.items():
-                    tag = self._replace_attribute(tag, name, value)
+                tag = self._replace_uv_attributes(
+                    match.group(), state, state_changes.get(state, {}), repair_order=repair_uv_order
+                )
                 replacements.append((match.start(), match.end(), tag))
 
         if self._fix_child_counts:

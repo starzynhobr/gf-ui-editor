@@ -376,6 +376,7 @@ class ElementItem(QGraphicsRectItem):
         self.window_size_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
         self.window_size_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self._update_overlays()
+        self._update_texture_transform()
         details = [
             f"WindowID: {element.window_id}",
             QCoreApplication.translate("ElementItem", "Tipo: {kind}").format(

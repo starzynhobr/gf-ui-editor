@@ -1,6 +1,8 @@
 import zlib
 from pathlib import Path
 
+import pytest
+
 from gf_ui_editor.game_updates import (
     copy_official_file,
     control_info,
@@ -136,21 +138,27 @@ def test_reference_is_ready_once_most_official_files_are_cached(tmp_path: Path) 
     assert cached_count(game) == (1, 1) and reference_ready(game)
 
 
-def test_known_update_ids_are_new_and_unknown_cpp_errors_search_by_id(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("filename", "required_id"),
+    [("BasicChar.xml", "5130"), ("ElfInventory.xml", "9547")],
+)
+def test_known_update_ids_are_new_and_unknown_cpp_errors_search_by_id(
+    tmp_path: Path, filename: str, required_id: str
+) -> None:
     from gf_ui_editor.game_updates import files_missing_id
 
     game = tmp_path / "game"
-    official = OFFICIAL.replace("T.xml", "BasicChar.xml").encode("big5")
+    official = OFFICIAL.replace("T.xml", filename).replace("5130", required_id).encode("big5")
     (game / "UI").mkdir(parents=True)
-    (game / "UI" / "BasicChar.xml").write_bytes(official)
+    (game / "UI" / filename).write_bytes(official)
     (game / "GameDataFileList.txt").write_text(
-        f"UI\\BasicChar.xml|{len(official)}|{zlib.crc32(official):08X}|1|0|\n", encoding="latin-1"
+        f"UI\\{filename}|{len(official)}|{zlib.crc32(official):08X}|1|0|\n", encoding="latin-1"
     )
     ui = tmp_path / "ui"
     ui.mkdir()
-    (ui / "BasicChar.xml").write_bytes(CUSTOM.encode("big5"))
+    (ui / filename).write_bytes(CUSTOM.encode("big5"))
     diffs, _ = scan(game, ui)
-    assert diffs["basicchar.xml"].new_ids == ["5130"]  # conhecido da atualização de 24/10/2026
-    assert diffs["basicchar.xml"].other_ids == ["8301"]
-    assert files_missing_id(game, ui, "5130") == ["BasicChar.xml"]
+    assert diffs[filename.lower()].new_ids == [required_id]
+    assert diffs[filename.lower()].other_ids == ["8301"]
+    assert files_missing_id(game, ui, required_id) == [filename]
     assert files_missing_id(game, ui, "2") == []

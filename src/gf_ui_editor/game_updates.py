@@ -45,6 +45,9 @@ _ID_RE = re.compile(r"\bID\s*=\s*(\d+)", re.IGNORECASE)
 # Atualização de 24/10/2026: o MiniInfo procura 5130, 5131 e 5132 no BasicChar.
 KNOWN_UPDATE_IDS: dict[str, frozenset[str]] = {
     "basicchar.xml": frozenset({"5130", "5131", "5132"}),
+    # Violet.dll limita a mochila do sprite a 15 linhas e usa este TrackNode
+    # para alcançar as linhas restantes. UIs antigas não têm a rolagem.
+    "elfinventory.xml": frozenset({"9547"}),
 }
 
 

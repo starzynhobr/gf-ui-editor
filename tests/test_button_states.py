@@ -68,13 +68,13 @@ def test_state_edit_preserves_every_other_byte_and_survives_save(tmp_path, state
     assert not document.is_dirty
 
 
-def test_missing_attributes_are_inserted_before_the_self_closing_suffix(tmp_path):
+def test_missing_positions_are_inserted_before_the_uv_size(tmp_path):
     path, raw = write_xml(tmp_path)
     document = UIDocument.load(path)
     document.set_button_uv(2, "FocusUV", UVRect(3, 5, 4, 4))
     expected = raw.replace(
         b'<FocusUV FocusUVWidth="4" FocusUVHeight="4" />',
-        b'<FocusUV FocusUVWidth="4" FocusUVHeight="4" FocusUVLeft="3" FocusUVTop="5" />',
+        b'<FocusUV FocusUVLeft="3" FocusUVTop="5" FocusUVWidth="4" FocusUVHeight="4" />',
     )
     document.save()
     assert path.read_bytes() == expected

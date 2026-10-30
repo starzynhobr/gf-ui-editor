@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image
@@ -1348,6 +1350,44 @@ def test_basicchar_shows_a_sample_character_that_the_bar_button_hides(tmp_path: 
     assert not nick.text_item.text
     assert rebirth.texture_item is None or not rebirth.texture_item.isVisible()
     window.close()
+
+
+@pytest.mark.parametrize("width,height", [(16, 16), (24, 12)])
+def test_sample_icon_keeps_xml_size_after_reopen_move_and_undo(tmp_path: Path, width: int, height: int) -> None:
+    application = QApplication.instance() or QApplication([])
+    Image.new("RGBA", (300, 540), (0, 255, 0, 255)).save(tmp_path / "main.dds", format="DDS")
+    path = tmp_path / "BasicChar.xml"
+    original = (
+        '<Root_Node><BaseWndProperty WindowID="1"><Container_Node Child_Cnt="1">'
+        '<Style CtrlType="268435456" />'
+        f'<BaseWndProperty WindowID="4011" WindowLeft="1" WindowTop="19" WindowHeight="{width}" WindowWidth="{height}">'
+        '<BackGroundMap BGmap="Slot32.dds" /></BaseWndProperty>'
+        '</Container_Node></BaseWndProperty></Root_Node>'
+    ).encode("big5")
+    path.write_bytes(original)
+    for _ in range(2):  # nova janela, além de reabrir com o cache já preenchido
+        window = EditorWindow()
+        for _ in range(2):
+            window.open_document(path)
+            application.processEvents()
+            item = window.items[1]
+
+            def assert_size() -> None:
+                texture = item.texture_item
+                assert texture is not None
+                bounds = texture.mapRectToParent(texture.boundingRect())
+                assert (bounds.width(), bounds.height()) == (width, height)
+
+            assert_size()
+            element = window.document.elements[1]
+            before = element.geometry
+            window.elements_dragged({1: (before, (before[0] + 3, before[1], width, height))})
+            assert_size()
+            window.undo_stack.undo()
+            assert_size()
+            assert not window.document.is_dirty
+            assert path.read_bytes() == original
+        window.close()
 
 
 def test_missing_official_reference_shows_a_banner_until_dismissed(tmp_path: Path, monkeypatch) -> None:
