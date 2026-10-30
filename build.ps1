@@ -1,9 +1,12 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $projectRoot ".venv\Scripts\python.exe"
 $iconPng = Join-Path $projectRoot "src\gf_ui_editor\assets\app-icon.png"
 $translations = Join-Path $projectRoot "src\gf_ui_editor\translations"
 $releaseNotes = Join-Path $projectRoot "src\gf_ui_editor\assets\release-notes.json"
+$contributors = Join-Path $projectRoot "src\gf_ui_editor\assets\contributors.json"
+$stzLogo = Join-Path $projectRoot "src\gf_ui_editor\assets\stz-labs.svg"
+$stzMark = Join-Path $projectRoot "src\gf_ui_editor\assets\stz-mark.svg"
 $fonts = Join-Path $projectRoot "src\gf_ui_editor\assets\fonts"
 $backgrounds = Join-Path $projectRoot "src\gf_ui_editor\assets\backgrounds"
 $iconIco =Join-Path $projectRoot "packaging\app-icon.ico"
@@ -19,7 +22,7 @@ try {
     $appVersion = & $python -c "from gf_ui_editor import __version__; print(__version__)"
     if ($LASTEXITCODE -ne 0 -or -not $appVersion) { throw "Falha ao ler a versão do aplicativo." }
     & (Join-Path $projectRoot "translations.ps1")
-    & $python -m PyInstaller --noconfirm --clean --onedir --windowed --name GF-UI-Editor --icon $iconIco --add-data "$iconPng;gf_ui_editor\assets" --add-data "$releaseNotes;gf_ui_editor\assets"--add-data "$translations;gf_ui_editor\translations" --add-data "$fonts;gf_ui_editor\assets\fonts" --add-data "$backgrounds;gf_ui_editor\assets\backgrounds" --distpath dist --workpath build --specpath build packaging\launcher.py
+    & $python -m PyInstaller --noconfirm --clean --onedir --windowed --name GF-UI-Editor --icon $iconIco --add-data "$iconPng;gf_ui_editor\assets" --add-data "$releaseNotes;gf_ui_editor\assets" --add-data "$contributors;gf_ui_editor\assets" --add-data "$stzLogo;gf_ui_editor\assets" --add-data "$stzMark;gf_ui_editor\assets" --add-data "$translations;gf_ui_editor\translations" --add-data "$fonts;gf_ui_editor\assets\fonts" --add-data "$backgrounds;gf_ui_editor\assets\backgrounds" --distpath dist --workpath build --specpath build packaging\launcher.py
     if ($LASTEXITCODE -ne 0) { throw "Falha ao empacotar o aplicativo." }
 
     $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
