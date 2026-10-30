@@ -1,4 +1,6 @@
-#define AppName "GF UI Editor"
+#define AppName "STZ GF UI"
+; Nome anterior: os atalhos antigos são removidos ao atualizar.
+#define OldAppName "GF UI Editor"
 #define AppExeName "GF-UI-Editor.exe"
 
 [Setup]
@@ -31,6 +33,10 @@ Source: "..\dist\GF-UI-Editor\*"; DestDir: "{app}"; Flags: recursesubdirs create
 ; A GPL exige que a licença acompanhe o programa distribuído.
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+
+[InstallDelete]
+Type: files; Name: "{group}\{#OldAppName}.lnk"
+Type: files; Name: "{autodesktop}\{#OldAppName}.lnk"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"

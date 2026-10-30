@@ -1,116 +1,148 @@
 {
-  "version": "0.4.1",
-  "date": "2026-10-28",
+  "version": "0.5.0",
+  "date": "2026-10-30",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Importar textos.",
-          "Na aba Textos, Importar textos… traz as alterações de arquivos T_*.ini que você já tinha editado. A comparação é ID por ID com o jogo: só o que mudou vira edição do projeto, e IDs novos de atualizações continuam com o texto oficial."
+          "Novo nome: STZ GF UI.",
+          "O GF UI Editor agora se chama STZ GF UI. Quem atualiza mantém projetos, recentes e configurações."
         ],
         [
-          "Editar texto com duplo clique.",
-          "Duplo clique num texto do canvas, ou na linha do elemento na lista, abre direto o editor daquele texto, sem precisar buscar."
+          "Barra lateral de ícones.",
+          "Arquivos XML, Texturas, Elementos e Textos ficam numa barra à esquerda. Os menus (Arquivo, Projeto, Editar, Visualização, Idioma e Ajuda) abrem pela engrenagem no rodapé dela."
         ],
         [
-          "Personagem de exemplo.",
-          "O botão Personagem (antes Foto) mostra no BasicChar e no Target um nick com 12 caracteres (o máximo do jogo), nível, HP/MP e os ícones de classe e reencarnação, onde o jogo os desenha."
+          "STZ Labs e contribuidores.",
+          "O botão STZ Labs no topo mostra o site e quem ajudou a construir o editor, com o que cada pessoa trouxe."
         ]
       ],
       "improved": [
         [
-          "Backups em outro idioma.",
-          "A aba Textos reconhece o idioma do jogo e dos backups: trocar o idioma no launcher não marca mais todos os textos como alterados."
+          "Barra superior mais limpa.",
+          "O projeto e o arquivo aberto ficam à esquerda (troque de projeto clicando no nome); Importar e Salvar viraram ícones."
         ]
       ],
       "fixed": [
         [
-          "Travamento depois de Enviar para o jogo.",
-          "A aba Textos remontava o histórico devagar a cada envio; agora leva menos de um segundo."
+          "Ordem do UV ao salvar.",
+          "Left/Top do UV voltam a ser gravados antes de Width/Height, como o jogo espera."
+        ],
+        [
+          "Rolagem do ElfInventory.",
+          "O nó de rolagem 9547 do ElfInventory é reconhecido."
+        ],
+        [
+          "Texto atrás dos chips do rodapé.",
+          "As mensagens da barra de status aparecem ao lado dos chips, sem ficar por baixo."
         ]
       ]
     },
     "en_US": {
       "new": [
         [
-          "Import texts.",
-          "In the Texts tab, Import texts… brings in changes from T_*.ini files you had already edited. It compares ID by ID with the game: only what changed becomes a project edit, and new IDs from updates keep the official text."
+          "New name: STZ GF UI.",
+          "GF UI Editor is now called STZ GF UI. Updating keeps your projects, recent list and settings."
         ],
         [
-          "Edit text by double-click.",
-          "Double-clicking a text on the canvas, or its element row in the list, opens that text in the editor without searching."
+          "Icon sidebar.",
+          "XML files, Textures, Elements and Texts live in a bar on the left. The menus (File, Project, Edit, View, Language and Help) open from the gear at its bottom."
         ],
         [
-          "Sample character.",
-          "The Character button (formerly Portrait) shows in BasicChar and Target a 12-character name (the game's maximum), level, HP/MP and the class and rebirth icons, where the game draws them."
+          "STZ Labs and contributors.",
+          "The STZ Labs button at the top shows the website and the people who helped build the editor, with what each one brought."
         ]
       ],
       "improved": [
         [
-          "Backups in another language.",
-          "The Texts tab recognizes the language of the game and of the backups: switching the language in the launcher no longer marks every text as changed."
+          "Cleaner top bar.",
+          "The project and the open file sit on the left (click the name to switch projects); Import and Save are now icons."
         ]
       ],
       "fixed": [
         [
-          "Freeze after Send to game.",
-          "The Texts tab rebuilt its history slowly after every send; it now takes less than a second."
+          "UV order on save.",
+          "UV Left/Top are written before Width/Height again, as the game expects."
+        ],
+        [
+          "ElfInventory scrolling.",
+          "ElfInventory's scroll node 9547 is recognized."
+        ],
+        [
+          "Text behind the footer chips.",
+          "Status bar messages now appear next to the chips instead of underneath them."
         ]
       ]
     },
     "es_ES": {
       "new": [
         [
-          "Importar textos.",
-          "En la pestaña Textos, Importar textos… trae los cambios de archivos T_*.ini que ya habías editado. Compara ID por ID con el juego: solo lo que cambió se convierte en edición del proyecto, y los IDs nuevos de las actualizaciones mantienen el texto oficial."
+          "Nuevo nombre: STZ GF UI.",
+          "GF UI Editor ahora se llama STZ GF UI. Al actualizar se conservan los proyectos, los recientes y la configuración."
         ],
         [
-          "Editar texto con doble clic.",
-          "Doble clic en un texto del canvas, o en la fila del elemento en la lista, abre ese texto en el editor sin buscarlo."
+          "Barra lateral de iconos.",
+          "Archivos XML, Texturas, Elementos y Textos están en una barra a la izquierda. Los menús (Archivo, Proyecto, Editar, Ver, Idioma y Ayuda) se abren desde el engranaje en su parte inferior."
         ],
         [
-          "Personaje de ejemplo.",
-          "El botón Personaje (antes Foto) muestra en BasicChar y Target un nick de 12 caracteres (el máximo del juego), nivel, HP/MP y los iconos de clase y reencarnación, donde el juego los dibuja."
+          "STZ Labs y colaboradores.",
+          "El botón STZ Labs arriba muestra el sitio y quiénes ayudaron a construir el editor, con lo que aportó cada uno."
         ]
       ],
       "improved": [
         [
-          "Copias en otro idioma.",
-          "La pestaña Textos reconoce el idioma del juego y de las copias: cambiar el idioma en el launcher ya no marca todos los textos como modificados."
+          "Barra superior más limpia.",
+          "El proyecto y el archivo abierto están a la izquierda (haz clic en el nombre para cambiar de proyecto); Importar y Guardar ahora son iconos."
         ]
       ],
       "fixed": [
         [
-          "Bloqueo después de Enviar al juego.",
-          "La pestaña Textos reconstruía el historial despacio tras cada envío; ahora tarda menos de un segundo."
+          "Orden del UV al guardar.",
+          "Left/Top del UV vuelven a guardarse antes de Width/Height, como espera el juego."
+        ],
+        [
+          "Desplazamiento del ElfInventory.",
+          "Se reconoce el nodo de desplazamiento 9547 del ElfInventory."
+        ],
+        [
+          "Texto detrás de los chips del pie.",
+          "Los mensajes de la barra de estado aparecen junto a los chips, no debajo."
         ]
       ]
     },
     "fr_FR": {
       "new": [
         [
-          "Importer des textes.",
-          "Dans l'onglet Textes, Importer des textes… récupère les modifications de fichiers T_*.ini déjà édités. La comparaison se fait ID par ID avec le jeu : seul ce qui a changé devient une modification du projet, et les nouveaux ID des mises à jour gardent le texte officiel."
+          "Nouveau nom : STZ GF UI.",
+          "GF UI Editor s'appelle désormais STZ GF UI. La mise à jour conserve vos projets, la liste récente et vos réglages."
         ],
         [
-          "Modifier un texte par double-clic.",
-          "Un double-clic sur un texte du canvas, ou sur la ligne de l'élément dans la liste, ouvre ce texte dans l'éditeur sans le chercher."
+          "Barre latérale d'icônes.",
+          "Fichiers XML, Textures, Éléments et Textes sont dans une barre à gauche. Les menus (Fichier, Projet, Édition, Affichage, Langue et Aide) s'ouvrent depuis l'engrenage en bas de celle-ci."
         ],
         [
-          "Personnage d'exemple.",
-          "Le bouton Personnage (anciennement Portrait) affiche dans BasicChar et Target un pseudo de 12 caractères (le maximum du jeu), le niveau, les PV/PM et les icônes de classe et de réincarnation, là où le jeu les dessine."
+          "STZ Labs et contributeurs.",
+          "Le bouton STZ Labs en haut montre le site et les personnes qui ont aidé à construire l'éditeur, avec l'apport de chacun."
         ]
       ],
       "improved": [
         [
-          "Sauvegardes dans une autre langue.",
-          "L'onglet Textes reconnaît la langue du jeu et des sauvegardes : changer de langue dans le launcher ne marque plus tous les textes comme modifiés."
+          "Barre supérieure épurée.",
+          "Le projet et le fichier ouvert sont à gauche (cliquez sur le nom pour changer de projet) ; Importer et Enregistrer sont devenus des icônes."
         ]
       ],
       "fixed": [
         [
-          "Blocage après Envoyer au jeu.",
-          "L'onglet Textes reconstruisait l'historique lentement après chaque envoi ; cela prend maintenant moins d'une seconde."
+          "Ordre des UV à l'enregistrement.",
+          "Left/Top des UV sont de nouveau écrits avant Width/Height, comme le jeu l'attend."
+        ],
+        [
+          "Défilement de l'ElfInventory.",
+          "Le nœud de défilement 9547 de l'ElfInventory est reconnu."
+        ],
+        [
+          "Texte derrière les puces du bas.",
+          "Les messages de la barre d'état s'affichent à côté des puces, et non plus en dessous."
         ]
       ]
     }

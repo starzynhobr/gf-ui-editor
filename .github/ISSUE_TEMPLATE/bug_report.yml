@@ -6,7 +6,7 @@ body:
     id: version
     attributes:
       label: Versão do editor / Editor version
-      description: Ajuda → Sobre o GF UI Editor / Help → About GF UI Editor
+      description: Ajuda → Sobre o STZ GF UI / Help → About STZ GF UI
       placeholder: "0.3.0"
     validations:
       required: true

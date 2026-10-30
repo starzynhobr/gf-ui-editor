@@ -1,4 +1,4 @@
-# Contribuindo com o GF UI Editor
+# Contribuindo com o STZ GF UI
 
 Obrigado por querer ajudar. Este guia cobre como relatar problemas, sugerir recursos e enviar código.
 

@@ -190,12 +190,15 @@ DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
 STZ_LABS_URL = "https://stzlabs.com"
+# Nome mostrado ao usuário. Chaves de configuração, pasta de projetos e o .exe
+# continuam com o nome antigo para quem atualiza não perder nada.
+APP_NAME = "STZ GF UI"
 
 
 class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle(self.tr("Sobre o GF UI Editor"))
+        self.setWindowTitle(self.tr("Sobre o {name}").format(name=APP_NAME))
         self.setMinimumWidth(360)
 
         icon = QLabel()
@@ -207,7 +210,7 @@ class AboutDialog(QDialog):
                 Qt.TransformationMode.SmoothTransformation,
             )
         )
-        title = QLabel("GF UI Editor")
+        title = QLabel(APP_NAME)
         title.setObjectName("panelTitle")
         version = QLabel(self.tr("Versão {version}").format(version=__version__))
         version.setObjectName("panelSubtitle")
@@ -291,7 +294,7 @@ class StzLabsPopup(QFrame):
         logo = QLabel()
         logo.setPixmap(stz_logo_pixmap(48))
         subtitle = QLabel(
-            self.tr("GF UI Editor {version} · feito por {author}").format(version=__version__, author="StarzynhoBR")
+            self.tr("{name} {version} · feito por {author}").format(name=APP_NAME, version=__version__, author="StarzynhoBR")
         )
         subtitle.setObjectName("panelSubtitle")
         description = QLabel(self.tr("Ferramentas e projetos independentes. Este editor é um deles."))
@@ -1663,7 +1666,7 @@ class EditorWindow(QMainWindow):
         self._apply_theme()
         install_pointer_cursors(self)
         self.resize(1500, 900)
-        self.setWindowTitle("GF UI Editor")
+        self.setWindowTitle(APP_NAME)
         self.statusBar().addPermanentWidget(self.cursor_position_label)
 
         self._refresh_files()
@@ -2027,7 +2030,7 @@ class EditorWindow(QMainWindow):
             action.setChecked(code == self.language)
             language_actions.addAction(action)
             action.triggered.connect(lambda _checked, selected=code: self._choose_language(selected))
-        self.about_action = QAction(self.tr("Sobre o GF UI Editor…"), self)
+        self.about_action = QAction(self.tr("Sobre o {name}…").format(name=APP_NAME), self)
         self.about_action.triggered.connect(self.show_about)
         self.update_action = QAction(self.tr("Verificar atualizações…"), self)
         self.update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
@@ -5764,7 +5767,7 @@ class EditorWindow(QMainWindow):
         Exceções do trabalho são relançadas aqui, para os tratamentos de quem chama.
         """
         dialog = QProgressDialog(label, None, 0, 0, self)
-        dialog.setWindowTitle("GF UI Editor")
+        dialog.setWindowTitle(APP_NAME)
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
         dialog.setMinimumDuration(0)
         dialog.setMinimumWidth(380)
@@ -6224,12 +6227,12 @@ class EditorWindow(QMainWindow):
         self._update_status_chips()
         self._update_center_page()
         if self.document is None:
-            self.setWindowTitle(f"GF UI Editor [{self.project.name}]" if self.project is not None else "GF UI Editor")
+            self.setWindowTitle(f"{APP_NAME} [{self.project.name}]" if self.project is not None else APP_NAME)
             return
         marker = " *" if self.document.is_dirty else ""
         project = f" [{self.project.name}]" if self.project is not None else ""
         self.setWindowTitle(
-            f"GF UI Editor{project} — {self.document.path.name}{marker} — {self.document.path.parent}"
+            f"{APP_NAME}{project} — {self.document.path.name}{marker} — {self.document.path.parent}"
         )
 
     def _confirm_discard_changes(self) -> bool:
@@ -6265,7 +6268,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     application = QApplication(sys.argv[:1])
-    application.setApplicationName("GF UI Editor")
+    application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")
     application.setWindowIcon(QIcon(str(APP_ICON_PATH)))
     language = args.lang or QSettings("Local", "GF UI Editor").value("language", "pt_BR")

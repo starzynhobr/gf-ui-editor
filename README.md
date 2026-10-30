@@ -1,4 +1,4 @@
-# GF UI Editor
+# STZ GF UI
 
 Editor visual para os XMLs de interface do Grand Fantasia Violet.
 
@@ -98,7 +98,7 @@ O script `run.ps1` também funciona quando as dependências já estão instalada
 - `I`: mostra ou oculta todos os identificadores. O elemento selecionado sempre mostra o próprio identificador.
 - `T`: mostra ou oculta as texturas.
 
-O menu **Ajuda → Sobre o GF UI Editor** mostra a versão instalada e oferece um botão para conhecer [outros projetos de StarzynhoBR](https://github.com/starzynhobr?tab=repositories).
+O menu **Ajuda → Sobre o STZ GF UI** mostra a versão instalada e oferece um botão para conhecer [outros projetos de StarzynhoBR](https://github.com/starzynhobr?tab=repositories).
 
 ## Segurança do salvamento
 
