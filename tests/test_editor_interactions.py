@@ -31,7 +31,7 @@ def test_clickable_cursor_tracks_action_availability(tmp_path: Path) -> None:
     application = QApplication.instance() or QApplication([])
     window = EditorWindow()
     toolbar = window.findChild(QToolBar)
-    open_button = toolbar.widgetForAction(window.open_project_action)
+    open_button = window.project_button
     fit_button = toolbar.widgetForAction(window.reload_textures_action)
     assert open_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
     assert not window.reload_textures_action.isEnabled()

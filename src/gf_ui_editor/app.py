@@ -5,6 +5,7 @@ from datetime import datetime
 import difflib
 import hashlib
 from html import escape
+import json
 import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
@@ -26,10 +27,12 @@ from PySide6.QtGui import (
     QFontDatabase,
     QIcon,
     QKeySequence,
+    QPainter,
     QPixmap,
     QUndoCommand,
     QUndoStack,
 )
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -60,7 +63,6 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QGridLayout,
-    QTabWidget,
     QStyle,
     QTreeWidget,
     QTreeWidgetItem,
@@ -187,12 +189,16 @@ TEXTURE_SUFFIXES = (".dds", ".tga")
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
+STZ_LABS_URL = "https://stzlabs.com"
+# Nome mostrado ao usuário. Chaves de configuração, pasta de projetos e o .exe
+# continuam com o nome antigo para quem atualiza não perder nada.
+APP_NAME = "STZ GF UI"
 
 
 class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle(self.tr("Sobre o GF UI Editor"))
+        self.setWindowTitle(self.tr("Sobre o {name}").format(name=APP_NAME))
         self.setMinimumWidth(360)
 
         icon = QLabel()
@@ -204,7 +210,7 @@ class AboutDialog(QDialog):
                 Qt.TransformationMode.SmoothTransformation,
             )
         )
-        title = QLabel("GF UI Editor")
+        title = QLabel(APP_NAME)
         title.setObjectName("panelTitle")
         version = QLabel(self.tr("Versão {version}").format(version=__version__))
         version.setObjectName("panelSubtitle")
@@ -241,6 +247,144 @@ class AboutDialog(QDialog):
         layout.addWidget(description)
         layout.addLayout(actions)
         install_pointer_cursors(self)
+
+
+STZ_LOGO_PATH = Path(__file__).resolve().parent / "assets" / "stz-labs.svg"
+STZ_MARK_PATH = Path(__file__).resolve().parent / "assets" / "stz-mark.svg"
+CONTRIBUTORS_PATH = Path(__file__).resolve().parent / "assets" / "contributors.json"
+
+
+def stz_logo_pixmap(height: int, device_ratio: float = 2.0, path: Path = STZ_LOGO_PATH) -> QPixmap:
+    """Logo da marca (STZ Labs completo ou só o STZ) na altura pedida, nítido em telas com escala."""
+    renderer = QSvgRenderer(str(path))
+    size = renderer.defaultSize()
+    width = round(height * size.width() / max(1, size.height()))
+    pixmap = QPixmap(round(width * device_ratio), round(height * device_ratio))
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    renderer.render(painter, QRectF(0, 0, pixmap.width(), pixmap.height()))
+    painter.end()
+    pixmap.setDevicePixelRatio(device_ratio)
+    return pixmap
+
+
+def load_contributors() -> list[dict]:
+    try:
+        return json.loads(CONTRIBUTORS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+class StzLabsPopup(QFrame):
+    """Cartão flutuante da pílula STZ Labs: o site e quem ajudou a construir o editor."""
+
+    def __init__(self, language: str, parent: QWidget | None = None):
+        super().__init__(parent, Qt.WindowType.Popup)
+        self.setObjectName("stzPopup")
+        self.setFixedWidth(360)
+        tag_labels = {
+            "ideas": self.tr("Ideias"),
+            "qa": self.tr("Testes / QA"),
+            "navigation": self.tr("Navegação"),
+        }
+
+        header = QFrame()
+        header.setObjectName("stzHeader")
+        logo = QLabel()
+        logo.setPixmap(stz_logo_pixmap(48))
+        subtitle = QLabel(
+            self.tr("{name} {version} · feito por {author}").format(name=APP_NAME, version=__version__, author="StarzynhoBR")
+        )
+        subtitle.setObjectName("panelSubtitle")
+        description = QLabel(self.tr("Ferramentas e projetos independentes. Este editor é um deles."))
+        description.setWordWrap(True)
+        site_url = f"{STZ_LABS_URL}/pt" if language == "pt_BR" else STZ_LABS_URL
+        site_button = QPushButton(self.tr("Visitar stzlabs.com ↗"))
+        site_button.setObjectName("stzSiteButton")
+        site_button.clicked.connect(lambda: (QDesktopServices.openUrl(QUrl(site_url)), self.close()))
+        github_button = QPushButton("GitHub")
+        github_button.clicked.connect(lambda: (QDesktopServices.openUrl(QUrl(GITHUB_REPOSITORIES_URL)), self.close()))
+        buttons = QHBoxLayout()
+        buttons.addWidget(site_button, 1)
+        buttons.addWidget(github_button)
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(18, 16, 18, 16)
+        header_layout.setSpacing(6)
+        header_layout.addWidget(logo)
+        header_layout.addSpacing(4)
+        header_layout.addWidget(subtitle)
+        header_layout.addWidget(description)
+        header_layout.addSpacing(6)
+        header_layout.addLayout(buttons)
+
+        contributors = load_contributors()
+        body = QVBoxLayout()
+        body.setContentsMargins(18, 14, 18, 16)
+        body.setSpacing(8)
+        section = QHBoxLayout()
+        section_title = QLabel(self.tr("QUEM AJUDOU A CONSTRUIR"))
+        section_title.setObjectName("stzSection")
+        section_count = QLabel(self.tr("{count} pessoas").format(count=len(contributors)))
+        section_count.setObjectName("stzSection")
+        section.addWidget(section_title)
+        section.addStretch(1)
+        section.addWidget(section_count)
+        body.addLayout(section)
+        for person in contributors:
+            body.addWidget(self._contributor_card(person, language, tag_labels))
+        invite = QLabel(self.tr("💡 Teve uma ideia ou achou um bug? Conte no Discord — quem ajuda entra aqui."))
+        invite.setObjectName("stzInvite")
+        invite.setWordWrap(True)
+        body.addSpacing(4)
+        body.addWidget(invite)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(1, 1, 1, 1)
+        layout.setSpacing(0)
+        layout.addWidget(header)
+        layout.addLayout(body)
+        install_pointer_cursors(self)
+
+    def _contributor_card(self, person: dict, language: str, tag_labels: dict[str, str]) -> QFrame:
+        card = QFrame()
+        card.setObjectName("stzCard")
+        name = str(person.get("name", ""))
+        avatar = QLabel(name[:1].upper())
+        avatar.setFixedSize(32, 32)
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet(
+            f"background: {person.get('color', '#3F3F46')}; color: #FFFFFF; border-radius: 16px; font-weight: 700;"
+        )
+        title = QLabel(name)
+        title.setObjectName("stzCardName")
+        texts = person.get("text", {})
+        # Uma contribuição por linha; com mais de uma, vira lista como num changelog.
+        items = texts.get(language) or texts.get("pt_BR", [])
+        if isinstance(items, str):
+            items = [items]
+        text = QLabel("\n".join(f"• {item}" for item in items) if len(items) > 1 else "".join(items))
+        text.setObjectName("stzCardText")
+        text.setWordWrap(True)
+        tags = QHBoxLayout()
+        tags.setSpacing(4)
+        for tag in person.get("tags", []):
+            chip = QLabel(tag_labels.get(tag, tag))
+            chip.setObjectName("stzTag")
+            tags.addWidget(chip)
+        tags.addStretch(1)
+        column = QVBoxLayout()
+        column.setSpacing(3)
+        column.addWidget(title)
+        column.addWidget(text)
+        column.addSpacing(3)
+        column.addLayout(tags)
+        row = QHBoxLayout(card)
+        row.setContentsMargins(10, 10, 10, 10)
+        row.setSpacing(10)
+        row.addWidget(avatar, 0, Qt.AlignmentFlag.AlignTop)
+        row.addLayout(column, 1)
+        return card
 
 
 class NewProjectDialog(QDialog):
@@ -1321,8 +1465,8 @@ class EditorWindow(QMainWindow):
         element_buttons.addWidget(self.official_button)
         tree_layout.addLayout(element_buttons)
 
-        self.project_label = QLabel()
-        self.project_label.setObjectName("panelTitle")
+        self.files_title = QLabel(self.tr("Arquivos XML"))
+        self.files_title.setObjectName("panelTitle")
         self.project_path_label = QLabel()
         self.project_path_label.setObjectName("panelSubtitle")
         self.project_path_label.setWordWrap(True)
@@ -1351,16 +1495,9 @@ class EditorWindow(QMainWindow):
         files_layout = QVBoxLayout(files_page)
         files_layout.setContentsMargins(10, 10, 10, 10)
         files_layout.setSpacing(6)
-        files_layout.addWidget(self.project_label)
+        files_layout.addWidget(self.files_title)
+        # Só aparece sem projeto: explica que arquivos soltos não chegam ao jogo sozinhos.
         files_layout.addWidget(self.project_path_label)
-        self.project_paths_label = QLabel()
-        self.project_paths_label.setObjectName("pathCaption")
-        self.project_paths_label.setWordWrap(True)
-        # Caminhos longos não podem alargar o painel; o texto completo fica na dica.
-        self.project_paths_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.project_paths_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.project_paths_label.setVisible(False)
-        files_layout.addWidget(self.project_paths_label)
         self.shared_publish_warning = QLabel()
         self.shared_publish_warning.setObjectName("warningHint")
         self.shared_publish_warning.setWordWrap(True)
@@ -1380,38 +1517,58 @@ class EditorWindow(QMainWindow):
             lambda: self.new_project(loose_dir=self._files_directory())
         )
         files_layout.addWidget(self.loose_project_button)
-        # XML ou texturas: duas listas separadas em vez de uma seção escondida no fim.
+        # XML ou texturas: duas listas separadas, cada uma com seu ícone na barra lateral.
         self.files_mode = "xml"
-        segments = QWidget()
-        segments.setObjectName("segmented")
-        segments_layout = QHBoxLayout(segments)
-        segments_layout.setContentsMargins(3, 3, 3, 3)
-        segments_layout.setSpacing(2)
-        self.files_mode_buttons = {}
-        for mode, label in (("xml", self.tr("XML")), ("textures", self.tr("Texturas"))):
-            button = QPushButton(label)
-            button.setObjectName("segment")
-            button.setCheckable(True)
-            button.setChecked(mode == "xml")
-            button.clicked.connect(lambda _checked=False, value=mode: self._set_files_mode(value))
-            segments_layout.addWidget(button)
-            self.files_mode_buttons[mode] = button
-        segments.setVisible(False)
-        self.files_mode_bar = segments
-        files_layout.addWidget(segments)
         files_layout.addWidget(self.file_filter_edit)
         files_layout.addWidget(self.files_tree)
 
-        self.side_tabs = QTabWidget()
-        self.side_tabs.setObjectName("sideTabs")
-        self.side_tabs.setDocumentMode(True)
-        self.side_tabs.addTab(files_page, self.tr("Arquivos"))
-        self.side_tabs.addTab(elements_page, self.tr("Elementos"))
+        # Páginas do painel lateral: 0 arquivos (XML ou texturas), 1 elementos, 2 textos.
+        self.side_tabs = QStackedWidget()
+        self.side_tabs.setObjectName("sidePanel")
+        self.side_tabs.addWidget(files_page)
+        self.side_tabs.addWidget(elements_page)
         self.texts_panel = TextsPanel()
         self.texts_panel.edits_changed.connect(self._text_edits_changed)
         self._text_overrides_version = 0
-        self.side_tabs.addTab(self.texts_panel, self.tr("Textos"))
-        tree_panel = self.side_tabs
+        self.side_tabs.addWidget(self.texts_panel)
+        self.side_tabs.currentChanged.connect(lambda _index: self._sync_side_rail())
+        self.side_rail = QFrame()
+        self.side_rail.setObjectName("sideRail")
+        rail_layout = QVBoxLayout(self.side_rail)
+        rail_layout.setContentsMargins(6, 8, 6, 8)
+        rail_layout.setSpacing(4)
+        self.side_rail_buttons: dict[str, QToolButton] = {}
+        for key, icon_name, label in (
+            ("xml", "file", self.tr("Arquivos XML")),
+            ("textures", "image", self.tr("Texturas")),
+            ("elements", "layers", self.tr("Elementos")),
+            ("texts", "type", self.tr("Textos")),
+        ):
+            button = QToolButton()
+            button.setObjectName("railButton")
+            button.setIcon(icon(icon_name, COLORS["ICON"], 20))
+            button.setIconSize(QSize(20, 20))
+            button.setCheckable(True)
+            button.setToolTip(label)
+            button.clicked.connect(lambda _checked=False, value=key: self.show_side_page(value))
+            rail_layout.addWidget(button)
+            self.side_rail_buttons[key] = button
+        rail_layout.addStretch(1)
+        # A engrenagem guarda o que antes ficava na barra de menus.
+        self.settings_button = QToolButton()
+        self.settings_button.setObjectName("railButton")
+        self.settings_button.setIcon(icon("settings", COLORS["ICON"], 20))
+        self.settings_button.setIconSize(QSize(20, 20))
+        self.settings_button.setToolTip(self.tr("Menu e configurações"))
+        self.settings_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        rail_layout.addWidget(self.settings_button)
+        tree_panel = QWidget()
+        tree_panel_layout = QHBoxLayout(tree_panel)
+        tree_panel_layout.setContentsMargins(0, 0, 0, 0)
+        tree_panel_layout.setSpacing(0)
+        tree_panel_layout.addWidget(self.side_rail)
+        tree_panel_layout.addWidget(self.side_tabs, 1)
+        self._sync_side_rail()
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
         self.properties.ghost_fix_requested.connect(self.remove_ghost_area)
@@ -1494,7 +1651,7 @@ class EditorWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes([290, 830, 320])
+        splitter.setSizes([310, 810, 320])
         self.setCentralWidget(splitter)
 
         self._create_actions()
@@ -1509,7 +1666,7 @@ class EditorWindow(QMainWindow):
         self._apply_theme()
         install_pointer_cursors(self)
         self.resize(1500, 900)
-        self.setWindowTitle("GF UI Editor")
+        self.setWindowTitle(APP_NAME)
         self.statusBar().addPermanentWidget(self.cursor_position_label)
 
         self._refresh_files()
@@ -1753,7 +1910,11 @@ class EditorWindow(QMainWindow):
         self.new_image_action.triggered.connect(self.new_image)
 
     def _create_menus_and_toolbar(self) -> None:
-        file_menu = self.menuBar().addMenu(self.tr("Arquivo"))
+        # Sem barra de menus: os mesmos menus abrem pela engrenagem da barra lateral.
+        self.main_menu = QMenu(self)
+        self.main_menu.setToolTipsVisible(True)
+        self.settings_button.setMenu(self.main_menu)
+        file_menu = self.main_menu.addMenu(self.tr("Arquivo"))
         file_menu.addAction(self.new_project_action)
         file_menu.addAction(self.open_project_action)
         self.recent_menu = file_menu.addMenu(self.tr("Projetos recentes"))
@@ -1765,7 +1926,7 @@ class EditorWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
-        project_menu = self.menuBar().addMenu(self.tr("Projeto"))
+        project_menu = self.main_menu.addMenu(self.tr("Projeto"))
         project_menu.addAction(self.test_action)
         project_menu.addAction(self.import_action)
         self.official_reference_action = QAction(self.tr("UI oficial de referência…"), self)
@@ -1780,7 +1941,7 @@ class EditorWindow(QMainWindow):
         project_menu.addAction(self.publish_folder_action)
         project_menu.addSeparator()
         project_menu.addAction(self.project_folder_action)
-        edit_menu = self.menuBar().addMenu(self.tr("Editar"))
+        edit_menu = self.main_menu.addMenu(self.tr("Editar"))
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
         edit_menu.addAction(self.deselect_action)
@@ -1789,7 +1950,7 @@ class EditorWindow(QMainWindow):
         edit_menu.addAction(self.duplicate_action)
         edit_menu.addAction(self.delete_action)
         edit_menu.addAction(self.game_hide_action)
-        view_menu = self.menuBar().addMenu(self.tr("Visualização"))
+        view_menu = self.main_menu.addMenu(self.tr("Visualização"))
         view_menu.addAction(self.fit_action)
         view_menu.addAction(self.labels_action)
         view_menu.addMenu(self.text_mode_menu)
@@ -1857,12 +2018,9 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.lock_action)
         view_menu.addAction(self.hide_action)
         view_menu.addAction(self.isolate_action)
-        help_menu = self.menuBar().addMenu(self.tr("Ajuda"))
-        self.language_button = QToolButton(self.menuBar())
-        self.language_button.setObjectName("languageButton")
-        self.language_button.setText(self.tr("Idioma"))
-        self.language_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        language_menu = QMenu(self.language_button)
+        language_menu = self.main_menu.addMenu(self.tr("Idioma"))
+        self.language_menu = language_menu
+        help_menu = self.main_menu.addMenu(self.tr("Ajuda"))
         language_actions = QActionGroup(self)
         language_actions.setExclusive(True)
         for code, label in LANGUAGE_NAMES:
@@ -1872,9 +2030,7 @@ class EditorWindow(QMainWindow):
             action.setChecked(code == self.language)
             language_actions.addAction(action)
             action.triggered.connect(lambda _checked, selected=code: self._choose_language(selected))
-        self.language_button.setMenu(language_menu)
-        self.menuBar().setCornerWidget(self.language_button, Qt.Corner.TopRightCorner)
-        self.about_action = QAction(self.tr("Sobre o GF UI Editor…"), self)
+        self.about_action = QAction(self.tr("Sobre o {name}…").format(name=APP_NAME), self)
         self.about_action.triggered.connect(self.show_about)
         self.update_action = QAction(self.tr("Verificar atualizações…"), self)
         self.update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
@@ -1897,12 +2053,40 @@ class EditorWindow(QMainWindow):
         help_menu.addAction(self.auto_update_action)
         help_menu.addSeparator()
         help_menu.addAction(self.about_action)
+        # Os menus não ficam mais visíveis o tempo todo; os atalhos precisam morar na janela.
+        # QAction.menu() no PySide6 devolve o submenu com posse do Python e o apaga no GC; por isso
+        # os submenus são listados aqui e reconhecidos pelo menuAction().
+        menus = (file_menu, project_menu, edit_menu, view_menu, resolution_menu, root_mode_menu,
+                 navigation_menu, self.text_mode_menu, help_menu)
+        submenu_actions = {menu.menuAction() for menu in (*menus, self.recent_menu, language_menu)}
+        for menu in menus:
+            self.addActions([
+                action for action in menu.actions() if not action.isSeparator() and action not in submenu_actions
+            ])
         toolbar = self.addToolBar("Principal")
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(18, 18))
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        toolbar.addAction(self.new_project_action)
-        toolbar.addAction(self.open_project_action)
+        # Nome do projeto: troca de projeto e mostra os caminhos na dica.
+        self.project_button = QToolButton()
+        self.project_button.setObjectName("projectButton")
+        self.project_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.project_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        project_switch_menu = QMenu(self.project_button)
+        project_switch_menu.addAction(self.new_project_action)
+        project_switch_menu.addAction(self.open_project_action)
+        project_switch_menu.addMenu(self.recent_menu)
+        project_switch_menu.addSeparator()
+        project_switch_menu.addAction(self.home_action)
+        project_switch_menu.addAction(self.project_folder_action)
+        self.project_button.setMenu(project_switch_menu)
+        toolbar.addWidget(self.project_button)
+        # Arquivo aberto ao lado do projeto: "STZ-UI ˅ / Channel.xml ●".
+        self.breadcrumb = QLabel()
+        self.breadcrumb.setObjectName("breadcrumb")
+        self.breadcrumb.setTextFormat(Qt.TextFormat.RichText)
+        self.breadcrumb_action = toolbar.addWidget(self.breadcrumb)
+        toolbar.addSeparator()
         toolbar.addAction(self.import_action)
         toolbar.addAction(self.save_action)
         toolbar.addSeparator()
@@ -1917,19 +2101,39 @@ class EditorWindow(QMainWindow):
             spacer.setObjectName("transparent")
             toolbar.addWidget(spacer)
             if spacer_index == 0:
-                self.breadcrumb = QLabel()
-                self.breadcrumb.setObjectName("breadcrumb")
-                self.breadcrumb.setTextFormat(Qt.TextFormat.RichText)
-                self.breadcrumb_action = toolbar.addWidget(self.breadcrumb)
+                self.brand_button = QToolButton()
+                self.brand_button.setObjectName("brandButton")
+                # A toolbar impõe o tamanho de ícone dela; o logo vai num QLabel para ficar legível.
+                brand_logo = QLabel()
+                brand_logo.setPixmap(stz_logo_pixmap(14, path=STZ_MARK_PATH))
+                brand_name = QLabel("Labs")
+                brand_name.setObjectName("brandName")
+                # Ponto laranja até o primeiro clique: chama atenção uma vez, depois some.
+                self.brand_dot = QLabel()
+                self.brand_dot.setObjectName("brandDot")
+                self.brand_dot.setFixedSize(7, 7)
+                self.brand_dot.setVisible(not QSettings("Local", "GF UI Editor").value("brand_seen", False, type=bool))
+                brand_layout = QHBoxLayout(self.brand_button)
+                brand_layout.setContentsMargins(12, 2, 12, 2)
+                brand_layout.setSpacing(7)
+                brand_layout.addWidget(brand_logo)
+                brand_layout.addWidget(brand_name)
+                brand_layout.addWidget(self.brand_dot)
+                for child in (brand_logo, brand_name, self.brand_dot):
+                    child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                self.brand_button.setFixedSize(brand_layout.sizeHint().width(), 30)
+                self.brand_button.setToolTip(self.tr("Sobre quem fez o editor e outros projetos"))
+                self.brand_button.clicked.connect(self.show_brand_popup)
+                toolbar.addWidget(self.brand_button)
         toolbar.addAction(self.export_action)
         toolbar.addAction(self.test_action)
-        for action, name in (
-            (self.save_action, "saveButton"), (self.export_action, "saveButton"), (self.test_action, "accentButton")
-        ):
+        for action, name in ((self.export_action, "saveButton"), (self.test_action, "accentButton")):
             button = toolbar.widgetForAction(action)
             button.setObjectName(name)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.widgetForAction(self.save_action).setObjectName("saveButton")
         self.main_toolbar = toolbar
+        self._update_project_button()
 
     # ---- atualização ----------------------------------------------------------
     def _automatic_update_check(self) -> None:
@@ -2115,6 +2319,17 @@ class EditorWindow(QMainWindow):
     def show_about(self) -> None:
         AboutDialog(self).exec()
 
+    def show_brand_popup(self) -> None:
+        if self.brand_dot.isVisible():
+            self.brand_dot.hide()
+            QSettings("Local", "GF UI Editor").setValue("brand_seen", True)
+        popup = StzLabsPopup(self.language, self)
+        popup.setStyleSheet(self.styleSheet())
+        popup.adjustSize()
+        anchor = self.brand_button.mapToGlobal(self.brand_button.rect().bottomLeft())
+        popup.move(anchor.x() + (self.brand_button.width() - popup.width()) // 2, anchor.y() + 6)
+        popup.show()
+
     def _choose_language(self, language: str) -> None:
         if language == self.language or language not in LANGUAGES:
             return
@@ -2204,18 +2419,48 @@ class EditorWindow(QMainWindow):
             }
             QToolButton#accentButton:hover { background: ${ACCENT_HOVER_BG}; }
             QToolButton#accentButton:disabled { background: ${BUTTON_HOVER_BG}; color: ${TEXT_DISABLED}; }
-            QLabel#breadcrumb {
-                background: ${CHIP_BG};
-                border: 1px solid ${BORDER_INPUT};
-                border-radius: 8px;
-                padding: 5px 12px;
-                color: ${TEXT_MUTED};
+            QLabel#breadcrumb { color: ${TEXT_MUTED}; padding: 0 10px 0 0; }
+            QToolButton#projectButton { font-weight: 600; color: ${TEXT_BRIGHT}; padding: 6px 26px 6px 10px; }
+            QToolButton#projectButton::menu-indicator {
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+                right: 8px;
             }
-            QToolButton#languageButton {
-                background: transparent;
-                border-color: ${BORDER_INPUT};
-                margin: 2px 6px 2px 0;
-                padding: 3px 9px;
+            QToolButton#brandButton { background: #1F2028; border: 0; border-radius: 7px; }
+            QToolButton#brandButton:hover { background: #2A2B33; }
+            QToolButton#brandButton QLabel { background: transparent; }
+            QLabel#brandName { color: ${TEXT_BRIGHT}; font-weight: 600; font-size: 12px; }
+            QLabel#brandDot { background: #FF7A1A; border-radius: 3px; }
+            QFrame#stzPopup { background: #111215; border: 1px solid #2A2B33; border-radius: 12px; }
+            QFrame#stzHeader {
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 #1F160F, stop: 0.7 #111215);
+                border: 0;
+                border-bottom: 1px solid #23242B;
+                border-top-left-radius: 11px;
+                border-top-right-radius: 11px;
+            }
+            QFrame#stzHeader QLabel { background: transparent; }
+            QPushButton#stzSiteButton { background: #FF7A1A; color: #1A0F05; border: 0; font-weight: 700; }
+            QPushButton#stzSiteButton:hover { background: #FF8F3D; }
+            QLabel#stzSection { color: ${TEXT_MUTED}; font-size: 11px; font-weight: 600; }
+            QFrame#stzCard { background: #15161B; border: 1px solid #23242B; border-radius: 8px; }
+            QFrame#stzCard QLabel { background: transparent; }
+            QLabel#stzCardName { color: ${TEXT_BRIGHT}; font-weight: 600; }
+            QLabel#stzCardText { color: ${TEXT_MUTED}; font-size: 12px; }
+            QLabel#stzTag {
+                background: #1F2028;
+                border: 1px solid #2A2B33;
+                border-radius: 9px;
+                padding: 1px 7px;
+                color: ${TEXT_MUTED};
+                font-size: 11px;
+            }
+            QLabel#stzInvite {
+                border: 1px dashed #3F3F46;
+                border-radius: 8px;
+                padding: 9px;
+                color: ${TEXT_MUTED};
+                font-size: 12px;
             }
             QPushButton {
                 background: ${BUTTON_HOVER_BG};
@@ -2299,10 +2544,6 @@ class EditorWindow(QMainWindow):
             QToolButton#chip { background: ${CHIP_BG}; color: ${TEXT_MUTED}; border: 0; border-radius: 9px; padding: 1px 9px; margin: 3px 2px; font-size: 11px; }
             QToolButton#chipWarning { background: #3a2e12; color: ${SELECTION_GOLD}; border: 0; border-radius: 9px; padding: 1px 9px; margin: 3px 2px; font-size: 11px; font-weight: 600; }
             QToolButton#chip:hover, QToolButton#chipWarning:hover { color: ${TEXT_BRIGHT}; }
-            QWidget#segmented { background: ${INPUT_BG}; border: 1px solid ${BORDER_INPUT}; border-radius: 8px; }
-            QPushButton#segment { background: transparent; border: 0; border-radius: 6px; padding: 4px 10px; color: ${TEXT_MUTED}; }
-            QPushButton#segment:hover { color: ${TEXT_PRIMARY}; }
-            QPushButton#segment:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; font-weight: 600; }
             QFrame#pickRow { background: ${CARD_BG}; border: 1px solid ${CARD_BORDER}; border-radius: 8px; }
             QFrame#pickRow:hover { border-color: ${BUTTON_HOVER_BORDER}; }
             QFrame#pickRow[checked="true"] { background: ${ACCENT_SOFT_BG}; border-color: ${ACCENT_BG}; }
@@ -2427,18 +2668,11 @@ class EditorWindow(QMainWindow):
                 font-size: 11px;
                 font-weight: 600;
             }
-            QTabWidget#sideTabs::pane { border: 0; background: ${PANEL_BG}; }
-            QTabWidget#sideTabs QTabBar { background: ${PANEL_BG}; }
-            QTabWidget#sideTabs QTabBar::tab {
-                background: transparent;
-                color: ${TEXT_SUBTITLE};
-                padding: 10px 14px 8px;
-                border: 0;
-                border-bottom: 2px solid transparent;
-                font-weight: 500;
-            }
-            QTabWidget#sideTabs QTabBar::tab:selected { color: ${TEXT_BRIGHT}; border-bottom-color: ${ACCENT_BG}; font-weight: 600; }
-            QTabWidget#sideTabs QTabBar::tab:hover:!selected { color: ${TEXT_PRIMARY}; }
+            QFrame#sideRail { background: ${CHROME_BG}; border: 0; border-right: 1px solid ${BORDER_PANEL}; }
+            QToolButton#railButton { border-radius: 8px; padding: 7px; }
+            QToolButton#railButton:checked { background: ${ACCENT_SOFT_BG}; border-color: transparent; }
+            QToolButton#railButton::menu-indicator { image: none; width: 0; }
+            QStackedWidget#sidePanel { background: ${PANEL_BG}; }
             QSplitter::handle { background: ${BORDER_PANEL}; }
             QSplitter::handle:horizontal { width: 1px; }
             QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; border: 0; }
@@ -2449,6 +2683,7 @@ class EditorWindow(QMainWindow):
             QAbstractScrollArea::corner { background: transparent; border: 0; }
             QStatusBar { border-top: 1px solid ${BORDER_CHROME}; font-size: 11px; }
             QStatusBar::item { border: 0; }
+            QLabel#statusMessage { color: ${TEXT_MUTED}; padding-left: 6px; }
             QToolTip { background: ${TOOLTIP_BG}; color: ${TEXT_BRIGHT}; border: 1px solid ${BORDER_TOOLTIP}; padding: 4px 6px; }
             QDialog { background: ${PANEL_BG}; }
             QCheckBox { spacing: 8px; background: transparent; }
@@ -4647,13 +4882,25 @@ class EditorWindow(QMainWindow):
         self.view.add_overlay(zoom, "bottom-left")
 
     def _build_status_chips(self) -> None:
+        # O QStatusBar pinta showMessage por baixo dos widgets comuns; chips e mensagem ficam
+        # num container que ocupa a faixa toda, e a mensagem vira um rótulo depois dos chips.
+        container = QWidget()
+        container.setObjectName("transparent")
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         self.status_chips: list[QLabel] = []
         for _ in range(4):
             chip = QLabel()
             chip.setObjectName("chip")
             chip.setVisible(False)
-            self.statusBar().addWidget(chip)
+            layout.addWidget(chip)
             self.status_chips.append(chip)
+        self.status_message = QLabel()
+        self.status_message.setObjectName("statusMessage")
+        layout.addWidget(self.status_message, 1)
+        self.statusBar().messageChanged.connect(self.status_message.setText)
+        self.statusBar().insertPermanentWidget(0, container, 1)
         self.reference_chip = QToolButton()
         self.reference_chip.setObjectName("chip")
         self.reference_chip.setVisible(False)
@@ -4723,16 +4970,18 @@ class EditorWindow(QMainWindow):
         self._start_official_scan()
 
     def _update_breadcrumb(self) -> None:
-        parts = []
-        if self.project is not None:
-            parts.append(f"<span style='color:{COLORS['TEXT_BRIGHT']};font-weight:500'>{self.project.name}</span>")
-        if self.document is not None:
-            parts.append(f"<span style='font-family:\"{MONO_FONT}\";font-size:12px'>{self.document.path.name}</span>")
-        text = f"<span style='color:{COLORS['TEXT_MUTED']}'> / </span>".join(parts)
-        if self.document is not None and self.document.is_dirty:
+        # O nome do projeto já está no botão ao lado; aqui fica só o XML aberto.
+        if self.document is None:
+            self.breadcrumb_action.setVisible(False)
+            return
+        text = (
+            f"<span style='color:{COLORS['TEXT_MUTED']}'>/&nbsp;&nbsp;</span>"
+            f"<span style='font-family:\"{MONO_FONT}\";font-size:12px'>{self.document.path.name}</span>"
+        )
+        if self.document.is_dirty:
             text += f" <span style='color:{COLORS['SELECTION_GOLD']}'>●</span>"
         self.breadcrumb.setText(text)
-        self.breadcrumb_action.setVisible(bool(parts))
+        self.breadcrumb_action.setVisible(True)
 
     # ---- projetos ---------------------------------------------------------
     def _game_dir(self) -> Path | None:
@@ -5303,21 +5552,7 @@ class EditorWindow(QMainWindow):
                 path for path in self.project.files()
                 if path.suffix.lower() in TEXTURE_SUFFIXES and len(path.parts) == 1
             ]
-            self.project_label.setText(self.project.name)
-            self.project_path_label.setText(
-                self.tr("{count} arquivos XML · {modified} alterados").format(
-                    count=sum(1 for path in self.project.files() if path.suffix.lower() == ".xml"),
-                    modified=len(modified),
-                )
-            )
-            self.project_path_label.setToolTip(str(self.project.root))
-            lines = [self.tr("Editando em: {path}").format(path=self.project.ui_dir)]
-            if self.project.game_dir is not None:
-                lines.append(
-                    self.tr("Publica em: {path}").format(
-                        path=self.project.game_dir / "UICustom" / self.project.custom_name
-                    )
-                )
+            self.project_path_label.setVisible(False)
             others = (
                 projects_publishing_to(self.project.custom_name, exclude=self.project.root)
                 if self.project.game_dir is not None
@@ -5330,17 +5565,11 @@ class EditorWindow(QMainWindow):
                 ).format(projects=", ".join(others), folder=self.project.custom_name)
             )
             self.shared_publish_warning.setVisible(bool(others))
-            self.project_paths_label.setText("\n".join(lines))
-            self.project_paths_label.setToolTip(self.project_paths_label.text())
-            self.project_paths_label.setVisible(True)
             self.loose_project_button.setVisible(False)
 
         else:
-            self.project_label.setText(self.tr("Sem projeto"))
             self.shared_publish_warning.setVisible(False)
-            self.project_paths_label.setVisible(directory is not None)
-            if directory is not None:
-                self.project_paths_label.setText(self.tr("Editando em: {path}").format(path=directory))
+            self.project_path_label.setVisible(True)
             self.project_path_label.setText(
                 self.tr(
                     "Arquivos soltos: o jogo só vê estas mudanças se você copiar os arquivos para a pasta "
@@ -5361,9 +5590,14 @@ class EditorWindow(QMainWindow):
         current = os.path.normcase(str(self.document.path)) if self.document is not None else None
         bold = self.files_tree.font()
         bold.setBold(True)
-        self.files_mode_bar.setVisible(bool(textures))
-        if self.files_mode == "textures" and textures:
+        self.side_rail_buttons["textures"].setEnabled(bool(textures))
+        if self.files_mode == "textures" and not textures:
+            self.files_mode = "xml"
+            self._sync_side_rail()
+        if self.files_mode == "textures":
             files = textures
+        self.files_title.setText(self.tr("Texturas") if self.files_mode == "textures" else self.tr("Arquivos XML"))
+        self._update_project_button()
         groups: list[tuple[str, list[Path]]] = []
         changed = [path for path in files if path.as_posix() in modified]
         layers = set(self.project.reference_layers) if self.project is not None else set()
@@ -5427,12 +5661,54 @@ class EditorWindow(QMainWindow):
 
     def _set_files_mode(self, mode: str) -> None:
         self.files_mode = mode
-        for value, button in self.files_mode_buttons.items():
-            button.setChecked(value == mode)
         self.file_filter_edit.setPlaceholderText(
             self.tr("Filtrar texturas…") if mode == "textures" else self.tr("Filtrar arquivos…")
         )
         self._refresh_files()
+        self._sync_side_rail()
+
+    def show_side_page(self, key: str) -> None:
+        """Abre uma seção da barra lateral: xml, textures, elements ou texts."""
+        if key in ("xml", "textures"):
+            self.side_tabs.setCurrentIndex(0)
+            if key != self.files_mode:
+                self._set_files_mode(key)
+        else:
+            self.side_tabs.setCurrentIndex(1 if key == "elements" else 2)
+        self._sync_side_rail()
+
+    def _sync_side_rail(self) -> None:
+        index = self.side_tabs.currentIndex()
+        current = self.files_mode if index == 0 else ("elements" if index == 1 else "texts")
+        for key, button in self.side_rail_buttons.items():
+            button.setChecked(key == current)
+            button.setIcon(
+                icon(
+                    {"xml": "file", "textures": "image", "elements": "layers", "texts": "type"}[key],
+                    COLORS["ACCENT_TEXT"] if key == current else COLORS["ICON"],
+                    20,
+                )
+            )
+
+    def _update_project_button(self) -> None:
+        if not hasattr(self, "project_button"):
+            return
+        if self.project is not None:
+            self.project_button.setText(self.project.name)
+            lines = [self.tr("Editando em: {path}").format(path=self.project.ui_dir)]
+            if self.project.game_dir is not None:
+                lines.append(
+                    self.tr("Publica em: {path}").format(
+                        path=self.project.game_dir / "UICustom" / self.project.custom_name
+                    )
+                )
+            self.project_button.setToolTip("\n".join(lines))
+        else:
+            self.project_button.setText(self.tr("Sem projeto"))
+            directory = self._files_directory()
+            self.project_button.setToolTip(
+                self.tr("Editando em: {path}").format(path=directory) if directory is not None else ""
+            )
 
     def _filter_files(self, text: str) -> None:
         needle = text.strip().lower()
@@ -5491,7 +5767,7 @@ class EditorWindow(QMainWindow):
         Exceções do trabalho são relançadas aqui, para os tratamentos de quem chama.
         """
         dialog = QProgressDialog(label, None, 0, 0, self)
-        dialog.setWindowTitle("GF UI Editor")
+        dialog.setWindowTitle(APP_NAME)
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
         dialog.setMinimumDuration(0)
         dialog.setMinimumWidth(380)
@@ -5951,12 +6227,12 @@ class EditorWindow(QMainWindow):
         self._update_status_chips()
         self._update_center_page()
         if self.document is None:
-            self.setWindowTitle(f"GF UI Editor [{self.project.name}]" if self.project is not None else "GF UI Editor")
+            self.setWindowTitle(f"{APP_NAME} [{self.project.name}]" if self.project is not None else APP_NAME)
             return
         marker = " *" if self.document.is_dirty else ""
         project = f" [{self.project.name}]" if self.project is not None else ""
         self.setWindowTitle(
-            f"GF UI Editor{project} — {self.document.path.name}{marker} — {self.document.path.parent}"
+            f"{APP_NAME}{project} — {self.document.path.name}{marker} — {self.document.path.parent}"
         )
 
     def _confirm_discard_changes(self) -> bool:
@@ -5992,7 +6268,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     application = QApplication(sys.argv[:1])
-    application.setApplicationName("GF UI Editor")
+    application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")
     application.setWindowIcon(QIcon(str(APP_ICON_PATH)))
     language = args.lang or QSettings("Local", "GF UI Editor").value("language", "pt_BR")

@@ -1,0 +1,24 @@
+[
+  {
+    "name": "Rosthy",
+    "color": "#B45309",
+    "tags": ["ideas", "qa"],
+    "text": {
+      "pt_BR": ["Estados dos botões (hover, pressionado, desativado)", "Abrir o .dds no editor de imagem", "Muitos bugs encontrados nos testes"],
+      "en_US": ["Button states (hover, pressed, disabled)", "Opening the .dds in the image editor", "Many bugs found while testing"],
+      "es_ES": ["Estados de los botones (hover, pulsado, desactivado)", "Abrir el .dds en el editor de imágenes", "Muchos bugs encontrados en las pruebas"],
+      "fr_FR": ["États des boutons (survol, appuyé, désactivé)", "Ouvrir le .dds dans l'éditeur d'images", "De nombreux bugs trouvés pendant les tests"]
+    }
+  },
+  {
+    "name": "Wisin",
+    "color": "#0E7490",
+    "tags": ["ideas", "navigation"],
+    "text": {
+      "pt_BR": ["Sugeriu outros jeitos de navegar no canvas; virou o estilo Paint.NET e Photoshop."],
+      "en_US": ["Suggested other ways to navigate the canvas; it became the Paint.NET and Photoshop styles."],
+      "es_ES": ["Sugirió otras formas de navegar por el lienzo; se convirtió en los estilos Paint.NET y Photoshop."],
+      "fr_FR": ["A suggéré d'autres façons de naviguer dans le canevas ; c'est devenu les styles Paint.NET et Photoshop."]
+    }
+  }
+]

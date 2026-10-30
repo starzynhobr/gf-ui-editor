@@ -21,18 +21,17 @@ def test_english_catalog_localizes_ui_without_changing_xml_model(tmp_path: Path)
     translator = install_language(application, "en_US")
     try:
         window = EditorWindow(language="en_US")
-        assert [action.text() for action in window.menuBar().actions()] == [
-            "File", "Project", "Edit", "View", "Help"
+        assert [action.text() for action in window.main_menu.actions()] == [
+            "File", "Project", "Edit", "View", "Language", "Help"
         ]
-        assert window.language_button.text() == "Language"
-        assert window.menuBar().cornerWidget() is window.language_button
-        language_menu = window.language_button.menu()
+        assert window.settings_button.menu() is window.main_menu
+        language_menu = window.language_menu
         assert [action.text() for action in language_menu.actions() if action.isChecked()] == ["English"]
         assert [action.text() for action in language_menu.actions()] == [
             label for _code, label in LANGUAGE_NAMES
         ]
-        assert [action.text() for action in window.menuBar().actions()[-1].menu().actions()] == [
-            "How to use", "What's new in this version", "Check for updates…", "Check on startup", "", "About GF UI Editor…"
+        assert [action.text() for action in window.main_menu.actions()[-1].menu().actions()] == [
+            "How to use", "What's new in this version", "Check for updates…", "Check on startup", "", "About STZ GF UI…"
         ]
         assert window.open_action.text() == "Open XML…"
         assert window.properties.selection_title.text() == "No element selected"
@@ -75,9 +74,9 @@ def test_additional_languages_translate_interface(
     translator = install_language(application, language)
     try:
         window = EditorWindow(language=language)
-        assert window.menuBar().actions()[0].text() == file_label
-        assert window.language_button.text() == button_label
-        assert [action.text() for action in window.language_button.menu().actions() if action.isChecked()] == [
+        assert window.main_menu.actions()[0].text() == file_label
+        assert window.language_menu.title() == button_label
+        assert [action.text() for action in window.language_menu.actions() if action.isChecked()] == [
             dict(LANGUAGE_NAMES)[language]
         ]
         assert kind_label("image") == image_label
@@ -134,10 +133,10 @@ def test_language_switch_rebuilds_window_without_restart(tmp_path: Path) -> None
         window._choose_language("en_US")
         new_window = application._main_window
         assert new_window is not window
-        assert new_window.menuBar().actions()[0].text() == "File"
+        assert new_window.main_menu.actions()[0].text() == "File"
         assert new_window.document.path == xml_path
         new_window._choose_language("pt_BR")
-        assert application._main_window.menuBar().actions()[0].text() == "Arquivo"
+        assert application._main_window.main_menu.actions()[0].text() == "Arquivo"
     finally:
         from gf_ui_editor.i18n import switch_language
 
