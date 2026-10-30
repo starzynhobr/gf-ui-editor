@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 
 from . import __version__
@@ -23,6 +24,9 @@ from .release_notes import ReleaseNotes, parse as parse_release_notes
 
 REPOSITORY = "starzynhobr/gf-ui-editor"
 LATEST_RELEASE_API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
+# Sem login, a API do GitHub aceita 60 consultas por hora por IP (compartilhado em
+# redes/lan houses). O download direto da release não tem esse limite.
+LATEST_NOTES_DOWNLOAD = f"https://github.com/{REPOSITORY}/releases/latest/download/release-notes.json"
 TIMEOUT_SECONDS = 15
 NOTES_ASSET = "release-notes.json"
 NOTES_SIZE_LIMIT = 200_000
@@ -106,12 +110,40 @@ def check_for_update(current: str = __version__) -> UpdateInfo | None:
     try:
         with _request(LATEST_RELEASE_API) as response:
             data = json.load(response)
+    except urllib.error.HTTPError as exc:
+        if exc.code not in (403, 429):
+            raise UpdateError(str(exc)) from exc
+        return _check_without_api(current)
     except (OSError, ValueError) as exc:
         raise UpdateError(str(exc)) from exc
     info = release_from_json(data)
     if info is None or not is_newer(info.version, current):
         return None
     return replace(info, structured_notes=fetch_structured_notes(info))
+
+
+def _check_without_api(current: str) -> UpdateInfo | None:
+    """Plano B quando a API recusa: lê a versão do release-notes.json da última release."""
+    try:
+        with _request(LATEST_NOTES_DOWNLOAD) as response:
+            payload = response.read(NOTES_SIZE_LIMIT + 1)
+        version = str(json.loads(payload).get("version", "")).lstrip("vV")
+    except (OSError, ValueError, AttributeError) as exc:
+        raise UpdateError(str(exc)) from exc
+    if not re.fullmatch(r"\d+(\.\d+){1,3}", version) or not is_newer(version, current):
+        return None
+    base = f"https://github.com/{REPOSITORY}/releases/download/v{version}"
+    return UpdateInfo(
+        version=version,
+        notes="",
+        page_url=f"https://github.com/{REPOSITORY}/releases/tag/v{version}",
+        asset_name=f"GF-UI-Editor-Setup-{version}.exe",
+        asset_url=f"{base}/GF-UI-Editor-Setup-{version}.exe",
+        # Sem a API não há o digest do GitHub; o download continua só por HTTPS do próprio GitHub.
+        sha256=None,
+        notes_url=f"{base}/{NOTES_ASSET}",
+        structured_notes=parse_release_notes(payload),
+    )
 
 
 def download_installer(

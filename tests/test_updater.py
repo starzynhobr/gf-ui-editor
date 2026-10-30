@@ -71,3 +71,23 @@ def test_download_rejects_wrong_hash(monkeypatch, tmp_path: Path) -> None:
     with pytest.raises(updater.UpdateError):
         updater.download_installer(info, tmp_path)
     assert not (tmp_path / info.asset_name).exists()
+
+
+def test_rate_limited_api_falls_back_to_release_download(monkeypatch) -> None:
+    import urllib.error
+
+    notes = {"version": "0.3.0", "notes": {"pt_BR": {"new": [["Algo novo.", "Detalhe."]]}}}
+
+    def fake_request(url):
+        if url == updater.LATEST_RELEASE_API:
+            raise urllib.error.HTTPError(url, 403, "rate limit exceeded", {}, None)
+        assert url == updater.LATEST_NOTES_DOWNLOAD
+        return FakeResponse(json.dumps(notes).encode())
+
+    monkeypatch.setattr(updater, "_request", fake_request)
+    info = updater.check_for_update("0.2.0")
+    assert info is not None
+    assert info.version == "0.3.0"
+    assert info.asset_url.endswith("/releases/download/v0.3.0/GF-UI-Editor-Setup-0.3.0.exe")
+    assert info.structured_notes is not None
+    assert updater.check_for_update("0.3.0") is None
