@@ -621,7 +621,11 @@ class AtlasDialog(QDialog):
 
         self.state_combo = QComboBox()
         self.state_combo.setAccessibleName(self.tr("Estado do botão"))
+        slider = button_uvs is not None and "ThumbUV" in button_uvs
         for state, label in (
+            ("NorUV", self.tr("Normal")),
+            ("ThumbUV", self.tr("Cursor do slider")),
+        ) if slider else (
             ("NorUV", self.tr("Normal")),
             ("FocusUV", self.tr("Mouse sobre (hover)")),
             ("DownUV", self.tr("Pressionado")),
@@ -685,6 +689,9 @@ class AtlasDialog(QDialog):
         self._offset_allowed = self.view.offset_editable
         self._set_editing(False)
         self._framed = False
+        if slider:
+            # O NorUV do slider costuma ser vazio; o recorte visível é o cursor.
+            self.state_combo.setCurrentIndex(1)
         install_pointer_cursors(self)
 
     def showEvent(self, event) -> None:  # noqa: N802

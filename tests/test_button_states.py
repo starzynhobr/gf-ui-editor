@@ -221,3 +221,33 @@ def test_non_button_atlas_keeps_existing_controls(progress_offset):
     assert dialog.state_card.isHidden()
     assert dialog.offset_card.isHidden() == (progress_offset is None)
     dialog.close()
+
+
+TRACK_XML = '''<?xml version="1.0" ?>
+<Root_Node>
+  <BaseWndProperty WindowID="1" WindowHeight="100" WindowWidth="80">
+    <Container_Node Child_Cnt="1">
+      <Style CtrlType="2097152" />
+      <BaseWndProperty WindowID="105" WindowHeight="9" WindowWidth="60">
+        <BackGroundMap BGmap="atlas.dds"><NorUV NorUVLeft="0" NorUVTop="0" NorUVWidth="0" NorUVHeight="0" /></BackGroundMap>
+        <TrackNode><ThumbUV ThumbUVLeft="1" ThumbUVTop="10" ThumbUVWidth="1" ThumbUVHeight="1" /></TrackNode>
+      </BaseWndProperty>
+    </Container_Node>
+  </BaseWndProperty>
+</Root_Node>
+'''
+
+
+def test_thumb_uv_edit_preserves_every_other_byte(tmp_path):
+    path = tmp_path / "Track.xml"
+    raw = TRACK_XML.replace("\n", "\r\n").encode("big5")
+    path.write_bytes(raw)
+    document = UIDocument.load(path)
+    assert document.button_states_editable
+    assert document.elements[1].button_uvs == {"ThumbUV": UVRect(1, 10, 1, 1)}
+    document.set_button_uv(1, "ThumbUV", UVRect(986, 301, 11, 46))
+    document.save()
+    assert path.read_bytes() == raw.replace(
+        b'ThumbUVLeft="1" ThumbUVTop="10" ThumbUVWidth="1" ThumbUVHeight="1"',
+        b'ThumbUVLeft="986" ThumbUVTop="301" ThumbUVWidth="11" ThumbUVHeight="46"',
+    )

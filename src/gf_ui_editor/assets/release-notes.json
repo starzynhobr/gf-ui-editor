@@ -1,65 +1,103 @@
 {
-  "version": "0.5.2",
-  "date": "2026-10-30",
+  "version": "0.5.3",
+  "date": "2026-11-01",
   "notes": {
     "pt_BR": {
-      "improved": [
-        [
-          "Notas de todas as versões que você pulou.",
-          "Ao atualizar pulando versões, o aviso mostra as novidades de cada uma desde a sua, separadas por versão."
-        ]
-      ],
       "fixed": [
         [
-          "Aviso de segurança correto.",
-          "Quando o editor não consegue conferir o SHA-256 do instalador, o aviso deixa de prometer essa conferência."
+          "Cursor dos sliders visível e editável.",
+          "O editor agora mostra o cursor das barras de rolagem (ThumbUV), como no Settings.xml e no ElfInventory.xml, e permite trocar o recorte na janela do atlas."
         ]
       ]
     },
     "en_US": {
-      "improved": [
-        [
-          "Notes for every version you skipped.",
-          "When an update skips versions, the dialog shows what's new in each one since yours, grouped by version."
-        ]
-      ],
       "fixed": [
         [
-          "Accurate safety note.",
-          "When the editor can't check the installer's SHA-256, the note no longer promises that check."
+          "Slider thumbs visible and editable.",
+          "The editor now shows scrollbar thumbs (ThumbUV), as in Settings.xml and ElfInventory.xml, and lets you change the cut in the atlas window."
         ]
       ]
     },
     "es_ES": {
-      "improved": [
-        [
-          "Notas de todas las versiones que saltaste.",
-          "Al actualizar saltando versiones, el aviso muestra las novedades de cada una desde la tuya, separadas por versión."
-        ]
-      ],
       "fixed": [
         [
-          "Aviso de seguridad correcto.",
-          "Cuando el editor no puede comprobar el SHA-256 del instalador, el aviso deja de prometer esa comprobación."
+          "Cursor de los deslizadores visible y editable.",
+          "El editor ahora muestra el cursor de las barras de desplazamiento (ThumbUV), como en Settings.xml y ElfInventory.xml, y permite cambiar el recorte en la ventana del atlas."
         ]
       ]
     },
     "fr_FR": {
-      "improved": [
-        [
-          "Notes de toutes les versions sautées.",
-          "Quand une mise à jour saute des versions, la fenêtre montre les nouveautés de chacune depuis la vôtre, regroupées par version."
-        ]
-      ],
       "fixed": [
         [
-          "Avertissement de sécurité exact.",
-          "Quand l'éditeur ne peut pas vérifier le SHA-256 de l'installateur, l'avertissement ne promet plus cette vérification."
+          "Poignées des curseurs visibles et modifiables.",
+          "L'éditeur affiche désormais la poignée des barres de défilement (ThumbUV), comme dans Settings.xml et ElfInventory.xml, et permet de changer la découpe dans la fenêtre de l'atlas."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.5.2",
+      "date": "2026-10-30",
+      "notes": {
+        "pt_BR": {
+          "improved": [
+            [
+              "Notas de todas as versões que você pulou.",
+              "Ao atualizar pulando versões, o aviso mostra as novidades de cada uma desde a sua, separadas por versão."
+            ]
+          ],
+          "fixed": [
+            [
+              "Aviso de segurança correto.",
+              "Quando o editor não consegue conferir o SHA-256 do instalador, o aviso deixa de prometer essa conferência."
+            ]
+          ]
+        },
+        "en_US": {
+          "improved": [
+            [
+              "Notes for every version you skipped.",
+              "When an update skips versions, the dialog shows what's new in each one since yours, grouped by version."
+            ]
+          ],
+          "fixed": [
+            [
+              "Accurate safety note.",
+              "When the editor can't check the installer's SHA-256, the note no longer promises that check."
+            ]
+          ]
+        },
+        "es_ES": {
+          "improved": [
+            [
+              "Notas de todas las versiones que saltaste.",
+              "Al actualizar saltando versiones, el aviso muestra las novedades de cada una desde la tuya, separadas por versión."
+            ]
+          ],
+          "fixed": [
+            [
+              "Aviso de seguridad correcto.",
+              "Cuando el editor no puede comprobar el SHA-256 del instalador, el aviso deja de prometer esa comprobación."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "improved": [
+            [
+              "Notes de toutes les versions sautées.",
+              "Quand une mise à jour saute des versions, la fenêtre montre les nouveautés de chacune depuis la vôtre, regroupées par version."
+            ]
+          ],
+          "fixed": [
+            [
+              "Avertissement de sécurité exact.",
+              "Quand l'éditeur ne peut pas vérifier le SHA-256 de l'installateur, l'avertissement ne promet plus cette vérification."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.5.1",
       "date": "2026-10-30",

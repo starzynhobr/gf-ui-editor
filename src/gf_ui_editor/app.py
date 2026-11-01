@@ -4033,7 +4033,8 @@ class EditorWindow(QMainWindow):
         if self.document is None or index in self.locked_indexes:
             return
         element = self.document.elements[index]
-        if "ButtonNode" not in element.child_tags or element.uv is None or not self.document.button_states_editable:
+        if (("ButtonNode" not in element.child_tags and "ThumbUV" not in element.button_uvs)
+                or element.uv is None or not self.document.button_states_editable):
             return
         allowed = {"NorUV": element.uv, **element.button_uvs}
         changes = {state: uv for state, uv in states.items()
@@ -4055,6 +4056,8 @@ class EditorWindow(QMainWindow):
     def apply_button_uv(self, index: int, state: str, uv: UVRect) -> None:
         assert self.document is not None
         self.document.set_button_uv(index, state, uv)
+        if state == "ThumbUV":
+            self._refresh_element_texture(index)
         self._update_title()
 
     def apply_texture(self, index: int, name: str) -> None:
@@ -4211,7 +4214,7 @@ class EditorWindow(QMainWindow):
             progress_offset=element.progress_offset,
             offset_editable=self.document.offsets_editable,
             texture_path=self.texture_cache.path_for(element.texture_name),
-            button_uvs=(element.button_uvs if "ButtonNode" in element.child_tags
+            button_uvs=(element.button_uvs if ("ButtonNode" in element.child_tags or "ThumbUV" in element.button_uvs)
                         and self.document.button_states_editable else None),
             apply_button_uvs=lambda states, resize, item_index=index: self.edit_button_uvs(item_index, states, resize),
         )

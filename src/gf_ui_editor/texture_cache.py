@@ -15,6 +15,10 @@ _HIGH_NIBBLE = [(value >> 4) * 17 for value in range(256)]
 _LOW_NIBBLE = [(value & 15) * 17 for value in range(256)]
 
 
+# O cursor costuma ser 1 px esticado pelo jogo; abaixo disto ele sumiria na prévia.
+MIN_THUMB_PREVIEW = 24
+
+
 def open_dds_rgba(path: Path) -> Image.Image:
     """Abre uma textura como RGBA.
 
@@ -142,7 +146,35 @@ class TextureCache:
         except Exception:
             return None
 
+    def _slider_pixmap(self, element: UIElement) -> QPixmap | None:
+        """Slider com o cursor no início; a posição e o tamanho reais só existem no jogo."""
+        texture_path = self.path_for(element.texture_name)
+        if texture_path is None:
+            self.missing.add(element.texture_name)
+            return None
+        try:
+            source = self._source_image(texture_path).convert("RGBA")
+            canvas = Image.new("RGBA", (element.width, element.height))
+            uv = element.uv
+            if uv and uv.width > 0 and uv.height > 0:
+                track = source.crop((uv.left, uv.top, uv.left + uv.width, uv.top + uv.height))
+                canvas.paste(track.resize(canvas.size, Image.Resampling.NEAREST))
+            thumb = element.button_uvs["ThumbUV"]
+            if thumb.width > 0 and thumb.height > 0:
+                vertical = element.height >= element.width
+                length = max(MIN_THUMB_PREVIEW, thumb.height if vertical else thumb.width)
+                size = ((element.width, min(length, element.height)) if vertical
+                        else (min(length, element.width), element.height))
+                cropped = source.crop((thumb.left, thumb.top, thumb.left + thumb.width, thumb.top + thumb.height))
+                canvas.alpha_composite(cropped.resize(size, Image.Resampling.NEAREST))
+            return QPixmap.fromImage(ImageQt(canvas))
+        except Exception:
+            self.missing.add(element.texture_name)
+            return None
+
     def pixmap_for(self, element: UIElement) -> QPixmap | None:
+        if element.texture_name and "ThumbUV" in element.button_uvs and element.width and element.height:
+            return self._slider_pixmap(element)
         if not element.texture_name or not element.uv:
             return None
         if element.uv.width <= 0 or element.uv.height <= 0:

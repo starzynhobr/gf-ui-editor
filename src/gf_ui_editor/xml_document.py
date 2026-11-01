@@ -20,9 +20,11 @@ BACKGROUND_TAG_RE = re.compile(r"<BackGroundMap\b[^>]*>")
 # Qualquer tag (aspas podem conter ">"); o que sobra entre duas tags deveria ser só espaço.
 ANY_TAG_RE = re.compile(r"""<(?:[^"'>]|"[^"]*"|'[^']*')*>""")
 BUTTON_UV_STATES = ("FocusUV", "DownUV", "DisableUV")
+# O cursor do slider segue o mesmo caminho dos estados de botão.
+TRACK_UV_STATES = ("ThumbUV",)
 BUTTON_TAG_RE = re.compile(
     r"<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|"
-    r"</?(?:BaseWndProperty|ButtonNode|FocusUV|DownUV|DisableUV)\b[^>]*>"
+    r"</?(?:BaseWndProperty|ButtonNode|TrackNode|FocusUV|DownUV|DisableUV|ThumbUV)\b[^>]*>"
 )
 
 
@@ -45,7 +47,7 @@ def _button_uv_matches(text: str) -> dict[tuple[int, str], re.Match[str]]:
                 index += 1
                 if not token.rstrip().endswith("/>"):
                     bases.append(index)
-        elif tag == "ButtonNode":
+        elif tag in ("ButtonNode", "TrackNode"):
             if closing:
                 buttons.pop()
             elif bases and not token.rstrip().endswith("/>"):
@@ -478,6 +480,15 @@ class UIDocument:
         if button_node is not None:
             for state in BUTTON_UV_STATES:
                 node = button_node.find(state)
+                if node is not None:
+                    button_uvs[state] = UVRect(*(
+                        _integer(node.attrib, state + suffix)
+                        for suffix in ("Left", "Top", "Width", "Height")
+                    ))
+        track_node = base.find("TrackNode")
+        if track_node is not None:
+            for state in TRACK_UV_STATES:
+                node = track_node.find(state)
                 if node is not None:
                     button_uvs[state] = UVRect(*(
                         _integer(node.attrib, state + suffix)
