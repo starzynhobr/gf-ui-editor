@@ -1,41 +1,79 @@
 {
-  "version": "0.5.3",
+  "version": "0.5.4",
   "date": "2026-11-01",
   "notes": {
     "pt_BR": {
-      "fixed": [
+      "improved": [
         [
-          "Cursor dos sliders visível e editável.",
-          "O editor agora mostra o cursor das barras de rolagem (ThumbUV), como no Settings.xml e no ElfInventory.xml, e permite trocar o recorte na janela do atlas."
+          "Botão do Discord.",
+          "O cartão STZ Labs agora tem um botão para entrar no Discord."
         ]
       ]
     },
     "en_US": {
-      "fixed": [
+      "improved": [
         [
-          "Slider thumbs visible and editable.",
-          "The editor now shows scrollbar thumbs (ThumbUV), as in Settings.xml and ElfInventory.xml, and lets you change the cut in the atlas window."
+          "Discord button.",
+          "The STZ Labs card now has a button to join the Discord."
         ]
       ]
     },
     "es_ES": {
-      "fixed": [
+      "improved": [
         [
-          "Cursor de los deslizadores visible y editable.",
-          "El editor ahora muestra el cursor de las barras de desplazamiento (ThumbUV), como en Settings.xml y ElfInventory.xml, y permite cambiar el recorte en la ventana del atlas."
+          "Botón de Discord.",
+          "La tarjeta STZ Labs ahora tiene un botón para entrar al Discord."
         ]
       ]
     },
     "fr_FR": {
-      "fixed": [
+      "improved": [
         [
-          "Poignées des curseurs visibles et modifiables.",
-          "L'éditeur affiche désormais la poignée des barres de défilement (ThumbUV), comme dans Settings.xml et ElfInventory.xml, et permet de changer la découpe dans la fenêtre de l'atlas."
+          "Bouton Discord.",
+          "La carte STZ Labs a désormais un bouton pour rejoindre le Discord."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.5.3",
+      "date": "2026-11-01",
+      "notes": {
+        "pt_BR": {
+          "fixed": [
+            [
+              "Cursor dos sliders visível e editável.",
+              "O editor agora mostra o cursor das barras de rolagem (ThumbUV), como no Settings.xml e no ElfInventory.xml, e permite trocar o recorte na janela do atlas."
+            ]
+          ]
+        },
+        "en_US": {
+          "fixed": [
+            [
+              "Slider thumbs visible and editable.",
+              "The editor now shows scrollbar thumbs (ThumbUV), as in Settings.xml and ElfInventory.xml, and lets you change the cut in the atlas window."
+            ]
+          ]
+        },
+        "es_ES": {
+          "fixed": [
+            [
+              "Cursor de los deslizadores visible y editable.",
+              "El editor ahora muestra el cursor de las barras de desplazamiento (ThumbUV), como en Settings.xml y ElfInventory.xml, y permite cambiar el recorte en la ventana del atlas."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "fixed": [
+            [
+              "Poignées des curseurs visibles et modifiables.",
+              "L'éditeur affiche désormais la poignée des barres de défilement (ThumbUV), comme dans Settings.xml et ElfInventory.xml, et permet de changer la découpe dans la fenêtre de l'atlas."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.5.2",
       "date": "2026-10-30",

@@ -190,6 +190,7 @@ DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
 STZ_LABS_URL = "https://stzlabs.com"
+DISCORD_URL = "https://discord.com/invite/cTsJhtMzSe"
 # Nome mostrado ao usuário. Chaves de configuração, pasta de projetos e o .exe
 # continuam com o nome antigo para quem atualiza não perder nada.
 APP_NAME = "STZ GF UI"
@@ -305,9 +306,12 @@ class StzLabsPopup(QFrame):
         site_button.clicked.connect(lambda: (QDesktopServices.openUrl(QUrl(site_url)), self.close()))
         github_button = QPushButton("GitHub")
         github_button.clicked.connect(lambda: (QDesktopServices.openUrl(QUrl(GITHUB_REPOSITORIES_URL)), self.close()))
+        discord_button = QPushButton("Discord")
+        discord_button.clicked.connect(lambda: (QDesktopServices.openUrl(QUrl(DISCORD_URL)), self.close()))
         buttons = QHBoxLayout()
         buttons.addWidget(site_button, 1)
         buttons.addWidget(github_button)
+        buttons.addWidget(discord_button)
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(18, 16, 18, 16)
         header_layout.setSpacing(6)
