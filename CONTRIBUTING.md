@@ -51,7 +51,7 @@ Para testar com dados reais, tenha o Grand Fantasia Violet instalado. O editor n
 
 ## Notas da versão
 
-As novidades mostradas no app ficam em `src/gf_ui_editor/assets/release-notes.json`, nos quatro idiomas. Quem publica a versão atualiza esse arquivo; num PR, basta descrever a mudança.
+As novidades mostradas no app ficam em `src/gf_ui_editor/assets/release-notes.json`, nos quatro idiomas. Quem publica a versão atualiza esse arquivo; num PR, basta descrever a mudança. O passo a passo completo de lançamento (build, release no GitHub, post no Discord, betas) está em [vault/release.md](vault/release.md).
 
 ## Licença
 

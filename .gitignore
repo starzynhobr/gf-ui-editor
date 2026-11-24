@@ -7,3 +7,6 @@ dist/
 *.py[cod]
 *.before-gf-ui-editor-*.xml
 *.gf-ui-editor.tmp
+
+# Obsidian: estado da janela de cada pessoa
+vault/.obsidian/workspace*.json
