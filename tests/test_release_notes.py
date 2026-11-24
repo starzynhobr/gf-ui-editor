@@ -77,4 +77,19 @@ def test_history_lists_every_version_newer_than_installed() -> None:
     assert [release.version for release in notes.since("0.5.0")] == ["0.5.1"]
     bundled = release_notes.bundled()
     assert bundled.history, "a versão embutida deve trazer o histórico das anteriores"
-    assert len(bundled.since("0.4.1")) == len(bundled.history) + 1
+    assert len(bundled.since("0.0.0", limit=100)) == len(bundled.history) + 1
+    assert len(bundled.since("0.0.0")) <= 5  # a janela mostra no máximo 5 versões puladas
+
+
+def test_history_orders_betas_before_their_stable_release() -> None:
+    notes = release_notes.parse(json.dumps({
+        "version": "0.7.0",
+        "notes": {"en_US": {"new": [["Stable.", "b"]]}},
+        "history": [
+            {"version": "0.7.0-beta.2", "notes": {"en_US": {"new": [["Beta 2.", "b"]]}}},
+            {"version": "0.7.0-beta.1", "notes": {"en_US": {"new": [["Beta 1.", "b"]]}}},
+            {"version": "0.6.0", "notes": {"en_US": {"new": [["Old.", "b"]]}}},
+        ],
+    }))
+    assert [r.version for r in notes.since("0.6.0")] == ["0.7.0", "0.7.0-beta.2", "0.7.0-beta.1"]
+    assert [r.version for r in notes.since("0.7.0-beta.1")] == ["0.7.0", "0.7.0-beta.2"]

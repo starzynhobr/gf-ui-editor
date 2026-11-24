@@ -1,41 +1,111 @@
 {
-  "version": "0.5.4",
-  "date": "2026-11-01",
+  "version": "0.6.0",
+  "date": "2026-11-24",
   "notes": {
     "pt_BR": {
-      "improved": [
+      "new": [
         [
-          "Botão do Discord.",
-          "O cartão STZ Labs agora tem um botão para entrar no Discord."
+          "Exportar textos (.zip).",
+          "Projeto → Exportar textos gera um .zip com os arquivos de data/Translate que o projeto edita, já com as suas alterações aplicadas sobre a versão atual do jogo. É só extrair na pasta do jogo de outro PC, sem precisar do editor lá."
+        ],
+        [
+          "Receber versões beta.",
+          "Nova opção em Ajuda: marque para receber também as versões em teste, antes de virarem estáveis. Ao marcar, o editor já verifica se há uma nova. Desmarque para voltar às estáveis."
+        ],
+        [
+          "Avisos dentro do editor.",
+          "Avisos importantes (por exemplo, quando o jogo atualiza ou uma versão tem um problema conhecido) passam a aparecer no próprio editor, uma vez cada."
         ]
       ]
     },
     "en_US": {
-      "improved": [
+      "new": [
         [
-          "Discord button.",
-          "The STZ Labs card now has a button to join the Discord."
+          "Export texts (.zip).",
+          "Project → Export texts creates a .zip with the data/Translate files your project edits, with your changes applied over the game's current version. Just extract it into the game folder on another PC, no editor needed there."
+        ],
+        [
+          "Receive beta versions.",
+          "New option in Help: check it to also get versions still in testing, before they become stable. When you check it, the editor looks for a new one right away. Uncheck it to go back to stable versions."
+        ],
+        [
+          "Notices inside the editor.",
+          "Important notices (for example, when the game updates or a version has a known problem) now show up in the editor itself, once each."
         ]
       ]
     },
     "es_ES": {
-      "improved": [
+      "new": [
         [
-          "Botón de Discord.",
-          "La tarjeta STZ Labs ahora tiene un botón para entrar al Discord."
+          "Exportar textos (.zip).",
+          "Proyecto → Exportar textos genera un .zip con los archivos de data/Translate que edita el proyecto, con tus cambios aplicados sobre la versión actual del juego. Solo hay que extraerlo en la carpeta del juego de otro PC, sin necesidad del editor allí."
+        ],
+        [
+          "Recibir versiones beta.",
+          "Nueva opción en Ayuda: márcala para recibir también las versiones en prueba, antes de que sean estables. Al marcarla, el editor busca una nueva enseguida. Desmárcala para volver a las estables."
+        ],
+        [
+          "Avisos dentro del editor.",
+          "Los avisos importantes (por ejemplo, cuando el juego se actualiza o una versión tiene un problema conocido) ahora aparecen en el propio editor, una vez cada uno."
         ]
       ]
     },
     "fr_FR": {
-      "improved": [
+      "new": [
         [
-          "Bouton Discord.",
-          "La carte STZ Labs a désormais un bouton pour rejoindre le Discord."
+          "Exporter les textes (.zip).",
+          "Projet → Exporter les textes crée un .zip avec les fichiers de data/Translate modifiés par le projet, avec vos changements appliqués sur la version actuelle du jeu. Il suffit de l'extraire dans le dossier du jeu d'un autre PC, sans avoir besoin de l'éditeur."
+        ],
+        [
+          "Recevoir les versions bêta.",
+          "Nouvelle option dans Aide : cochez-la pour recevoir aussi les versions en test, avant qu'elles deviennent stables. En la cochant, l'éditeur cherche tout de suite une nouvelle version. Décochez-la pour revenir aux versions stables."
+        ],
+        [
+          "Avis dans l'éditeur.",
+          "Les avis importants (par exemple quand le jeu est mis à jour ou qu'une version a un problème connu) apparaissent désormais dans l'éditeur, une fois chacun."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.5.4",
+      "date": "2026-11-01",
+      "notes": {
+        "pt_BR": {
+          "improved": [
+            [
+              "Botão do Discord.",
+              "O cartão STZ Labs agora tem um botão para entrar no Discord."
+            ]
+          ]
+        },
+        "en_US": {
+          "improved": [
+            [
+              "Discord button.",
+              "The STZ Labs card now has a button to join the Discord."
+            ]
+          ]
+        },
+        "es_ES": {
+          "improved": [
+            [
+              "Botón de Discord.",
+              "La tarjeta STZ Labs ahora tiene un botón para entrar al Discord."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "improved": [
+            [
+              "Bouton Discord.",
+              "La carte STZ Labs a désormais un bouton pour rejoindre le Discord."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.5.3",
       "date": "2026-11-01",

@@ -24,6 +24,8 @@ from .release_notes import ReleaseNotes, parse as parse_release_notes
 
 REPOSITORY = "starzynhobr/gf-ui-editor"
 LATEST_RELEASE_API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
+# Lista com as pre-releases (betas): `releases/latest` nunca as devolve.
+RELEASES_API = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=30"
 # Sem login, a API do GitHub aceita 60 consultas por hora por IP (compartilhado em
 # redes/lan houses). O download direto da release não tem esse limite.
 LATEST_NOTES_DOWNLOAD = f"https://github.com/{REPOSITORY}/releases/latest/download/release-notes.json"
@@ -48,9 +50,30 @@ class UpdateInfo:
     structured_notes: ReleaseNotes | None = None
 
 
+_VERSION_RE = re.compile(r"(\d+(?:\.\d+){0,3})(?:[-.]?(alpha|beta|rc)\.?(\d*))?", re.IGNORECASE)
+_STAGES = {"alpha": 0, "beta": 1, "rc": 2}
+_FINAL = 3
+
+
 def parse_version(text: str) -> tuple[int, ...]:
-    numbers = re.findall(r"\d+", text)
-    return tuple(int(number) for number in numbers[:4]) or (0,)
+    """Chave de comparação: 0.6.0-beta.1 < 0.6.0-beta.2 < 0.6.0-rc.1 < 0.6.0 < 0.6.1.
+
+    Os números são completados até quatro partes (0.6 == 0.6.0) e seguidos pelo estágio:
+    uma pre-release vem antes da versão final com os mesmos números.
+    """
+    match = _VERSION_RE.search(text)
+    if match is None:
+        return (0, 0, 0, 0, _FINAL, 0)
+    numbers = [int(part) for part in match.group(1).split(".")]
+    numbers += [0] * (4 - len(numbers))
+    stage = match.group(2)
+    if stage is None:
+        return (*numbers, _FINAL, 0)
+    return (*numbers, _STAGES[stage.lower()], int(match.group(3) or 0))
+
+
+def is_prerelease(version: str) -> bool:
+    return parse_version(version)[4] != _FINAL
 
 
 def is_newer(candidate: str, current: str = __version__) -> bool:
@@ -105,11 +128,29 @@ def fetch_structured_notes(info: UpdateInfo) -> ReleaseNotes | None:
     return parse_release_notes(payload)
 
 
-def check_for_update(current: str = __version__) -> UpdateInfo | None:
-    """Release mais nova que `current`, ou None. Levanta UpdateError se falhar."""
+def _newest_release(releases: list) -> dict | None:
+    """Release publicada com instalador e a maior versão, betas inclusive."""
+    candidates = [
+        data for data in releases
+        if isinstance(data, dict) and not data.get("draft") and release_from_json(data) is not None
+    ]
+    return max(candidates, key=lambda data: parse_version(str(data.get("tag_name", ""))), default=None)
+
+
+def check_for_update(current: str = __version__, include_prereleases: bool = False) -> UpdateInfo | None:
+    """Release mais nova que `current`, ou None. Levanta UpdateError se falhar.
+
+    Com `include_prereleases` (opção "Receber versões beta"), considera também as betas;
+    sem ela, só a última estável. Quem está numa beta recebe a estável correspondente,
+    que é mais nova que qualquer beta com os mesmos números.
+    """
     try:
-        with _request(LATEST_RELEASE_API) as response:
+        with _request(RELEASES_API if include_prereleases else LATEST_RELEASE_API) as response:
             data = json.load(response)
+        if include_prereleases:
+            data = _newest_release(data if isinstance(data, list) else [])
+            if data is None:
+                return None
     except urllib.error.HTTPError as exc:
         if exc.code not in (403, 429):
             raise UpdateError(str(exc)) from exc

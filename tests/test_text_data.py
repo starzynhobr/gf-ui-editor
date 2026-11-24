@@ -316,3 +316,26 @@ def test_texts_changed_by_a_game_update_after_editing_are_flagged(tmp_path: Path
     assert marks == {"539": "⚠", "540": "●"}
     assert "⚠ 1" in panel.summary.text()
     panel.close()
+
+
+def test_texts_export_zip_has_only_edited_files_patched_over_the_current_game(tmp_path: Path) -> None:
+    import zipfile
+
+    updated = ITEMS + "540|Item novo da atualização|Novo.|\r\n"
+    game = _game(tmp_path, "T_Item.ini", updated.encode("cp1252"))
+    _game(tmp_path, "T_Npc.ini", b"1|Guarda|\r\n")
+    edits = {
+        "T_Item.ini": {"539": TextEdit(["Runa Ação", "Uma runa nova."], ["Runa", "Uma runa."])},
+        "T_Sumiu.ini": {"1": TextEdit(["x"], [])},
+    }
+    names, warnings = text_data.export_texts_zip(game, edits, tmp_path / "out" / "textos.zip")
+    assert names == ["T_Item.ini"] and warnings == ["T_Sumiu.ini"]
+    with zipfile.ZipFile(tmp_path / "out" / "textos.zip") as archive:
+        assert archive.namelist() == ["data/Translate/T_Item.ini"]
+        content = archive.read("data/Translate/T_Item.ini")
+    # A edição vai junto e o ID novo da atualização continua com o texto oficial.
+    assert content == updated.replace("539|Runa|Uma runa.|", "539|Runa Ação|Uma runa nova.|").encode("cp1252")
+    # O jogo deste PC não é alterado.
+    assert (game / "data" / "Translate" / "T_Item.ini").read_bytes() == updated.encode("cp1252")
+    assert text_data.export_texts_zip(game, {}, tmp_path / "vazio.zip") == ([], [])
+    assert not (tmp_path / "vazio.zip").exists()

@@ -91,3 +91,48 @@ def test_rate_limited_api_falls_back_to_release_download(monkeypatch) -> None:
     assert info.asset_url.endswith("/releases/download/v0.3.0/GF-UI-Editor-Setup-0.3.0.exe")
     assert info.structured_notes is not None
     assert updater.check_for_update("0.3.0") is None
+
+
+def test_prerelease_versions_come_before_the_final_release() -> None:
+    order = ["0.5.4", "0.6.0-beta.1", "0.6.0-beta.2", "0.6.0-rc.1", "0.6.0", "0.6.1", "0.7.0-beta.1", "0.10.0"]
+    assert sorted(reversed(order), key=updater.parse_version) == order
+    assert updater.is_newer("0.6.0", "0.6.0-beta.3")  # quem está na beta recebe a estável
+    assert not updater.is_newer("0.6.0-beta.1", "0.6.0")
+    assert updater.parse_version("v0.6") == updater.parse_version("0.6.0")
+    assert updater.is_prerelease("v0.7.0-beta.1") and not updater.is_prerelease("0.6.0")
+
+
+def _release(tag: str, *, prerelease: bool = False, draft: bool = False) -> dict:
+    version = tag.lstrip("v")
+    return {
+        "tag_name": tag,
+        "prerelease": prerelease,
+        "draft": draft,
+        "body": "",
+        "html_url": f"https://github.com/starzynhobr/gf-ui-editor/releases/tag/{tag}",
+        "assets": [{
+            "name": f"GF-UI-Editor-Setup-{version}.exe",
+            "browser_download_url": f"https://github.com/starzynhobr/gf-ui-editor/releases/download/{tag}/GF-UI-Editor-Setup-{version}.exe",
+        }],
+    }
+
+
+def test_beta_channel_picks_the_newest_release_including_betas(monkeypatch) -> None:
+    releases = [
+        _release("v0.8.0-beta.1", draft=True),  # rascunho: nunca é oferecido
+        _release("v0.7.0-beta.2", prerelease=True),
+        _release("v0.7.0-beta.1", prerelease=True),
+        _release("v0.6.0"),
+    ]
+    responses = {updater.RELEASES_API: json.dumps(releases).encode(), updater.LATEST_RELEASE_API: json.dumps(releases[3]).encode()}
+    monkeypatch.setattr(updater, "_request", lambda url: FakeResponse(responses[url]))
+    monkeypatch.setattr(updater, "fetch_structured_notes", lambda info: None)
+    assert updater.check_for_update("0.6.0", include_prereleases=True).version == "0.7.0-beta.2"
+    assert updater.check_for_update("0.6.0") is None  # canal estável ignora as betas
+    assert updater.check_for_update("0.5.4").version == "0.6.0"
+    # A estável chega para quem está na beta, com ou sem a opção ligada.
+    releases.insert(0, _release("v0.7.0"))
+    responses[updater.RELEASES_API] = json.dumps(releases).encode()
+    responses[updater.LATEST_RELEASE_API] = json.dumps(releases[0]).encode()
+    assert updater.check_for_update("0.7.0-beta.2", include_prereleases=True).version == "0.7.0"
+    assert updater.check_for_update("0.7.0-beta.2").version == "0.7.0"

@@ -121,7 +121,7 @@ from .game_updates import (
     snapshot_official_ui,
     window_ids,
 )
-from . import release_notes, updater
+from . import release_notes, remote_manifest, updater
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
     CHANGES_TTL,
@@ -1346,6 +1346,9 @@ class ButtonUVCommand(QUndoCommand):
 
 
 class EditorWindow(QMainWindow):
+    # Avisos e funções desligadas vindos do manifesto remoto; vazio até ele chegar.
+    _manifest = remote_manifest.Manifest()
+
     def __init__(
         self,
         initial_path: Path | None = None,
@@ -1678,6 +1681,7 @@ class EditorWindow(QMainWindow):
         if restore_last_project:
             # Só na janela principal de verdade (não em testes nem na troca de idioma).
             QTimer.singleShot(2500, self._automatic_update_check)
+            QTimer.singleShot(4000, self._load_remote_manifest)
         if initial_path is not None:
             self.open_document(initial_path)
         elif restore_last_project:
@@ -1712,6 +1716,12 @@ class EditorWindow(QMainWindow):
         self.export_action.setToolTip(
             self.tr("Gera o .zip só com a UI, que o launcher importa em \"Add Custom UI\". Os textos não vão no .zip.")
         )
+        self.export_texts_action = QAction(self.tr("Exportar textos (.zip)…"), self)
+        self.export_texts_action.setEnabled(False)
+        self.export_texts_action.setToolTip(
+            self.tr("Gera um .zip com os arquivos de data/Translate que o projeto edita, para extrair na pasta do jogo de outro PC")
+        )
+        self.export_texts_action.triggered.connect(self.export_texts_zip)
         self.import_action = QAction(self.tr("Importar arquivos…"), self)
         self.import_action.setIcon(icon("file-import"))
         self.import_action.setToolTip(
@@ -1939,6 +1949,7 @@ class EditorWindow(QMainWindow):
         project_menu.addAction(self.official_compare_action)
         project_menu.addAction(self.game_error_action)
         project_menu.addAction(self.export_action)
+        project_menu.addAction(self.export_texts_action)
         self.publish_folder_action = QAction(self.tr("Pasta de publicação…"), self)
         self.publish_folder_action.setEnabled(False)
         self.publish_folder_action.triggered.connect(self.choose_publish_folder)
@@ -2046,6 +2057,13 @@ class EditorWindow(QMainWindow):
         self.auto_update_action.toggled.connect(
             lambda on: QSettings("Local", "GF UI Editor").setValue("auto_update_check", "true" if on else "false")
         )
+        self.beta_updates_action = QAction(self.tr("Receber versões beta"), self)
+        self.beta_updates_action.setCheckable(True)
+        self.beta_updates_action.setChecked(self._beta_updates_enabled())
+        self.beta_updates_action.setToolTip(
+            self.tr("Também oferece versões em teste, antes de virarem estáveis. Desmarque para voltar a receber só as estáveis.")
+        )
+        self.beta_updates_action.toggled.connect(self._set_beta_updates)
         self.how_to_action = QAction(self.tr("Como usar"), self)
         self.how_to_action.setShortcut(QKeySequence.StandardKey.HelpContents)
         self.how_to_action.triggered.connect(self.show_how_to)
@@ -2055,6 +2073,7 @@ class EditorWindow(QMainWindow):
         help_menu.addAction(self.whats_new_action)
         help_menu.addAction(self.update_action)
         help_menu.addAction(self.auto_update_action)
+        help_menu.addAction(self.beta_updates_action)
         help_menu.addSeparator()
         help_menu.addAction(self.about_action)
         # Os menus não ficam mais visíveis o tempo todo; os atalhos precisam morar na janela.
@@ -2150,13 +2169,92 @@ class EditorWindow(QMainWindow):
         settings.setValue("last_update_check", time.time())
         self.check_for_updates(manual=False)
 
+    def _load_remote_manifest(self) -> None:
+        """Lê o manifesto remoto sem travar a janela (respeita "Verificar ao iniciar")."""
+        if QSettings("Local", "GF UI Editor").value("auto_update_check", "true") != "true":
+            return
+        results: SimpleQueue = SimpleQueue()
+        Thread(target=lambda: results.put(remote_manifest.fetch()), name="gf-ui-manifest", daemon=True).start()
+        timer = QTimer(self)
+        timer.setInterval(200)
+
+        def poll() -> None:
+            try:
+                manifest = results.get_nowait()
+            except Empty:
+                return
+            timer.stop()
+            timer.deleteLater()
+            if manifest is not None:
+                self.apply_remote_manifest(manifest)
+
+        timer.timeout.connect(poll)
+        timer.start()
+
+    def apply_remote_manifest(self, manifest: "remote_manifest.Manifest") -> None:
+        self._manifest = manifest
+        if manifest.needs_update():
+            answer = QMessageBox.warning(
+                self,
+                self.tr("Atualização necessária"),
+                self.tr(
+                    "Esta versão ({version}) tem um problema conhecido e precisa ser atualizada "
+                    "(mínima: {minimum}). Procurar a atualização agora?"
+                ).format(version=__version__, minimum=manifest.min_version),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self.check_for_updates(manual=True)
+        settings = QSettings("Local", "GF UI Editor")
+        try:
+            seen = set(json.loads(str(settings.value("manifest_seen", "[]"))))
+        except ValueError:
+            seen = set()
+        for message in manifest.messages_for(beta=self._beta_updates_enabled(), seen=seen)[:3]:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning if message.level == "warning" else QMessageBox.Icon.Information)
+            box.setWindowTitle(self.tr("Aviso do {name}").format(name=APP_NAME))
+            box.setText(message.text(self.language))
+            link = box.addButton(self.tr("Abrir link"), QMessageBox.ButtonRole.ActionRole) if message.url else None
+            box.addButton(QMessageBox.StandardButton.Ok)
+            box.exec()
+            if link is not None and box.clickedButton() is link:
+                QDesktopServices.openUrl(QUrl(message.url))
+            seen.add(message.id)
+            settings.setValue("manifest_seen", json.dumps(sorted(seen)))
+
+    def _feature_disabled(self, feature: str) -> bool:
+        """Função desligada pelo manifesto remoto (até sair a correção); avisa quem tentou usar."""
+        if not self._manifest.is_disabled(feature):
+            return False
+        QMessageBox.information(
+            self,
+            APP_NAME,
+            self.tr("Esta função está desativada temporariamente por causa de um problema conhecido. Ela volta numa atualização."),
+        )
+        return True
+
+    @staticmethod
+    def _beta_updates_enabled() -> bool:
+        # Uma versão beta instalada (ex.: baixada à mão) já fica no canal beta.
+        default = "true" if updater.is_prerelease(__version__) else "false"
+        return QSettings("Local", "GF UI Editor").value("beta_updates", default) == "true"
+
+    def _set_beta_updates(self, enabled: bool) -> None:
+        QSettings("Local", "GF UI Editor").setValue("beta_updates", "true" if enabled else "false")
+        if enabled:
+            # Ao entrar no canal, já mostra se há uma beta (ou estável) mais nova.
+            self.check_for_updates(manual=True)
+
     def check_for_updates(self, manual: bool) -> None:
         """Consulta a release mais recente sem travar a janela."""
         results: SimpleQueue = SimpleQueue()
+        include_betas = self._beta_updates_enabled()
 
         def run() -> None:
             try:
-                results.put(("ok", updater.check_for_update()))
+                results.put(("ok", updater.check_for_update(include_prereleases=include_betas)))
             except updater.UpdateError as exc:
                 results.put(("error", exc))
 
@@ -2187,7 +2285,11 @@ class EditorWindow(QMainWindow):
                     QMessageBox.information(
                         self,
                         self.tr("Atualizações"),
-                        self.tr("Você já está na versão mais recente ({version}).").format(version=__version__),
+                        (
+                            self.tr("Você já está na versão mais recente ({version}), contando as betas.")
+                            if include_betas
+                            else self.tr("Você já está na versão mais recente ({version}).")
+                        ).format(version=__version__),
                     )
                 return
             skipped = QSettings("Local", "GF UI Editor").value("skipped_update_version", "")
@@ -5529,6 +5631,7 @@ class EditorWindow(QMainWindow):
             self._refresh_game_screen()
         self.test_action.setEnabled(project.game_dir is not None)
         self.export_action.setEnabled(True)
+        self.export_texts_action.setEnabled(project.game_dir is not None)
         self.import_action.setEnabled(True)
         self.publish_folder_action.setEnabled(project.game_dir is not None)
         self.project_folder_action.setEnabled(True)
@@ -6107,6 +6210,9 @@ class EditorWindow(QMainWindow):
             )
             # Textos editados vão para data/Translate; o launcher pode ter baixado os originais de novo.
             text_edits = text_data.load_edits(project.root)
+            texts_blocked = bool(text_edits) and self._manifest.is_disabled(remote_manifest.PUBLISH_TEXTS)
+            if texts_blocked:
+                text_edits = {}  # textos desligados pelo manifesto: a UI segue sendo enviada
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             texts_changed, text_warnings = text_data.publish_edits(
                 project.game_dir, text_edits, project.history_dir / "data" / stamp
@@ -6132,6 +6238,8 @@ class EditorWindow(QMainWindow):
         if texts_changed:
             message += " " + self.tr("Textos: {count} arquivo(s) de data/Translate atualizados.").format(count=texts_changed)
             self.texts_panel.reload()
+        if texts_blocked:
+            message += " " + self.tr("Os textos não foram enviados: função desativada temporariamente por um problema conhecido.")
         self.statusBar().showMessage(message, 12000)
         if text_warnings:
             QMessageBox.warning(
@@ -6202,6 +6310,51 @@ class EditorWindow(QMainWindow):
         self.statusBar().showMessage(
             self.tr("Exportado para {path}. No launcher: Adicionar UI Customizada.").format(path=path), 12000
         )
+
+    def export_texts_zip(self) -> None:
+        project = self.project
+        if project is None or project.game_dir is None:
+            return
+        if self._feature_disabled(remote_manifest.EXPORT_TEXTS):
+            return
+        edits = text_data.load_edits(project.root)
+        if not any(edits.values()):
+            QMessageBox.information(
+                self, self.tr("Exportar textos"), self.tr("Este projeto ainda não tem textos editados para exportar.")
+            )
+            return
+        default = Path.home() / "Documents" / f"{project.custom_name}-textos.zip"
+        filename, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Exportar textos"), str(default), self.tr("Arquivos .zip (*.zip)")
+        )
+        if not filename:
+            return
+        try:
+            names, warnings = self._run_with_progress(
+                self.tr("Compactando os textos…"),
+                lambda _progress: text_data.export_texts_zip(project.game_dir, edits, Path(filename)),
+            )
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Falha ao exportar"), str(exc))
+            return
+        if not names:
+            QMessageBox.warning(
+                self,
+                self.tr("Exportar textos"),
+                self.tr("Nenhum arquivo editado foi encontrado em data/Translate do jogo."),
+            )
+            return
+        message = self.tr(
+            "Exportado para {path}.\n\n"
+            "Arquivos: {files}\n\n"
+            "No outro PC, extraia o .zip na pasta do jogo (a que tem a pasta data) e substitua os arquivos. "
+            "Use com a mesma versão do jogo: o launcher troca estes arquivos ao atualizar ou mudar o idioma."
+        ).format(path=filename, files=", ".join(names))
+        if warnings:
+            message += "\n\n" + self.tr("Não foram incluídos (não existem mais no jogo):\n{items}").format(
+                items="\n".join(warnings[:20])
+            )
+        QMessageBox.information(self, self.tr("Exportar textos"), message)
 
     def _confirm_diff_preview(self) -> bool:
         assert self.document is not None

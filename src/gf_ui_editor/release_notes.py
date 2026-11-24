@@ -56,8 +56,10 @@ class ReleaseNotes:
 
 
 def _version_key(text: str) -> tuple[int, ...]:
-    numbers = [int(part) for part in text.split(".") if part.isdigit()]
-    return tuple(numbers) or (0,)
+    # Mesma ordem do atualizador: 0.7.0-beta.1 < 0.7.0-beta.2 < 0.7.0.
+    from .updater import parse_version  # updater importa este módulo
+
+    return parse_version(text)
 
 
 def parse(text: str | bytes) -> ReleaseNotes | None:

@@ -288,199 +288,199 @@
         <translation>Change DDS region for WindowID {id}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1406"/>
+        <location filename="../app.py" line="1409"/>
         <source>Mouse: X — · Y —</source>
         <translation>Mouse: X — · Y —</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2236"/>
+        <location filename="../app.py" line="2338"/>
         <source>Envie para o jogo com F5</source>
         <translation>Send to the game with F5</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2238"/>
+        <location filename="../app.py" line="2340"/>
         <source>Salvar grava só no projeto. Enviar para o jogo (F5) copia a sua UI para a pasta do jogo e a seleciona no launcher; depois inicie o jogo pelo launcher. Se o launcher já estiver aberto, escolha a sua UI na lista dele antes de clicar em Jogar.</source>
         <translation>Save only writes to the project. Send to game (F5) copies your UI into the game folder and selects it in the launcher; then start the game from the launcher. If the launcher is already open, pick your UI in its list before clicking Play.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3328"/>
+        <location filename="../app.py" line="3430"/>
         <source>Mouse: X {x} · Y {y}</source>
         <translation>Mouse: X {x} · Y {y}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1410"/>
+        <location filename="../app.py" line="1413"/>
         <source>Pesquisar WindowID, tipo, texto ou textura…</source>
         <translation>Search WindowID, type, text or texture…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1416"/>
+        <location filename="../app.py" line="1419"/>
         <source>Tipo</source>
         <translation>Type</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1416"/>
+        <location filename="../app.py" line="1419"/>
         <source>Estado</source>
         <translation>State</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1699"/>
-        <location filename="../app.py" line="6091"/>
+        <location filename="../app.py" line="1703"/>
+        <location filename="../app.py" line="6194"/>
         <source>Enviar para o jogo</source>
         <translation>Send to game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1738"/>
+        <location filename="../app.py" line="1748"/>
         <source>Abrir XML…</source>
         <translation>Open XML…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1741"/>
-        <location filename="../app.py" line="5842"/>
+        <location filename="../app.py" line="1751"/>
+        <location filename="../app.py" line="5945"/>
         <source>Abrir</source>
         <translation>Open</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1742"/>
+        <location filename="../app.py" line="1752"/>
         <source>Abrir XML (Ctrl+O)</source>
         <translation>Open XML (Ctrl+O)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1744"/>
+        <location filename="../app.py" line="1754"/>
         <source>Salvar com backup</source>
         <translation>Save with backup</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1747"/>
-        <location filename="../app.py" line="6223"/>
+        <location filename="../app.py" line="1757"/>
+        <location filename="../app.py" line="6376"/>
         <source>Salvar</source>
         <translation>Save</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1748"/>
+        <location filename="../app.py" line="1758"/>
         <source>Salvar com backup (Ctrl+S)</source>
         <translation>Save with backup (Ctrl+S)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1751"/>
+        <location filename="../app.py" line="1761"/>
         <source>Desfazer</source>
         <translation>Undo</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1754"/>
+        <location filename="../app.py" line="1764"/>
         <source>Refazer</source>
         <translation>Redo</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1757"/>
+        <location filename="../app.py" line="1767"/>
         <source>Enquadrar</source>
         <translation>Fit view</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1762"/>
+        <location filename="../app.py" line="1772"/>
         <source>Mostrar identificadores</source>
         <translation>Show identifiers</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1789"/>
+        <location filename="../app.py" line="1799"/>
         <source>Mostrar texturas</source>
         <translation>Show textures</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1794"/>
+        <location filename="../app.py" line="1804"/>
         <source>Abrir atlas DDS…</source>
         <translation>Open DDS atlas…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1797"/>
+        <location filename="../app.py" line="1807"/>
         <source>Atualizar arquivos e texturas</source>
         <translation>Refresh files and textures</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1799"/>
+        <location filename="../app.py" line="1809"/>
         <source>Atualiza a lista de XMLs e recarrega as texturas do disco (Ctrl+R)</source>
         <translation>Refresh the XML list and reload textures from disk (Ctrl+R)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4247"/>
+        <location filename="../app.py" line="4349"/>
         <source>Lista de arquivos atualizada.</source>
         <translation>File list refreshed.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3690"/>
+        <location filename="../app.py" line="3792"/>
         <source>O jogo define a posição vertical destes atalhos do Menu. Com o preview ativo, o Y exibido segue essa regra; o campo Y mantém o valor do XML.</source>
         <translation>The game sets the vertical position of these Menu shortcuts. With the preview enabled, the displayed Y follows this rule; the Y field keeps the XML value.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1805"/>
+        <location filename="../app.py" line="1815"/>
         <source>Atualizar DDS automaticamente</source>
         <translation>Auto-reload DDS</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1838"/>
-        <location filename="../app.py" line="3441"/>
+        <location filename="../app.py" line="1848"/>
+        <location filename="../app.py" line="3543"/>
         <source>Personalizada…</source>
         <translation>Custom…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1842"/>
+        <location filename="../app.py" line="1852"/>
         <source>Usar posições salvas do User.ini</source>
         <translation>Use positions saved in User.ini</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1846"/>
+        <location filename="../app.py" line="1856"/>
         <source>Janelas arrastadas no jogo ficam na posição gravada no User.ini da pasta do jogo</source>
         <translation>Windows dragged in game stay at the position stored in the game folder&apos;s User.ini</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1872"/>
-        <location filename="../app.py" line="4474"/>
-        <location filename="../app.py" line="4485"/>
+        <location filename="../app.py" line="1882"/>
+        <location filename="../app.py" line="4576"/>
+        <location filename="../app.py" line="4587"/>
         <source>Bloquear selecionado</source>
         <translation>Lock selected</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1875"/>
-        <location filename="../app.py" line="4475"/>
-        <location filename="../app.py" line="4488"/>
+        <location filename="../app.py" line="1885"/>
+        <location filename="../app.py" line="4577"/>
+        <location filename="../app.py" line="4590"/>
         <source>Bloquear</source>
         <translation>Lock</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1878"/>
-        <location filename="../app.py" line="4476"/>
-        <location filename="../app.py" line="4493"/>
+        <location filename="../app.py" line="1888"/>
+        <location filename="../app.py" line="4578"/>
+        <location filename="../app.py" line="4595"/>
         <source>Ocultar selecionado</source>
         <translation>Hide selected</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1881"/>
-        <location filename="../app.py" line="4477"/>
-        <location filename="../app.py" line="4496"/>
+        <location filename="../app.py" line="1891"/>
+        <location filename="../app.py" line="4579"/>
+        <location filename="../app.py" line="4598"/>
         <source>Ocultar</source>
         <translation>Hide</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1884"/>
-        <location filename="../app.py" line="4478"/>
-        <location filename="../app.py" line="4499"/>
+        <location filename="../app.py" line="1894"/>
+        <location filename="../app.py" line="4580"/>
+        <location filename="../app.py" line="4601"/>
         <source>Isolar selecionado</source>
         <translation>Isolate selected</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1887"/>
-        <location filename="../app.py" line="4479"/>
-        <location filename="../app.py" line="4502"/>
+        <location filename="../app.py" line="1897"/>
+        <location filename="../app.py" line="4581"/>
+        <location filename="../app.py" line="4604"/>
         <source>Isolar</source>
         <translation>Isolate</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1921"/>
+        <location filename="../app.py" line="1931"/>
         <source>Arquivo</source>
         <translation>File</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1478"/>
-        <location filename="../app.py" line="5673"/>
+        <location filename="../app.py" line="1481"/>
+        <location filename="../app.py" line="5776"/>
         <source>Filtrar arquivos…</source>
         <translation>Filter files…</translation>
     </message>
@@ -495,369 +495,414 @@
         <translation>Change SOffset of WindowID {id}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1462"/>
-        <location filename="../app.py" line="1911"/>
+        <location filename="../app.py" line="1465"/>
+        <location filename="../app.py" line="1921"/>
         <source>Nova imagem…</source>
         <translation>New image…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1463"/>
+        <location filename="../app.py" line="1466"/>
         <source>Cria um controle de imagem decorativo e abre o atlas para escolher o recorte</source>
         <translation>Creates a decorative image control and opens the atlas to pick the slice</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1515"/>
+        <location filename="../app.py" line="1518"/>
         <source>Criar projeto com estes arquivos</source>
         <translation>Create project with these files</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1517"/>
+        <location filename="../app.py" line="1520"/>
         <source>Copia a UI do jogo para um projeto com estes XML por cima; depois é só usar Enviar para o jogo.</source>
         <translation>Copies the game UI into a project with these XML files on top; then just use Send to game.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1547"/>
-        <location filename="../app.py" line="5607"/>
+        <location filename="../app.py" line="1550"/>
+        <location filename="../app.py" line="5710"/>
         <source>Texturas</source>
         <translation>Textures</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1548"/>
+        <location filename="../app.py" line="1551"/>
         <source>Elementos</source>
         <translation>Elements</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1549"/>
+        <location filename="../app.py" line="1552"/>
         <source>Textos</source>
         <translation>Texts</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1628"/>
+        <location filename="../app.py" line="1631"/>
         <source>A UI oficial desta versão do jogo não está guardada: sem ela o editor não avisa quando uma atualização traz controles novos.</source>
         <translation>The official UI for this game version isn&apos;t saved: without it, the editor can&apos;t warn you when an update brings new controls.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1633"/>
+        <location filename="../app.py" line="1636"/>
         <source>Guardar UI oficial</source>
         <translation>Save official UI</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1689"/>
+        <location filename="../app.py" line="1693"/>
         <source>Novo projeto…</source>
         <translation>New project…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1692"/>
-        <location filename="../app.py" line="4627"/>
+        <location filename="../app.py" line="1696"/>
+        <location filename="../app.py" line="4729"/>
         <source>Novo projeto</source>
         <translation>New project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1694"/>
+        <location filename="../app.py" line="1698"/>
         <source>Abrir projeto…</source>
         <translation>Open project…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1697"/>
-        <location filename="../app.py" line="1933"/>
+        <location filename="../app.py" line="1701"/>
+        <location filename="../app.py" line="1943"/>
         <source>Projeto</source>
         <translation>Project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1703"/>
+        <location filename="../app.py" line="1707"/>
         <source>Publica o projeto em UICustom e na pasta UI do jogo e o seleciona no launcher (F5)</source>
         <translation>Publishes the project to UICustom and the game&apos;s UI folder and selects it in the launcher (F5)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1707"/>
+        <location filename="../app.py" line="1711"/>
         <source>Exportar UI (.zip)…</source>
         <translation>Export UI (.zip)…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1711"/>
+        <location filename="../app.py" line="1715"/>
         <source>Exportar .zip</source>
         <translation>Export .zip</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1713"/>
+        <location filename="../app.py" line="1717"/>
         <source>Gera o .zip só com a UI, que o launcher importa em &quot;Add Custom UI&quot;. Os textos não vão no .zip.</source>
         <translation>Builds the .zip with the UI only, which the launcher imports in &quot;Add Custom UI&quot;. Texts are not included.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1715"/>
+        <location filename="../app.py" line="1725"/>
         <source>Importar arquivos…</source>
         <translation>Import files…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1718"/>
+        <location filename="../app.py" line="1728"/>
         <source>Importar arquivos avulsos para o projeto (substitui os de mesmo nome)</source>
         <translation>Import loose files into the project (replaces files with the same name)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1733"/>
+        <location filename="../app.py" line="1743"/>
         <source>Abrir pasta do projeto</source>
         <translation>Open project folder</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1767"/>
+        <location filename="../app.py" line="1777"/>
         <source>Mostrar identificadores (I)</source>
         <translation>Show identifiers (I)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1775"/>
+        <location filename="../app.py" line="1785"/>
         <source>Texto como no jogo</source>
         <translation>Text as in game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1777"/>
+        <location filename="../app.py" line="1787"/>
         <source>Desligado</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1778"/>
+        <location filename="../app.py" line="1788"/>
         <source>Textos do jogo</source>
         <translation>Game texts</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1779"/>
+        <location filename="../app.py" line="1789"/>
         <source>Só o texto do XML</source>
         <translation>XML text only</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1780"/>
+        <location filename="../app.py" line="1790"/>
         <source>Amostra curta</source>
         <translation>Short sample</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1781"/>
+        <location filename="../app.py" line="1791"/>
         <source>Amostra longa</source>
         <translation>Long sample</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1810"/>
+        <location filename="../app.py" line="1820"/>
         <source>Contornos</source>
         <translation>Outlines</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1816"/>
+        <location filename="../app.py" line="1826"/>
         <source>Mostra os contornos tracejados e rótulos dos elementos. Desligue para ver só o que o jogo desenha (P)</source>
         <translation>Shows the dashed outlines and labels of the elements. Turn off to see only what the game draws (P)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1821"/>
+        <location filename="../app.py" line="1831"/>
         <source>Igual ao jogo (client.ini)</source>
         <translation>Same as the game (client.ini)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1825"/>
+        <location filename="../app.py" line="1835"/>
         <source>Sem tela do jogo (janela solta)</source>
         <translation>No game screen (free window)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1861"/>
+        <location filename="../app.py" line="1871"/>
         <source>Fundo do jogo (embutido)</source>
         <translation>Game background (built-in)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1863"/>
+        <location filename="../app.py" line="1873"/>
         <source>Captura própria…</source>
         <translation>Your own screenshot…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1865"/>
+        <location filename="../app.py" line="1875"/>
         <source>Sem fundo</source>
         <translation>No background</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1890"/>
+        <location filename="../app.py" line="1900"/>
         <source>Duplicar controle</source>
         <translation>Duplicate control</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1893"/>
+        <location filename="../app.py" line="1903"/>
         <source>Duplicar</source>
         <translation>Duplicate</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1894"/>
+        <location filename="../app.py" line="1904"/>
         <source>Cria uma cópia decorativa deste controle com um WindowID livre</source>
         <translation>Creates a decorative copy of this control with a free WindowID</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1897"/>
-        <location filename="../app.py" line="5271"/>
+        <location filename="../app.py" line="1907"/>
+        <location filename="../app.py" line="5373"/>
         <source>Apagar controle</source>
         <translation>Delete control</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1900"/>
-        <location filename="../app.py" line="5984"/>
+        <location filename="../app.py" line="1910"/>
+        <location filename="../app.py" line="6087"/>
         <source>Apagar</source>
         <translation>Delete</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1903"/>
-        <location filename="../app.py" line="5278"/>
+        <location filename="../app.py" line="1913"/>
+        <location filename="../app.py" line="5380"/>
         <source>Ocultar no jogo</source>
         <translation>Hide in game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1905"/>
+        <location filename="../app.py" line="1915"/>
         <source>Grava Visible=&quot;0&quot;: o controle continua no XML, mas o jogo não o mostra</source>
         <translation>Writes Visible=&quot;0&quot;: the control stays in the XML, but the game doesn&apos;t show it</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1908"/>
+        <location filename="../app.py" line="1918"/>
         <source>Desmarcar seleção</source>
         <translation>Clear selection</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1924"/>
+        <location filename="../app.py" line="1934"/>
         <source>Projetos recentes</source>
         <translation>Recent projects</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1926"/>
+        <location filename="../app.py" line="1936"/>
         <source>Tela inicial</source>
         <translation>Start screen</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1927"/>
+        <location filename="../app.py" line="1937"/>
         <source>Fecha o XML aberto e mostra os projetos recentes</source>
         <translation>Closes the open XML and shows the recent projects</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1936"/>
+        <location filename="../app.py" line="1946"/>
         <source>UI oficial de referência…</source>
         <translation>Official reference UI…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1948"/>
+        <location filename="../app.py" line="1959"/>
         <source>Editar</source>
         <translation>Edit</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1957"/>
+        <location filename="../app.py" line="1968"/>
         <source>Visualização</source>
         <translation>View</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1967"/>
-        <location filename="../app.py" line="3456"/>
+        <location filename="../app.py" line="1978"/>
+        <location filename="../app.py" line="3558"/>
         <source>Resolução do jogo</source>
         <translation>Game resolution</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1981"/>
+        <location filename="../app.py" line="1992"/>
         <source>Posição da janela no preview</source>
         <translation>Window position in the preview</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1986"/>
+        <location filename="../app.py" line="1997"/>
         <source>Automática (como o jogo)</source>
         <translation>Automatic (as the game does)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1987"/>
+        <location filename="../app.py" line="1998"/>
         <source>X e Y do XML</source>
         <translation>X and Y from the XML</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1988"/>
+        <location filename="../app.py" line="1999"/>
         <source>Centralizada</source>
         <translation>Centered</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1994"/>
+        <location filename="../app.py" line="2005"/>
         <source>Use se o jogo do seu servidor posicionar esta janela de um jeito diferente do automático.</source>
         <translation>Use this if your server&apos;s game places this window differently from the automatic rule.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2000"/>
+        <location filename="../app.py" line="2011"/>
         <source>Navegação do canvas</source>
         <translation>Canvas navigation</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2008"/>
+        <location filename="../app.py" line="2019"/>
         <source>Estilo CorelDRAW</source>
         <translation>CorelDRAW style</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2008"/>
+        <location filename="../app.py" line="2019"/>
         <source>Roda: zoom · botão do meio ou Espaço+arrastar: mover</source>
         <translation>Wheel: zoom · middle button or Space+drag: pan</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2009"/>
+        <location filename="../app.py" line="2020"/>
         <source>Estilo Paint.NET</source>
         <translation>Paint.NET style</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2009"/>
+        <location filename="../app.py" line="2020"/>
         <source>Roda: rolar · Shift+roda: para os lados · Ctrl+roda: zoom</source>
         <translation>Wheel: scroll · Shift+wheel: sideways · Ctrl+wheel: zoom</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2010"/>
+        <location filename="../app.py" line="2021"/>
         <source>Estilo Photoshop</source>
         <translation>Photoshop style</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2010"/>
+        <location filename="../app.py" line="2021"/>
         <source>Roda: rolar · Ctrl+roda: para os lados · Alt+roda: zoom</source>
         <translation>Wheel: scroll · Ctrl+wheel: sideways · Alt+wheel: zoom</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2027"/>
+        <location filename="../app.py" line="2038"/>
         <source>Ajuda</source>
         <translation>Help</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2025"/>
+        <location filename="../app.py" line="2036"/>
         <source>Idioma</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1472"/>
-        <location filename="../app.py" line="1546"/>
-        <location filename="../app.py" line="5607"/>
+        <location filename="../app.py" line="1475"/>
+        <location filename="../app.py" line="1549"/>
+        <location filename="../app.py" line="5710"/>
         <source>Arquivos XML</source>
         <translation>XML files</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1566"/>
+        <location filename="../app.py" line="1569"/>
         <source>Menu e configurações</source>
         <translation>Menu and settings</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2039"/>
+        <location filename="../app.py" line="1719"/>
+        <source>Exportar textos (.zip)…</source>
+        <translation>Export texts (.zip)…</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="1722"/>
+        <source>Gera um .zip com os arquivos de data/Translate que o projeto edita, para extrair na pasta do jogo de outro PC</source>
+        <translation>Creates a .zip with the data/Translate files this project edits, to extract into the game folder on another PC</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2050"/>
         <source>Verificar atualizações…</source>
         <translation>Check for updates…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2041"/>
+        <location filename="../app.py" line="2052"/>
         <source>Verificar ao iniciar</source>
         <translation>Check on startup</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2049"/>
-        <location filename="../app.py" line="2260"/>
+        <location filename="../app.py" line="2060"/>
+        <source>Receber versões beta</source>
+        <translation>Receive beta versions</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2064"/>
+        <source>Também oferece versões em teste, antes de virarem estáveis. Desmarque para voltar a receber só as estáveis.</source>
+        <translation>Also offers versions still in testing, before they become stable. Uncheck to get only stable versions again.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2067"/>
+        <location filename="../app.py" line="2362"/>
         <source>Como usar</source>
         <translation>How to use</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2165"/>
+        <location filename="../app.py" line="2199"/>
+        <source>Atualização necessária</source>
+        <translation>Update required</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2201"/>
+        <source>Esta versão ({version}) tem um problema conhecido e precisa ser atualizada (mínima: {minimum}). Procurar a atualização agora?</source>
+        <translation>This version ({version}) has a known problem and needs to be updated (minimum: {minimum}). Look for the update now?</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2217"/>
+        <source>Aviso do {name}</source>
+        <translation>{name} notice</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2219"/>
+        <source>Abrir link</source>
+        <translation>Open link</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2234"/>
+        <source>Esta função está desativada temporariamente por causa de um problema conhecido. Ela volta numa atualização.</source>
+        <translation>This feature is temporarily disabled because of a known problem. It will come back in an update.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2263"/>
         <source>Verificando atualizações…</source>
         <translation>Checking for updates…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2180"/>
-        <location filename="../app.py" line="2189"/>
+        <location filename="../app.py" line="2278"/>
+        <location filename="../app.py" line="2287"/>
         <source>Atualizações</source>
         <translation>Updates</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2181"/>
+        <location filename="../app.py" line="2279"/>
         <source>Não foi possível verificar atualizações.
 
 {error}</source>
@@ -866,68 +911,73 @@
 {error}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2190"/>
+        <location filename="../app.py" line="2289"/>
+        <source>Você já está na versão mais recente ({version}), contando as betas.</source>
+        <translation>You already have the latest version ({version}), including betas.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2291"/>
         <source>Você já está na versão mais recente ({version}).</source>
         <translation>You already have the latest version ({version}).</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2221"/>
+        <location filename="../app.py" line="2323"/>
         <source>Crie um projeto</source>
         <translation>Create a project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2223"/>
+        <location filename="../app.py" line="2325"/>
         <source>Arquivo → Novo projeto. Dê um nome e escolha de onde partir: a UI em uso, uma UI da lista (UICustom/…) ou &quot;Outra pasta…&quot; se os seus arquivos estão em outro lugar. O editor copia os arquivos para o projeto; a pasta original não é alterada.</source>
         <translation>File → New project. Give it a name and choose where to start from: the UI in use, a UI from the list (UICustom/…) or &quot;Other folder…&quot; if your files are somewhere else. The editor copies the files into the project; the original folder is not changed.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2229"/>
+        <location filename="../app.py" line="2331"/>
         <source>Edite e salve</source>
         <translation>Edit and save</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2231"/>
+        <location filename="../app.py" line="2333"/>
         <source>Abra um XML na aba Arquivos, mova e ajuste os elementos e salve com Ctrl+S. Cada salvamento guarda um backup: clique com o botão direito no arquivo para restaurar uma versão anterior.</source>
         <translation>Open an XML in the Files tab, move and adjust the elements and save with Ctrl+S. Every save keeps a backup: right-click the file to restore a previous version.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2244"/>
+        <location filename="../app.py" line="2346"/>
         <source>Entenda o preview</source>
         <translation>Understand the preview</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2252"/>
+        <location filename="../app.py" line="2354"/>
         <source>Compartilhe</source>
         <translation>Share</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2254"/>
+        <location filename="../app.py" line="2356"/>
         <source>Projeto → Exportar UI (.zip) gera o pacote que outras pessoas adicionam no launcher em &quot;Adicionar UI Customizada&quot;.</source>
         <translation>Project → Export UI (.zip) builds the package other people add in the launcher with &quot;Add Custom UI&quot;.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2265"/>
+        <location filename="../app.py" line="2367"/>
         <source>Do projeto ao jogo em cinco passos</source>
         <translation>From project to game in five steps</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2285"/>
+        <location filename="../app.py" line="2387"/>
         <source>Fechar</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2307"/>
+        <location filename="../app.py" line="2409"/>
         <source>Baixando a versão {version}…</source>
         <translation>Downloading version {version}…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2312"/>
-        <location filename="../app.py" line="2318"/>
+        <location filename="../app.py" line="2414"/>
+        <location filename="../app.py" line="2420"/>
         <source>Falha na atualização</source>
         <translation>Update failed</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2312"/>
+        <location filename="../app.py" line="2414"/>
         <source>A atualização foi cancelada.
 
 {error}</source>
@@ -936,52 +986,52 @@
 {error}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2713"/>
+        <location filename="../app.py" line="2815"/>
         <source>Abrir XML de interface</source>
         <translation>Open interface XML</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2713"/>
+        <location filename="../app.py" line="2815"/>
         <source>XML (*.xml);;Todos os arquivos (*)</source>
         <translation>XML (*.xml);;All files (*)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2730"/>
+        <location filename="../app.py" line="2832"/>
         <source>Criar um projeto?</source>
         <translation>Create a project?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2731"/>
+        <location filename="../app.py" line="2833"/>
         <source>Editar {name} dentro de um projeto?</source>
         <translation>Edit {name} inside a project?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2734"/>
+        <location filename="../app.py" line="2836"/>
         <source>Num projeto suas alterações ficam guardadas com histórico, e Enviar para o jogo copia tudo para a pasta certa. Arquivos soltos o jogo só vê se você copiá-los manualmente.</source>
         <translation>In a project your changes are kept with history, and Send to game copies everything to the right folder. The game only sees loose files if you copy them yourself.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2738"/>
+        <location filename="../app.py" line="2840"/>
         <source>Criar projeto</source>
         <translation>Create project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2739"/>
+        <location filename="../app.py" line="2841"/>
         <source>Só abrir</source>
         <translation>Just open</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2741"/>
+        <location filename="../app.py" line="2843"/>
         <source>Não perguntar de novo</source>
         <translation>Don&apos;t ask again</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2757"/>
+        <location filename="../app.py" line="2859"/>
         <source>Arquivo salvo como UTF-8</source>
         <translation>File saved as UTF-8</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2759"/>
+        <location filename="../app.py" line="2861"/>
         <source>{name} foi salvo como UTF-8 (provavelmente por um editor de texto), mas o jogo lê os XML em Big5.
 
 Converter o arquivo para Big5? Uma cópia do original será guardada como backup.</source>
@@ -990,400 +1040,400 @@ Converter o arquivo para Big5? Uma cópia do original será guardada como backup
 Convert the file to Big5? A copy of the original will be kept as a backup.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2777"/>
-        <location filename="../app.py" line="2781"/>
+        <location filename="../app.py" line="2879"/>
+        <location filename="../app.py" line="2883"/>
         <source>Não foi possível abrir</source>
         <translation>Could not open</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2906"/>
-        <location filename="../app.py" line="4834"/>
+        <location filename="../app.py" line="3008"/>
+        <location filename="../app.py" line="4936"/>
         <source>Texto</source>
         <translation>Text</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2907"/>
+        <location filename="../app.py" line="3009"/>
         <source>Texto de exemplo bem comprido para testar o espaço</source>
         <translation>A fairly long sample text to test the space</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3058"/>
+        <location filename="../app.py" line="3160"/>
         <source>As camadas aparecem no Preview do jogo: escolha uma resolução na barra do canvas.</source>
         <translation>Layers show in the game preview: pick a resolution in the canvas bar.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3117"/>
+        <location filename="../app.py" line="3219"/>
         <source>janela no jogo em ({x}, {y})</source>
         <translation>window in game at ({x}, {y})</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3119"/>
+        <location filename="../app.py" line="3221"/>
         <source>posição escolhida por você</source>
         <translation>position chosen by you</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3121"/>
+        <location filename="../app.py" line="3223"/>
         <source>posição salva no User.ini [{section}]</source>
         <translation>position saved in User.ini [{section}]</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3123"/>
+        <location filename="../app.py" line="3225"/>
         <source>posição definida pelo cliente</source>
         <translation>position set by the client</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3125"/>
+        <location filename="../app.py" line="3227"/>
         <source>centralizada pelo jogo</source>
         <translation>centered by the game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3127"/>
+        <location filename="../app.py" line="3229"/>
         <source>o jogo usa o X/Y do XML</source>
         <translation>the game uses the XML X/Y</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3129"/>
+        <location filename="../app.py" line="3231"/>
         <source>arquivo não carregado pelo jogo</source>
         <translation>file not loaded by the game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3131"/>
+        <location filename="../app.py" line="3233"/>
         <source>posição no jogo ainda não mapeada: usando o X/Y do XML</source>
         <translation>in-game position not mapped yet: using the XML X/Y</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3133"/>
+        <location filename="../app.py" line="3235"/>
         <source>pasta do jogo não encontrada (escolha em Arquivo → Novo projeto)</source>
         <translation>game folder not found (choose it in File → New project)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3275"/>
+        <location filename="../app.py" line="3377"/>
         <source>Área invisível da janela</source>
         <translation>Invisible window area</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3307"/>
+        <location filename="../app.py" line="3409"/>
         <source>A janela principal foi reduzida a 1 × 1 para não deixar uma área invisível no lugar antigo.</source>
         <translation>The main window was shrunk to 1 × 1 so no invisible area is left at the old spot.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3418"/>
+        <location filename="../app.py" line="3520"/>
         <source>Sem tela do jogo</source>
         <translation>No game screen</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3420"/>
+        <location filename="../app.py" line="3522"/>
         <source>Tela {width} × {height}</source>
         <translation>Screen {width} × {height}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3422"/>
+        <location filename="../app.py" line="3524"/>
         <source>jogo</source>
         <translation>game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3427"/>
+        <location filename="../app.py" line="3529"/>
         <source>Igual ao jogo ({width} × {height})</source>
         <translation>Same as the game ({width} × {height})</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3438"/>
+        <location filename="../app.py" line="3540"/>
         <source>Personalizada ({width} × {height})…</source>
         <translation>Custom ({width} × {height})…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3457"/>
+        <location filename="../app.py" line="3559"/>
         <source>Largura × altura (ex.: 1366x768):</source>
         <translation>Width × height (e.g. 1366x768):</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3464"/>
+        <location filename="../app.py" line="3566"/>
         <source>Resolução inválida</source>
         <translation>Invalid resolution</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3465"/>
+        <location filename="../app.py" line="3567"/>
         <source>Use o formato largura x altura, por exemplo 1366x768.</source>
         <translation>Use the width x height format, for example 1366x768.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3481"/>
+        <location filename="../app.py" line="3583"/>
         <source>Escolher captura de tela do jogo</source>
         <translation>Choose game screenshot</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3483"/>
+        <location filename="../app.py" line="3585"/>
         <source>Imagens (*.png *.jpg *.jpeg *.bmp)</source>
         <translation>Images (*.png *.jpg *.jpeg *.bmp)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3520"/>
+        <location filename="../app.py" line="3622"/>
         <source>A captura tem {w}×{h}, mas o jogo está configurado para {gw}×{gh}. Para o preview bater, capture só a área do jogo na resolução em que você joga.</source>
         <translation>The screenshot is {w}×{h}, but the game is set to {gw}×{gh}. For an accurate preview, capture only the game area at the resolution you play.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3549"/>
-        <location filename="../app.py" line="3592"/>
+        <location filename="../app.py" line="3651"/>
+        <location filename="../app.py" line="3694"/>
         <source>{count} elementos carregados</source>
         <translation>{count} elements loaded</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3553"/>
-        <location filename="../app.py" line="3588"/>
+        <location filename="../app.py" line="3655"/>
+        <location filename="../app.py" line="3690"/>
         <source>Elementos prontos · carregando texturas ({done}/{total})…</source>
         <translation>Elements ready · loading textures ({done}/{total})…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3591"/>
+        <location filename="../app.py" line="3693"/>
         <source> · texturas ausentes: {count}</source>
         <translation> · missing textures: {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3609"/>
-        <location filename="../app.py" line="4445"/>
+        <location filename="../app.py" line="3711"/>
+        <location filename="../app.py" line="4547"/>
         <source>Ocultar · Bloquear · Isolar</source>
         <translation>Hide · Lock · Isolate</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3696"/>
+        <location filename="../app.py" line="3798"/>
         <source>O jogo prende esta janela a um ponto da tela. Com o Preview do jogo ligado, arraste a janela ou edite X/Y para colocá-la onde deve aparecer na tela; o editor grava no XML o valor que o jogo espera.</source>
         <translation>The game pins this window to a spot on the screen. With Game preview on, drag the window or edit X/Y to put it where it should appear on screen; the editor writes the value the game expects to the XML.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3702"/>
+        <location filename="../app.py" line="3804"/>
         <source>O jogo centraliza esta janela na tela. Com o Preview do jogo ligado, arraste a janela ou edite X/Y para colocá-la onde deve aparecer na tela; o editor grava no XML o valor que o jogo espera.</source>
         <translation>The game centres this window on the screen. With Game preview on, drag the window or edit X/Y to put it where it should appear on screen; the editor writes the value the game expects to the XML.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3725"/>
+        <location filename="../app.py" line="3827"/>
         <source> · {count} selecionados</source>
         <translation> · {count} selected</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3727"/>
+        <location filename="../app.py" line="3829"/>
         <source>WindowID {id} · índice {index}</source>
         <translation>WindowID {id} · index {index}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3780"/>
+        <location filename="../app.py" line="3882"/>
         <source>O WindowID {id} não tem texto do jogo mapeado.</source>
         <translation>WindowID {id} has no mapped game text.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3784"/>
+        <location filename="../app.py" line="3886"/>
         <source>Abra um projeto com a pasta do jogo para editar os textos.</source>
         <translation>Open a project with the game folder to edit texts.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3788"/>
+        <location filename="../app.py" line="3890"/>
         <source>O texto {id} não existe no T_TextIndex.ini do jogo.</source>
         <translation>Text {id} does not exist in the game&apos;s T_TextIndex.ini.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3846"/>
-        <location filename="../app.py" line="4000"/>
+        <location filename="../app.py" line="3948"/>
+        <location filename="../app.py" line="4102"/>
         <source>O elemento selecionado está bloqueado.</source>
         <translation>The selected element is locked.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3931"/>
+        <location filename="../app.py" line="4033"/>
         <source>O jogo lembra onde você deixou esta janela (User.ini). O preview agora mostra a posição padrão do XML, que vale para quem ainda não a moveu no jogo.</source>
         <translation>The game remembers where you left this window (User.ini). The preview now shows the XML default position, which applies to anyone who has not moved it in game yet.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3969"/>
+        <location filename="../app.py" line="4071"/>
         <source>Os elementos selecionados estão bloqueados.</source>
         <translation>The selected elements are locked.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4011"/>
-        <location filename="../app.py" line="4051"/>
+        <location filename="../app.py" line="4113"/>
+        <location filename="../app.py" line="4153"/>
         <source>Alterar atlas do WindowID {id}</source>
         <translation>Change atlas for WindowID {id}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4086"/>
+        <location filename="../app.py" line="4188"/>
         <source>Usar outro .dds desta UI…</source>
         <translation>Use another .dds from this UI…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4087"/>
+        <location filename="../app.py" line="4189"/>
         <source>Criar cópia de {name} para editar…</source>
         <translation>Make a copy of {name} to edit…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4089"/>
+        <location filename="../app.py" line="4191"/>
         <source>Trazer .dds de outra pasta…</source>
         <translation>Bring a .dds from another folder…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4103"/>
-        <location filename="../app.py" line="4171"/>
+        <location filename="../app.py" line="4205"/>
+        <location filename="../app.py" line="4273"/>
         <source>Trocar .dds</source>
         <translation>Change .dds</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4103"/>
+        <location filename="../app.py" line="4205"/>
         <source>Textura para este controle:</source>
         <translation>Texture for this control:</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4112"/>
-        <location filename="../app.py" line="4121"/>
-        <location filename="../app.py" line="4126"/>
+        <location filename="../app.py" line="4214"/>
+        <location filename="../app.py" line="4223"/>
+        <location filename="../app.py" line="4228"/>
         <source>Criar cópia do .dds</source>
         <translation>Copy .dds</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4112"/>
+        <location filename="../app.py" line="4214"/>
         <source>Nome do novo arquivo (fica na pasta da UI):</source>
         <translation>Name of the new file (saved in the UI folder):</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4121"/>
+        <location filename="../app.py" line="4223"/>
         <source>Já existe {name} nesta pasta.</source>
         <translation>{name} already exists in this folder.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4130"/>
-        <location filename="../app.py" line="4140"/>
-        <location filename="../app.py" line="4151"/>
+        <location filename="../app.py" line="4232"/>
+        <location filename="../app.py" line="4242"/>
+        <location filename="../app.py" line="4253"/>
         <source>Trazer .dds</source>
         <translation>Bring .dds</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4130"/>
+        <location filename="../app.py" line="4232"/>
         <source>Texturas (*.dds *.tga)</source>
         <translation>Textures (*.dds *.tga)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4141"/>
+        <location filename="../app.py" line="4243"/>
         <source>Já existe {name} nesta UI. Substituir?</source>
         <translation>{name} already exists in this UI. Replace it?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4172"/>
+        <location filename="../app.py" line="4274"/>
         <source>Trocar também nos outros {count} controle(s) deste XML que usam {old}?</source>
         <translation>Also change the other {count} control(s) in this XML that use {old}?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4182"/>
+        <location filename="../app.py" line="4284"/>
         <source>{count} controle(s) agora usam {name}. Salve para gravar.</source>
         <translation>{count} control(s) now use {name}. Save to write it.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4187"/>
+        <location filename="../app.py" line="4289"/>
         <source>Aguarde o carregamento das texturas para abrir o atlas.</source>
         <translation>Wait for textures to load before opening the atlas.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4199"/>
+        <location filename="../app.py" line="4301"/>
         <source>Este elemento não possui uma textura NorUV editável.</source>
         <translation>This element has no editable NorUV texture.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4205"/>
+        <location filename="../app.py" line="4307"/>
         <source>Não foi possível abrir {name}.</source>
         <translation>Could not open {name}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4251"/>
+        <location filename="../app.py" line="4353"/>
         <source>Lista de arquivos atualizada. Aguarde o carregamento das texturas.</source>
         <translation>File list refreshed. Wait for textures to load.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4259"/>
+        <location filename="../app.py" line="4361"/>
         <source>Arquivos e texturas atualizados do disco.</source>
         <translation>Files and textures refreshed from disk.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4298"/>
+        <location filename="../app.py" line="4400"/>
         <source>A textura {name} não está disponível.</source>
         <translation>Texture {name} is unavailable.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4313"/>
+        <location filename="../app.py" line="4415"/>
         <source>{name} atualizado automaticamente · elementos: {count}.</source>
         <translation>{name} reloaded automatically · elements: {count}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4404"/>
+        <location filename="../app.py" line="4506"/>
         <source>Isolado: WindowID {id} · mostrar tudo</source>
         <translation>Isolated: WindowID {id} · show all</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4440"/>
+        <location filename="../app.py" line="4542"/>
         <source>Bloqueado</source>
         <translation>Locked</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4442"/>
+        <location filename="../app.py" line="4544"/>
         <source>Oculto</source>
         <translation>Hidden</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4444"/>
+        <location filename="../app.py" line="4546"/>
         <source>Isolado</source>
         <translation>Isolated</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4483"/>
+        <location filename="../app.py" line="4585"/>
         <source>Desbloquear selecionado</source>
         <translation>Unlock selected</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4488"/>
+        <location filename="../app.py" line="4590"/>
         <source>Desbloquear</source>
         <translation>Unlock</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4491"/>
+        <location filename="../app.py" line="4593"/>
         <source>Mostrar selecionado</source>
         <translation>Show selected</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4496"/>
+        <location filename="../app.py" line="4598"/>
         <source>Mostrar</source>
         <translation>Show</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4499"/>
-        <location filename="../app.py" line="4502"/>
+        <location filename="../app.py" line="4601"/>
+        <location filename="../app.py" line="4604"/>
         <source>Mostrar todos</source>
         <translation>Show all</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4566"/>
+        <location filename="../app.py" line="4668"/>
         <source>Nenhuma alteração para salvar.</source>
         <translation>No changes to save.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4581"/>
+        <location filename="../app.py" line="4683"/>
         <source>Arquivo alterado externamente</source>
         <translation>File changed externally</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4584"/>
+        <location filename="../app.py" line="4686"/>
         <source>Falha ao salvar</source>
         <translation>Could not save</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4595"/>
+        <location filename="../app.py" line="4697"/>
         <source>Salvo no projeto. O jogo só recebe as mudanças com Enviar para o jogo (F5).</source>
         <translation>Saved to the project. The game only gets the changes with Send to game (F5).</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4598"/>
+        <location filename="../app.py" line="4700"/>
         <source>Salvo. Backup: {name}</source>
         <translation>Saved. Backup: {name}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4601"/>
+        <location filename="../app.py" line="4703"/>
         <source>XML salvo</source>
         <translation>XML saved</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4602"/>
+        <location filename="../app.py" line="4704"/>
         <source>As alterações foram salvas.
 
 Backup exato:
@@ -1394,22 +1444,22 @@ Exact backup:
 {path}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4693"/>
+        <location filename="../app.py" line="4795"/>
         <source>Nenhum projeto ainda</source>
         <translation>No projects yet</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4763"/>
+        <location filename="../app.py" line="4865"/>
         <source>Escolha um XML na aba Arquivos para começar a editar. Os alterados aparecem no topo; F5 publica no jogo.</source>
         <translation>Pick an XML in the Files tab to start editing. Modified files are listed first; F5 publishes to the game.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4766"/>
+        <location filename="../app.py" line="4868"/>
         <source>Comece um projeto de UI</source>
         <translation>Start a UI project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4627"/>
+        <location filename="../app.py" line="4729"/>
         <source>A partir da UI em uso, de uma UI do UICustom ou de outra pasta.</source>
         <translation>From the UI in use, a UICustom UI or another folder.</translation>
     </message>
@@ -1419,78 +1469,78 @@ Exact backup:
         <translation>Add {count} official control(s)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1458"/>
+        <location filename="../app.py" line="1461"/>
         <source>Adicionar do oficial…</source>
         <translation>Add from official…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1459"/>
+        <location filename="../app.py" line="1462"/>
         <source>Copia controles da UI oficial que este arquivo não tem</source>
         <translation>Copies controls from the official UI that this file does not have</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1604"/>
+        <location filename="../app.py" line="1607"/>
         <source>Ver e adicionar</source>
         <translation>Review and add</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1609"/>
-        <location filename="../app.py" line="1638"/>
+        <location filename="../app.py" line="1612"/>
+        <location filename="../app.py" line="1641"/>
         <source>Dispensar</source>
         <translation>Dismiss</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1722"/>
+        <location filename="../app.py" line="1732"/>
         <source>Comparar com a UI oficial…</source>
         <translation>Compare with official UI…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1724"/>
+        <location filename="../app.py" line="1734"/>
         <source>Mostra os controles da UI oficial que o XML aberto não tem</source>
         <translation>Shows the official UI controls the open XML does not have</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1728"/>
+        <location filename="../app.py" line="1738"/>
         <source>Resolver erro do jogo…</source>
         <translation>Fix a game error…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1730"/>
+        <location filename="../app.py" line="1740"/>
         <source>Cole a mensagem &quot;Child control can not found&quot; do jogo para achar o XML e o controle</source>
         <translation>Paste the game&apos;s &quot;Child control can not found&quot; message to find the XML and the control</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1942"/>
+        <location filename="../app.py" line="1953"/>
         <source>Pasta de publicação…</source>
         <translation>Publish folder…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2053"/>
+        <location filename="../app.py" line="2071"/>
         <source>Novidades desta versão</source>
         <translation>What&apos;s new in this version</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2246"/>
+        <location filename="../app.py" line="2348"/>
         <source>A moldura mostra a tela do jogo na sua resolução. Algumas janelas o jogo fixa (no centro ou num canto): nelas, arraste a janela para onde o conteúdo deve aparecer e o editor ajusta o X/Y que o jogo espera.</source>
         <translation>The frame shows the game screen at your resolution. Some windows are pinned by the game (centered or in a corner): for those, drag the window to where its content should appear and the editor sets the X/Y the game expects.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2828"/>
+        <location filename="../app.py" line="2930"/>
         <source>Linha {line}: {text}</source>
         <translation>Line {line}: {text}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2830"/>
+        <location filename="../app.py" line="2932"/>
         <source>(e mais {count} trecho(s) assim)</source>
         <translation>(and {count} more like this)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2833"/>
+        <location filename="../app.py" line="2935"/>
         <source>Texto solto no XML</source>
         <translation>Loose text in the XML</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2835"/>
+        <location filename="../app.py" line="2937"/>
         <source>Este arquivo tem texto solto entre as tags, sobra de edição manual:
 
 {details}
@@ -1503,304 +1553,304 @@ O jogo pode travar ou mostrar &quot;Child control can not found&quot;. Remover e
 The game may crash or show &quot;Child control can not found&quot;. Remove this text and fix Child_Cnt? The fix is written when you save.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2845"/>
+        <location filename="../app.py" line="2947"/>
         <source>O XML será corrigido ao salvar.</source>
         <translation>The XML will be fixed when you save.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3331"/>
+        <location filename="../app.py" line="3433"/>
         <source>XML: X {x} · Y {y}    Tela: X {sx} · Y {sy}</source>
         <translation>XML: X {x} · Y {y}    Screen: X {sx} · Y {sy}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3946"/>
+        <location filename="../app.py" line="4048"/>
         <source>O jogo fixa esta janela; o X/Y dela desloca o conteúdo no sentido contrário. Confira o resultado no preview.</source>
         <translation>The game pins this window; its X/Y shifts the content the opposite way. Check the result in the preview.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4628"/>
+        <location filename="../app.py" line="4730"/>
         <source>Abrir um XML solto</source>
         <translation>Open a single XML</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4628"/>
+        <location filename="../app.py" line="4730"/>
         <source>Edita direto no arquivo, sem projeto (o launcher pode sobrescrever).</source>
         <translation>Edits the file directly, without a project (the launcher may overwrite it).</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4650"/>
+        <location filename="../app.py" line="4752"/>
         <source>RECENTES</source>
         <translation>RECENT</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4659"/>
+        <location filename="../app.py" line="4761"/>
         <source>{a} novo projeto &amp;nbsp;&amp;nbsp;&amp;nbsp; {b} abrir projeto &amp;nbsp;&amp;nbsp;&amp;nbsp; {c} testar no jogo</source>
         <translation>{a} new project &amp;nbsp;&amp;nbsp;&amp;nbsp; {b} open project &amp;nbsp;&amp;nbsp;&amp;nbsp; {c} test in game</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4748"/>
+        <location filename="../app.py" line="4850"/>
         <source>{count} arquivos · {path}</source>
         <translation>{count} files · {path}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4768"/>
+        <location filename="../app.py" line="4870"/>
         <source>Você edita uma cópia fora da pasta do jogo. Quando quiser ver o resultado, aperte F5 para enviar ao jogo e inicie-o pelo launcher.</source>
         <translation>You edit a copy outside the game folder. When you want to see the result, press F5 to send it to the game and start the game from the launcher.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4811"/>
+        <location filename="../app.py" line="4913"/>
         <source>Fundo</source>
         <translation>Background</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4846"/>
+        <location filename="../app.py" line="4948"/>
         <source>Posição manual · voltar ao automático</source>
         <translation>Manual position · back to automatic</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4850"/>
+        <location filename="../app.py" line="4952"/>
         <source>Neste arquivo o preview usa uma posição escolhida à mão (Visualização → Posição da janela no preview) e pode não mostrar onde a janela aparece no jogo. Clique para voltar a seguir o jogo.</source>
         <translation>In this file the preview uses a position chosen by hand (View → Window position in the preview) and may not show where the window appears in game. Click to follow the game again.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4871"/>
+        <location filename="../app.py" line="4973"/>
         <source>Diminuir zoom</source>
         <translation>Zoom out</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4880"/>
+        <location filename="../app.py" line="4982"/>
         <source>Aumentar zoom</source>
         <translation>Zoom in</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4923"/>
+        <location filename="../app.py" line="5025"/>
         <source>{count} elementos</source>
         <translation>{count} elements</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4926"/>
+        <location filename="../app.py" line="5028"/>
         <source>{count} alteração(ões) não salva(s)</source>
         <translation>{count} unsaved change(s)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4929"/>
+        <location filename="../app.py" line="5031"/>
         <source>{name} → UICustom</source>
         <translation>{name} → UICustom</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4935"/>
+        <location filename="../app.py" line="5037"/>
         <source>{count} arquivo(s) ainda não publicados no jogo · F5</source>
         <translation>{count} file(s) not yet published to the game · F5</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5034"/>
+        <location filename="../app.py" line="5136"/>
         <source>Copiando arquivos da UI para o projeto…</source>
         <translation>Copying UI files into the project…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5041"/>
+        <location filename="../app.py" line="5143"/>
         <source>Projeto já existe</source>
         <translation>Project already exists</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5041"/>
+        <location filename="../app.py" line="5143"/>
         <source>Já existe um projeto em {path}.</source>
         <translation>A project already exists at {path}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5045"/>
+        <location filename="../app.py" line="5147"/>
         <source>Não foi possível criar o projeto</source>
         <translation>Could not create the project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5055"/>
+        <location filename="../app.py" line="5157"/>
         <source>Projeto criado com {count} arquivos.</source>
         <translation>Project created with {count} files.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4696"/>
-        <location filename="../app.py" line="5497"/>
+        <location filename="../app.py" line="4798"/>
+        <location filename="../app.py" line="5599"/>
         <source>Procurar pasta…</source>
         <translation>Browse folder…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1851"/>
+        <location filename="../app.py" line="1861"/>
         <source>Personagem</source>
         <translation>Character</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1855"/>
+        <location filename="../app.py" line="1865"/>
         <source>Mostrar um personagem de exemplo onde o jogo desenha os dados dele: foto, nick com {max} caracteres (o máximo do jogo), nível, HP/MP, classe e reencarnação</source>
         <translation>Show a sample character where the game draws its data: portrait, a {max}-character name (the game&apos;s maximum), level, HP/MP, class and rebirth</translation>
     </message>
     <message>
-        <location filename="../app.py" line="3111"/>
+        <location filename="../app.py" line="3213"/>
         <source>Foto do personagem: o jogo desenha fixa aqui na tela</source>
         <translation>Character portrait: the game always draws it here on screen</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4802"/>
+        <location filename="../app.py" line="4904"/>
         <source>Tela do jogo: com uma resolução, a janela aparece onde o jogo a desenha (centralizada, num canto ou na posição salva no User.ini) e as camadas ficam em volta. Sem tela do jogo, a janela fica solta, no X/Y do XML.</source>
         <translation>Game screen: with a resolution, the window shows where the game draws it (centered, in a corner or at the position saved in User.ini) with the layers around it. Without a game screen, the window floats at the XML X/Y.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4821"/>
+        <location filename="../app.py" line="4923"/>
         <source>Montar HUD padrão</source>
         <translation>Build default HUD</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4822"/>
+        <location filename="../app.py" line="4924"/>
         <source>Limpar camadas</source>
         <translation>Clear layers</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4823"/>
+        <location filename="../app.py" line="4925"/>
         <source>Camadas</source>
         <translation>Layers</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4832"/>
+        <location filename="../app.py" line="4934"/>
         <source>Outras janelas do projeto, onde o jogo as desenha. Marque arquivos no painel Arquivos ou monte o HUD padrão.</source>
         <translation>Other project windows, where the game draws them. Check files in the Files panel or build the default HUD.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4839"/>
+        <location filename="../app.py" line="4941"/>
         <source>Texto como no jogo: amostras com a fonte do jogo e aviso quando não cabem</source>
         <translation>Text as in game: samples in the game font, flagged when they don&apos;t fit</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4858"/>
+        <location filename="../app.py" line="4960"/>
         <source>Só o elemento isolado está à mostra. Clique para mostrar tudo de novo.</source>
         <translation>Only the isolated element is shown. Click to show everything again.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4915"/>
+        <location filename="../app.py" line="5017"/>
         <source>Cópia da UI oficial usada para comparar e achar controles que faltam</source>
         <translation>Copy of the official UI used to compare and find missing controls</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4956"/>
+        <location filename="../app.py" line="5058"/>
         <source>UI oficial: guardada</source>
         <translation>Official UI: saved</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4956"/>
+        <location filename="../app.py" line="5058"/>
         <source>UI oficial: não guardada · guardar</source>
         <translation>Official UI: not saved · save</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4972"/>
+        <location filename="../app.py" line="5074"/>
         <source>UI oficial de referência</source>
         <translation>Official reference UI</translation>
     </message>
     <message>
-        <location filename="../app.py" line="4973"/>
+        <location filename="../app.py" line="5075"/>
         <source>Defina a pasta do jogo primeiro (Arquivo → Novo projeto → Pasta do jogo).</source>
         <translation>Set the game folder first (File → New project → Game folder).</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5156"/>
+        <location filename="../app.py" line="5258"/>
         <source>Não há cópia oficial de {file} para comparar. Guardar a UI oficial agora?</source>
         <translation>There is no official copy of {file} to compare with. Save the official UI now?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5234"/>
+        <location filename="../app.py" line="5336"/>
         <source>Não foi possível alterar</source>
         <translation>Could not change</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5241"/>
+        <location filename="../app.py" line="5343"/>
         <source>Este controle é uma janela com outros controles dentro; isso ainda não é suportado.</source>
         <translation>This control is a window with other controls inside; that isn&apos;t supported yet.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5242"/>
+        <location filename="../app.py" line="5344"/>
         <source>Esse WindowID já existe neste arquivo.</source>
         <translation>That WindowID already exists in this file.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5244"/>
+        <location filename="../app.py" line="5346"/>
         <source>Controles</source>
         <translation>Controls</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5244"/>
+        <location filename="../app.py" line="5346"/>
         <source>Não foi possível alterar este controle.</source>
         <translation>Could not change this control.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5259"/>
+        <location filename="../app.py" line="5361"/>
         <source>Cópia criada com o WindowID {id}. É decorativa: o jogo não usa esse ID, então botões e barras copiados não funcionam.</source>
         <translation>Copy created with WindowID {id}. It&apos;s decorative: the game doesn&apos;t use this ID, so copied buttons and bars don&apos;t work.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5273"/>
+        <location filename="../app.py" line="5375"/>
         <source>O jogo pode procurar o controle {id}. Apagá-lo pode causar &quot;Child control can not found&quot;.</source>
         <translation>The game may look for control {id}. Deleting it can cause &quot;Child control can not found&quot;.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5275"/>
+        <location filename="../app.py" line="5377"/>
         <source>Sem a UI oficial para conferir, não dá para saber se o jogo usa o controle {id}.</source>
         <translation>Without the official UI to check, there&apos;s no way to know whether the game uses control {id}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5277"/>
+        <location filename="../app.py" line="5379"/>
         <source>Ocultar no jogo tira o controle da tela sem esse risco.</source>
         <translation>Hide in game removes the control from the screen without that risk.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5279"/>
+        <location filename="../app.py" line="5381"/>
         <source>Apagar mesmo assim</source>
         <translation>Delete anyway</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5295"/>
+        <location filename="../app.py" line="5397"/>
         <source>Controle {id} apagado. Ctrl+Z desfaz.</source>
         <translation>Control {id} deleted. Ctrl+Z undoes it.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5333"/>
-        <location filename="../app.py" line="5337"/>
+        <location filename="../app.py" line="5435"/>
+        <location filename="../app.py" line="5439"/>
         <source>Nova imagem</source>
         <translation>New image</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5333"/>
+        <location filename="../app.py" line="5435"/>
         <source>Não há arquivos .dds na pasta desta UI.</source>
         <translation>There are no .dds files in this UI folder.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5337"/>
+        <location filename="../app.py" line="5439"/>
         <source>Textura da imagem (depois você escolhe o recorte no atlas):</source>
         <translation>Image texture (you pick the slice in the atlas next):</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5353"/>
+        <location filename="../app.py" line="5455"/>
         <source>Imagem {id} criada. Marque o recorte no atlas.</source>
         <translation>Image {id} created. Mark the slice in the atlas.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5441"/>
+        <location filename="../app.py" line="5543"/>
         <source>Importar arquivos para o projeto</source>
         <translation>Import files into the project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5442"/>
+        <location filename="../app.py" line="5544"/>
         <source>Arquivos da UI (*.xml *.dds *.tga *.ini);;Todos os arquivos (*)</source>
         <translation>UI files (*.xml *.dds *.tga *.ini);;All files (*)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5454"/>
+        <location filename="../app.py" line="5556"/>
         <source>… e mais {count}</source>
         <translation>… and {count} more</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5457"/>
+        <location filename="../app.py" line="5559"/>
         <source>Substituir arquivos?</source>
         <translation>Replace files?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5459"/>
+        <location filename="../app.py" line="5561"/>
         <source>Estes arquivos já existem no projeto e serão substituídos (a versão atual fica no histórico):
 
 {files}</source>
@@ -1809,276 +1859,276 @@ The game may crash or show &quot;Child control can not found&quot;. Remove this 
 {files}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5475"/>
+        <location filename="../app.py" line="5577"/>
         <source>Não foi possível importar</source>
         <translation>Could not import</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5481"/>
+        <location filename="../app.py" line="5583"/>
         <source>{count} arquivo(s) importado(s), {replaced} substituído(s).</source>
         <translation>{count} file(s) imported, {replaced} replaced.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5504"/>
+        <location filename="../app.py" line="5606"/>
         <source>Abrir projeto</source>
         <translation>Open project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5509"/>
+        <location filename="../app.py" line="5611"/>
         <source>Não é um projeto</source>
         <translation>Not a project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5517"/>
+        <location filename="../app.py" line="5619"/>
         <source>Não foi possível abrir o projeto</source>
         <translation>Could not open the project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5706"/>
-        <location filename="../app.py" line="5718"/>
+        <location filename="../app.py" line="5809"/>
+        <location filename="../app.py" line="5821"/>
         <source>Editando em: {path}</source>
         <translation>Editing in: {path}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5709"/>
+        <location filename="../app.py" line="5812"/>
         <source>Publica em: {path}</source>
         <translation>Publishes to: {path}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5715"/>
+        <location filename="../app.py" line="5818"/>
         <source>Sem projeto</source>
         <translation>No project</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5583"/>
+        <location filename="../app.py" line="5686"/>
         <source>Arquivos soltos: o jogo só vê estas mudanças se você copiar os arquivos para a pasta da UI escolhida no launcher. Com um projeto, Enviar para o jogo faz isso por você.</source>
         <translation>Loose files: the game only sees these changes if you copy the files to the UI folder chosen in the launcher. With a project, Send to game does it for you.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2037"/>
+        <location filename="../app.py" line="2048"/>
         <source>Sobre o {name}…</source>
         <translation>About {name}…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2129"/>
+        <location filename="../app.py" line="2148"/>
         <source>Sobre quem fez o editor e outros projetos</source>
         <translation>About who made the editor and other projects</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5587"/>
+        <location filename="../app.py" line="5690"/>
         <source>Crie um projeto para editar fora da pasta do jogo e testar com F5.</source>
         <translation>Create a project to edit outside the game folder and test with F5.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5616"/>
+        <location filename="../app.py" line="5719"/>
         <source>CAMADAS · {count}</source>
         <translation>LAYERS · {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5618"/>
+        <location filename="../app.py" line="5721"/>
         <source>ALTERADOS · {count}</source>
         <translation>MODIFIED · {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5619"/>
+        <location filename="../app.py" line="5722"/>
         <source>TODOS · {count}</source>
         <translation>ALL · {count}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5644"/>
+        <location filename="../app.py" line="5747"/>
         <source>alterado</source>
         <translation>modified</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5650"/>
+        <location filename="../app.py" line="5753"/>
         <source>A atualização do jogo trouxe {count} controle(s) que este arquivo não tem</source>
         <translation>The game update added {count} control(s) this file does not have</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5656"/>
+        <location filename="../app.py" line="5759"/>
         <source>A UI oficial tem {count} controle(s) que este arquivo não tem (podem ter sido removidos de propósito)</source>
         <translation>The official UI has {count} control(s) this file does not have (they may have been removed on purpose)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5664"/>
+        <location filename="../app.py" line="5767"/>
         <source>Marque para ver esta janela junto, onde o jogo a desenha (Preview do jogo)</source>
         <translation>Check to show this window too, where the game draws it (Game preview)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5673"/>
+        <location filename="../app.py" line="5776"/>
         <source>Filtrar texturas…</source>
         <translation>Filter textures…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5827"/>
+        <location filename="../app.py" line="5930"/>
         <source>hoje</source>
         <translation>today</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5829"/>
+        <location filename="../app.py" line="5932"/>
         <source>ontem</source>
         <translation>yesterday</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5845"/>
+        <location filename="../app.py" line="5948"/>
         <source>Renomear…</source>
         <translation>Rename…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5847"/>
+        <location filename="../app.py" line="5950"/>
         <source>Apagar…</source>
         <translation>Delete…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5850"/>
+        <location filename="../app.py" line="5953"/>
         <source>Restaurar versão anterior</source>
         <translation>Restore previous version</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5855"/>
+        <location filename="../app.py" line="5958"/>
         <source>Desfazer todas as alterações</source>
         <translation>Undo all changes</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5857"/>
+        <location filename="../app.py" line="5960"/>
         <source>Volta o arquivo para como era quando o projeto foi criado.</source>
         <translation>Returns the file to how it was when the project was created.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5862"/>
+        <location filename="../app.py" line="5965"/>
         <source>Abrir pasta do histórico</source>
         <translation>Open history folder</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5890"/>
-        <location filename="../app.py" line="5895"/>
-        <location filename="../app.py" line="5919"/>
+        <location filename="../app.py" line="5993"/>
+        <location filename="../app.py" line="5998"/>
+        <location filename="../app.py" line="6022"/>
         <source>Renomear</source>
         <translation>Rename</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5890"/>
+        <location filename="../app.py" line="5993"/>
         <source>Novo nome:</source>
         <translation>New name:</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5895"/>
+        <location filename="../app.py" line="5998"/>
         <source>O nome não pode ter \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>The name can&apos;t contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5904"/>
+        <location filename="../app.py" line="6007"/>
         <source>Substituir arquivo?</source>
         <translation>Replace file?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5905"/>
+        <location filename="../app.py" line="6008"/>
         <source>Já existe {name} no projeto. Substituir? A versão atual vai para o histórico.</source>
         <translation>{name} already exists in the project. Replace it? The current version goes to the history.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5924"/>
+        <location filename="../app.py" line="6027"/>
         <source>Atualizar XMLs?</source>
         <translation>Update XML files?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5925"/>
+        <location filename="../app.py" line="6028"/>
         <source>{count} XML(s) do projeto usam {old}. Trocar para {new} neles também?</source>
         <translation>{count} XML file(s) in the project use {old}. Switch them to {new} too?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5935"/>
+        <location filename="../app.py" line="6038"/>
         <source>{old} agora se chama {new}.</source>
         <translation>{old} is now called {new}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5958"/>
+        <location filename="../app.py" line="6061"/>
         <source>Uma cópia fica no histórico do projeto.</source>
         <translation>A copy stays in the project history.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5964"/>
+        <location filename="../app.py" line="6067"/>
         <source>Este arquivo existe na UI oficial: sem ele, o jogo pode usar o da UI padrão ou acusar erro. Uma cópia fica no histórico do projeto.</source>
         <translation>This file exists in the official UI: without it, the game may use the default UI&apos;s version or report an error. A copy stays in the project history.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5971"/>
+        <location filename="../app.py" line="6074"/>
         <source>{count} XML(s) do projeto ainda usam esta textura e ficariam sem imagem. Uma cópia fica no histórico do projeto.</source>
         <translation>{count} XML file(s) in the project still use this texture and would lose their image. A copy stays in the project history.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5974"/>
+        <location filename="../app.py" line="6077"/>
         <source>Apagar {name}?</source>
         <translation>Delete {name}?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5988"/>
+        <location filename="../app.py" line="6091"/>
         <source>{name} apagado. A cópia está no histórico do projeto.</source>
         <translation>{name} deleted. The copy is in the project history.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5996"/>
+        <location filename="../app.py" line="6099"/>
         <source>{name} tem alterações não salvas que serão perdidas ao restaurar. Continuar?</source>
         <translation>{name} has unsaved changes that will be lost when restoring. Continue?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6004"/>
-        <location filename="../app.py" line="6043"/>
+        <location filename="../app.py" line="6107"/>
+        <location filename="../app.py" line="6146"/>
         <source>Falha ao restaurar</source>
         <translation>Restore failed</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6007"/>
+        <location filename="../app.py" line="6110"/>
         <source>{name} (atual)</source>
         <translation>{name} (current)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6007"/>
+        <location filename="../app.py" line="6110"/>
         <source>versão restaurada</source>
         <translation>restored version</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6010"/>
+        <location filename="../app.py" line="6113"/>
         <source>Essa versão é igual ao arquivo atual.</source>
         <translation>That version is identical to the current file.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6013"/>
+        <location filename="../app.py" line="6116"/>
         <source>Restaurar {name}</source>
         <translation>Restore {name}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6015"/>
+        <location filename="../app.py" line="6118"/>
         <source>Estas linhas vão mudar. O estado atual fica guardado no histórico, então dá para voltar.</source>
         <translation>These lines will change. The current state is kept in the history, so you can go back.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6023"/>
+        <location filename="../app.py" line="6126"/>
         <source>Restaurar</source>
         <translation>Restore</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6049"/>
+        <location filename="../app.py" line="6152"/>
         <source>{name} restaurado.</source>
         <translation>{name} restored.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6056"/>
+        <location filename="../app.py" line="6159"/>
         <source>Salvar antes?</source>
         <translation>Save first?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6057"/>
+        <location filename="../app.py" line="6160"/>
         <source>{name} tem alterações não salvas. Salvar antes de continuar?</source>
         <translation>{name} has unsaved changes. Save before continuing?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6077"/>
+        <location filename="../app.py" line="6180"/>
         <source>Controles novos do jogo</source>
         <translation>New game controls</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6093"/>
+        <location filename="../app.py" line="6196"/>
         <source>Isto vai:
 
 • atualizar {custom}
@@ -2095,17 +2145,17 @@ Outras UIs em UICustom não são alteradas. Continuar?</source>
 Other UIs in UICustom are not changed. Continue?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6106"/>
+        <location filename="../app.py" line="6209"/>
         <source>Publicando no jogo…</source>
         <translation>Publishing to the game…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6124"/>
+        <location filename="../app.py" line="6230"/>
         <source>Falha ao publicar</source>
         <translation>Publish failed</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6125"/>
+        <location filename="../app.py" line="6231"/>
         <source>Não foi possível copiar os arquivos. Feche o jogo se ele estiver aberto e tente de novo.
 
 {error}</source>
@@ -2114,22 +2164,27 @@ Other UIs in UICustom are not changed. Continue?</translation>
 {error}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6129"/>
+        <location filename="../app.py" line="6235"/>
         <source>Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.</source>
         <translation>Published: {count} file(s) updated in the UI folder. Start the game from the launcher or directly.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6133"/>
+        <location filename="../app.py" line="6239"/>
         <source>Textos: {count} arquivo(s) de data/Translate atualizados.</source>
         <translation>Texts: {count} data/Translate file(s) updated.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6139"/>
+        <location filename="../app.py" line="6242"/>
+        <source>Os textos não foram enviados: função desativada temporariamente por um problema conhecido.</source>
+        <translation>The texts were not sent: feature temporarily disabled because of a known problem.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6247"/>
         <source>Textos não aplicados</source>
         <translation>Texts not applied</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6140"/>
+        <location filename="../app.py" line="6248"/>
         <source>Estes textos editados não existem mais no jogo (a atualização pode ter mudado os arquivos):
 
 {items}</source>
@@ -2138,12 +2193,12 @@ Other UIs in UICustom are not changed. Continue?</translation>
 {items}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6148"/>
+        <location filename="../app.py" line="6256"/>
         <source>Selecione a UI no launcher</source>
         <translation>Select the UI in the launcher</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6150"/>
+        <location filename="../app.py" line="6258"/>
         <source>Os arquivos foram publicados, mas o launcher está aberto com outra UI selecionada.
 
 Antes de clicar em Jogar, escolha &quot;{name}&quot; na lista de UIs do launcher (ou feche e abra o launcher). Senão ele reaplica a UI anterior por cima do seu teste.</source>
@@ -2152,158 +2207,207 @@ Antes de clicar em Jogar, escolha &quot;{name}&quot; na lista de UIs do launcher
 Before clicking Play, pick &quot;{name}&quot; in the launcher&apos;s UI list (or close and reopen the launcher). Otherwise it reapplies the previous UI over your test.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6160"/>
+        <location filename="../app.py" line="6268"/>
         <source>Pasta própria do projeto ({name})</source>
         <translation>The project&apos;s own folder ({name})</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6167"/>
+        <location filename="../app.py" line="6275"/>
         <source>Pasta de publicação</source>
         <translation>Publish folder</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6169"/>
+        <location filename="../app.py" line="6277"/>
         <source>O F5 copia os arquivos do projeto para esta pasta de UICustom.
 Numa pasta que já existe, ele só adiciona e atualiza arquivos; nada é apagado.</source>
         <translation>F5 copies the project files into this UICustom folder.
 In a folder that already exists it only adds and updates files; nothing is deleted.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6190"/>
+        <location filename="../app.py" line="6298"/>
         <source>Exportar UI</source>
         <translation>Export UI</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6190"/>
+        <location filename="../app.py" line="6298"/>
         <source>UI do launcher (*.zip)</source>
         <translation>Launcher UI (*.zip)</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6197"/>
+        <location filename="../app.py" line="6305"/>
         <source>Compactando a UI…</source>
         <translation>Packing the UI…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6200"/>
+        <location filename="../app.py" line="6308"/>
+        <location filename="../app.py" line="6338"/>
         <source>Falha ao exportar</source>
         <translation>Export failed</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6203"/>
+        <location filename="../app.py" line="6311"/>
         <source>Exportado para {path}. No launcher: Adicionar UI Customizada.</source>
         <translation>Exported to {path}. In the launcher: Add Custom UI.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6209"/>
+        <location filename="../app.py" line="6323"/>
+        <location filename="../app.py" line="6328"/>
+        <location filename="../app.py" line="6343"/>
+        <location filename="../app.py" line="6357"/>
+        <source>Exportar textos</source>
+        <translation>Export texts</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6323"/>
+        <source>Este projeto ainda não tem textos editados para exportar.</source>
+        <translation>This project has no edited texts to export yet.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6328"/>
+        <source>Arquivos .zip (*.zip)</source>
+        <translation>Zip files (*.zip)</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6334"/>
+        <source>Compactando os textos…</source>
+        <translation>Compressing the texts…</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6344"/>
+        <source>Nenhum arquivo editado foi encontrado em data/Translate do jogo.</source>
+        <translation>None of the edited files were found in the game&apos;s data/Translate.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6348"/>
+        <source>Exportado para {path}.
+
+Arquivos: {files}
+
+No outro PC, extraia o .zip na pasta do jogo (a que tem a pasta data) e substitua os arquivos. Use com a mesma versão do jogo: o launcher troca estes arquivos ao atualizar ou mudar o idioma.</source>
+        <translation>Exported to {path}.
+
+Files: {files}
+
+On the other PC, extract the .zip into the game folder (the one that contains the data folder) and replace the files. Use it with the same game version: the launcher replaces these files when it updates or the language changes.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6354"/>
+        <source>Não foram incluídos (não existem mais no jogo):
+{items}</source>
+        <translation>Not included (no longer in the game):
+{items}</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="6362"/>
         <source>Confirmar alterações no XML</source>
         <translation>Confirm XML changes</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6212"/>
+        <location filename="../app.py" line="6365"/>
         <source>Confira as linhas que serão alteradas. O backup exato será criado antes da gravação.</source>
         <translation>Review the lines that will change. An exact backup will be created before saving.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5280"/>
-        <location filename="../app.py" line="6024"/>
-        <location filename="../app.py" line="6224"/>
+        <location filename="../app.py" line="5382"/>
+        <location filename="../app.py" line="6127"/>
+        <location filename="../app.py" line="6377"/>
         <source>Cancelar</source>
         <translation>Cancel</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5117"/>
+        <location filename="../app.py" line="5219"/>
         <source>A atualização do jogo trouxe {count} controle(s) que este arquivo não tem ({ids}).</source>
         <translation>The game update added {count} control(s) this file does not have ({ids}).</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5155"/>
+        <location filename="../app.py" line="5257"/>
         <source>UI oficial indisponível</source>
         <translation>Official UI unavailable</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5168"/>
+        <location filename="../app.py" line="5270"/>
         <source>Controles da UI oficial</source>
         <translation>Official UI controls</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5169"/>
+        <location filename="../app.py" line="5271"/>
         <source>{file} já tem todos os controles da UI oficial.</source>
         <translation>{file} already has every official UI control.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5186"/>
+        <location filename="../app.py" line="5288"/>
         <source>Não foi possível adicionar</source>
         <translation>Could not add</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5190"/>
+        <location filename="../app.py" line="5292"/>
         <source>{count} controle(s) do oficial adicionado(s). Ajuste a posição se precisar; salve para gravar.</source>
         <translation>{count} official control(s) added. Adjust the position if needed; save to write them.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5368"/>
-        <location filename="../app.py" line="5377"/>
-        <location filename="../app.py" line="5391"/>
-        <location filename="../app.py" line="5401"/>
-        <location filename="../app.py" line="5411"/>
-        <location filename="../app.py" line="5416"/>
-        <location filename="../app.py" line="5428"/>
+        <location filename="../app.py" line="5470"/>
+        <location filename="../app.py" line="5479"/>
+        <location filename="../app.py" line="5493"/>
+        <location filename="../app.py" line="5503"/>
+        <location filename="../app.py" line="5513"/>
+        <location filename="../app.py" line="5518"/>
+        <location filename="../app.py" line="5530"/>
         <source>Resolver erro do jogo</source>
         <translation>Fix a game error</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5369"/>
+        <location filename="../app.py" line="5471"/>
         <source>Cole a mensagem de erro do jogo (por exemplo, a que tem &quot;Child control can not found&quot;):</source>
         <translation>Paste the game&apos;s error message (for example, the one with &quot;Child control can not found&quot;):</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5378"/>
+        <location filename="../app.py" line="5480"/>
         <source>Não encontrei um arquivo .cpp e um ID=… nessa mensagem.</source>
         <translation>Couldn&apos;t find a .cpp file and an ID=… in that message.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5393"/>
+        <location filename="../app.py" line="5495"/>
         <source>Não sei qual XML o {cpp} usa com o ID {id}, ou não há cópia da UI oficial para conferir. Escolha &quot;UI Padrão&quot; no launcher, clique em Jogar uma vez e tente de novo.</source>
         <translation>Couldn&apos;t tell which XML {cpp} uses with ID {id}, or there is no official UI copy to check. Pick &quot;UI Padrão&quot; in the launcher, click Play once and try again.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5401"/>
+        <location filename="../app.py" line="5503"/>
         <source>Qual destes arquivos?</source>
         <translation>Which of these files?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5411"/>
+        <location filename="../app.py" line="5513"/>
         <source>O controle {id} fica em {file}. Abra a UI e tente de novo.</source>
         <translation>Control {id} lives in {file}. Open the UI and try again.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5416"/>
+        <location filename="../app.py" line="5518"/>
         <source>Esta UI não tem o arquivo {file}.</source>
         <translation>This UI does not have the file {file}.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5430"/>
+        <location filename="../app.py" line="5532"/>
         <source>{file} já tem o controle {id}. O erro deve vir de outra coisa no arquivo, como texto solto entre as tags; o editor avisa ao abrir quando encontra algo assim.</source>
         <translation>{file} already has control {id}. The error must come from something else in the file, such as loose text between tags; the editor warns when it finds that on opening.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5509"/>
+        <location filename="../app.py" line="5611"/>
         <source>A pasta escolhida não é um projeto do editor.</source>
         <translation>The chosen folder is not an editor project.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5571"/>
+        <location filename="../app.py" line="5674"/>
         <source>O projeto {projects} também envia para UICustom/{folder}: um sobrescreve o outro no jogo. Troque em Projeto → Pasta de publicação…</source>
         <translation>Project {projects} also sends to UICustom/{folder}: one overwrites the other in the game. Change it in Project → Publish folder…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="5995"/>
-        <location filename="../app.py" line="6251"/>
+        <location filename="../app.py" line="6098"/>
+        <location filename="../app.py" line="6404"/>
         <source>Descartar alterações?</source>
         <translation>Discard changes?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6079"/>
+        <location filename="../app.py" line="6182"/>
         <source>Estes arquivos não têm controles que a atualização do jogo trouxe, e o jogo pode mostrar &quot;Child control can not found&quot;:
 
 {files}
@@ -2316,7 +2420,7 @@ Enviar mesmo assim?</source>
 Send anyway?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="6252"/>
+        <location filename="../app.py" line="6405"/>
         <source>Existem alterações não salvas. Deseja descartá-las?</source>
         <translation>There are unsaved changes. Do you want to discard them?</translation>
     </message>

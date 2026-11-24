@@ -1671,3 +1671,127 @@ def test_element_list_hides_parentnode_by_default_and_remembers_column_choice() 
     assert reopened.tree.isColumnHidden(0) and not reopened.tree.isColumnHidden(2)
     assert reopened.tree.treePosition() == 1
     reopened.close()
+
+
+def test_export_texts_menu_writes_the_edited_translate_files(tmp_path: Path, monkeypatch) -> None:
+    import zipfile
+
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+    from gf_ui_editor import text_data
+    from gf_ui_editor.text_data import TextEdit
+
+    application = QApplication.instance() or QApplication([])
+    game = tmp_path / "game"
+    (game / "data" / "Translate").mkdir(parents=True)
+    (game / "data" / "Translate" / "T_TextIndex.ini").write_bytes(b"10|Fechar|\r\n11|Novo|\r\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Teste.xml").write_bytes(SAMPLE.encode("big5"))
+    project = Project.create("Textos", source, game, projects_root=tmp_path / "projects")
+    text_data.save_edits(project.root, {"T_TextIndex.ini": {"10": TextEdit(["Sair"], ["Fechar"])}})
+    window = EditorWindow()
+    window.open_project(project.root)
+    assert window.export_texts_action.isEnabled()
+    destination = tmp_path / "textos.zip"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(destination), ""))
+    shown: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda _parent, _title, text: shown.append(text))
+    window.export_texts_action.trigger()
+    with zipfile.ZipFile(destination) as archive:
+        assert archive.read("data/Translate/T_TextIndex.ini") == b"10|Sair|\r\n11|Novo|\r\n"
+    assert shown and "T_TextIndex.ini" in shown[0]
+    window.close()
+
+
+def test_beta_updates_toggle_saves_the_choice_and_checks_right_away(monkeypatch) -> None:
+    import time
+
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QMessageBox
+
+    from gf_ui_editor import updater
+
+    application = QApplication.instance() or QApplication([])
+    calls: list[bool] = []
+
+    def fake_check(current=None, include_prereleases=False):
+        calls.append(include_prereleases)
+        return None
+
+    monkeypatch.setattr(updater, "check_for_update", fake_check)
+    shown: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda _parent, _title, text: shown.append(text))
+    window = EditorWindow()
+    assert not window.beta_updates_action.isChecked()  # estável: desligado por padrão
+    window.beta_updates_action.setChecked(True)
+    deadline = time.monotonic() + 5
+    while not shown and time.monotonic() < deadline:
+        application.processEvents()
+    assert calls == [True] and "betas" in shown[0]
+    assert QSettings("Local", "GF UI Editor").value("beta_updates") == "true"
+    window.beta_updates_action.setChecked(False)  # desligar não consulta nada
+    assert calls == [True] and QSettings("Local", "GF UI Editor").value("beta_updates") == "false"
+    window.check_for_updates(manual=False)
+    deadline = time.monotonic() + 5
+    while len(calls) < 2 and time.monotonic() < deadline:
+        application.processEvents()
+    assert calls == [True, False]
+    window.close()
+
+
+def test_remote_manifest_shows_messages_once_and_disables_features(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    from gf_ui_editor import remote_manifest
+    from gf_ui_editor import text_data
+    from gf_ui_editor.text_data import TextEdit
+
+    application = QApplication.instance() or QApplication([])
+    manifest = remote_manifest.parse(
+        b'{"schema": 1, "disabled_features": ["export_texts"],'
+        b' "messages": [{"id": "aviso-1", "text": {"pt_BR": "Ola", "en_US": "Hello"}}]}'
+    )
+    shown: list[str] = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(box.text()))
+    infos: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda _parent, _title, text: infos.append(text))
+    window = EditorWindow()
+    window.apply_remote_manifest(manifest)
+    window.apply_remote_manifest(manifest)  # já mostrado: não repete
+    assert shown == ["Ola"]
+    # Exportar textos desligado: avisa e não abre a janela de salvar.
+    game = tmp_path / "game"
+    (game / "data" / "Translate").mkdir(parents=True)
+    (game / "data" / "Translate" / "T_TextIndex.ini").write_bytes(b"10|Fechar|\r\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Teste.xml").write_bytes(SAMPLE.encode("big5"))
+    project = Project.create("Manifesto", source, game, projects_root=tmp_path / "projects")
+    text_data.save_edits(project.root, {"T_TextIndex.ini": {"10": TextEdit(["Sair"], ["Fechar"])}})
+    window.open_project(project.root)
+    from PySide6.QtWidgets import QFileDialog
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a: (_ for _ in ()).throw(AssertionError("não devia abrir")))
+    window.export_texts_action.trigger()
+    assert infos and "desativada" in infos[0]
+    window.close()
+
+
+def test_min_version_in_manifest_offers_the_update(monkeypatch) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    from gf_ui_editor import remote_manifest
+
+    application = QApplication.instance() or QApplication([])
+    window = EditorWindow()
+    asked: list[str] = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: asked.append(a[2]) or QMessageBox.StandardButton.Yes)
+    checks: list[bool] = []
+    monkeypatch.setattr(window, "check_for_updates", lambda manual: checks.append(manual))
+    window.apply_remote_manifest(remote_manifest.parse(b'{"schema": 1, "min_version": "999.0"}'))
+    assert asked and checks == [True]
+    asked.clear()
+    window.apply_remote_manifest(remote_manifest.parse(b'{"schema": 1, "min_version": "0.0.1"}'))
+    assert asked == []
+    window.close()

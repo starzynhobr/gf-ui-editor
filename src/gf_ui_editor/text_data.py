@@ -17,6 +17,7 @@ from collections import Counter
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+import zipfile
 
 from . import storage
 
@@ -351,11 +352,13 @@ def plan_text_import(
     return result
 
 
-def publish_edits(
-    game_dir: Path, edits: dict[str, dict[str, TextEdit]], backup_dir: Path | None = None
-) -> tuple[int, list[str]]:
-    """Grava as edições nos arquivos do jogo. Devolve (arquivos alterados, avisos)."""
-    changed = 0
+def patched_files(game_dir: Path, edits: dict[str, dict[str, TextEdit]]) -> tuple[dict[str, tuple[bytes, bytes]], list[str]]:
+    """Arquivos do jogo com as edições aplicadas: nome -> (novo conteúdo, conteúdo atual).
+
+    Parte sempre do arquivo atual do jogo, então IDs que uma atualização trouxe ficam com o
+    texto oficial. Devolve também avisos: arquivos que o jogo não tem e IDs que sumiram.
+    """
+    result: dict[str, tuple[bytes, bytes]] = {}
     warnings: list[str] = []
     for name, records in edits.items():
         if not records:
@@ -364,14 +367,44 @@ def publish_edits(
         if not path.is_file():
             warnings.append(name)
             continue
-        text_file = TextFile.load(path)
+        current = path.read_bytes()
+        text_file = TextFile.from_text(path, GAME_ENCODING, current.decode(GAME_ENCODING, "surrogateescape"))
         content, missing = apply_edits(text_file, {record_id: edit.fields for record_id, edit in records.items()})
         warnings.extend(f"{name} #{record_id}" for record_id in missing)
-        if content == path.read_bytes():
+        result[name] = (content, current)
+    return result, warnings
+
+
+def publish_edits(
+    game_dir: Path, edits: dict[str, dict[str, TextEdit]], backup_dir: Path | None = None
+) -> tuple[int, list[str]]:
+    """Grava as edições nos arquivos do jogo. Devolve (arquivos alterados, avisos)."""
+    changed = 0
+    files, warnings = patched_files(game_dir, edits)
+    for name, (content, current) in files.items():
+        if content == current:
             continue
         if backup_dir is not None:
             backup_dir.mkdir(parents=True, exist_ok=True)
-            (backup_dir / name).write_bytes(path.read_bytes())
-        path.write_bytes(content)
+            (backup_dir / name).write_bytes(current)
+        (game_dir / TRANSLATE_DIR / name).write_bytes(content)
         changed += 1
     return changed, warnings
+
+
+def export_texts_zip(
+    game_dir: Path, edits: dict[str, dict[str, TextEdit]], destination: Path
+) -> tuple[list[str], list[str]]:
+    """Zip com os .ini editados em data/Translate, para extrair na pasta do jogo de outro PC.
+
+    Leva só os arquivos com edições, já com elas aplicadas sobre a versão atual do jogo.
+    Devolve (arquivos no zip, avisos).
+    """
+    files, warnings = patched_files(game_dir, edits)
+    if not files:
+        return [], warnings
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in sorted(files):
+            archive.writestr((TRANSLATE_DIR / name).as_posix(), files[name][0])
+    return sorted(files), warnings
