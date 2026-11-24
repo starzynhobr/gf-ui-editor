@@ -2,9 +2,9 @@
 kanban-plugin: board
 ---
 
-## Agora (Fase 0 — 0.6.0)
+## Agora
 
-- [ ] Build e release 0.6.0 com o Exportar textos [[release]]
+- [ ] Começar a Fase 1 quando decidido (sai como 0.7.0-beta.1) [[roadmap]]
 
 
 ## Fase 1 (0.7.0, via beta)
@@ -38,10 +38,11 @@ kanban-plugin: board
 
 ## Feito
 
-- [x] Exportar textos (.zip) — pronto, não lançado [[status]]
-- [x] "Receber versões beta" + comparador de pre-release — pronto, não lançado [[beta]]
+- [x] Exportar textos (.zip) — lançado na 0.6.0 [[status]]
+- [x] "Receber versões beta" + comparador de pre-release — lançado na 0.6.0 [[beta]]
 - [x] Passo a passo de release documentado [[release]]
-- [x] Manifesto remoto — pronto, não lançado [[release]]
+- [x] Release 0.6.0 publicada (24/11/2026) [[status]]
+- [x] Manifesto remoto — lançado na 0.6.0 [[release]]
 
 
 

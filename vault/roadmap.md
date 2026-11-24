@@ -11,7 +11,7 @@ Estável. Leva o que já está pronto e prepara o canal beta, para que as betas 
 - [x] **Comparador de versões que entende `-beta.N`** e consulta à lista de releases quando a opção está ligada.
 - [x] **Passo a passo de release documentado** ([release](release.md)).
 - [x] **Manifesto remoto** (`app-manifest.json` no `main`): avisos, versão mínima e desligar funções sem lançar versão ([como usar](release.md#manifesto-remoto-avisos-sem-lançar-versão), [D08](decisions.md)).
-- [ ] Build, instalador e release 0.6.0 no GitHub (posta no Discord pelo hook do site).
+- [x] Build, instalador e release 0.6.0 no GitHub (publicada em 24/11/2026; hook do site entregou ao Discord).
 
 ## Fase 1 — ajustes rápidos (0.7.0)
 
