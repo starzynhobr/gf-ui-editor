@@ -51,6 +51,7 @@ Primeira a passar por beta (`0.7.0-beta.N`) antes da estável.
 - [ ] **Aviso de atualização dos textos do jogo:** detectar pelo CRC do `GameDataFileListT.txt` que o launcher trocou os `.ini`; mostrar IDs novos, textos oficiais alterados e edições do projeto desfeitas (com "Reenviar edições"); comparar ignorando CRLF/LF.
 - [ ] **Ver o código do XML:** aba ou painel só leitura com o texto do XML (estado atual, com as edições ainda não salvas), cores de sintaxe, números de linha, Ctrl+F e sincronia com o canvas (clicar num elemento leva à linha dele e vice-versa). Edição direta do texto fica para depois: exige validar, reconverter para Big5 e conviver com o desfazer.
 - [ ] **Estudo da migração da interface para web** (pywebview + Vite + React + Tailwind v4): preparação no editor atual e protótipo como ponto de decisão ([plano](migracao-web.md), [D05](decisions.md)).
+- [ ] **Funções dormentes / liberação gradual** (quando surgir a primeira): `enabled_features` no manifesto para ligar remotamente uma função que já vem desligada, e porcentagem por instalação (número aleatório guardado no PC) para liberar a parte das pessoas. Entra junto com a versão que trouxer a função, não antes.
 - [ ] **Primeira beta:** `0.7.0-beta.1` (Fase 1), já pelo canal beta da 0.6.0.
 
 ## Decidido não fazer agora
