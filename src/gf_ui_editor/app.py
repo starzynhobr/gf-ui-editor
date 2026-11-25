@@ -149,6 +149,7 @@ from .project import (
 )
 from .atlas_dialog import AtlasDialog, TexturePreviewDialog
 from .texture_cache import TextureCache
+from . import textures
 from .theme import COLORS, stylesheet
 from . import preferences
 from . import text_preview
@@ -4961,10 +4962,7 @@ class EditorWindow(QMainWindow):
             return
         name = None
         if chosen is use_other:
-            names = sorted(
-                (path.name for path in folder.iterdir() if path.suffix.lower() in (".dds", ".tga") and path.is_file()),
-                key=str.lower,
-            )
+            names = textures.ui_texture_names(folder)
             if not names:
                 return
             name, accepted = QInputDialog.getItem(
@@ -4989,7 +4987,7 @@ class EditorWindow(QMainWindow):
                 QMessageBox.warning(self, self.tr("Criar cópia do .dds"), self.tr("Já existe {name} nesta pasta.").format(name=name))
                 return
             try:
-                shutil.copy2(source, target)
+                textures.copy_texture_for_edit(None, source, target)
             except OSError as exc:
                 QMessageBox.critical(self, self.tr("Criar cópia do .dds"), str(exc))
                 return
@@ -5010,11 +5008,9 @@ class EditorWindow(QMainWindow):
                     )
                     if answer != QMessageBox.StandardButton.Yes:
                         return
-                    if self.project is not None and self.project.contains(target):
-                        self.project.remember_original(target)
-                        shutil.copy2(target, self.project.history_path_for(target))
+                    textures.backup_texture_for_edit(self.project, target)
                 try:
-                    shutil.copy2(source, target)
+                    textures.copy_texture_for_edit(None, source, target)
                 except OSError as exc:
                     QMessageBox.critical(self, self.tr("Trazer .dds"), str(exc))
                     return
@@ -7061,10 +7057,7 @@ class EditorWindow(QMainWindow):
             owner = selected.window_id if "Container_Node" in selected.child_tags else owner_of(text, selected.window_id)
         owner = owner or self.document.elements[0].window_id
         folder = self.texture_cache.ui_directory
-        names = sorted(
-            (path.name for path in folder.iterdir() if path.suffix.lower() in (".dds", ".tga") and path.is_file()),
-            key=str.lower,
-        )
+        names = textures.ui_texture_names(folder)
         if not names:
             QMessageBox.information(self, self.tr("Nova imagem"), self.tr("Não há arquivos .dds na pasta desta UI."))
             return
