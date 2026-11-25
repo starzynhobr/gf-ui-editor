@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Tokens do tema escuro atual (src/gf_ui_editor/theme.py, COLORS). */
+@theme {
+  --color-window: #111318;
+  --color-chrome: #0c0e12;
+  --color-panel: #14171d;
+  --color-input: #0f1116;
+  --color-text: #d9dde6;
+  --color-bright: #f1f3f8;
+  --color-muted: #8a93a6;
+  --color-disabled: #4b5263;
+  --color-border: #1f232c;
+  --color-border-input: #262b36;
+  --color-hover: #1a1e27;
+  --color-pressed: #232833;
+  --color-selected: #241d3a;
+  --color-accent: #7c4ce0;
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-window);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  /* Comportamentos de navegador que um app desktop não tem. */
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}

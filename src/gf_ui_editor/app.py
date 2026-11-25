@@ -8098,11 +8098,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Editor visual dos XMLs de UI do Grand Fantasia")
     parser.add_argument("xml", nargs="?", type=Path, help="XML que será aberto ao iniciar")
     parser.add_argument("--lang", choices=LANGUAGES, help="Idioma da interface nesta execução")
+    parser.add_argument("--ui", choices=("classic", "web"), default="classic", help="Interface: clássica (Qt) ou nova (web)")
+    parser.add_argument("--dev", action="store_true", help="Interface web pelo servidor do Vite (npm run dev em web/)")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.ui == "web":
+        from . import web_shell
+
+        language = args.lang or prefs.language
+        return web_shell.run(language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=args.xml)
     application = QApplication(sys.argv[:1])
     application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")

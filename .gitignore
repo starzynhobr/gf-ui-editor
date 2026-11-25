@@ -10,3 +10,7 @@ dist/
 
 # Obsidian: configuração e plugins são de cada pessoa
 vault/.obsidian/
+
+# Build da interface web (npm run build em web/)
+src/gf_ui_editor/web_dist/
+web/node_modules/
