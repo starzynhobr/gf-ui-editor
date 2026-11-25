@@ -252,3 +252,33 @@ def restore_file(project: "Project | None", path: Path, source: Path, now: datet
     )
     shutil.copy2(path, backup)
     shutil.copy2(source, path)
+
+
+# ---- dados para a interface web ------------------------------------------------------------
+def sections_payload(
+    listing: FileListing, mode: str, layers: set[str], order_value: str, heights_value: str
+) -> dict:
+    """Lista de Arquivos XML ou Texturas em dados: cada arquivo uma vez, as seções por índice.
+
+    Com ícones são ~18 mil arquivos; repetir os caminhos em "Alterados" e "Todos" dobraria o
+    que passa pela ponte. As seções vêm na ordem salva; a interface esconde as vazias
+    (menos "Todos"). Sem texturas, o modo cai para XML, como na clássica.
+    """
+    if mode == "textures" and not listing.textures:
+        mode = "xml"
+    files = listing.textures if mode == "textures" else listing.xml
+    index = {path.as_posix(): position for position, path in enumerate(files)}
+    groups = file_groups(files, listing.modified, layers if mode == "xml" else set())
+    return {
+        "mode": mode,
+        "files": list(index),
+        "modified": [index[key] for key in index if key in listing.modified],
+        "layers": [index[key] for key in index if key in layers] if mode == "xml" else [],
+        "sections": [
+            {"kind": kind, "items": [index[path.as_posix()] for path in groups[kind]]}
+            for kind in parse_section_order(order_value)
+        ],
+        "heights": parse_section_heights(heights_value),
+        "has_textures": bool(listing.textures),
+        "shared_publish": list(listing.shared_publish),
+    }

@@ -27,6 +27,9 @@ from typing import Any, Generic, Protocol, TypeVar
 
 T = TypeVar("T")
 
+UI_MODES = ("classic", "web")  # interface clássica (Qt) e nova (web)
+UI_LANGUAGES = ("pt_BR", "en_US", "es_ES", "fr_FR")  # os mesmos de i18n.LANGUAGES (que importa o Qt)
+
 _MISSING: Any = object()
 
 
@@ -65,6 +68,7 @@ class Key:
 KEYS: dict[str, Key] = {
     # Interface
     "language": Key("str", "pt_BR"),
+    "ui_mode": Key("str", "classic"),  # "classic" (Qt) ou "web" (nova, beta); vale ao reiniciar
     "navigation_style": Key("str", "corel"),
     "text_mode": Key("str", "off"),
     "tree_hidden_columns": Key("str", "2"),  # colunas da árvore de elementos, "0,2"
@@ -181,6 +185,7 @@ class Preferences:
 
     # ---- chaves sem sufixo -------------------------------------------------------------
     language: _Field[str] = _Field("language")
+    ui_mode: _Field[str] = _Field("ui_mode")
     navigation_style: _Field[str] = _Field("navigation_style")
     text_mode: _Field[str] = _Field("text_mode")
     files_section_order: _Field[str] = _Field("files_section_order")
@@ -226,6 +231,13 @@ class Preferences:
 
     def remove_last_file(self, folder: str) -> None:
         self.remove(f"last_file/{folder}")
+
+    def move_last_file(self, old_folder: str, new_folder: str) -> None:
+        """O projeto passou a publicar em outra pasta (renomeado): o último XML vai junto."""
+        last = self.last_file(old_folder)
+        if last and old_folder != new_folder:
+            self.set_last_file(new_folder, last)
+            self.remove_last_file(old_folder)
 
     def root_mode(self, xml_name: str) -> str:
         """Como a raiz de um XML solto é posicionada ("auto" ou o modo escolhido)."""
