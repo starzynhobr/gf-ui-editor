@@ -165,8 +165,8 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **capturas** de cada passo, pixel a pixel.
 
 ```powershell
-.\harnessun.ps1                    # referência = main
-.\harnessun.ps1 -Reference migracao-web
+.\harness\run.ps1                    # referência = main
+.\harness\run.ps1 -Reference migracao-web
 ```
 
 - Na primeira vez, copia a UI, `data\Translate` e as listas do jogo para `%TEMP%\gf-ui-harness\pristine` (~1 GB). O jogo real só é lido.
