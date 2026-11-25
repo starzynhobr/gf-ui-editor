@@ -2905,7 +2905,7 @@ class EditorWindow(QMainWindow):
         if not prefs.auto_update_check:
             return
         last = prefs.last_update_check
-        if time.time() - last < 24 * 3600:
+        if not updater.due_for_check(last, time.time()):
             return
         prefs.last_update_check = time.time()
         self.check_for_updates(manual=False)
@@ -2948,7 +2948,7 @@ class EditorWindow(QMainWindow):
             if answer == QMessageBox.StandardButton.Yes:
                 self.check_for_updates(manual=True)
         seen = prefs.manifest_seen
-        for message in manifest.messages_for(beta=self._beta_updates_enabled(), seen=seen)[:3]:
+        for message in remote_manifest.pending_messages(manifest, self._beta_updates_enabled(), seen):
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.Warning if message.level == "warning" else QMessageBox.Icon.Information)
             box.setWindowTitle(self.tr("Aviso do {name}").format(name=APP_NAME))
@@ -2958,8 +2958,7 @@ class EditorWindow(QMainWindow):
             box.exec()
             if link is not None and box.clickedButton() is link:
                 QDesktopServices.openUrl(QUrl(message.url))
-            seen.add(message.id)
-            prefs.manifest_seen = seen
+            prefs.manifest_seen = remote_manifest.mark_seen(seen, message)
 
     def _feature_disabled(self, feature: str) -> bool:
         """Função desligada pelo manifesto remoto (até sair a correção); avisa quem tentou usar."""
@@ -2975,7 +2974,7 @@ class EditorWindow(QMainWindow):
     @staticmethod
     def _beta_updates_enabled() -> bool:
         # Uma versão beta instalada (ex.: baixada à mão) já fica no canal beta.
-        return prefs.get("beta_updates", updater.is_prerelease(__version__))
+        return prefs.get("beta_updates", updater.beta_default(__version__))
 
     def _set_beta_updates(self, enabled: bool) -> None:
         prefs.beta_updates = enabled
@@ -3028,8 +3027,7 @@ class EditorWindow(QMainWindow):
                         ).format(version=__version__),
                     )
                 return
-            skipped = prefs.skipped_update_version
-            if not manual and skipped == value.version:
+            if not updater.should_offer(value.version, prefs.skipped_update_version, manual):
                 return
             self._offer_update(value)
 

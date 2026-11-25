@@ -102,3 +102,14 @@ def test_message_links_only_open_official_channels() -> None:
         None,
     ):
         assert allowed(url) is None
+
+
+def test_pending_messages_shows_at_most_three_unseen_and_marks_them_seen() -> None:
+    manifest = parse(_payload(messages=[{"id": f"m{index}", "text": "Aviso"} for index in range(5)]))
+    seen = {"m0"}
+    shown = remote_manifest.pending_messages(manifest, beta=False, seen=seen, version="0.7.0")
+    assert [message.id for message in shown] == ["m1", "m2", "m3"]
+    for message in shown:
+        assert remote_manifest.mark_seen(seen, message) is seen
+    assert seen == {"m0", "m1", "m2", "m3"}
+    assert [message.id for message in remote_manifest.pending_messages(manifest, False, seen, "0.7.0")] == ["m4"]

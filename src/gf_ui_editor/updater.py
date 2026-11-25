@@ -80,6 +80,24 @@ def is_newer(candidate: str, current: str = __version__) -> bool:
     return parse_version(candidate) > parse_version(current)
 
 
+CHECK_INTERVAL = 24 * 3600  # verificação automática: no máximo uma por dia (segundos)
+
+
+def due_for_check(last: float, now: float) -> bool:
+    """Já passou um dia desde a última verificação automática?"""
+    return not now - last < CHECK_INTERVAL
+
+
+def beta_default(version: str = __version__) -> bool:
+    """Uma versão beta instalada (ex.: baixada à mão) já fica no canal beta."""
+    return is_prerelease(version)
+
+
+def should_offer(version: str, skipped: str, manual: bool) -> bool:
+    """Mostrar a atualização encontrada? A pulada pelo usuário só reaparece na verificação manual."""
+    return manual or skipped != version
+
+
 def is_installed_build() -> bool:
     """Só o executável instalado se atualiza; rodando pelo código, apenas avisa."""
     return bool(getattr(sys, "frozen", False))

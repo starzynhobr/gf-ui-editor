@@ -136,3 +136,37 @@ def test_beta_channel_picks_the_newest_release_including_betas(monkeypatch) -> N
     responses[updater.LATEST_RELEASE_API] = json.dumps(releases[0]).encode()
     assert updater.check_for_update("0.7.0-beta.2", include_prereleases=True).version == "0.7.0"
     assert updater.check_for_update("0.7.0-beta.2").version == "0.7.0"
+
+
+def test_automatic_check_runs_at_most_once_a_day() -> None:
+    assert updater.due_for_check(0.0, 1_000_000.0)  # nunca verificou
+    assert not updater.due_for_check(1_000_000.0, 1_000_000.0 + 24 * 3600 - 1)
+    assert updater.due_for_check(1_000_000.0, 1_000_000.0 + 24 * 3600)
+    assert updater.due_for_check(2_000_000.0, 1_000_000.0) is False  # relógio voltou: espera
+
+
+def test_beta_channel_default_follows_the_installed_version() -> None:
+    assert updater.beta_default("0.7.0-beta.3") is True
+    assert updater.beta_default("0.7.0-rc.1") is True
+    assert updater.beta_default("0.7.0") is False
+
+
+def test_skipped_version_is_offered_again_only_when_checking_by_hand() -> None:
+    assert not updater.should_offer("0.8.0", "0.8.0", manual=False)
+    assert updater.should_offer("0.8.0", "0.8.0", manual=True)
+    assert updater.should_offer("0.8.1", "0.8.0", manual=False)
+    assert updater.should_offer("0.8.0", "", manual=False)
+
+
+def test_updater_and_manifest_do_not_import_qt() -> None:
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, gf_ui_editor.updater, gf_ui_editor.remote_manifest; "
+        "print(any(name.startswith('PySide6') for name in sys.modules))"
+    )
+    env = {**os.environ, "PYTHONPATH": str(Path(updater.__file__).parents[1])}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
+    assert result.stdout.strip() == "False"

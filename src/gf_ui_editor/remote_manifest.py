@@ -134,6 +134,20 @@ class Manifest:
         return result
 
 
+MESSAGES_PER_START = 3  # avisos mostrados de uma vez ao abrir; o resto fica para a próxima
+
+
+def pending_messages(manifest: Manifest, beta: bool, seen: set[str], version: str = __version__) -> list[Message]:
+    """Avisos a mostrar agora (no máximo ``MESSAGES_PER_START``), ainda não vistos."""
+    return manifest.messages_for(version, beta=beta, seen=seen)[:MESSAGES_PER_START]
+
+
+def mark_seen(seen: set[str], message: Message) -> set[str]:
+    """Conjunto de vistos com ``message`` (guarde-o logo, para não repetir se o app fechar no meio)."""
+    seen.add(message.id)
+    return seen
+
+
 def _text(value: object) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 

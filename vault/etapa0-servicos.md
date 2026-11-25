@@ -46,7 +46,7 @@ Mais ou menos 8,4 mil linhas:
 | 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | Sim | Baixo/médio |
 | 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) ou `game_layout.py` | 4111–4300, 4559–4830 | Sim, mas evitar junto com a 7 se ela mexer em 4559 | **Alto** |
 | 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | Sim | Médio |
-| 10 | Atualizações e manifesto | `updater.py`, `remote_manifest.py` | 2887–3050 | Depois da 2 | Baixo |
+| 10 | Atualizações e manifesto | `updater.py`, `remote_manifest.py` | 2887–3050 | — | **Feito** |
 | 11 | Funções soltas do topo | `about.py` (novo) | 160–345 | Sim | Muito baixo |
 
 ### 1. Lista de arquivos e seções (feita)
@@ -139,12 +139,14 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** `test_texture_of_a_control_can_be_changed_undone_and_saved` e os do atlas.
 - **Risco:** médio: o fluxo está misturado com menus.
 
-### 10. Atualizações e manifesto
+### 10. Atualizações e manifesto (feita)
 
-- **Serviço:** `updater.py`: `due_for_check(last, now)` (24 h) e `beta_default(version)`. `remote_manifest.py`: `parse_seen(text)` e `dump_seen(ids)`.
-- **Origem:** `_automatic_update_check`, `_beta_updates_enabled`, `apply_remote_manifest` (só o conjunto de vistos), `check_for_updates` (regra de pular versão).
-- **Testes:** `test_updater.py`, `test_remote_manifest.py`. Na interface: `test_beta_updates_toggle_*`, `test_remote_manifest_*`, `test_min_version_*`.
-- **Risco:** baixo, mas depende das chaves da fatia 2. Fazer depois dela para não mexer duas vezes nas mesmas linhas.
+- **Serviço:**
+  - `updater.py`: `CHECK_INTERVAL`, `due_for_check(last, now)` (24 h), `beta_default(version)` e `should_offer(version, skipped, manual)` (a versão pulada só reaparece na verificação manual);
+  - `remote_manifest.py`: `MESSAGES_PER_START`, `pending_messages(manifest, beta, seen)` (no máximo 3 avisos por abertura) e `mark_seen(seen, message)`.
+  - `parse_seen`/`dump_seen` não foram criados: a fatia 2 já lê e grava o conjunto em `prefs.manifest_seen`.
+- **Origem:** `_automatic_update_check`, `_beta_updates_enabled`, `apply_remote_manifest`, `check_for_updates`. As leituras e gravações continuam pelo `prefs`.
+- **Testes:** `test_updater.py` (+4, incluindo o de não importar PySide6, que cobre também o `remote_manifest`) e `test_remote_manifest.py` (+1). Na interface continuam valendo `test_beta_updates_toggle_*`, `test_remote_manifest_*` e `test_min_version_*`.
 
 ### 11. Funções soltas do topo
 
