@@ -103,7 +103,7 @@ Regra: uma tela só é dada como migrada quando todo o checklist dela tem teste 
 ## Ordem de implementação
 
 0. **Preparar no editor atual (útil de qualquer jeito)**
-   - Extrair de `app.py` a lógica para serviços Python sem Qt.
+   - Extrair de `app.py` a lógica para serviços Python sem Qt (fatias em [etapa0-servicos](etapa0-servicos.md)).
    - Criar o harness "mesma entrada, mesma saída" e gravar as saídas de referência com o editor Qt.
    - Listar o checklist por tela a partir dos testes de interface.
 1. **Protótipo (ponto de decisão):** janela pywebview + ponte + leitura de DDS no Worker + canvas Konva **só leitura** de um XML real (ex.: BasicChar.xml). Medir desempenho, tamanho do instalador e sensação. **Só seguir se convencer.**
