@@ -70,6 +70,7 @@ def run(language: str = "pt_BR", dev: bool = False, xml: Path | None = None) -> 
         background_color="#111318",
     )
     api._attach(window)
+    api._attach_canvas_assets()
     webview.start(debug=dev, gui="edgechromium" if sys.platform == "win32" else None)
     return 0
 

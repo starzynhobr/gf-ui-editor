@@ -261,6 +261,27 @@ def peek_project(root: Path) -> tuple[str | None, int | None]:
     return (str(name) if name else None), int(count)
 
 
+def peek_preview_context(root: Path, relative: str) -> tuple[Path | None, str, dict[int, str]]:
+    """Game directory, root mode and edited labels for a read-only preview."""
+    connection = _read_only(root)
+    if connection is None:
+        return None, "auto", {}
+    try:
+        connection.execute("BEGIN")
+        directory = connection.execute("SELECT value FROM settings WHERE key = 'game_dir'").fetchone()
+        mode = connection.execute("SELECT mode FROM root_modes WHERE path = ?", (relative,)).fetchone()
+        rows = connection.execute("SELECT record_id, fields FROM text_edits WHERE file = 'T_TextIndex.ini'").fetchall()
+    finally:
+        connection.close()
+    game_dir = json.loads(directory[0]) if directory else None
+    overrides = {}
+    for record_id, encoded in rows:
+        fields = json.loads(encoded)
+        if record_id.isdigit() and fields:
+            overrides[int(record_id)] = fields[0]
+    return Path(game_dir) if game_dir else None, mode[0] if mode else "auto", overrides
+
+
 # ---- projeto ------------------------------------------------------------------
 class ProjectStore:
     def __init__(self, root: Path):
