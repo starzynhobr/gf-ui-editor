@@ -15,7 +15,7 @@ em Jogar, copia a UI escolhida (`UI=`/`UIAplicada=` no `Launcher.ini`) por cima 
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
@@ -24,9 +24,11 @@ import time
 from pathlib import Path
 import re
 import shutil
+import tempfile
 import zipfile
 
 from . import gamedata, storage
+from .game_layout import normalize_game_dir
 
 PROJECTS_ROOT = Path.home() / "Documents" / "GF UI Projects"
 CHANGES_TTL = 2.0
@@ -289,6 +291,19 @@ class Project:
         """Cópia do arquivo como era na criação do projeto (gravada no 1º salvamento)."""
         return self._history_folder(file_path) / f"{ORIGINAL_NAME}{file_path.suffix}"
 
+    def base_bytes(self, relative: str) -> bytes | None:
+        """O arquivo como era na criação do projeto, quando disponível."""
+        path = self.ui_dir / relative
+        original = self.original_path_for(path)
+        try:
+            if original.is_file():
+                return original.read_bytes()
+            data = path.read_bytes()
+        except OSError:
+            return None
+        key = Path(relative).as_posix()
+        return data if self.base_hashes.get(key) == hashlib.sha1(data).hexdigest() else None
+
     def history(self, file_path: Path) -> list[Path]:
         """Backups do arquivo, do mais recente ao mais antigo (sem o original)."""
         folder = self._history_folder(file_path)
@@ -339,6 +354,14 @@ class Project:
             backup = None
         self._files = None
         return target, backup
+
+    def import_loose_files(self, sources: Iterable[Path], focus: Path | None = None) -> Path | None:
+        """Importa os arquivos em ordem e devolve o caminho atualizado do arquivo em foco."""
+        for source in sources:
+            target, _backup = self.import_file(source)
+            if focus is not None and source == focus:
+                focus = target
+        return focus
 
     def rename_file(self, file_path: Path, new_name: str) -> tuple[Path, Path | None]:
         """Renomeia na mesma pasta. Se já existir um arquivo com o nome novo, ele vai
@@ -626,6 +649,44 @@ def extract_ui_zip(archive_path: Path, destination: Path) -> Path:
     if not any(entry.suffix.lower() == ".xml" for entry in root.iterdir() if entry.is_file()):
         raise ValueError("O .zip não contém arquivos XML de UI.")
     return root
+
+
+def create_from_source(
+    name: str,
+    source: Path,
+    game_dir: Path | None,
+    *,
+    projects_root: Path = PROJECTS_ROOT,
+    progress: Progress = None,
+    include_assets: bool = False,
+    publish_folder: str = "",
+    loose_files: Iterable[Path] = (),
+) -> Project:
+    """Cria o projeto a partir de uma pasta ou .zip e importa os arquivos soltos."""
+    if not source.exists():
+        raise FileNotFoundError(str(source))
+
+    def create(source_dir: Path) -> Project:
+        return Project.create(
+            name, source_dir, game_dir, projects_root=projects_root, progress=progress,
+            include_assets=include_assets, publish_folder=publish_folder,
+        )
+
+    if source.is_file():
+        with tempfile.TemporaryDirectory() as folder:
+            project = create(extract_ui_zip(source, Path(folder)))
+    else:
+        project = create(source)
+    project.import_loose_files(loose_files)
+    return project
+
+
+def configured_game_dir(saved: str, default_ui_directory: Path) -> Path | None:
+    """Usa a pasta configurada, se válida, ou a raiz acima da UI padrão."""
+    if saved and Path(saved).is_dir():
+        return normalize_game_dir(Path(saved))
+    game_dir = default_ui_directory.parent
+    return game_dir if game_dir.is_dir() else None
 
 
 def custom_ui_sources(game_dir: Path) -> list[tuple[str, Path]]:

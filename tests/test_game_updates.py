@@ -1,5 +1,8 @@
-import zlib
+import os
 from pathlib import Path
+import subprocess
+import sys
+import zlib
 
 import pytest
 
@@ -8,6 +11,7 @@ from gf_ui_editor.game_updates import (
     control_info,
     error_candidates,
     insert_controls,
+    locate_error,
     missing_controls,
     parse_game_error,
     scan,
@@ -121,8 +125,40 @@ def test_game_error_points_to_the_xml_that_has_the_id(tmp_path: Path) -> None:
         f"UI\\BasicChar.xml|{len(official)}|{zlib.crc32(official):08X}|1|0|\n", encoding="latin-1"
     )
     assert error_candidates(game, "miniinfo.cpp", "8301") == ["BasicChar.xml"]
+    assert locate_error(game, None, "MiniInfo.cpp ERROR: ID=8301") == ("MiniInfo.cpp", "8301", ["BasicChar.xml"])
     # Radar.xml e Target.xml (também do MiniInfo.cpp) não têm cópia oficial aqui: ficam como opção.
     assert error_candidates(game, "MiniInfo.cpp", "99999") == ["Radar.xml", "Target.xml"]
+
+
+def test_locate_error_searches_for_the_missing_id_when_cpp_is_unknown(tmp_path: Path) -> None:
+    game = tmp_path / "game"
+    _write_official(game, OFFICIAL)
+    ui = tmp_path / "project" / "ui"
+    ui.mkdir(parents=True)
+    (ui / "T.xml").write_bytes(CUSTOM.encode("big5"))
+    text = "Filename.cpp ERROR: ID=5130"
+
+    assert locate_error(lambda: game, ui, text) == ("Filename.cpp", "5130", ["T.xml"])
+    assert locate_error(game, None, text) == ("Filename.cpp", "5130", [])
+    assert locate_error(None, ui, text) == ("Filename.cpp", "5130", [])
+    assert locate_error(game, ui, "Filename.cpp ERROR: ID=2") == ("Filename.cpp", "2", [])
+
+
+def test_locate_error_skips_game_lookup_for_unrecognized_messages() -> None:
+    def get_game_dir():
+        pytest.fail("A pasta do jogo só deve ser consultada se o erro for reconhecido.")
+
+    assert locate_error(get_game_dir, None, "nada aqui") is None
+
+
+@pytest.mark.parametrize("module", ["project", "game_updates"])
+def test_service_does_not_import_qt(module: str) -> None:
+    from gf_ui_editor import game_updates
+
+    code = f"import sys, gf_ui_editor.{module}; print(any(name.startswith('PySide6') for name in sys.modules))"
+    env = {**os.environ, "PYTHONPATH": str(Path(game_updates.__file__).parents[1])}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
+    assert result.stdout.strip() == "False"
 
 
 def test_reference_is_ready_once_most_official_files_are_cached(tmp_path: Path) -> None:

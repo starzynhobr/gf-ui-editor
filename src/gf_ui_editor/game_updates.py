@@ -552,3 +552,24 @@ def error_candidates(game_dir: Path, cpp: str, window_id: str) -> list[str]:
         elif pattern.search(text):
             found.append(name)
     return found or unknown  # sem cópia oficial para conferir, oferece todos os do .cpp
+
+
+def locate_error(
+    game_dir: Path | Callable[[], Path | None] | None,
+    project_ui_dir: Path | None,
+    text: str,
+) -> tuple[str, str, list[str]] | None:
+    """Devolve o .cpp, o ID e os XMLs candidatos, ou None se a mensagem for inválida.
+
+    Quando a pasta do jogo é fornecida como função, só a consulta após reconhecer o erro.
+    """
+    parsed = parse_game_error(text)
+    if parsed is None:
+        return None
+    cpp, window_id = parsed
+    if callable(game_dir):
+        game_dir = game_dir()
+    candidates = error_candidates(game_dir, cpp, window_id) if game_dir is not None else []
+    if not candidates and game_dir is not None and project_ui_dir is not None:
+        candidates = files_missing_id(game_dir, project_ui_dir, window_id)
+    return cpp, window_id, candidates

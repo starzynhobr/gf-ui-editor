@@ -128,6 +128,7 @@ from . import cleanup, file_list, game_sync, release_notes, remote_manifest, upd
 from . import home
 from .file_list import FILE_SECTIONS, TEXTURE_SUFFIXES
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
+from . import game_updates, project as project_module
 from .project import (
     CHANGES_TTL,
     PROJECTS_ROOT,
@@ -6753,10 +6754,7 @@ class EditorWindow(QMainWindow):
         if self.project is not None and self.project.game_dir is not None:
             return self.project.game_dir
         saved = str(QSettings("Local", "GF UI Editor").value("game_dir", ""))
-        if saved and Path(saved).is_dir():
-            return normalize_game_dir(Path(saved))
-        game_dir = DEFAULT_UI_DIRECTORY.parent
-        return game_dir if game_dir.is_dir() else None
+        return project_module.configured_game_dir(saved, DEFAULT_UI_DIRECTORY)
 
     def new_project(self, loose_dir: Path | None = None, focus: Path | None = None) -> bool:
         if not self._confirm_discard_changes():
@@ -6775,15 +6773,7 @@ class EditorWindow(QMainWindow):
             publish_folder = dialog.publish_folder
 
             def build(progress):
-                if not source.exists():
-                    raise FileNotFoundError(str(source))
-                if source.is_file():  # .zip: extrai para uma pasta temporária e parte dela
-                    with tempfile.TemporaryDirectory() as folder:
-                        return Project.create(
-                            name, extract_ui_zip(source, Path(folder)), game_dir, progress=progress,
-                            include_assets=include_assets, publish_folder=publish_folder,
-                        )
-                return Project.create(
+                return project_module.create_from_source(
                     name, source, game_dir, progress=progress, include_assets=include_assets,
                     publish_folder=publish_folder,
                 )
@@ -6791,10 +6781,7 @@ class EditorWindow(QMainWindow):
             project = self._run_with_progress(
                 self.tr("Copiando a UI para o projeto (para o jogo só vai o que você alterar)…"), build
             )
-            for loose in dialog.loose_files:
-                target, _backup = project.import_file(loose)
-                if focus is not None and loose == focus:
-                    focus = target
+            focus = project.import_loose_files(dialog.loose_files, focus)
         except FileExistsError as exc:
             QMessageBox.warning(
                 self, self.tr("Projeto já existe"), self.tr("Já existe um projeto em {path}.").format(path=exc.args[0])
@@ -6819,18 +6806,7 @@ class EditorWindow(QMainWindow):
     def _project_base_bytes(self, relative: str) -> bytes | None:
         """O arquivo como era na criação do projeto (para saber de qual versão oficial partiu)."""
         project = self.project
-        if project is None:
-            return None
-        path = project.ui_dir / relative
-        original = project.original_path_for(path)
-        try:
-            if original.is_file():
-                return original.read_bytes()
-            data = path.read_bytes()
-        except OSError:
-            return None
-        key = Path(relative).as_posix()
-        return data if project.base_hashes.get(key) == hashlib.sha1(data).hexdigest() else None
+        return project.base_bytes(relative) if project is not None else None
 
     def _start_official_scan(self) -> None:
         """Compara a UI do projeto com a oficial em segundo plano (a janela não trava)."""
@@ -6838,7 +6814,7 @@ class EditorWindow(QMainWindow):
         if project is None or project.game_dir is None:
             return
         game_dir, ui_dir, root = project.game_dir, project.ui_dir, project.root
-        base_bytes = self._project_base_bytes
+        base_bytes = project.base_bytes
         signals = self._scan_signals
 
         def work() -> None:
@@ -7153,21 +7129,16 @@ class EditorWindow(QMainWindow):
         )
         if not accepted or not text.strip():
             return
-        parsed = parse_game_error(text)
-        if parsed is None:
+        project_ui_dir = self.project.ui_dir if self.project is not None else None
+        located = game_updates.locate_error(lambda: self._document_game_dir() or self._game_dir(), project_ui_dir, text)
+        if located is None:
             QMessageBox.information(
                 self,
                 self.tr("Resolver erro do jogo"),
                 self.tr("Não encontrei um arquivo .cpp e um ID=… nessa mensagem."),
             )
             return
-        cpp, window_id = parsed
-        game_dir = self._document_game_dir() or self._game_dir()
-        candidates = error_candidates(game_dir, cpp, window_id) if game_dir is not None else []
-        if not candidates and game_dir is not None and self.project is not None:
-            # Erro com .cpp genérico (ex.: "Filename.cpp"): procura pelo ID nos XMLs do
-            # oficial que o projeto não tem.
-            candidates = files_missing_id(game_dir, self.project.ui_dir, window_id)
+        cpp, window_id, candidates = located
         if not candidates:
             QMessageBox.information(
                 self,
