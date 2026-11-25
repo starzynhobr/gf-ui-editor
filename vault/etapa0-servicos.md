@@ -38,7 +38,7 @@ Mais ou menos 8,4 mil linhas:
 | # | Fatia | Serviço | Zona do `app.py` | Independente? | Risco |
 |---|---|---|---|---|---|
 | 1 | Lista de arquivos e seções | `file_list.py` (novo) | 7360–7810, 7810–7990 | — | **Feito** |
-| 2 | Preferências fora do `QSettings` | `preferences.py` (novo) | ~45 pontos espalhados | **Não**: toca o arquivo todo. Fazer sozinha, entre ondas | Médio |
+| 2 | Preferências fora do `QSettings` | `preferences.py` (novo) | ~45 pontos espalhados | **Não**: toca o arquivo todo. Fazer sozinha, entre ondas | **Passo 1 feito**; passo 2 na etapa 2 |
 | 3 | Publicar (F5) e textos | `publishing.py` (novo) + `text_data.py` | `test_in_game` (8040–8170), `_text_overrides` | — | **Feito** |
 | 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | — | **Feito** |
 | 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | — | **Feito** |
@@ -56,7 +56,7 @@ Mais ou menos 8,4 mil linhas:
 - **Testes:** `tests/test_file_list.py` (13, sem janela). Na interface continuam valendo `test_file_list_sections_*`, `test_file_sections_can_be_reordered_*`, `test_renaming_a_texture_can_update_the_xml_that_use_it`, `test_refresh_updates_textures_and_file_list_*`.
 - **Por que primeiro:** menor risco (funções puras ou que só leem/gravam arquivos, sem geometria nem estado da janela), e já havia testes de interface cobrindo tudo. Maior ganho: a lista de arquivos é a [etapa 4](migracao-web.md#ordem-de-implementação), e renomear/apagar textura precisam das mesmas buscas nas duas interfaces. Também abre caminho para a fatia 6.
 
-### 2. Preferências compartilhadas fora do `QSettings` (só planejamento)
+### 2. Preferências compartilhadas fora do `QSettings` (passo 1 feito, passo 2 na etapa 2)
 
 Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padrão escrito ali mesmo, e os tipos estão misturados: `"true"/"false"` em texto, `brand_seen` em bool, `last_update_check` em float, JSON em texto (`manifest_seen`, `files_section_heights`).
 
@@ -66,7 +66,17 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 1. **`preferences.py` sem Qt**, com cada chave declarada uma vez (nome, tipo, padrão) e acesso tipado: `prefs.publish_on_save`, `prefs.last_file(pasta)`, `prefs.root_mode(arquivo)`. O armazenamento fica atrás de uma interface mínima (`get`, `set`, `remove`). No primeiro passo ela é implementada por um adaptador de `QSettings` que fica do lado Qt, então nada muda para o usuário. O `app.py` troca as ~45 chamadas por `self.prefs`.
 2. **Arquivo próprio:** `%APPDATA%\STZ GF UI\settings.json`, com gravação atômica (arquivo temporário + `os.replace`). Na primeira execução sem o arquivo, uma **migração única** copia os valores do Registro e converte os tipos. O Registro fica intocado, como plano de volta. A interface clássica e a nova passam a ler o mesmo arquivo. Como há uma instância só, não existem escritas concorrentes.
 
-- **Testes:** um teste unitário por tipo de chave, a migração com um dicionário falso no lugar do `QSettings` e o JSON corrompido caindo nos padrões. O `conftest.py` passa a isolar também o caminho do JSON.
+**Passo 1 (feito):**
+- `src/gf_ui_editor/preferences.py`: `KEYS` e `PREFIXES` declaram cada chave uma vez com tipo e padrão. Os tipos são `str`, `flag` (texto `"true"`/`"false"`), `bool`, `float` e `json` (texto JSON).
+- `Preferences` dá acesso tipado (`prefs.publish_on_save`, `prefs.last_file(pasta)`, `prefs.root_mode(arquivo)`). Quando o padrão depende do contexto, há `prefs.get(nome, padrão)`: `background_mode` usa `"custom"` se há fundo próprio, e `beta_updates` usa `True` numa versão beta.
+- `Store` (`get`, `set`, `remove`) e `MemoryStore` para testes.
+- Chave ausente, valor corrompido ou de tipo errado caem no padrão.
+- O adaptador `QtPreferenceStore` fica no `app.py`, junto com o objeto global `prefs`. Ele abre `QSettings("Local", "GF UI Editor")` a cada acesso, como antes, e grava os mesmos valores no mesmo formato. Assim, uma instalação existente lê tudo igual, e voltar para a 0.7.0 não perde nada.
+- Os 46 usos de `QSettings` no `app.py` passaram pelo `prefs`; nenhum outro módulo usava `QSettings`. Nenhum teste existente foi ajustado.
+- **Testes:** `tests/test_preferences.py` (10, sem Qt) e `tests/test_qt_preferences.py` (2), que conferem o formato gravado pelo adaptador e a leitura do que o código antigo gravava.
+
+**Passo 2 (não feito, fica para a [etapa 2](migracao-web.md#ordem-de-implementação), a casca):** um `Store` em `settings.json` como descrito acima, a migração única do Registro e o `conftest.py` isolando também o caminho do JSON. A interface não muda: só troca o `QtPreferenceStore` por esse `Store`.
+
 - **Risco:** médio. O código fica fácil, mas perder preferências do usuário é visível. A fatia toca o arquivo inteiro e conflita com todas as outras, por isso entra **sozinha**, entre duas ondas de fatias paralelas, e em dois commits (passo 1 e passo 2). O passo 2 pode esperar a [etapa 2](migracao-web.md#ordem-de-implementação) (casca), mas o passo 1 já é útil.
 
 ### 3. Publicar (F5) e textos (feita)
@@ -150,7 +160,7 @@ Onda A, em paralelo, com zonas e serviços diferentes:
 - **Claude 2:** fatia **3** (publicar) e fatia **6** (arquivos). **Feitas.**
 - A fatia **11** serve para quem terminar primeiro (zona 160–345, sem conflito com ninguém).
 
-Depois da onda A, a fatia **2** entra sozinha, seguida da **10**. A onda B vem por último: **7**, **9** e depois **8**, com cuidado.
+Depois da onda A, a fatia **2** entra sozinha (passo 1 feito), seguida da **10**. A onda B vem por último: **7**, **9** e depois **8**, com cuidado.
 
 ## Como diminuir o conflito no merge
 
