@@ -14,6 +14,7 @@ Comece aqui. Revisão: **24/11/2026**.
 
 - [Roadmap](roadmap.md) · [Quadro (Kanban)](backlog.md) · [Estado atual](status.md) · [Decisões](decisions.md)
 - **Feedback:** [usuário do Discord, 24/11/2026](feedback/2026-11-24-discord.md)
+- **Como o jogo funciona:** [launcher aplicando UIs e a referência do oficial](launcher.md)
 - **Lançar versão:** [passo a passo de release](release.md) (build, GitHub, Discord, beta)
 - **Planos detalhados:** [canal beta](beta.md) · [migração da interface para web (em estudo)](migracao-web.md)
 - **Docs do repositório:** [README](../README.md) · [internacionalização](../docs/internacionalizacao.md) · [revisão de UI](../docs/ui-review.md) · [contribuir](../CONTRIBUTING.md)

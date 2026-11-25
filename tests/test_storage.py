@@ -92,3 +92,25 @@ def test_text_index_finds_substrings_and_only_rebuilds_changed_files(tmp_path: P
     panel.refresh_results()
     assert panel.results.topLevelItemCount() == 1 and panel.files is None  # veio do índice, sem ler tudo
     panel.close()
+
+
+def test_peek_project_reads_name_and_count_without_touching_the_project_date(tmp_path) -> None:
+    import os
+
+    from gf_ui_editor import storage
+    from gf_ui_editor.project import Project
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "A.xml").write_bytes(b"<Root_Node />")
+    (source / "B.xml").write_bytes(b"<Root_Node />")
+    project = Project.create("Meu Projeto", source, None, projects_root=tmp_path / "projects")
+    storage.close_all()
+    old = 1_600_000_000
+    for name in os.listdir(project.root):
+        if name.startswith(storage.PROJECT_DB) or name == "project.json":
+            os.utime(project.root / name, (old, old))
+    assert storage.last_modified(project.root) == old
+    assert storage.peek_project(project.root) == ("Meu Projeto", 2)
+    assert storage.last_modified(project.root) == old  # a lista da tela inicial não "edita" o projeto
+    assert storage.peek_project(tmp_path) == (None, None)

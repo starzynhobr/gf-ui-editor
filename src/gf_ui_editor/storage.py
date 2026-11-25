@@ -203,6 +203,64 @@ def last_modified(root: Path) -> float:
     return max(times, default=0.0)
 
 
+def _read_only(root: Path) -> sqlite3.Connection | None:
+    """Conexão só leitura ao project.db que não cria -wal nem prende o arquivo depois de fechada.
+
+    Abrir pelo caminho normal cria/atualiza o -wal (muda a data do projeto) e fica em cache
+    enquanto a janela estiver aberta: outro editor aberto impediria excluir ou renomear o projeto.
+    """
+    path = root / PROJECT_DB
+    if not path.is_file():
+        return None
+    # Sem -wal o banco está fechado e consolidado: "immutable" evita que o SQLite crie um -wal
+    # novo. Com -wal, alguém pode estar escrevendo: só leitura comum.
+    wal = path.with_name(path.name + "-wal").exists()
+    flags = "mode=ro" if wal else "mode=ro&immutable=1"
+    try:
+        return sqlite3.connect(f"{path.resolve().as_uri()}?{flags}", uri=True, timeout=1)
+    except sqlite3.Error:
+        return None
+
+
+def peek_settings(root: Path) -> dict[str, object] | None:
+    """Configurações do projeto (nome, pasta de publicação…) sem abrir o banco para escrita."""
+    connection = _read_only(root)
+    if connection is None:
+        return None
+    try:
+        rows = connection.execute("SELECT key, value FROM settings").fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+    settings: dict[str, object] = {}
+    for key, value in rows:
+        try:
+            settings[key] = json.loads(value)
+        except ValueError:
+            continue
+    return settings
+
+
+def peek_project(root: Path) -> tuple[str | None, int | None]:
+    """Nome e número de arquivos do projeto sem abrir o banco para escrita (lista da tela inicial)."""
+    connection = _read_only(root)
+    if connection is None:
+        return None, None
+    try:
+        row = connection.execute("SELECT value FROM settings WHERE key = 'name'").fetchone()
+        count = connection.execute("SELECT count(*) FROM base_hashes").fetchone()[0]
+    except sqlite3.Error:
+        return None, None
+    finally:
+        connection.close()
+    try:
+        name = json.loads(row[0]) if row else None
+    except ValueError:
+        name = None
+    return (str(name) if name else None), int(count)
+
+
 # ---- projeto ------------------------------------------------------------------
 class ProjectStore:
     def __init__(self, root: Path):

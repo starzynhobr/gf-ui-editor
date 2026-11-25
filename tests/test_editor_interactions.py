@@ -1899,9 +1899,9 @@ def test_zoom_percentage_resets_to_100_and_home_button_returns_to_start(tmp_path
     window.zoom_label.click()
     assert abs(window.view.transform().m11() - 1) < 1e-6 and window.zoom_label.text() == "100%"
     window.home_action.trigger()
-    assert window.document is None and window.center_stack.currentWidget() is window.empty_page
+    assert window.document is None and window.center_stack.currentWidget() is window.home_page
     window.home_action.trigger()  # já na tela inicial: não faz mal
-    assert window.center_stack.currentWidget() is window.empty_page
+    assert window.center_stack.currentWidget() is window.home_page
     window.close()
 
 
@@ -1979,3 +1979,353 @@ def test_stz_popup_collapses_long_contribution_lists_and_scrolls(monkeypatch) ->
     labels = [label.text() for label in first.findChildren(QLabel)]
     assert "desde 0.1.0" in labels and "· 6 contribuições" in labels
     popup.close()
+
+
+def test_home_screen_hides_the_workspace_and_continue_reopens_the_last_xml(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QLabel, QPushButton
+
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    monkeypatch.setattr(app_module, "list_projects", lambda: [project.root])
+    window = EditorWindow()
+    assert window.home_mode and window.center_stack.currentWidget() is window.home_page  # sem projeto: tela inicial
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Beta.xml")
+    assert not window.home_mode and window.side_tabs.isVisibleTo(window)
+    window.home_action.trigger()
+    assert window.home_mode and window.document is None
+    assert not window.side_tabs.isVisibleTo(window) and not window.properties_scroll.isVisibleTo(window)
+    assert window.settings_button.isVisibleTo(window)  # a engrenagem continua à mão
+    labels = [label.text() for label in window.home_page.findChildren(QLabel)]
+    assert "Nav" in labels and "aberto" in labels  # o projeto aberto aparece na lista
+    assert any("Beta.xml" in text for text in labels)  # card Continuar mostra o último XML
+    continue_button = next(b for b in window.home_page.findChildren(QPushButton) if b.objectName() == "homeContinue")
+    continue_button.click()
+    assert not window.home_mode and window.document.path.name == "Beta.xml"
+    assert window.side_tabs.isVisibleTo(window) and window.properties_scroll.isVisibleTo(window)
+    window.home_action.trigger()
+    window.side_page_actions["xml"].trigger()  # Ctrl+1 também sai da tela inicial
+    assert not window.home_mode
+    window.close()
+
+
+def test_home_project_list_filters_and_opens_projects(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QLineEdit, QPushButton
+
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    (tmp_path / "a").mkdir()
+    first = _two_xml_project(tmp_path / "a")
+    source = tmp_path / "other"
+    source.mkdir()
+    (source / "Teste.xml").write_bytes(SAMPLE.encode("big5"))
+    second = Project.create("Outro", source, None, projects_root=tmp_path / "projects2")
+    monkeypatch.setattr(app_module, "list_projects", lambda: [first.root, second.root])
+    window = EditorWindow()
+    rows = [b for b in window.home_page.findChildren(QPushButton) if b.objectName() == "homeRow"]
+    assert len(rows) == 2
+    window.home_filter.setText("out")
+    assert [r.isVisibleTo(window) for r in rows].count(True) == 1
+    visible = next(r for r in rows if r.isVisibleTo(window))
+    visible.click()
+    assert window.project is not None and window.project.name == "Outro" and not window.home_mode
+    window.close()
+
+
+def test_leaving_the_home_screen_restores_the_side_panels_with_width(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()  # sem projeto: a tela inicial abre antes de a janela aparecer
+    window.resize(1400, 800)
+    window.show()
+    application.processEvents()
+    left, _center, right = window.main_splitter.sizes()
+    assert left < 120 and right == 0  # na tela inicial: só a barrinha
+    window.open_project(project.root)
+    application.processEvents()
+    left, center, right = window.main_splitter.sizes()
+    assert left > 150 and right > 150 and center > 300
+    # Larguras ajustadas pela pessoa voltam iguais depois de passar pela tela inicial.
+    total = sum(window.main_splitter.sizes())
+    window.main_splitter.setSizes([260, total - 560, 300])
+    application.processEvents()
+    chosen = window.main_splitter.sizes()
+    window.go_home()
+    application.processEvents()
+    window.continue_project()
+    application.processEvents()
+    assert window.main_splitter.sizes() == chosen
+    window.close()
+
+
+def _home_rows(window):
+    from PySide6.QtWidgets import QPushButton
+
+    return [b for b in window.home_page.findChildren(QPushButton) if b.objectName() == "homeRow"]
+
+
+def test_home_duplicate_rename_and_manage_delete(tmp_path: Path, monkeypatch) -> None:
+    import shutil
+
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+    import gf_ui_editor.app as app_module
+    from gf_ui_editor import project as project_module
+
+    application = QApplication.instance() or QApplication([])
+    root_dir = tmp_path / "projects"
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Teste.xml").write_bytes(SAMPLE.encode("big5"))
+    first = Project.create("Primeiro", source, None, projects_root=root_dir)
+    monkeypatch.setattr(app_module, "list_projects", lambda: project_module.list_projects(root_dir))
+    trashed: list[str] = []
+
+    class FakeFile:
+        @staticmethod
+        def moveToTrash(path: str) -> bool:
+            trashed.append(Path(path).name)
+            shutil.rmtree(path)
+            return True
+
+    monkeypatch.setattr(app_module, "QFile", FakeFile)
+    window = EditorWindow()
+    window.open_project(first.root)
+    window.go_home()
+
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Segundo", True))
+    window._home_duplicate(first.root, "Primeiro")
+    assert (root_dir / "Segundo").is_dir() and len(_home_rows(window)) == 2
+
+    # Renomear o projeto aberto: ele continua aberto, com o nome novo.
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Principal", True))
+    window._home_rename(first.root, "Primeiro")
+    assert window.project.name == "Principal" and window.project.root == root_dir / "Principal"
+    assert not first.root.exists()
+
+    # Gerenciar: marcar os dois e excluir de uma vez.
+    window._set_home_manage(True)
+    for check in window._home_checks.values():
+        check.setChecked(True)
+    assert window.home_selection_label.text().startswith("2")
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda box: next(b for b in box.buttons() if box.buttonRole(b) == QMessageBox.ButtonRole.DestructiveRole),
+    )
+    window._home_delete(window._home_selected())
+    assert sorted(trashed) == ["Principal", "Segundo"]
+    assert window.project is None and window.home_mode and _home_rows(window) == []
+    window.close()
+
+
+def _game_project(tmp_path: Path):
+    game = tmp_path / "game"
+    (game / "UI").mkdir(parents=True)
+    (game / "UI" / "Teste.xml").write_bytes(SAMPLE.encode("big5"))
+    (game / "Launcher.ini").write_bytes(b"[Config]\r\nLanguage=pt\r\n")
+    return game, Project.create("Envio", game / "UI", game, projects_root=tmp_path / "projects")
+
+
+def test_send_button_counts_saved_files_not_yet_in_the_game(tmp_path: Path, monkeypatch) -> None:
+    application = QApplication.instance() or QApplication([])
+    game, project = _game_project(tmp_path)
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Teste.xml")
+    assert window.test_action.text() == "Enviar para o jogo"
+    window.select_element(0)
+    window.properties.x_spin.setValue(33)
+    window.save_action.trigger()
+    application.processEvents()
+    assert window.test_action.text() == "Enviar para o jogo · 1"
+    window.close()
+
+
+def test_publish_on_save_sends_to_the_game_without_asking(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QMessageBox
+
+    application = QApplication.instance() or QApplication([])
+    game, project = _game_project(tmp_path)
+    QSettings("Local", "GF UI Editor").setValue("publish_confirmed", "true")
+    asked: list[str] = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: asked.append(a[1]) or QMessageBox.StandardButton.No)
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Teste.xml")
+    window.publish_on_save_action.setChecked(True)
+    window.select_element(0)
+    window.properties.x_spin.setValue(44)
+    window.save_action.trigger()
+    application.processEvents()
+    assert b'WindowLeft="44"' in (game / "UI" / "Teste.xml").read_bytes()  # foi para o jogo ao salvar
+    assert asked == [] and window.test_action.text() == "Enviar para o jogo"
+    assert QSettings("Local", "GF UI Editor").value("publish_on_save") == "true"
+    window.close()
+
+
+def test_text_editor_menu_opens_the_project_copy(tmp_path: Path, monkeypatch) -> None:
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    launched: list[tuple[str, list[str]]] = []
+
+    class FakeProcess:
+        @staticmethod
+        def startDetached(program, arguments):
+            launched.append((program, arguments))
+            return True
+
+    monkeypatch.setattr(app_module, "QProcess", FakeProcess)
+    monkeypatch.setattr(app_module, "text_editor_command", lambda: ("notepad++.exe", "Notepad++"))
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.open_in_text_editor(project.ui_dir / "Alpha.xml")
+    assert launched == [("notepad++.exe", [str(project.ui_dir / "Alpha.xml")])]
+    assert "Ctrl+R" in window.statusBar().currentMessage()
+    window.close()
+
+
+def test_save_and_restore_a_project_version_from_the_window(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+    from gf_ui_editor import versions
+    from gf_ui_editor.app import VersionsDialog
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Alpha.xml")
+    assert window.save_version_action.isEnabled() and window.versions_action.isEnabled()
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("antes de mexer", True))
+    assert window.save_project_version(window.project)
+    [saved] = versions.list_versions(window.project)
+
+    window.select_element(0)
+    window.properties.x_spin.setValue(55)
+    window.save_action.trigger()
+    assert window.document.elements[0].x == 55
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    assert window.restore_project_version(window.project, saved.path)
+    assert window.document.path.name == "Alpha.xml" and window.document.elements[0].x == 0  # reaberto já restaurado
+    dialog = VersionsDialog(window, window.project)
+    assert dialog.list.topLevelItemCount() == 2  # a restaurada + "antes de restaurar"
+    dialog.close()
+    window.close()
+
+
+def test_f5_warns_about_game_files_edited_outside_and_pull_brings_them_back(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtCore import QSettings, Qt
+    from PySide6.QtWidgets import QMessageBox
+
+    from gf_ui_editor import game_sync
+    from gf_ui_editor.app import PullDialog
+
+    application = QApplication.instance() or QApplication([])
+    import zlib
+
+    game, project = _game_project(tmp_path)
+    data = (game / "UI" / "Teste.xml").read_bytes()
+    (game / "GameDataFileList.txt").write_text(
+        f"UI\\Teste.xml|{len(data)}|{zlib.crc32(data) & 0xFFFFFFFF:08X}|1|0|\r\n", encoding="latin-1"
+    )
+    QSettings("Local", "GF UI Editor").setValue("publish_confirmed", "true")
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    window.open_project(project.root)
+    assert window.pull_action.isEnabled()
+    window.open_document(project.ui_dir / "Teste.xml")
+    window.select_element(0)
+    window.properties.x_spin.setValue(44)
+    window.save_action.trigger()
+    window.test_in_game()
+    assert not window.game_backup_banner.isVisibleTo(window)
+
+    # Alguém edita direto na pasta do jogo; o projeto muda de novo e o F5 sobrescreve.
+    edited = (game / "UI" / "Teste.xml").read_bytes().replace(b'WindowLeft="44"', b'WindowLeft="77"')
+    (game / "UI" / "Teste.xml").write_bytes(edited)
+    window.properties.x_spin.setValue(45)
+    window.save_action.trigger()
+    window.test_in_game()
+    assert window.game_backup_banner.isVisibleTo(window)
+    assert "1 arquivo" in window.game_backup_text.text()
+
+    [(relative, backup)] = window._game_backups
+    dialog = PullDialog(window, window.project, fixed=[
+        game_sync.PullCandidate(relative, backup, False, game_sync.EDITED_OUTSIDE)
+    ])
+    assert not dialog.pull_button.isEnabled()  # nada vem marcado
+    dialog.mark_edited.click()
+    dialog.pull_button.click()
+    application.processEvents()
+    assert b'WindowLeft="77"' in (project.ui_dir / "Teste.xml").read_bytes()
+    assert window.document.elements[0].x == 77  # XML aberto foi reaberto
+    assert dialog.list.topLevelItemCount() == 0
+    dialog.close()
+
+    # A janela do Puxar compara com a pasta UI: agora o projeto difere do que está no jogo.
+    pull = PullDialog(window, window.project, sources=game_sync.pull_sources(game))
+    assert [pull.list.topLevelItem(i).text(0) for i in range(pull.list.topLevelItemCount())] == ["Teste.xml"]
+    assert pull.list.topLevelItem(0).checkState(0) == Qt.CheckState.Unchecked
+    pull.close()
+    window.close()
+
+
+def test_cleanup_dialog_offers_history_and_cleans_the_project(tmp_path: Path, monkeypatch) -> None:
+    from gf_ui_editor import cleanup
+    from gf_ui_editor.app import CleanupDialog
+
+    application = QApplication.instance() or QApplication([])
+    game, project = _game_project(tmp_path)
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    window.open_project(project.root)
+    assert window.cleanup_action.isEnabled()
+    teste = window.project.ui_dir / "Teste.xml"
+    backup = window.project.history_path_for(teste)
+    backup.write_bytes(b"<velho/>")
+    plan = cleanup.scan(window.project)
+    dialog = CleanupDialog(window, window.project, plan)
+    assert not dialog.clean_button.isEnabled()  # nada escolhido de início
+    assert not dialog.icons_check.isVisibleTo(dialog) and not dialog.custom_check.isVisibleTo(dialog)
+    dialog.history_all.setChecked(True)
+    assert dialog.clean_button.isEnabled() and dialog.choice() == {"history": "all", "icons": False, "custom": False}
+    window.clean_project(window.project, plan, **dialog.choice())
+    assert not backup.exists() and teste.exists()
+    assert "liberados" in window.statusBar().currentMessage()
+    dialog.close()
+    window.close()
+
+
+def test_new_project_dialogs_show_the_hand_cursor_on_buttons(tmp_path: Path) -> None:
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QPushButton
+
+    from gf_ui_editor import cleanup
+    from gf_ui_editor.app import CleanupDialog, PullDialog, VersionsDialog
+
+    application = QApplication.instance() or QApplication([])
+    game, project = _game_project(tmp_path)
+    window = EditorWindow()
+    window.open_project(project.root)
+    dialogs = [
+        VersionsDialog(window, window.project),
+        CleanupDialog(window, window.project, cleanup.scan(window.project)),
+        PullDialog(window, window.project, fixed=[]),
+    ]
+    for dialog in dialogs:
+        enabled = [button for button in dialog.findChildren(QPushButton) if button.isEnabled()]
+        assert enabled and all(button.cursor().shape() == Qt.CursorShape.PointingHandCursor for button in enabled)
+        dialog.close()
+    window.close()

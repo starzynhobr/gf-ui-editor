@@ -26,7 +26,7 @@ import re
 import shutil
 import zipfile
 
-from . import storage
+from . import gamedata, storage
 
 PROJECTS_ROOT = Path.home() / "Documents" / "GF UI Projects"
 CHANGES_TTL = 2.0
@@ -93,10 +93,14 @@ class PublishResult:
     custom_dir: Path
     copied_to_ui: int
     launcher_updated: bool
+    # Arquivos iguais ao oficial que ficaram fora de UICustom (o launcher completa com a pasta UI).
+    skipped_official: int = 0
     # UI que estava selecionada no launcher antes de publicar (ex.: "custom:UI-Hero").
     previous_selection: str = ""
     # Launcher aberto: ele guarda a seleção na memória e pode reaplicar a UI antiga.
     launcher_running: bool = False
+    # Arquivos da pasta UI editados fora do editor que o F5 substituiu: (relativo, cópia no .history).
+    game_backups: list[tuple[str, Path]] = field(default_factory=list)
 
 
 @dataclass
@@ -366,15 +370,38 @@ class Project:
         return Path(os.path.relpath(os.path.abspath(file_path), os.path.abspath(self.ui_dir))).as_posix()
 
     # ---- saída -------------------------------------------------------------
+    def shipped_files(self, progress: Progress = None) -> tuple[list[Path], int]:
+        """Arquivos que a UI leva para o jogo e o .zip, e quantos ficaram de fora.
+
+        O launcher aplica uma UI copiando os arquivos dela por cima da pasta UI; o que ela não
+        traz continua como está (vault/launcher.md). Então só vai o que difere do oficial
+        (tamanho e CRC do GameDataFileList.txt): `map`, ícones e o que ninguém mexeu ficam de
+        fora sozinhos. Sem a lista oficial (jogo não encontrado), vai tudo.
+        """
+        files = self.files(refresh=True)
+        official = gamedata.official_ui_files(self.game_dir) if self.game_dir is not None else {}
+        if not official:
+            return files, 0
+        shipped = []
+        for done, relative in enumerate(files, 1):
+            if not gamedata.is_official(self.ui_dir / relative, relative.as_posix(), official):
+                shipped.append(relative)
+            if progress is not None:
+                progress(done, len(files))
+        return shipped, len(files) - len(shipped)
+
     def export_zip(self, destination: Path, progress: Progress = None) -> Path:
-        """Zip no formato dos presets oficiais: uma pasta raiz com os arquivos."""
+        """Zip no formato dos presets oficiais: uma pasta raiz com os arquivos que diferem do oficial."""
         destination.parent.mkdir(parents=True, exist_ok=True)
+        files, skipped = self.shipped_files()
+        if not files:
+            raise ValueError("Nenhum arquivo do projeto difere da UI oficial: não há o que exportar.")
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
-            files = self.files(refresh=True)
             for done, relative in enumerate(files, 1):
                 archive.write(self.ui_dir / relative, f"{self.custom_name}/{relative.as_posix()}")
                 if progress is not None:
                     progress(done, len(files))
+        self.last_export = (len(files), skipped)
         return destination
 
     def publish(
@@ -386,7 +413,8 @@ class Project:
             raise ValueError("Projeto sem pasta do jogo.")
         custom_dir = self.game_dir / "UICustom" / self.custom_name
         files = self.files(refresh=True)
-        wanted = {relative.as_posix().lower() for relative in files}
+        shipped, skipped = self.shipped_files()
+        wanted = {relative.as_posix().lower() for relative in shipped}
         if custom_dir.exists() and not self.publish_folder:
             for existing in sorted(custom_dir.rglob("*"), reverse=True):
                 relative = existing.relative_to(custom_dir).as_posix().lower()
@@ -394,15 +422,38 @@ class Project:
                     existing.unlink()
                 elif existing.is_dir() and not any(existing.iterdir()):
                     existing.rmdir()
+        from . import game_sync  # game_sync importa este módulo
+
         copied = 0
         ui_dir = self.game_dir / "UI"
+        official = gamedata.official_ui_files(self.game_dir)
+        sent = game_sync.load_sent(self.game_dir) if copy_to_ui else {}
+        sent_now: dict[str, str] = {}
+        backups: list[tuple[str, Path]] = []
+        custom_dir.mkdir(parents=True, exist_ok=True)
         for done, relative in enumerate(files, 1):
             source = self.ui_dir / relative
-            _copy_if_different(source, custom_dir / relative)
-            if copy_to_ui and _copy_if_different(source, ui_dir / relative):
-                copied += 1
+            key = relative.as_posix()
+            if key.lower() in wanted:
+                _copy_if_different(source, custom_dir / relative)
+            # A pasta UI recebe o projeto inteiro (só o que difere do que está lá): ela pode ter
+            # arquivos de outra UI aplicada antes, e o jogo tem de ficar igual ao editor.
+            if copy_to_ui:
+                target = ui_dir / relative
+                # Proteção sem atrito: o que foi editado fora do editor ganha uma cópia antes.
+                if target.is_file() and not _same_content(source, target) and game_sync.edited_outside(
+                    self.game_dir, key, target, official, sent
+                ):
+                    backup = game_sync.game_backup_path(self, source)
+                    shutil.copy2(target, backup)
+                    backups.append((key, backup))
+                if _copy_if_different(source, target):
+                    copied += 1
+                if sent.get(key.lower()) != (crc := gamedata.file_crc(source)):
+                    sent_now[key.lower()] = crc
             if progress is not None:
                 progress(done, len(files))
+        game_sync.remember_sent(self.game_dir, sent_now)
         launcher_ini = self.game_dir / "Launcher.ini"
         previous = selected_ui(launcher_ini)
         launcher_updated = False
@@ -412,8 +463,10 @@ class Project:
             custom_dir,
             copied,
             launcher_updated,
+            skipped,
             previous,
             process_running(self.game_dir / "Launcher.exe"),
+            backups,
         )
 
     def unpublished_files(self) -> set[str]:
@@ -440,11 +493,16 @@ class Project:
         return pending
 
 
+def _same_content(source: Path, target: Path) -> bool:
+    try:
+        return source.stat().st_size == target.stat().st_size and source.read_bytes() == target.read_bytes()
+    except OSError:
+        return False
+
+
 def _copy_if_different(source: Path, target: Path) -> bool:
-    if target.exists():
-        source_stat, target_stat = source.stat(), target.stat()
-        if source_stat.st_size == target_stat.st_size and source.read_bytes() == target.read_bytes():
-            return False
+    if target.exists() and _same_content(source, target):
+        return False
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f".{target.name}.gf-ui-editor.tmp")
     shutil.copy2(source, temporary)
@@ -577,19 +635,100 @@ def custom_ui_sources(game_dir: Path) -> list[tuple[str, Path]]:
     return sources
 
 
-def projects_publishing_to(folder: str, exclude: Path | None = None) -> list[str]:
+def projects_publishing_to(folder: str, exclude: Path | None = None, projects_root: Path | None = None) -> list[str]:
     """Nomes dos projetos cujo Enviar para o jogo escreve em UICustom/`folder`."""
     names = []
-    for root in list_projects(PROJECTS_ROOT):
+    for root in list_projects(projects_root or PROJECTS_ROOT):
         if exclude is not None and os.path.normcase(str(root)) == os.path.normcase(str(exclude)):
             continue
-        try:
-            project = Project.load(root)
-        except (OSError, ValueError):
+        # Só leitura: abrir cada projeto pelo caminho normal deixava todos presos a esta janela.
+        settings = storage.peek_settings(root)
+        if settings is None:
             continue
-        if project.custom_name.lower() == folder.lower():
-            names.append(project.name)
+        name = str(settings.get("name") or root.name)
+        custom_name = str(settings.get("publish_folder") or "") or safe_name(name)
+        if custom_name.lower() == folder.lower():
+            names.append(name)
     return names
+
+
+# ---- gerenciar projetos (tela inicial) --------------------------------------------
+class ProjectNameTaken(ValueError):
+    """Já existe um projeto (pasta) com esse nome."""
+
+
+def owned_custom_folder(project: "Project") -> Path | None:
+    """Pasta UICustom que só este projeto publica (o F5 a criou); None se não existe ou é compartilhada."""
+    if project.game_dir is None:
+        return None
+    folder = project.game_dir / "UICustom" / project.custom_name
+    if not folder.is_dir():
+        return None
+    if projects_publishing_to(project.custom_name, exclude=project.root, projects_root=project.root.parent):
+        return None
+    return folder
+
+
+def duplicate_project(root: Path, new_name: str) -> Path:
+    """Cópia completa do projeto com outro nome; publica na própria pasta UICustom.
+
+    Fica sem o histórico (.history) e sem as versões (.versions) do original: é um ponto de partida novo.
+    """
+    new_name = new_name.strip()
+    target = root.parent / safe_name(new_name)
+    if target.exists():
+        raise ProjectNameTaken(str(target))
+    storage.close_all()  # banco consolidado (sem -wal) antes de copiar
+    shutil.copytree(
+        root, target, ignore=shutil.ignore_patterns(".history", ".versions", f"{storage.PROJECT_DB}-wal", f"{storage.PROJECT_DB}-shm")
+    )
+    copy = Project.load(target)
+    copy.name = new_name
+    copy.publish_folder = ""
+    copy.save_manifest()
+    storage.close_all()
+    return target
+
+
+def rename_project(root: Path, new_name: str) -> Path:
+    """Renomeia o projeto (nome e pasta). A pasta UICustom dele e a escolha no launcher acompanham."""
+    new_name = new_name.strip()
+    project = Project.load(root)
+    old_custom = project.custom_name
+    owned = owned_custom_folder(project)
+    target = root.parent / safe_name(new_name)
+    if os.path.normcase(str(target)) != os.path.normcase(str(root)) and target.exists():
+        raise ProjectNameTaken(str(target))
+    storage.close_all()  # o Windows não renomeia pasta com banco aberto
+    if os.path.normcase(str(target)) != os.path.normcase(str(root)):
+        os.replace(root, target)
+    project = Project.load(target)
+    project.name = new_name
+    project.save_manifest()
+    new_custom = project.custom_name
+    if owned is not None and project.game_dir is not None and new_custom.lower() != old_custom.lower():
+        new_folder = project.game_dir / "UICustom" / new_custom
+        if not new_folder.exists():
+            os.replace(owned, new_folder)
+            launcher_ini = project.game_dir / "Launcher.ini"
+            if selected_ui(launcher_ini).lower() == f"custom:{old_custom}".lower():
+                select_custom_ui(launcher_ini, new_custom)
+    storage.close_all()
+    return target
+
+
+def delete_project(root: Path, trash: Callable[[Path], bool], remove_custom: bool = False) -> list[Path]:
+    """Manda o projeto (e, se pedido, a pasta UICustom só dele) para a Lixeira. Devolve o que saiu."""
+    project = Project.load(root)
+    custom = owned_custom_folder(project) if remove_custom else None
+    storage.close_all()
+    removed = []
+    for path in (root, custom):
+        if path is not None and path.exists():
+            if not trash(path):
+                raise OSError(f"Não foi possível mandar para a Lixeira: {path}")
+            removed.append(path)
+    return removed
 
 
 def list_projects(projects_root: Path = PROJECTS_ROOT) -> list[Path]:

@@ -241,3 +241,139 @@ def test_rename_replaces_existing_file_keeping_it_in_history_and_delete_keeps_a_
     copy = project.delete_file(project.ui_dir / "Radar.xml")
     assert copy.read_text(encoding="utf-8") == "<novo/>"
     assert Path("Radar.xml") not in project.files()
+
+
+def _official_list(game: Path) -> None:
+    """GameDataFileList.txt com os arquivos atuais de game/UI como oficiais."""
+    import zlib
+
+    lines = []
+    for path in sorted((game / "UI").rglob("*")):
+        if path.is_file():
+            data = path.read_bytes()
+            relative = path.relative_to(game).as_posix().replace("/", "\\")
+            lines.append(f"{relative}|{len(data)}|{zlib.crc32(data) & 0xFFFFFFFF:08X}|1|0|")
+    (game / "GameDataFileList.txt").write_text("\r\n".join(lines) + "\r\n", encoding="latin-1")
+
+
+def test_ui_ships_only_files_that_differ_from_official(tmp_path: Path) -> None:
+    import pytest
+
+    game = _game(tmp_path)
+    _official_list(game)
+    project = Project.create("Enxuta", game / "UI", game, projects_root=tmp_path / "projects")
+    # Nada alterado: o .zip não tem o que levar.
+    with pytest.raises(ValueError):
+        project.export_zip(tmp_path / "vazio.zip")
+    assert project.shipped_files() == ([], 2)
+
+    (project.ui_dir / "Radar.xml").write_text("<b/>", encoding="utf-8")
+    (project.ui_dir / "Novo.dds").write_bytes(b"novo")  # não existe no oficial: vai
+    stale = game / "UICustom" / "Enxuta" / "map" / "m.dds"  # de um envio antigo, completo
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"dds")
+
+    result = project.publish()
+    custom = game / "UICustom" / "Enxuta"
+    assert sorted(p.relative_to(custom).as_posix() for p in custom.rglob("*") if p.is_file()) == ["Novo.dds", "Radar.xml"]
+    assert result.skipped_official == 1  # o map/m.dds, igual ao oficial
+    assert (game / "UI" / "Radar.xml").read_text(encoding="utf-8") == "<b/>"
+
+    archive = project.export_zip(tmp_path / "out.zip")
+    assert sorted(zipfile.ZipFile(archive).namelist()) == ["Enxuta/Novo.dds", "Enxuta/Radar.xml"]
+    assert project.last_export == (2, 1)
+
+
+def test_ui_folder_still_gets_official_files_the_project_has(tmp_path: Path) -> None:
+    # A pasta UI pode estar com o arquivo de outra UI aplicada antes: o F5 a deixa igual ao projeto.
+    game = _game(tmp_path)
+    _official_list(game)
+    project = Project.create("Base", game / "UI", game, projects_root=tmp_path / "projects")
+    (game / "UI" / "map" / "m.dds").write_bytes(b"de outra UI")
+    project.publish()
+    assert (game / "UI" / "map" / "m.dds").read_bytes() == b"dds"
+    assert not (game / "UICustom" / "Base" / "map" / "m.dds").exists()
+
+
+def test_duplicate_project_copies_everything_but_history_and_gets_its_own_folder(tmp_path: Path) -> None:
+    from gf_ui_editor.project import ProjectNameTaken, duplicate_project
+
+    game = _game(tmp_path)
+    project = Project.create("Base", game / "UI", game, projects_root=tmp_path / "projects")
+    (project.ui_dir / "Radar.xml").write_text("<b/>", encoding="utf-8")
+    project.history_dir.mkdir(parents=True, exist_ok=True)
+    (project.history_dir / "old.xml").write_text("x", encoding="utf-8")
+    project.publish_folder = "Outra-UI"
+    project.save_manifest()
+
+    copy_root = duplicate_project(project.root, "Base v2")
+    copy = Project.load(copy_root)
+    assert copy.name == "Base v2" and copy.custom_name == "Base-v2" and copy.publish_folder == ""
+    assert (copy.ui_dir / "Radar.xml").read_text(encoding="utf-8") == "<b/>"
+    assert not (copy_root / ".history").exists()
+    assert Project.load(project.root).name == "Base"  # o original não muda
+    import pytest
+
+    with pytest.raises(ProjectNameTaken):
+        duplicate_project(project.root, "Base v2")
+
+
+def test_rename_project_moves_folder_custom_ui_and_launcher_selection(tmp_path: Path) -> None:
+    from gf_ui_editor.project import rename_project, selected_ui
+
+    game = _game(tmp_path)
+    project = Project.create("Velho", game / "UI", game, projects_root=tmp_path / "projects")
+    project.publish()  # cria UICustom/Velho e seleciona no launcher
+    assert selected_ui(game / "Launcher.ini") == "custom:Velho"
+
+    new_root = rename_project(project.root, "Novo Nome")
+    assert not project.root.exists() and Project.load(new_root).name == "Novo Nome"
+    assert (game / "UICustom" / "Novo-Nome").is_dir() and not (game / "UICustom" / "Velho").exists()
+    assert selected_ui(game / "Launcher.ini") == "custom:Novo-Nome"
+
+
+def test_delete_project_trashes_project_and_optionally_its_own_custom_ui(tmp_path: Path) -> None:
+    from gf_ui_editor.project import delete_project, owned_custom_folder
+
+    game = _game(tmp_path)
+    keep = Project.create("Fica", game / "UI", game, projects_root=tmp_path / "projects")
+    gone = Project.create("Sai", game / "UI", game, projects_root=tmp_path / "projects")
+    gone.publish(copy_to_ui=False, select_in_launcher=False)
+    assert owned_custom_folder(gone) == game / "UICustom" / "Sai"
+    trashed: list[Path] = []
+
+    def fake_trash(path: Path) -> bool:
+        import shutil
+
+        trashed.append(path)
+        shutil.rmtree(path)
+        return True
+
+    assert delete_project(gone.root, fake_trash, remove_custom=True) == [gone.root, game / "UICustom" / "Sai"]
+    assert not gone.root.exists() and not (game / "UICustom" / "Sai").exists() and keep.root.exists()
+
+    # Pasta UICustom compartilhada com outro projeto: não é "dele", fica.
+    shared = Project.create("Par", game / "UI", game, projects_root=tmp_path / "projects")
+    shared.publish_folder = "Fica"
+    shared.save_manifest()
+    keep.publish(copy_to_ui=False, select_in_launcher=False)
+    assert owned_custom_folder(Project.load(shared.root)) is None
+    delete_project(shared.root, fake_trash, remove_custom=True)
+    assert (game / "UICustom" / "Fica").is_dir()
+
+
+def test_checking_who_publishes_where_does_not_keep_other_projects_open(tmp_path: Path) -> None:
+    import os
+
+    from gf_ui_editor import storage
+    from gf_ui_editor.project import projects_publishing_to
+
+    game = _game(tmp_path)
+    other = Project.create("Outro", game / "UI", game, projects_root=tmp_path / "projects")
+    other.publish_folder = "Comum"
+    other.save_manifest()
+    storage.close_all()
+    assert projects_publishing_to("Comum", projects_root=tmp_path / "projects") == ["Outro"]
+    assert projects_publishing_to("comum", projects_root=tmp_path / "projects") == ["Outro"]
+    # Nenhuma conexão ficou aberta: a pasta pode ser renomeada (no Windows, falharia com o banco aberto).
+    os.replace(other.root, other.root.with_name("Movido"))

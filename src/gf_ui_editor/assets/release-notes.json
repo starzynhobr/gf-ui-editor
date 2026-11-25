@@ -1,121 +1,311 @@
 {
-  "version": "0.7.0-beta.1",
-  "date": "2026-11-24",
+  "version": "0.7.0-beta.2",
+  "date": "2026-11-25",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Navegar entre XMLs sem sair da lista.",
-          "Clicar num XML ou usar as setas ↑↓ abre o arquivo no canvas e mantém você em Arquivos XML. Duplo clique ou Enter abrem e vão para Elementos."
+          "Tela inicial completa.",
+          "Ao abrir, o editor mostra o projeto em que você parou (com Continuar), todos os seus projetos com filtro e data da última edição, avisos e novidades. A casinha volta para ela de qualquer lugar."
         ],
         [
-          "Atualizar recarrega o XML editado fora.",
-          "Se o XML aberto foi alterado em outro programa (como o Notepad++), Atualizar (Ctrl+R) o recarrega mantendo o zoom. Se houver alterações não salvas no editor, ele pergunta antes."
+          "Gerenciar projetos.",
+          "Na tela inicial, o ⋯ de cada projeto tem Duplicar, Renomear e Excluir (vai para a Lixeira, com opção de apagar também a cópia no jogo). \"Gerenciar\" permite marcar vários de uma vez."
         ],
         [
-          "Atalhos das seções.",
-          "Ctrl+1 Arquivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos e Ctrl+4 Textos. O atalho aparece na dica de cada ícone da barra lateral."
+          "Versões do projeto.",
+          "Projeto → Salvar versão guarda o projeto como está, num .zip pequeno (só o que difere da UI oficial). Em Versões do projeto dá para restaurar (o estado atual é salvo antes), criar um projeto novo a partir de uma versão ou excluir."
         ],
         [
-          "Voltar a 100% de zoom.",
-          "Clique na porcentagem do zoom (ou use Ctrl+0) para voltar ao tamanho real."
+          "Puxar da pasta do jogo.",
+          "Projeto → Puxar da pasta do jogo compara a pasta UI do jogo (ou uma UI do UICustom) com o projeto e lista o que difere, dizendo de onde veio cada arquivo. Nada vem marcado; o que for substituído fica no histórico."
         ],
         [
-          "Botão da tela inicial.",
-          "Uma casinha no canto superior esquerdo leva aos projetos recentes de qualquer lugar."
+          "Limpar projeto.",
+          "Projeto → Limpar projeto libera espaço: backups antigos do histórico, ícones do jogo que você não editou e sobras da cópia no jogo. Os arquivos da UI ficam todos."
         ],
         [
-          "\"Abrir com\" no Windows.",
-          "O editor aparece em \"Abrir com\" ao clicar com o botão direito num .xml, para ver só aquele arquivo, sem projeto. Ele não vira o programa padrão dos .xml."
+          "Abrir no Notepad++.",
+          "Botão direito num XML da lista → Abrir no Notepad++ (ou no Bloco de Notas, se ele não estiver instalado), abrindo a cópia do projeto. Depois de salvar lá, Ctrl+R traz a mudança."
+        ],
+        [
+          "Enviar para o jogo ao salvar.",
+          "Opção no menu Projeto: cada Ctrl+S também envia para o jogo, para ver o ajuste na hora. Vem desligada."
+        ]
+      ],
+      "improved": [
+        [
+          "Envio e .zip só com o que difere do oficial.",
+          "Enviar para o jogo (UICustom) e Exportar .zip levam só os arquivos diferentes da UI oficial; o launcher completa o resto com a pasta UI. No STZ-UI a cópia caiu de 376 MB para 131 MB e o .zip ficou com 6,5 MB."
+        ],
+        [
+          "Contador no Enviar para o jogo.",
+          "Quando há arquivos salvos que ainda não estão no jogo, o botão mostra quantos (\"Enviar para o jogo · 3\"). Ctrl+S salva só no projeto."
+        ],
+        [
+          "Proteção no envio.",
+          "Se um arquivo da pasta UI do jogo foi editado fora do editor, o envio guarda uma cópia dele no histórico antes de substituir e avisa, com um botão para ver e trazer de volta."
         ]
       ]
     },
     "en_US": {
       "new": [
         [
-          "Browse XMLs without leaving the list.",
-          "Clicking an XML or using the ↑↓ arrows opens the file on the canvas and keeps you in XML Files. Double-click or Enter opens it and goes to Elements."
+          "Full home screen.",
+          "On launch, the editor shows the project you were working on (with Continue), all your projects with a filter and last-edited date, notices and news. The house icon brings you back from anywhere."
         ],
         [
-          "Refresh reloads XML edited outside.",
-          "If the open XML was changed in another program (like Notepad++), Refresh (Ctrl+R) reloads it and keeps the zoom. If there are unsaved changes in the editor, it asks first."
+          "Manage projects.",
+          "On the home screen, each project's ⋯ menu has Duplicate, Rename and Delete (goes to the Recycle Bin, optionally removing the game copy too). \"Manage\" lets you select several at once."
         ],
         [
-          "Section shortcuts.",
-          "Ctrl+1 XML Files, Ctrl+2 Textures, Ctrl+3 Elements and Ctrl+4 Texts. The shortcut shows in each sidebar icon's tooltip."
+          "Project versions.",
+          "Project → Save version keeps the project as it is in a small .zip (only what differs from the official UI). In Project versions you can restore (the current state is saved first), create a new project from a version, or delete it."
         ],
         [
-          "Back to 100% zoom.",
-          "Click the zoom percentage (or use Ctrl+0) to return to actual size."
+          "Pull from the game folder.",
+          "Project → Pull from the game folder compares the game's UI folder (or a UI in UICustom) with the project and lists what differs, saying where each file came from. Nothing is checked; whatever gets replaced is kept in the history."
         ],
         [
-          "Home button.",
-          "A house icon in the top-left corner takes you to recent projects from anywhere."
+          "Clean up project.",
+          "Project → Clean up project frees space: old history backups, game icons you didn't edit and leftovers in the game copy. All UI files stay."
         ],
         [
-          "\"Open with\" in Windows.",
-          "The editor shows up in \"Open with\" when you right-click an .xml, to view just that file without a project. It does not become the default program for .xml files."
+          "Open in Notepad++.",
+          "Right-click an XML in the list → Open in Notepad++ (or Notepad if it isn't installed), opening the project's copy. After saving there, Ctrl+R brings the change in."
+        ],
+        [
+          "Send to game on save.",
+          "Option in the Project menu: every Ctrl+S also sends to the game, so you see the change right away. Off by default."
+        ]
+      ],
+      "improved": [
+        [
+          "Sending and .zip carry only what differs from official.",
+          "Send to game (UICustom) and Export .zip carry only files that differ from the official UI; the launcher fills in the rest from the UI folder. For STZ-UI the copy went from 376 MB to 131 MB and the .zip is 6.5 MB."
+        ],
+        [
+          "Counter on Send to game.",
+          "When saved files aren't in the game yet, the button shows how many (\"Send to game · 3\"). Ctrl+S only saves to the project."
+        ],
+        [
+          "Protection when sending.",
+          "If a file in the game's UI folder was edited outside the editor, sending keeps a copy of it in the history before replacing it and lets you know, with a button to view and bring it back."
         ]
       ]
     },
     "es_ES": {
       "new": [
         [
-          "Navegar entre XML sin salir de la lista.",
-          "Hacer clic en un XML o usar las flechas ↑↓ abre el archivo en el lienzo y te mantiene en Archivos XML. Doble clic o Enter lo abren y van a Elementos."
+          "Pantalla de inicio completa.",
+          "Al abrir, el editor muestra el proyecto en el que estabas (con Continuar), todos tus proyectos con filtro y fecha de la última edición, avisos y novedades. La casita vuelve a ella desde cualquier lugar."
         ],
         [
-          "Actualizar recarga el XML editado fuera.",
-          "Si el XML abierto se modificó en otro programa (como Notepad++), Actualizar (Ctrl+R) lo recarga manteniendo el zoom. Si hay cambios sin guardar en el editor, pregunta antes."
+          "Gestionar proyectos.",
+          "En la pantalla de inicio, el ⋯ de cada proyecto tiene Duplicar, Renombrar y Eliminar (va a la Papelera, con opción de borrar también la copia en el juego). \"Gestionar\" permite marcar varios a la vez."
         ],
         [
-          "Atajos de las secciones.",
-          "Ctrl+1 Archivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos y Ctrl+4 Textos. El atajo aparece en la pista de cada icono de la barra lateral."
+          "Versiones del proyecto.",
+          "Proyecto → Guardar versión guarda el proyecto tal como está, en un .zip pequeño (solo lo que difiere de la UI oficial). En Versiones del proyecto se puede restaurar (el estado actual se guarda antes), crear un proyecto nuevo a partir de una versión o eliminarla."
         ],
         [
-          "Volver al 100% de zoom.",
-          "Haz clic en el porcentaje del zoom (o usa Ctrl+0) para volver al tamaño real."
+          "Traer de la carpeta del juego.",
+          "Proyecto → Traer de la carpeta del juego compara la carpeta UI del juego (o una UI de UICustom) con el proyecto y lista lo que difiere, indicando de dónde vino cada archivo. Nada viene marcado; lo que se reemplace queda en el historial."
         ],
         [
-          "Botón de inicio.",
-          "Una casita en la esquina superior izquierda lleva a los proyectos recientes desde cualquier lugar."
+          "Limpiar proyecto.",
+          "Proyecto → Limpiar proyecto libera espacio: copias antiguas del historial, iconos del juego que no editaste y sobras de la copia en el juego. Todos los archivos de la UI se quedan."
         ],
         [
-          "\"Abrir con\" en Windows.",
-          "El editor aparece en \"Abrir con\" al hacer clic derecho en un .xml, para ver solo ese archivo, sin proyecto. No se convierte en el programa predeterminado de los .xml."
+          "Abrir en Notepad++.",
+          "Clic derecho en un XML de la lista → Abrir en Notepad++ (o en el Bloc de notas, si no está instalado), abriendo la copia del proyecto. Después de guardar allí, Ctrl+R trae el cambio."
+        ],
+        [
+          "Enviar al juego al guardar.",
+          "Opción en el menú Proyecto: cada Ctrl+S también envía al juego, para ver el ajuste al instante. Viene desactivada."
+        ]
+      ],
+      "improved": [
+        [
+          "Envío y .zip solo con lo que difiere del oficial.",
+          "Enviar al juego (UICustom) y Exportar .zip llevan solo los archivos distintos de la UI oficial; el launcher completa el resto con la carpeta UI. En STZ-UI la copia bajó de 376 MB a 131 MB y el .zip quedó en 6,5 MB."
+        ],
+        [
+          "Contador en Enviar al juego.",
+          "Cuando hay archivos guardados que aún no están en el juego, el botón muestra cuántos (\"Enviar al juego · 3\"). Ctrl+S solo guarda en el proyecto."
+        ],
+        [
+          "Protección al enviar.",
+          "Si un archivo de la carpeta UI del juego se editó fuera del editor, el envío guarda una copia en el historial antes de reemplazarlo y avisa, con un botón para verlo y traerlo de vuelta."
         ]
       ]
     },
     "fr_FR": {
       "new": [
         [
-          "Parcourir les XML sans quitter la liste.",
-          "Cliquer sur un XML ou utiliser les flèches ↑↓ ouvre le fichier sur le canevas et vous laisse dans Fichiers XML. Double-clic ou Entrée l'ouvrent et passent à Éléments."
+          "Écran d'accueil complet.",
+          "À l'ouverture, l'éditeur affiche le projet sur lequel vous étiez (avec Continuer), tous vos projets avec un filtre et la date de dernière modification, les avis et les nouveautés. La petite maison y ramène depuis n'importe où."
         ],
         [
-          "Actualiser recharge le XML modifié ailleurs.",
-          "Si le XML ouvert a été modifié dans un autre programme (comme Notepad++), Actualiser (Ctrl+R) le recharge en gardant le zoom. S'il y a des modifications non enregistrées dans l'éditeur, il demande d'abord."
+          "Gérer les projets.",
+          "Sur l'écran d'accueil, le menu ⋯ de chaque projet propose Dupliquer, Renommer et Supprimer (vers la Corbeille, avec l'option de supprimer aussi la copie dans le jeu). « Gérer » permet d'en sélectionner plusieurs à la fois."
         ],
         [
-          "Raccourcis des sections.",
-          "Ctrl+1 Fichiers XML, Ctrl+2 Textures, Ctrl+3 Éléments et Ctrl+4 Textes. Le raccourci apparaît dans l'info-bulle de chaque icône de la barre latérale."
+          "Versions du projet.",
+          "Projet → Enregistrer une version garde le projet tel quel dans un petit .zip (seulement ce qui diffère de l'UI officielle). Dans Versions du projet, vous pouvez restaurer (l'état actuel est enregistré avant), créer un nouveau projet à partir d'une version ou la supprimer."
         ],
         [
-          "Revenir au zoom 100 %.",
-          "Cliquez sur le pourcentage du zoom (ou utilisez Ctrl+0) pour revenir à la taille réelle."
+          "Récupérer depuis le dossier du jeu.",
+          "Projet → Récupérer depuis le dossier du jeu compare le dossier UI du jeu (ou une UI de UICustom) avec le projet et liste ce qui diffère, en indiquant d'où vient chaque fichier. Rien n'est coché ; ce qui est remplacé est gardé dans l'historique."
         ],
         [
-          "Bouton d'accueil.",
-          "Une petite maison en haut à gauche ramène aux projets récents depuis n'importe où."
+          "Nettoyer le projet.",
+          "Projet → Nettoyer le projet libère de l'espace : anciennes sauvegardes de l'historique, icônes du jeu non modifiées et restes de la copie dans le jeu. Tous les fichiers de l'UI restent."
         ],
         [
-          "« Ouvrir avec » dans Windows.",
-          "L'éditeur apparaît dans « Ouvrir avec » au clic droit sur un .xml, pour voir seulement ce fichier, sans projet. Il ne devient pas le programme par défaut des .xml."
+          "Ouvrir dans Notepad++.",
+          "Clic droit sur un XML de la liste → Ouvrir dans Notepad++ (ou le Bloc-notes s'il n'est pas installé), sur la copie du projet. Après l'avoir enregistré là-bas, Ctrl+R ramène la modification."
+        ],
+        [
+          "Envoyer au jeu à l'enregistrement.",
+          "Option du menu Projet : chaque Ctrl+S envoie aussi au jeu, pour voir le changement tout de suite. Désactivée par défaut."
+        ]
+      ],
+      "improved": [
+        [
+          "Envoi et .zip avec seulement ce qui diffère de l'officiel.",
+          "Envoyer au jeu (UICustom) et Exporter .zip n'emportent que les fichiers différents de l'UI officielle ; le launcher complète le reste avec le dossier UI. Pour STZ-UI, la copie est passée de 376 Mo à 131 Mo et le .zip fait 6,5 Mo."
+        ],
+        [
+          "Compteur sur Envoyer au jeu.",
+          "Quand des fichiers enregistrés ne sont pas encore dans le jeu, le bouton indique combien (« Envoyer au jeu · 3 »). Ctrl+S enregistre seulement dans le projet."
+        ],
+        [
+          "Protection à l'envoi.",
+          "Si un fichier du dossier UI du jeu a été modifié en dehors de l'éditeur, l'envoi en garde une copie dans l'historique avant de le remplacer et vous prévient, avec un bouton pour le voir et le récupérer."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.7.0-beta.1",
+      "date": "2026-11-24",
+      "notes": {
+        "pt_BR": {
+          "new": [
+            [
+              "Navegar entre XMLs sem sair da lista.",
+              "Clicar num XML ou usar as setas ↑↓ abre o arquivo no canvas e mantém você em Arquivos XML. Duplo clique ou Enter abrem e vão para Elementos."
+            ],
+            [
+              "Atualizar recarrega o XML editado fora.",
+              "Se o XML aberto foi alterado em outro programa (como o Notepad++), Atualizar (Ctrl+R) o recarrega mantendo o zoom. Se houver alterações não salvas no editor, ele pergunta antes."
+            ],
+            [
+              "Atalhos das seções.",
+              "Ctrl+1 Arquivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos e Ctrl+4 Textos. O atalho aparece na dica de cada ícone da barra lateral."
+            ],
+            [
+              "Voltar a 100% de zoom.",
+              "Clique na porcentagem do zoom (ou use Ctrl+0) para voltar ao tamanho real."
+            ],
+            [
+              "Botão da tela inicial.",
+              "Uma casinha no canto superior esquerdo leva aos projetos recentes de qualquer lugar."
+            ],
+            [
+              "\"Abrir com\" no Windows.",
+              "O editor aparece em \"Abrir com\" ao clicar com o botão direito num .xml, para ver só aquele arquivo, sem projeto. Ele não vira o programa padrão dos .xml."
+            ]
+          ]
+        },
+        "en_US": {
+          "new": [
+            [
+              "Browse XMLs without leaving the list.",
+              "Clicking an XML or using the ↑↓ arrows opens the file on the canvas and keeps you in XML Files. Double-click or Enter opens it and goes to Elements."
+            ],
+            [
+              "Refresh reloads XML edited outside.",
+              "If the open XML was changed in another program (like Notepad++), Refresh (Ctrl+R) reloads it and keeps the zoom. If there are unsaved changes in the editor, it asks first."
+            ],
+            [
+              "Section shortcuts.",
+              "Ctrl+1 XML Files, Ctrl+2 Textures, Ctrl+3 Elements and Ctrl+4 Texts. The shortcut shows in each sidebar icon's tooltip."
+            ],
+            [
+              "Back to 100% zoom.",
+              "Click the zoom percentage (or use Ctrl+0) to return to actual size."
+            ],
+            [
+              "Home button.",
+              "A house icon in the top-left corner takes you to recent projects from anywhere."
+            ],
+            [
+              "\"Open with\" in Windows.",
+              "The editor shows up in \"Open with\" when you right-click an .xml, to view just that file without a project. It does not become the default program for .xml files."
+            ]
+          ]
+        },
+        "es_ES": {
+          "new": [
+            [
+              "Navegar entre XML sin salir de la lista.",
+              "Hacer clic en un XML o usar las flechas ↑↓ abre el archivo en el lienzo y te mantiene en Archivos XML. Doble clic o Enter lo abren y van a Elementos."
+            ],
+            [
+              "Actualizar recarga el XML editado fuera.",
+              "Si el XML abierto se modificó en otro programa (como Notepad++), Actualizar (Ctrl+R) lo recarga manteniendo el zoom. Si hay cambios sin guardar en el editor, pregunta antes."
+            ],
+            [
+              "Atajos de las secciones.",
+              "Ctrl+1 Archivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos y Ctrl+4 Textos. El atajo aparece en la pista de cada icono de la barra lateral."
+            ],
+            [
+              "Volver al 100% de zoom.",
+              "Haz clic en el porcentaje del zoom (o usa Ctrl+0) para volver al tamaño real."
+            ],
+            [
+              "Botón de inicio.",
+              "Una casita en la esquina superior izquierda lleva a los proyectos recientes desde cualquier lugar."
+            ],
+            [
+              "\"Abrir con\" en Windows.",
+              "El editor aparece en \"Abrir con\" al hacer clic derecho en un .xml, para ver solo ese archivo, sin proyecto. No se convierte en el programa predeterminado de los .xml."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "new": [
+            [
+              "Parcourir les XML sans quitter la liste.",
+              "Cliquer sur un XML ou utiliser les flèches ↑↓ ouvre le fichier sur le canevas et vous laisse dans Fichiers XML. Double-clic ou Entrée l'ouvrent et passent à Éléments."
+            ],
+            [
+              "Actualiser recharge le XML modifié ailleurs.",
+              "Si le XML ouvert a été modifié dans un autre programme (comme Notepad++), Actualiser (Ctrl+R) le recharge en gardant le zoom. S'il y a des modifications non enregistrées dans l'éditeur, il demande d'abord."
+            ],
+            [
+              "Raccourcis des sections.",
+              "Ctrl+1 Fichiers XML, Ctrl+2 Textures, Ctrl+3 Éléments et Ctrl+4 Textes. Le raccourci apparaît dans l'info-bulle de chaque icône de la barre latérale."
+            ],
+            [
+              "Revenir au zoom 100 %.",
+              "Cliquez sur le pourcentage du zoom (ou utilisez Ctrl+0) pour revenir à la taille réelle."
+            ],
+            [
+              "Bouton d'accueil.",
+              "Une petite maison en haut à gauche ramène aux projets récents depuis n'importe où."
+            ],
+            [
+              "« Ouvrir avec » dans Windows.",
+              "L'éditeur apparaît dans « Ouvrir avec » au clic droit sur un .xml, pour voir seulement ce fichier, sans projet. Il ne devient pas le programme par défaut des .xml."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.6.0",
       "date": "2026-11-24",

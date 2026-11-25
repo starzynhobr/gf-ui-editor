@@ -10,6 +10,10 @@ Revisão: **24/11/2026**. Decisão: caminho A ([D02](decisions.md)).
 - **Promover:** publicar `X.Y.Z` estável. Todos recebem, inclusive quem está em `X.Y.Z-beta.N`.
 - **Sair da beta:** desmarcar faz o editor esperar a próxima estável maior que a versão instalada; não rebaixa.
 
+## Como usamos ([D12](decisions.md))
+
+O roadmap todo é a **0.7.0**. Cada fase **completa** sai como `0.7.0-beta.N` para quem sugeriu testar (sem builds no meio da fase); a estável continua na 0.6.0 até o fim do roadmap, quando sai a 0.7.0. Correções no meio do caminho também viram a próxima beta, não uma estável.
+
 ## Caminho A: por que a primeira beta só vem depois
 
 A 0.5.4 não tem a opção nem a consulta a pre-releases, então não consegue entrar no canal. A opção chega na **0.6.0 estável** ([Fase 0](roadmap.md#fase-0--base-do-canal-beta-060)), e as betas começam na seguinte: `0.7.0-beta.1` (Fase 1).

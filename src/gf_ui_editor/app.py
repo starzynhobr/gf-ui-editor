@@ -17,7 +17,7 @@ import tempfile
 import time
 import zipfile
 
-from PySide6.QtCore import QCoreApplication, QEvent, QFileSystemWatcher, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QFile, QFileSystemWatcher, QProcess, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -57,6 +57,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressDialog,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -121,12 +122,17 @@ from .game_updates import (
     snapshot_official_ui,
     window_ids,
 )
-from . import release_notes, remote_manifest, updater
+from . import cleanup, game_sync, release_notes, remote_manifest, updater, versions
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
     CHANGES_TTL,
     PROJECTS_ROOT,
     Project,
+    ProjectNameTaken,
+    delete_project,
+    duplicate_project,
+    owned_custom_folder,
+    rename_project,
     custom_ui_sources,
     extract_ui_zip,
     is_backup_file,
@@ -268,6 +274,35 @@ def stz_logo_pixmap(height: int, device_ratio: float = 2.0, path: Path = STZ_LOG
     painter.end()
     pixmap.setDevicePixelRatio(device_ratio)
     return pixmap
+
+
+def text_editor_command() -> tuple[str, str]:
+    """Programa para abrir XML como texto: Notepad++ se instalado, senão o Bloco de Notas.
+
+    Devolve (executável, nome para o menu).
+    """
+    candidates = []
+    if sys.platform == "win32":
+        try:
+            import winreg
+
+            for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                for view in (0, getattr(winreg, "KEY_WOW64_32KEY", 0)):
+                    try:
+                        with winreg.OpenKey(hive, r"SOFTWARE\Notepad++", 0, winreg.KEY_READ | view) as key:
+                            folder = winreg.QueryValueEx(key, "")[0]
+                    except OSError:
+                        continue
+                    candidates.append(Path(folder) / "notepad++.exe")
+        except ImportError:
+            pass
+    for variable in ("ProgramFiles", "ProgramFiles(x86)"):
+        if os.environ.get(variable):
+            candidates.append(Path(os.environ[variable]) / "Notepad++" / "notepad++.exe")
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate), "Notepad++"
+    return "notepad.exe", QCoreApplication.translate("EditorWindow", "Bloco de Notas")
 
 
 def load_contributors() -> list[dict]:
@@ -470,6 +505,376 @@ class StzLabsPopup(QFrame):
         row.addWidget(avatar, 0, Qt.AlignmentFlag.AlignTop)
         row.addLayout(column, 1)
         return card
+
+
+class CleanupDialog(QDialog):
+    """Limpar projeto: escolhe o que apagar para liberar espaço (o projeto continua completo)."""
+
+    def __init__(self, window: "EditorWindow", project: "Project", plan: "cleanup.CleanupPlan"):
+        super().__init__(window)
+        self.project = project
+        self.plan = plan
+        size = EditorWindow._human_size
+        self.setWindowTitle(self.tr("Limpar {name}").format(name=project.name))
+        self.resize(560, 0)
+        layout = QVBoxLayout(self)
+        ui_size = cleanup.folder_size(project.ui_dir)
+        history_size = cleanup.folder_size(project.history_dir)
+        versions_size = cleanup.folder_size(versions.versions_dir(project))
+        summary = QLabel(self.tr("O projeto ocupa {total}: arquivos da UI {ui} · histórico {history} · versões {versions}.").format(
+            total=size(ui_size + history_size + versions_size), ui=size(ui_size), history=size(history_size), versions=size(versions_size)
+        ))
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+        note = QLabel(self.tr(
+            "Os arquivos da UI ficam todos (inclusive o map): o editor desenha com eles e o F5 deixa o jogo igual ao projeto. "
+            "O que é apagado aqui não dá para desfazer."
+        ))
+        note.setWordWrap(True)
+        note.setObjectName("panelSubtitle")
+        layout.addWidget(note)
+
+        self.history_keep = QRadioButton(self.tr("Manter o histórico"))
+        self.history_old = QRadioButton(self.tr("Apagar backups do histórico com mais de {days} dias ({size}, {count} arquivos)").format(
+            days=cleanup.OLD_DAYS, size=size(cleanup.size_of(plan.history_old)), count=len(plan.history_old)
+        ))
+        self.history_all = QRadioButton(self.tr("Apagar todos os backups do histórico ({size}, {count} arquivos); os originais ficam").format(
+            size=size(cleanup.size_of(plan.history_all)), count=len(plan.history_all)
+        ))
+        self.history_keep.setChecked(True)
+        self.history_old.setEnabled(bool(plan.history_old))
+        self.history_all.setEnabled(bool(plan.history_all))
+        history_box = QFrame()
+        history_box.setObjectName("transparent")
+        history_layout = QVBoxLayout(history_box)
+        history_layout.setContentsMargins(0, 8, 0, 0)
+        history_layout.addWidget(QLabel(self.tr("Histórico (cópias de antes de cada salvamento)")))
+        for button in (self.history_keep, self.history_old, self.history_all):
+            history_layout.addWidget(button)
+            button.toggled.connect(lambda *_: self._sync())
+        layout.addWidget(history_box)
+
+        self.icons_check = QCheckBox(self.tr("Ícones do jogo iguais ao oficial (itemicon, skillicon…): {size}, {count} arquivos").format(
+            size=size(cleanup.size_of(plan.icons)), count=len(plan.icons)
+        ))
+        if plan.icons_left:
+            self.icons_check.setToolTip(self.tr("{count} ícone(s) editados ficam no projeto.").format(count=plan.icons_left))
+        self.icons_check.setVisible(bool(plan.icons))
+        self.icons_check.toggled.connect(lambda *_: self._sync())
+        layout.addWidget(self.icons_check)
+        custom_name = plan.custom_dir.name if plan.custom_dir is not None else ""
+        self.custom_check = QCheckBox(self.tr("Cópia no jogo (UICustom/{folder}): arquivos que a UI não precisa levar, {size}, {count} arquivos").format(
+            folder=custom_name, size=size(cleanup.size_of(plan.custom)), count=len(plan.custom)
+        ))
+        self.custom_check.setToolTip(self.tr("Os iguais ao oficial e os que o projeto não tem mais; o próximo F5 faria o mesmo."))
+        self.custom_check.setVisible(bool(plan.custom))
+        self.custom_check.toggled.connect(lambda *_: self._sync())
+        layout.addWidget(self.custom_check)
+        self.nothing = QLabel(self.tr("Nada para limpar: o projeto já está enxuto."))
+        self.nothing.setObjectName("panelSubtitle")
+        self.nothing.setVisible(not (plan.history_all or plan.icons or plan.custom))
+        layout.addWidget(self.nothing)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        self.clean_button = QPushButton(icon("trash"), "")
+        self.clean_button.setObjectName("homeDanger")
+        self.clean_button.clicked.connect(self._confirm)
+        cancel = QPushButton(self.tr("Fechar"))
+        cancel.clicked.connect(self.reject)
+        buttons.addWidget(self.clean_button)
+        buttons.addWidget(cancel)
+        layout.addSpacing(8)
+        layout.addLayout(buttons)
+        self._sync()
+        install_pointer_cursors(self)
+
+    def choice(self) -> dict:
+        history = "all" if self.history_all.isChecked() else "old" if self.history_old.isChecked() else None
+        return {"history": history, "icons": self.icons_check.isChecked(), "custom": self.custom_check.isChecked()}
+
+    def chosen_size(self) -> int:
+        choice = self.choice()
+        paths = {"all": self.plan.history_all, "old": self.plan.history_old}.get(choice["history"], [])
+        total = cleanup.size_of(paths)
+        if choice["icons"]:
+            total += cleanup.size_of(self.plan.icons)
+        if choice["custom"]:
+            total += cleanup.size_of(self.plan.custom)
+        return total
+
+    def _sync(self) -> None:
+        choice = self.choice()
+        anything = bool(choice["history"] or choice["icons"] or choice["custom"])
+        self.clean_button.setText(self.tr("Limpar ({size})").format(size=EditorWindow._human_size(self.chosen_size())))
+        self.clean_button.setEnabled(anything)
+
+    def _confirm(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            self.windowTitle(),
+            self.tr("Apagar {size} de {name}? Não dá para desfazer.").format(
+                size=EditorWindow._human_size(self.chosen_size()), name=self.project.name
+            ),
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.accept()
+
+
+class PullDialog(QDialog):
+    """Lista de arquivos para trazer ao projeto: nada vem marcado; a pessoa escolhe."""
+
+    def __init__(
+        self,
+        window: "EditorWindow",
+        project: "Project",
+        *,
+        sources: list[tuple[str, Path]] | None = None,
+        fixed: list["game_sync.PullCandidate"] | None = None,
+        intro: str = "",
+    ):
+        super().__init__(window)
+        self.window_ = window
+        self.project = project
+        self.pulled = 0
+        self.setWindowTitle(self.tr("Puxar arquivos para {name}").format(name=project.name))
+        self.resize(720, 480)
+        layout = QVBoxLayout(self)
+        text = QLabel(intro or self.tr(
+            "Arquivos desta pasta que diferem do projeto. Nada vem marcado: escolha o que trazer. "
+            "O que for substituído no projeto fica guardado no histórico."
+        ))
+        text.setWordWrap(True)
+        text.setObjectName("panelSubtitle")
+        layout.addWidget(text)
+        self.source_combo: QComboBox | None = None
+        if sources:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(self.tr("Comparar com:")))
+            self.source_combo = QComboBox()
+            for label, path in sources:
+                self.source_combo.addItem(label, str(path))
+            self.source_combo.currentIndexChanged.connect(lambda *_: self._load())
+            row.addWidget(self.source_combo, 1)
+            layout.addLayout(row)
+        self.list = QTreeWidget()
+        self.list.setObjectName("pickList")
+        self.list.setRootIsDecorated(False)
+        self.list.setHeaderLabels([self.tr("Arquivo"), self.tr("Na pasta")])
+        self.list.header().setStretchLastSection(True)
+        self.list.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.list.setColumnWidth(0, 300)
+        self.list.itemChanged.connect(lambda *_: self._sync())
+        layout.addWidget(self.list, 1)
+        self.empty = QLabel(self.tr("Nenhuma diferença: o projeto já tem estes arquivos iguais."))
+        self.empty.setObjectName("panelSubtitle")
+        layout.addWidget(self.empty)
+        buttons = QHBoxLayout()
+        self.mark_edited = QPushButton(self.tr("Marcar os editados fora"))
+        self.mark_edited.clicked.connect(lambda: self._mark(lambda item: item.origin in (game_sync.EDITED_OUTSIDE, game_sync.UNKNOWN)))
+        clear = QPushButton(self.tr("Desmarcar todos"))
+        clear.clicked.connect(lambda: self._mark(lambda item: False))
+        self.pull_button = QPushButton(icon("file-import"), "")
+        self.pull_button.clicked.connect(self._pull)
+        close = QPushButton(self.tr("Fechar"))
+        close.clicked.connect(self.accept)
+        buttons.addWidget(self.mark_edited)
+        buttons.addWidget(clear)
+        buttons.addStretch(1)
+        buttons.addWidget(self.pull_button)
+        buttons.addWidget(close)
+        layout.addLayout(buttons)
+        self._candidates: list[game_sync.PullCandidate] = []
+        install_pointer_cursors(self)
+        if fixed is not None:
+            self._fill(fixed)
+        else:
+            self._load()
+
+    def origin_text(self, item: "game_sync.PullCandidate") -> str:
+        texts = {
+            game_sync.EDITED_OUTSIDE: self.tr("Editado fora do editor"),
+            game_sync.UNKNOWN: self.tr("Diferente do projeto"),
+            game_sync.SENT: self.tr("Enviado pelo editor (outro projeto ou antes de mudar este)"),
+            game_sync.OFFICIAL: self.tr("Oficial do jogo (trazer desfaz a mudança do projeto)"),
+        }
+        text = self.tr("Da UI {name}").format(name=item.origin_ui) if item.origin == game_sync.FROM_UI else texts.get(item.origin, "")
+        if item.new:
+            text += " · " + self.tr("o projeto não tem")
+        return text
+
+    def _load(self) -> None:
+        if self.source_combo is None:
+            return
+        source = Path(self.source_combo.currentData())
+        try:
+            candidates = self.window_._run_with_progress(
+                self.tr("Comparando com a pasta…"), lambda progress: game_sync.compare(self.project, source, progress)
+            )
+        except OSError as exc:
+            QMessageBox.critical(self, self.windowTitle(), str(exc))
+            candidates = []
+        self._fill(candidates)
+
+    def _fill(self, candidates: list["game_sync.PullCandidate"]) -> None:
+        self._candidates = candidates
+        blocker = QSignalBlocker(self.list)
+        self.list.clear()
+        for candidate in candidates:
+            row = QTreeWidgetItem([candidate.relative, self.origin_text(candidate)])
+            row.setFlags(row.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            row.setCheckState(0, Qt.CheckState.Unchecked)
+            row.setToolTip(0, str(candidate.source))
+            self.list.addTopLevelItem(row)
+        del blocker
+        self.list.setVisible(bool(candidates))
+        self.empty.setVisible(not candidates)
+        self.mark_edited.setVisible(any(item.origin in (game_sync.EDITED_OUTSIDE, game_sync.UNKNOWN) for item in candidates))
+        self._sync()
+
+    def _mark(self, rule) -> None:
+        blocker = QSignalBlocker(self.list)
+        for index, candidate in enumerate(self._candidates):
+            state = Qt.CheckState.Checked if rule(candidate) else Qt.CheckState.Unchecked
+            self.list.topLevelItem(index).setCheckState(0, state)
+        del blocker
+        self._sync()
+
+    def checked(self) -> list["game_sync.PullCandidate"]:
+        return [
+            candidate for index, candidate in enumerate(self._candidates)
+            if self.list.topLevelItem(index).checkState(0) == Qt.CheckState.Checked
+        ]
+
+    def _sync(self) -> None:
+        count = len(self.checked())
+        self.pull_button.setText(self.tr("Trazer para o projeto ({count})").format(count=count))
+        self.pull_button.setEnabled(count > 0)
+
+    def _pull(self) -> None:
+        chosen = self.checked()
+        if not chosen:
+            return
+        done = self.window_.pull_into_project(self.project, [(item.relative, item.source) for item in chosen])
+        if done is None:
+            return
+        self.pulled += done
+        self._fill([item for item in self._candidates if item not in chosen])
+
+
+class VersionsDialog(QDialog):
+    """Versões (checkpoints) de um projeto: salvar, restaurar, criar projeto a partir de uma, excluir."""
+
+    def __init__(self, window: "EditorWindow", project: "Project"):
+        super().__init__(window)
+        self.window_ = window
+        self.project = project
+        self.changed_project: Path | None = None  # projeto restaurado (para a janela recarregar)
+        self.setWindowTitle(self.tr("Versões de {name}").format(name=project.name))
+        self.resize(640, 420)
+        intro = QLabel(
+            self.tr(
+                "Cada versão guarda só o que difere da UI oficial (poucos MB). Restaurar deixa o projeto como "
+                "estava; antes, a versão atual é salva sozinha, então dá para voltar."
+            )
+        )
+        intro.setWordWrap(True)
+        intro.setObjectName("panelSubtitle")
+        self.list = QTreeWidget()
+        self.list.setRootIsDecorated(False)
+        self.list.setHeaderLabels([self.tr("Versão"), self.tr("Arquivos"), self.tr("Tamanho")])
+        self.list.header().setStretchLastSection(False)
+        self.list.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.list.itemSelectionChanged.connect(self._sync_buttons)
+        self.list.itemDoubleClicked.connect(lambda *_: self._restore())
+        self.empty = QLabel(self.tr("Nenhuma versão ainda. Salve uma antes de testar uma ideia nova."))
+        self.empty.setObjectName("panelSubtitle")
+        save = QPushButton(icon("save"), self.tr("Salvar versão agora…"))
+        save.clicked.connect(self._save)
+        self.restore_button = QPushButton(self.tr("Restaurar"))
+        self.restore_button.clicked.connect(self._restore)
+        self.branch_button = QPushButton(self.tr("Criar projeto a partir desta…"))
+        self.branch_button.clicked.connect(self._branch)
+        self.delete_button = QPushButton(icon("trash"), self.tr("Excluir"))
+        self.delete_button.clicked.connect(self._delete)
+        folder = QPushButton(icon("folder-open"), self.tr("Abrir pasta"))
+        folder.clicked.connect(self._open_folder)
+        close = QPushButton(self.tr("Fechar"))
+        close.clicked.connect(self.accept)
+        actions = QHBoxLayout()
+        actions.addWidget(save)
+        actions.addStretch(1)
+        for button in (self.restore_button, self.branch_button, self.delete_button):
+            actions.addWidget(button)
+        bottom = QHBoxLayout()
+        bottom.addWidget(folder)
+        bottom.addStretch(1)
+        bottom.addWidget(close)
+        layout = QVBoxLayout(self)
+        layout.addWidget(intro)
+        layout.addWidget(self.list, 1)
+        layout.addWidget(self.empty)
+        layout.addLayout(actions)
+        layout.addLayout(bottom)
+        install_pointer_cursors(self)
+        self._fill()
+
+    def _fill(self) -> None:
+        self.list.clear()
+        self._versions = versions.list_versions(self.project)
+        for version in self._versions:
+            item = QTreeWidgetItem([
+                versions.version_title(version), str(version.files), EditorWindow._human_size(version.size)
+            ])
+            item.setData(0, Qt.ItemDataRole.UserRole, str(version.path))
+            self.list.addTopLevelItem(item)
+        if self._versions:
+            self.list.setCurrentItem(self.list.topLevelItem(0))
+        self.empty.setVisible(not self._versions)
+        self.list.setVisible(bool(self._versions))
+        self._sync_buttons()
+
+    def _selected(self) -> Path | None:
+        item = self.list.currentItem()
+        return Path(item.data(0, Qt.ItemDataRole.UserRole)) if item is not None else None
+
+    def _sync_buttons(self) -> None:
+        selected = self._selected() is not None
+        for button in (self.restore_button, self.branch_button, self.delete_button):
+            button.setEnabled(selected)
+
+    def _save(self) -> None:
+        if self.window_.save_project_version(self.project):
+            self._fill()
+
+    def _restore(self) -> None:
+        version = self._selected()
+        if version is None:
+            return
+        if self.window_.restore_project_version(self.project, version):
+            self.changed_project = self.project.root
+            self._fill()
+
+    def _branch(self) -> None:
+        version = self._selected()
+        if version is not None:
+            self.window_.project_from_version(self.project, version)
+
+    def _delete(self) -> None:
+        version = self._selected()
+        if version is None:
+            return
+        answer = QMessageBox.question(
+            self, self.tr("Excluir versão"), self.tr("Excluir a versão {name}?").format(name=self.list.currentItem().text(0))
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            versions.delete_version(version)
+            self._fill()
+
+    def _open_folder(self) -> None:
+        folder = versions.versions_dir(self.project)
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
 
 class NewProjectDialog(QDialog):
@@ -1744,8 +2149,38 @@ class EditorWindow(QMainWindow):
         self.reference_banner.setVisible(False)
         self.reference_banner_dismissed = False
         canvas_layout.addWidget(self.reference_banner)
+        # Depois do F5: arquivos da pasta do jogo editados fora que foram substituídos (com cópia).
+        self.game_backup_banner = QFrame()
+        self.game_backup_banner.setObjectName("updateBanner")
+        backup_layout = QHBoxLayout(self.game_backup_banner)
+        backup_layout.setContentsMargins(14, 8, 8, 8)
+        backup_layout.setSpacing(10)
+        backup_icon = QLabel()
+        backup_icon.setPixmap(icon("info", COLORS["SELECTION_GOLD"], 18).pixmap(18, 18))
+        self.game_backup_text = QLabel()
+        self.game_backup_text.setWordWrap(True)
+        backup_button = QPushButton(self.tr("Ver"))
+        backup_button.clicked.connect(lambda: self.show_game_backups())
+        backup_close = QToolButton()
+        backup_close.setIcon(icon("x", COLORS["WARNING_TEXT"], 16))
+        backup_close.setAutoRaise(True)
+        backup_close.setToolTip(self.tr("Dispensar"))
+        backup_close.clicked.connect(lambda: self.game_backup_banner.setVisible(False))
+        backup_layout.addWidget(backup_icon)
+        backup_layout.addWidget(self.game_backup_text, 1)
+        backup_layout.addWidget(backup_button)
+        backup_layout.addWidget(backup_close)
+        self.game_backup_banner.setVisible(False)
+        self._game_backups: list[tuple[str, Path]] = []
+        canvas_layout.addWidget(self.game_backup_banner)
         canvas_layout.addWidget(self.view, 1)
         self.center_stack.addWidget(self.canvas_page)
+        # Tela inicial completa: ocupa a janela (sem as listas e as propriedades).
+        self.home_mode = False
+        self._home_sizes: dict[str, tuple[float, int]] = {}
+        self._home_size_labels: dict[str, QLabel] = {}
+        self.home_page = self._build_home_page()
+        self.center_stack.addWidget(self.home_page)
         canvas_panel = self.center_stack
 
         splitter = QSplitter()
@@ -1757,6 +2192,10 @@ class EditorWindow(QMainWindow):
         splitter.setStretchFactor(2, 0)
         splitter.setSizes([310, 810, 320])
         self.setCentralWidget(splitter)
+        self.main_splitter = splitter
+        self._workspace_sizes: list[int] | None = None
+        self.tree_panel = tree_panel
+        self.properties_scroll = properties_scroll
 
         self._create_actions()
         self.properties.set_context_actions(
@@ -1785,6 +2224,8 @@ class EditorWindow(QMainWindow):
             last = str(QSettings("Local", "GF UI Editor").value("last_project", ""))
             if last and storage.is_project(Path(last)):
                 self.open_project(Path(last))
+        if self.project is None and self.document is None:
+            self.show_home()
 
     def _create_actions(self) -> None:
         self.new_project_action = QAction(self.tr("Novo projeto…"), self)
@@ -1804,7 +2245,16 @@ class EditorWindow(QMainWindow):
             self.tr("Publica o projeto em UICustom e na pasta UI do jogo e o seleciona no launcher (F5)")
         )
         self.test_action.setEnabled(False)
-        self.test_action.triggered.connect(self.test_in_game)
+        self.test_action.triggered.connect(lambda: self.test_in_game())
+        self.publish_on_save_action = QAction(self.tr("Enviar para o jogo ao salvar"), self)
+        self.publish_on_save_action.setCheckable(True)
+        self.publish_on_save_action.setChecked(QSettings("Local", "GF UI Editor").value("publish_on_save", "false") == "true")
+        self.publish_on_save_action.setToolTip(
+            self.tr("Cada Ctrl+S também envia para o jogo, para ver o ajuste no jogo na hora.")
+        )
+        self.publish_on_save_action.toggled.connect(
+            lambda on: QSettings("Local", "GF UI Editor").setValue("publish_on_save", "true" if on else "false")
+        )
         self.export_action = QAction(self.tr("Exportar UI (.zip)…"), self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self.export_project_zip)
@@ -2044,6 +2494,28 @@ class EditorWindow(QMainWindow):
         file_menu.addAction(self.save_action)
         project_menu = self.main_menu.addMenu(self.tr("Projeto"))
         project_menu.addAction(self.test_action)
+        project_menu.addAction(self.publish_on_save_action)
+        self.pull_action = QAction(icon("file-import"), self.tr("Puxar da pasta do jogo…"), self)
+        self.pull_action.setToolTip(self.tr("Traz para o projeto arquivos que foram mudados direto na pasta do jogo"))
+        self.pull_action.setEnabled(False)
+        self.pull_action.triggered.connect(lambda: self.project and self.show_pull(self.project.root))
+        project_menu.addAction(self.pull_action)
+        self.cleanup_action = QAction(icon("trash"), self.tr("Limpar projeto…"), self)
+        self.cleanup_action.setToolTip(self.tr("Libera espaço: histórico antigo, ícones não editados e sobras da cópia no jogo"))
+        self.cleanup_action.setEnabled(False)
+        self.cleanup_action.triggered.connect(lambda: self.project and self.show_cleanup(self.project.root))
+        project_menu.addAction(self.cleanup_action)
+        project_menu.addSeparator()
+        self.save_version_action = QAction(self.tr("Salvar versão…"), self)
+        self.save_version_action.setToolTip(self.tr("Guarda o projeto como está agora, para poder voltar depois"))
+        self.save_version_action.setEnabled(False)
+        self.save_version_action.triggered.connect(lambda: self.project and self.save_project_version(self.project))
+        project_menu.addAction(self.save_version_action)
+        self.versions_action = QAction(self.tr("Versões do projeto…"), self)
+        self.versions_action.setEnabled(False)
+        self.versions_action.triggered.connect(lambda: self.project and self.show_versions(self.project.root))
+        project_menu.addAction(self.versions_action)
+        project_menu.addSeparator()
         project_menu.addAction(self.import_action)
         self.official_reference_action = QAction(self.tr("UI oficial de referência…"), self)
         self.official_reference_action.triggered.connect(lambda: self.open_official_reference())
@@ -2708,6 +3180,29 @@ class EditorWindow(QMainWindow):
             }
             QPushButton#recentRow:hover { background: ${BUTTON_HOVER_BG}; color: ${TEXT_PRIMARY}; }
             QWidget#emptyPage { background: ${CANVAS_BG}; }
+            QScrollArea#homeScroll { background: ${CANVAS_BG}; border: 0; }
+            QPushButton#homeContinue { background: ${ACCENT_BG}; color: #ffffff; border: 0; font-weight: 600; padding: 8px 18px; }
+            QPushButton#homeContinue:hover { background: ${ACCENT_HOVER_BG}; }
+            QFrame#homeCard, QFrame#homeCardAccent { background: ${PANEL_BG}; border: 1px solid ${CARD_BORDER}; border-radius: 12px; }
+            QFrame#homeCardAccent { border: 1px solid ${ACCENT_BG}; }
+            QFrame#homeCard QLabel, QFrame#homeCardAccent QLabel { background: transparent; }
+            QLabel#homeCardText { color: ${TEXT_SUBTITLE}; }
+            QPushButton#homeLink { background: transparent; border: 0; padding: 0; color: ${ACCENT_TEXT}; text-align: left; }
+            QPushButton#homeLink:hover { text-decoration: underline; }
+            QPushButton#homeRow {
+                background: transparent; border: 0; border-top: 1px solid ${BORDER_PANEL}; border-radius: 0;
+                padding: 0; text-align: left;
+            }
+            QPushButton#homeRow:hover { background: ${BUTTON_HOVER_BG}; }
+            QPushButton#homeRow QLabel { background: transparent; }
+            QLabel#homeRowName { color: ${TEXT_PRIMARY}; }
+            QLabel#homeRowMeta { color: ${TEXT_MUTED}; }
+            QToolButton#homeRowMore { background: transparent; border: 0; color: ${TEXT_MUTED}; font-size: 16px; }
+            QToolButton#homeRowMore:hover { color: ${TEXT_PRIMARY}; }
+            QToolButton#homeRowMore::menu-indicator { image: none; width: 0; }
+            QPushButton#homeManage:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; }
+            QPushButton#homeDanger { color: #F87171; }
+            QPushButton#homeDanger:disabled { color: ${TEXT_DISABLED}; }
             QLabel#cardHeading { font-size: 15px; font-weight: 600; color: ${TEXT_BRIGHT}; background: transparent; }
             QPushButton#startCard QLabel, QPushButton#accentCard QLabel { background: transparent; }
             QLabel#heroTitle { font-size: 26px; font-weight: 600; color: ${TEXT_BRIGHT}; background: transparent; }
@@ -2916,6 +3411,24 @@ class EditorWindow(QMainWindow):
             }
             QCheckBox::indicator:hover { border-color: ${FOCUS_BLUE}; }
             QCheckBox::indicator:checked { background: ${ACCENT_BG}; border-color: ${ACCENT_BORDER}; }
+            QRadioButton { spacing: 8px; background: transparent; }
+            QRadioButton::indicator {
+                width: 14px; height: 14px;
+                border: 1px solid ${SCROLLBAR_HANDLE};
+                border-radius: 8px;
+                background: ${INPUT_BG};
+            }
+            QRadioButton::indicator:hover { border-color: ${FOCUS_BLUE}; }
+            QRadioButton::indicator:checked { background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 ${ACCENT_BG}, stop:0.55 ${ACCENT_BG}, stop:0.65 ${INPUT_BG}, stop:1 ${INPUT_BG}); border-color: ${ACCENT_BORDER}; }
+            QRadioButton::indicator:disabled { border-color: ${BORDER_INPUT}; }
+            QTreeWidget#pickList::indicator {
+                width: 15px; height: 15px;
+                border: 1px solid ${SCROLLBAR_HANDLE};
+                border-radius: 4px;
+                background: ${INPUT_BG};
+            }
+            QTreeWidget#pickList::indicator:hover { border-color: ${FOCUS_BLUE}; }
+            QTreeWidget#pickList::indicator:checked { background: ${ACCENT_BG}; border-color: ${ACCENT_BORDER}; }
             QDialog QLabel, QDialog QWidget#transparent { background: transparent; }
                 """.replace("${UI_FONT}", UI_FONT).replace("${MONO_FONT}", MONO_FONT)
             )
@@ -2997,6 +3510,7 @@ class EditorWindow(QMainWindow):
                     QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(exc))
                 return
         self.document = document
+        self.leave_home()
         if self.project is not None and self.project.contains(document.path):
             QSettings("Local", "GF UI Editor").setValue(
                 f"last_file/{self.project.custom_name}",
@@ -4852,6 +5366,9 @@ class EditorWindow(QMainWindow):
             self.project.prune_history(self.document.path)
             self._refresh_official_diff()
             self._refresh_files()
+            if self.publish_on_save_action.isChecked() and self.project.game_dir is not None:
+                self.test_in_game(quiet=True)
+                return
             self.statusBar().showMessage(
                 self.tr("Salvo no projeto. O jogo só recebe as mudanças com Enviar para o jogo (F5)."), 10000
             )
@@ -4992,7 +5509,828 @@ class EditorWindow(QMainWindow):
             if not self._confirm_discard_changes():
                 return
             self.close_document()
+        self.show_home()
+
+    def show_home(self) -> None:
+        self.home_mode = True
+        self._set_workspace_visible(False)
+        self._refresh_home()
+        self.center_stack.setCurrentWidget(self.home_page)
+
+    def leave_home(self) -> None:
+        """Volta ao espaço de trabalho (listas, canvas e propriedades)."""
+        if not self.home_mode:
+            return
+        self.home_mode = False
+        self._set_workspace_visible(True)
         self._update_center_page()
+
+    def continue_project(self) -> None:
+        """"Continuar": sai da tela inicial e reabre o último XML do projeto, se houver."""
+        project = self.project
+        self.leave_home()
+        if project is None or self.document is not None:
+            return
+        last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
+        if last and (project.ui_dir / last).is_file():
+            self.open_document(project.ui_dir / last)
+
+    def _set_workspace_visible(self, visible: bool) -> None:
+        # A barrinha da esquerda fica (a engrenagem mora nela); somem as seções e as propriedades.
+        if not visible and self.isVisible() and self.side_tabs.isVisible() and min(self.main_splitter.sizes()) > 0:
+            self._workspace_sizes = self.main_splitter.sizes()
+        self.side_tabs.setVisible(visible)
+        for button in self.side_rail_buttons.values():
+            button.setVisible(visible)
+        self.properties_scroll.setVisible(visible)
+        if visible:
+            self.tree_panel.setMaximumWidth(16777215)
+            total = sum(self.main_splitter.sizes())
+            # Sem tamanhos guardados (a tela inicial abriu antes da janela aparecer): os padrões.
+            sizes = self._workspace_sizes or [310, max(1, total - 630), 320]
+            self.main_splitter.setSizes(sizes)
+        else:
+            # Só a barrinha: sem isto o divisor guardava a largura da lista e sobrava um vão.
+            rail = self.side_rail.sizeHint().width()
+            self.tree_panel.setMaximumWidth(rail)
+            total = sum(self.main_splitter.sizes())
+            self.main_splitter.setSizes([rail, max(1, total - rail), 0])
+
+    # ---- tela inicial ----------------------------------------------------------
+    def _build_home_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("emptyPage")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.home_scroll = QScrollArea()
+        self.home_scroll.setObjectName("homeScroll")
+        self.home_scroll.setWidgetResizable(True)
+        self.home_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.home_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        layout.addWidget(self.home_scroll)
+        self._home_filter_text = ""
+        self._home_manage = False
+        self._home_checks: dict[str, QCheckBox] = {}
+        return page
+
+    def _relative_time(self, timestamp: float) -> str:
+        if not timestamp:
+            return "—"
+        seconds = max(0.0, time.time() - timestamp)
+        if seconds < 90:
+            return self.tr("agora")
+        if seconds < 3600:
+            return self.tr("há {count} min").format(count=round(seconds / 60))
+        if seconds < 86400:
+            return self.tr("há {count} h").format(count=round(seconds / 3600))
+        days = int(seconds // 86400)
+        if days == 1:
+            return self.tr("ontem")
+        if days < 30:
+            return self.tr("há {count} dias").format(count=days)
+        return datetime.fromtimestamp(timestamp).strftime("%d/%m/%Y")
+
+    @staticmethod
+    def _human_size(size: int) -> str:
+        if size >= 1024**3:
+            return f"{size / 1024**3:.1f} GB"
+        if size >= 1024**2:
+            return f"{size / 1024**2:.0f} MB"
+        return f"{max(1, size // 1024)} KB"
+
+    def _home_card(self, title: str) -> tuple[QFrame, QVBoxLayout]:
+        card = QFrame()
+        card.setObjectName("homeCard")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
+        label = QLabel(title)
+        label.setObjectName("sectionLabel")
+        layout.addWidget(label)
+        return card, layout
+
+    def _home_link(self, text: str, slot) -> QPushButton:
+        link = QPushButton(text)
+        link.setObjectName("homeLink")
+        link.setCursor(Qt.CursorShape.PointingHandCursor)
+        link.clicked.connect(slot)
+        return link
+
+    def _refresh_home(self) -> None:
+        content = QWidget()
+        content.setObjectName("emptyPage")
+        outer = QHBoxLayout(content)
+        outer.setContentsMargins(28, 24, 28, 24)
+        frame = QWidget()
+        frame.setObjectName("transparent")
+        frame.setMaximumWidth(1180)
+        outer.addStretch(1)
+        outer.addWidget(frame, 100)
+        outer.addStretch(1)
+        columns = QHBoxLayout(frame)
+        columns.setContentsMargins(0, 0, 0, 0)
+        columns.setSpacing(20)
+        left = QVBoxLayout()
+        left.setSpacing(14)
+        columns.addLayout(left, 1)
+        right_widget = QWidget()
+        right_widget.setObjectName("transparent")
+        right_widget.setFixedWidth(280)
+        right = QVBoxLayout(right_widget)
+        right.setContentsMargins(0, 0, 0, 0)
+        right.setSpacing(12)
+        columns.addWidget(right_widget, 0, Qt.AlignmentFlag.AlignTop)
+
+        left.addWidget(self._home_continue_card())
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        for icon_name, heading, text, slot in (
+            ("folder-plus", self.tr("Novo projeto"), self.tr("Da UI em uso, de uma UI do UICustom ou de outra pasta."), lambda: self.new_project()),
+            ("folder-open", self.tr("Abrir projeto"), self.tr("Um projeto salvo em outra pasta."), self.choose_project),
+            ("file", self.tr("XML solto"), self.tr("Um arquivo só, sem projeto (o launcher pode sobrescrever)."), self.choose_document),
+        ):
+            card = QPushButton()
+            card.setObjectName("startCard")
+            card.setAccessibleName(heading)
+            card.setMinimumHeight(118)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            card_layout.setSpacing(4)
+            glyph = QLabel()
+            glyph.setPixmap(icon(icon_name, COLORS["ICON"], 20).pixmap(20, 20))
+            heading_label = QLabel(heading)
+            heading_label.setObjectName("cardHeading")
+            text_label = QLabel(text)
+            text_label.setObjectName("panelSubtitle")
+            text_label.setWordWrap(True)
+            for label in (glyph, heading_label, text_label):
+                label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                card_layout.addWidget(label)
+            card_layout.addStretch(1)
+            card.clicked.connect(slot)
+            actions.addWidget(card, 1)
+        left.addLayout(actions)
+        left.addWidget(self._home_projects_card())
+        left.addStretch(1)
+
+        notice = self._home_notice_card()
+        if notice is not None:
+            right.addWidget(notice)
+        right.addWidget(self._home_news_card())
+        right.addWidget(self._home_how_card())
+        right.addStretch(1)
+        self.home_scroll.setWidget(content)
+        install_pointer_cursors(content)
+
+    def _home_continue_card(self) -> QWidget:
+        project = self.project
+        if project is None:
+            card = QWidget()
+            card.setObjectName("transparent")
+            layout = QVBoxLayout(card)
+            layout.setContentsMargins(0, 0, 0, 4)
+            layout.setSpacing(6)
+            title = QLabel(self.tr("Comece um projeto de UI"))
+            title.setObjectName("heroTitle")
+            subtitle = QLabel(
+                self.tr("Você edita uma cópia fora da pasta do jogo. Quando quiser ver o resultado, aperte F5 para enviar ao jogo e inicie-o pelo launcher.")
+            )
+            subtitle.setObjectName("heroSubtitle")
+            subtitle.setWordWrap(True)
+            layout.addWidget(title)
+            layout.addWidget(subtitle)
+            return card
+        card, layout = self._home_card(self.tr("CONTINUAR DE ONDE PAROU"))
+        card.setObjectName("homeCardAccent")
+        row = QHBoxLayout()
+        row.setSpacing(12)
+        glyph = QLabel()
+        glyph.setPixmap(icon("package", COLORS["ACCENT_TEXT"], 26).pixmap(26, 26))
+        texts = QVBoxLayout()
+        texts.setSpacing(2)
+        name = QLabel(project.name)
+        name.setObjectName("cardHeading")
+        last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
+        try:
+            modified = len(project.modified_files())
+        except OSError:
+            modified = 0
+        parts = []
+        if last:
+            parts.append(Path(last).name)
+        parts.append(self.tr("{count} alterados").format(count=modified))
+        if project.game_dir is not None:
+            parts.append(self.tr("envia para UICustom/{folder}").format(folder=project.custom_name))
+        parts.append(self.tr("editado {when}").format(when=self._relative_time(storage.last_modified(project.root))))
+        details = QLabel(" · ".join(parts))
+        details.setObjectName("panelSubtitle")
+        details.setWordWrap(True)
+        texts.addWidget(name)
+        texts.addWidget(details)
+        continue_button = QPushButton(self.tr("Continuar"))
+        continue_button.setObjectName("homeContinue")
+        continue_button.clicked.connect(self.continue_project)
+        row.addWidget(glyph, 0, Qt.AlignmentFlag.AlignTop)
+        row.addLayout(texts, 1)
+        row.addWidget(continue_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addLayout(row)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(6)
+        open_folder = QPushButton(icon("folder-open"), self.tr("Abrir pasta do projeto"))
+        open_folder.setToolTip(str(project.ui_dir))
+        open_folder.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(project.ui_dir))))
+        buttons.addWidget(open_folder)
+        save_version = QPushButton(icon("save"), self.tr("Salvar versão"))
+        save_version.setToolTip(self.tr("Guarda o projeto como está agora (só o que difere do oficial, poucos MB)"))
+        save_version.clicked.connect(lambda: self.save_project_version(project) and self._refresh_home())
+        buttons.addWidget(save_version)
+        versions_button = QPushButton(self.tr("Versões…"))
+        versions_button.clicked.connect(lambda: self.show_versions(project.root))
+        buttons.addWidget(versions_button)
+        if project.game_dir is not None:
+            pull_button = QPushButton(icon("file-import"), self.tr("Puxar do jogo"))
+            pull_button.setToolTip(self.tr("Traz para o projeto arquivos que foram mudados direto na pasta do jogo"))
+            pull_button.clicked.connect(lambda: self.show_pull(project.root))
+            buttons.addWidget(pull_button)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
+        return card
+
+    def _home_projects_card(self) -> QFrame:
+        roots = list_projects()
+        current = os.path.normcase(str(self.project.root)) if self.project is not None else None
+        # Datas lidas antes de tudo e sem abrir os bancos para escrita (ver storage.peek_project).
+        modified = {str(root): storage.last_modified(root) for root in roots}
+        # Projeto aberto primeiro; depois os mais recentes.
+        roots.sort(key=lambda root: (os.path.normcase(str(root)) != current, -modified[str(root)]))
+        card, layout = self._home_card(self.tr("PROJETOS · {count}").format(count=len(roots)))
+        header = layout.itemAt(0).widget()
+        layout.removeWidget(header)
+        top = QHBoxLayout()
+        top.addWidget(header)
+        top.addStretch(1)
+        self.home_filter = QLineEdit(self._home_filter_text)
+        self.home_filter.setPlaceholderText(self.tr("Filtrar projetos…"))
+        self.home_filter.setClearButtonEnabled(True)
+        self.home_filter.setFixedWidth(220)
+        top.addWidget(self.home_filter)
+        manage = QPushButton(icon("trash"), self.tr("Gerenciar"))
+        manage.setObjectName("homeManage")
+        manage.setCheckable(True)
+        manage.setChecked(self._home_manage)
+        manage.setToolTip(self.tr("Selecionar vários projetos para excluir de uma vez"))
+        manage.toggled.connect(self._set_home_manage)
+        top.addWidget(manage)
+        layout.insertLayout(0, top)
+        columns = self._home_row_layout(
+            QLabel(self.tr("Nome")), QLabel(self.tr("Arquivos")), QLabel(self.tr("Tamanho")), QLabel(self.tr("Editado")), QLabel("")
+        )
+        for index in range(columns.count()):
+            widget = columns.itemAt(index).widget()
+            if widget is not None:
+                widget.setObjectName("sectionLabel")
+        layout.addLayout(columns)
+        rows = QVBoxLayout()
+        rows.setSpacing(0)
+        layout.addLayout(rows)
+        empty = QLabel(self.tr("Nenhum projeto ainda. Crie o primeiro em Novo projeto."))
+        empty.setObjectName("panelSubtitle")
+        layout.addWidget(empty)
+        self.home_selection_bar = QWidget()
+        self.home_selection_bar.setObjectName("transparent")
+        bar = QHBoxLayout(self.home_selection_bar)
+        bar.setContentsMargins(10, 6, 0, 0)
+        self.home_selection_label = QLabel()
+        self.home_selection_label.setObjectName("panelSubtitle")
+        delete_selected = QPushButton(icon("trash"), self.tr("Excluir selecionados…"))
+        delete_selected.setObjectName("homeDanger")
+        delete_selected.clicked.connect(lambda: self._home_delete(self._home_selected()))
+        bar.addWidget(self.home_selection_label)
+        bar.addStretch(1)
+        bar.addWidget(delete_selected)
+        layout.addWidget(self.home_selection_bar)
+        self._home_size_labels = {}
+        self._home_checks = {}
+        entries = []
+        for root in roots:
+            title, files = storage.peek_project(root)
+            title = title or root.name
+            row = self._home_project_row(root, title, files, os.path.normcase(str(root)) == current, modified[str(root)])
+            rows.addWidget(row)
+            entries.append((title.lower(), row))
+
+        def apply_filter(text: str) -> None:
+            self._home_filter_text = text
+            needle = text.strip().lower()
+            visible = 0
+            for title, row in entries:
+                row.setVisible(needle in title)
+                visible += needle in title
+            empty.setVisible(visible == 0)
+            empty.setText(
+                self.tr("Nenhum projeto com esse nome.") if roots else self.tr("Nenhum projeto ainda. Crie o primeiro em Novo projeto.")
+            )
+
+        self.home_filter.textChanged.connect(apply_filter)
+        apply_filter(self._home_filter_text)
+        self._sync_home_manage()
+        self._start_home_sizes(roots)
+        return card
+
+    def _set_home_manage(self, enabled: bool) -> None:
+        self._home_manage = enabled
+        if not enabled:
+            for check in self._home_checks.values():
+                check.setChecked(False)
+        self._sync_home_manage()
+
+    def _home_selected(self) -> list[Path]:
+        return [Path(key) for key, check in self._home_checks.items() if check.isChecked()]
+
+    def _sync_home_manage(self) -> None:
+        for check in self._home_checks.values():
+            check.setVisible(self._home_manage)
+        selected = len(self._home_selected())
+        self.home_selection_bar.setVisible(self._home_manage)
+        self.home_selection_label.setText(
+            self.tr("{count} selecionado(s)").format(count=selected) if selected else self.tr("Marque os projetos que quer excluir.")
+        )
+        for button in self.home_selection_bar.findChildren(QPushButton):
+            button.setEnabled(selected > 0)
+
+    @staticmethod
+    def _home_row_layout(name: QWidget, files: QWidget, size: QWidget, edited: QWidget, more: QWidget) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setContentsMargins(10, 0, 6, 0)
+        row.setSpacing(10)
+        row.addWidget(name, 1)
+        for widget, width in ((files, 70), (size, 74), (edited, 92), (more, 26)):
+            widget.setFixedWidth(width)
+            row.addWidget(widget)
+        return row
+
+    def _home_project_row(self, root: Path, title: str, files: int | None, is_current: bool, edited: float) -> QPushButton:
+        row = QPushButton()
+        row.setObjectName("homeRow")
+        row.setToolTip(str(root))
+        row.setMinimumHeight(38)
+        name = QWidget()
+        name.setObjectName("transparent")
+        name_layout = QHBoxLayout(name)
+        name_layout.setContentsMargins(0, 0, 0, 0)
+        name_layout.setSpacing(8)
+        check = QCheckBox()
+        check.setVisible(False)
+        check.toggled.connect(lambda _on: self._sync_home_manage())
+        self._home_checks[str(root)] = check
+        name_layout.addWidget(check)
+        name_label = QLabel(title)
+        name_label.setObjectName("homeRowName")
+        name_layout.addWidget(name_label)
+        if is_current:
+            pill = QLabel(self.tr("aberto"))
+            pill.setObjectName("badge")
+            name_layout.addWidget(pill)
+        name_layout.addStretch(1)
+        files_label = QLabel("—" if files is None else str(files))
+        size_label = QLabel("…")
+        cached = self._home_sizes.get(str(root))
+        if cached is not None and cached[0] == edited:
+            size_label.setText(self._human_size(cached[1]))
+        self._home_size_labels[str(root)] = size_label
+        edited_label = QLabel(self._relative_time(edited))
+        for label in (files_label, size_label, edited_label):
+            label.setObjectName("homeRowMeta")
+        for widget in (name_label, files_label, size_label, edited_label):
+            widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        more = QToolButton()
+        more.setObjectName("homeRowMore")
+        more.setIcon(icon("dots", COLORS["ICON"], 18))
+        more.setToolTip(self.tr("Mais ações"))
+        more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(more)
+        menu.addAction(icon("folder-open"), self.tr("Abrir"), lambda path=root: self._open_home_project(path))
+        menu.addAction(icon("file"), self.tr("Abrir pasta"), lambda path=root: QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))))
+        menu.addSeparator()
+        menu.addAction(icon("save"), self.tr("Versões…"), lambda path=root: self.show_versions(path))
+        menu.addAction(icon("file-import"), self.tr("Puxar do jogo…"), lambda path=root: self.show_pull(path))
+        menu.addAction(icon("trash"), self.tr("Limpar…"), lambda path=root: self.show_cleanup(path))
+        menu.addAction(icon("copy"), self.tr("Duplicar…"), lambda path=root, name=title: self._home_duplicate(path, name))
+        menu.addAction(icon("type"), self.tr("Renomear…"), lambda path=root, name=title: self._home_rename(path, name))
+        menu.addSeparator()
+        menu.addAction(icon("trash"), self.tr("Excluir…"), lambda path=root: self._home_delete([path]))
+        more.setMenu(menu)
+        row.setLayout(self._home_row_layout(name, files_label, size_label, edited_label, more))
+
+        def clicked(_checked: bool = False, path: Path = root) -> None:
+            if self._home_manage:  # no modo Gerenciar, clicar na linha marca/desmarca
+                check.setChecked(not check.isChecked())
+            else:
+                self._open_home_project(path)
+
+        row.clicked.connect(clicked)
+        return row
+
+    def _project_for(self, root: Path) -> "Project":
+        return self.project if self._is_current_project(root) else Project.load(root)
+
+    def show_pull(self, root: Path) -> None:
+        try:
+            project = self._project_for(root)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, self.tr("Puxar da pasta do jogo"), str(exc))
+            return
+        if project.game_dir is None:
+            QMessageBox.information(self, self.tr("Puxar da pasta do jogo"), self.tr("Este projeto não tem pasta do jogo."))
+            return
+        if self._is_current_project(project.root) and not self._save_before_project_action():
+            return
+        PullDialog(self, project, sources=game_sync.pull_sources(project.game_dir)).exec()
+        if self.home_mode:
+            self._refresh_home()
+
+    def show_cleanup(self, root: Path) -> None:
+        try:
+            project = self._project_for(root)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, self.tr("Limpar projeto"), str(exc))
+            return
+        if self._is_current_project(project.root) and not self._save_before_project_action():
+            return
+        try:
+            plan = self._run_with_progress(self.tr("Vendo o que dá para limpar…"), lambda progress: cleanup.scan(project, progress=progress))
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Limpar projeto"), str(exc))
+            return
+        dialog = CleanupDialog(self, project, plan)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.clean_project(project, plan, **dialog.choice())
+
+    def clean_project(self, project: "Project", plan: "cleanup.CleanupPlan", **choice) -> None:
+        try:
+            result = self._run_with_progress(self.tr("Limpando o projeto…"), lambda _progress: cleanup.apply(project, plan, **choice))
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Limpar projeto"), str(exc))
+            return
+        if self._is_current_project(project.root):
+            self._refresh_files()
+            self._update_status_chips()
+        if self.home_mode:
+            self._refresh_home()
+        self.statusBar().showMessage(
+            self.tr("Projeto limpo: {count} arquivo(s) apagados, {size} liberados.").format(
+                count=result.removed, size=self._human_size(result.freed)
+            ),
+            10000,
+        )
+
+    def show_game_backups(self) -> None:
+        """Cópias que o F5 guardou de arquivos da pasta do jogo editados fora."""
+        if self.project is None:
+            return
+        candidates = [
+            game_sync.PullCandidate(relative, backup, not (self.project.ui_dir / relative).exists(), game_sync.EDITED_OUTSIDE)
+            for relative, backup in self._game_backups
+            if backup.is_file()
+        ]
+        PullDialog(
+            self,
+            self.project,
+            fixed=candidates,
+            intro=self.tr(
+                "Estes arquivos da pasta UI do jogo estavam diferentes do que o editor enviou e o envio os substituiu. "
+                "A versão de antes ficou guardada no histórico do projeto; marque o que quiser trazer para o projeto."
+            ),
+        ).exec()
+
+    def pull_into_project(self, project: "Project", items: list[tuple[str, Path]]) -> int | None:
+        """Traz arquivos para o projeto (o substituído vai para o histórico). None se cancelado."""
+        current = self._is_current_project(project.root)
+        open_path = self.document.path if current and self.document is not None else None
+        affected = open_path is not None and any(
+            os.path.normcase(str(project.ui_dir / relative)) == os.path.normcase(str(open_path)) for relative, _ in items
+        )
+        if affected and not self._confirm_discard_changes():
+            return None
+        try:
+            count = game_sync.pull(project, items)
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Puxar da pasta do jogo"), str(exc))
+            return None
+        if current:
+            self._refresh_files()
+            if affected and open_path is not None:
+                self.open_document(open_path)
+            self._update_status_chips()
+        self.statusBar().showMessage(
+            self.tr("{count} arquivo(s) trazidos para o projeto. O que foi substituído está no histórico.").format(count=count), 10000
+        )
+        return count
+
+    def show_versions(self, root: Path) -> None:
+        try:
+            project = self._project_for(root)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, self.tr("Versões do projeto"), str(exc))
+            return
+        dialog = VersionsDialog(self, project)
+        dialog.exec()
+        if self.home_mode:
+            self._refresh_home()
+
+    def save_project_version(self, project: "Project") -> bool:
+        if self._is_current_project(project.root) and not self._save_before_project_action():
+            return False
+        label, accepted = QInputDialog.getText(
+            self, self.tr("Salvar versão"), self.tr("Nome da versão (opcional), ex.: antes de mudar o BasicChar:")
+        )
+        if not accepted:
+            return False
+        try:
+            path = self._run_with_progress(self.tr("Salvando versão…"), lambda _progress: versions.save_version(project, label))
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Salvar versão"), str(exc))
+            return False
+        self.statusBar().showMessage(
+            self.tr("Versão salva ({size}). Projeto → Versões do projeto para voltar a ela.").format(
+                size=self._human_size(path.stat().st_size)
+            ),
+            10000,
+        )
+        return True
+
+    def restore_project_version(self, project: "Project", version: Path) -> bool:
+        current = self._is_current_project(project.root)
+        if current and not self._confirm_discard_changes():
+            return False
+        answer = QMessageBox.question(
+            self,
+            self.tr("Restaurar versão"),
+            self.tr("Deixar {name} como estava nessa versão? A versão atual é salva antes, então dá para voltar.").format(name=project.name),
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        open_path = self.document.path if current and self.document is not None else None
+        try:
+            result = self._run_with_progress(self.tr("Restaurando versão…"), lambda _progress: versions.restore_version(project, version))
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, self.tr("Restaurar versão"), str(exc))
+            return False
+        if current:
+            self.project.files(refresh=True)
+            if open_path is not None:
+                if open_path.is_file():
+                    self.open_document(open_path)
+                else:
+                    self.close_document()
+            self._refresh_files()
+            self._update_title()
+        message = self.tr("Versão restaurada: {written} arquivo(s) da versão, {reverted} de volta ao oficial, {removed} removido(s).").format(
+            written=result.written, reverted=result.reverted, removed=result.removed
+        )
+        if result.unresolved:
+            QMessageBox.warning(
+                self,
+                self.tr("Restaurar versão"),
+                message + "\n\n" + self.tr(
+                    "Estes arquivos eram iguais ao oficial nessa versão, mas a cópia oficial não foi encontrada; ficaram como estavam:\n{files}"
+                ).format(files="\n".join(result.unresolved[:15])),
+            )
+        else:
+            self.statusBar().showMessage(message, 10000)
+        return True
+
+    def project_from_version(self, project: "Project", version: Path) -> None:
+        name, accepted = QInputDialog.getText(
+            self, self.tr("Criar projeto a partir da versão"), self.tr("Nome do novo projeto:"),
+            text=self.tr("{name} (versão)").format(name=project.name),
+        )
+        if not accepted or not name.strip():
+            return
+        try:
+            self._run_with_progress(self.tr("Criando o projeto…"), lambda _progress: versions.project_from_version(project, version, name))
+        except ProjectNameTaken:
+            QMessageBox.warning(self, self.tr("Criar projeto a partir da versão"), self.tr("Já existe um projeto chamado {name}.").format(name=name.strip()))
+            return
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, self.tr("Criar projeto a partir da versão"), str(exc))
+            return
+        self.statusBar().showMessage(self.tr("Projeto criado: {name}.").format(name=name.strip()), 8000)
+        if self.home_mode:
+            self._refresh_home()
+
+    def _is_current_project(self, root: Path) -> bool:
+        return self.project is not None and os.path.normcase(str(self.project.root)) == os.path.normcase(str(root))
+
+    def _home_duplicate(self, root: Path, title: str) -> None:
+        name, accepted = QInputDialog.getText(
+            self, self.tr("Duplicar projeto"), self.tr("Nome da cópia:"), text=self.tr("{name} (cópia)").format(name=title)
+        )
+        if not accepted or not name.strip():
+            return
+        try:
+            self._run_with_progress(self.tr("Duplicando o projeto…"), lambda _progress: duplicate_project(root, name))
+        except ProjectNameTaken:
+            QMessageBox.warning(self, self.tr("Duplicar projeto"), self.tr("Já existe um projeto chamado {name}.").format(name=name.strip()))
+            return
+        except OSError as exc:
+            QMessageBox.critical(self, self.tr("Duplicar projeto"), str(exc))
+            return
+        self.statusBar().showMessage(self.tr("Cópia criada: {name}.").format(name=name.strip()), 8000)
+        self._refresh_home()
+
+    def _home_rename(self, root: Path, title: str) -> None:
+        name, accepted = QInputDialog.getText(self, self.tr("Renomear projeto"), self.tr("Novo nome:"), text=title)
+        if not accepted or not name.strip() or name.strip() == title:
+            return
+        current = self._is_current_project(root)
+        old_custom = self.project.custom_name if current else None
+        try:
+            new_root = rename_project(root, name)
+        except ProjectNameTaken:
+            QMessageBox.warning(self, self.tr("Renomear projeto"), self.tr("Já existe um projeto chamado {name}.").format(name=name.strip()))
+            return
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                self.tr("Renomear projeto"),
+                self.tr("Não foi possível renomear. Feche o jogo, o Explorer e programas com arquivos do projeto abertos.\n\n{error}").format(error=exc),
+            )
+            return
+        settings = QSettings("Local", "GF UI Editor")
+        if current:
+            self.project = Project.load(new_root)
+            self.project.changes_ttl = CHANGES_TTL
+            settings.setValue("last_project", str(new_root))
+            last = settings.value(f"last_file/{old_custom}", "")
+            if last and old_custom != self.project.custom_name:
+                settings.setValue(f"last_file/{self.project.custom_name}", last)
+                settings.remove(f"last_file/{old_custom}")
+            self._update_title()
+        self.statusBar().showMessage(self.tr("Projeto renomeado para {name}.").format(name=name.strip()), 8000)
+        self._refresh_home()
+
+    def _home_delete(self, roots: list[Path]) -> None:
+        if not roots:
+            return
+        projects = []
+        for root in roots:
+            try:
+                projects.append(Project.load(root))
+            except (OSError, ValueError):
+                continue
+        if not projects:
+            return
+        owned = {project.root: owned_custom_folder(project) for project in projects}
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(self.tr("Excluir projeto"))
+        names = ", ".join(project.name for project in projects)
+        box.setText(
+            self.tr("Mandar {name} para a Lixeira?").format(name=names)
+            if len(projects) == 1
+            else self.tr("Mandar {count} projetos para a Lixeira?\n\n{names}").format(count=len(projects), names=names)
+        )
+        box.setInformativeText(self.tr("Dá para recuperar pela Lixeira do Windows."))
+        custom_check = None
+        folders = [folder for folder in owned.values() if folder is not None]
+        if folders:
+            custom_check = QCheckBox(
+                self.tr("Apagar também a cópia no jogo ({folders})").format(
+                    folders=", ".join(f"UICustom/{folder.name}" for folder in folders)
+                )
+            )
+            custom_check.setChecked(True)
+            box.setCheckBox(custom_check)
+        delete = box.addButton(self.tr("Excluir"), QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        if box.clickedButton() is not delete:
+            return
+        remove_custom = custom_check is not None and custom_check.isChecked()
+        if any(self._is_current_project(project.root) for project in projects):
+            self.project = None
+            self.texts_panel.set_context(None, None)
+            QSettings("Local", "GF UI Editor").remove("last_project")
+        failed = []
+        for project in projects:
+            try:
+                delete_project(project.root, lambda path: bool(QFile.moveToTrash(str(path))), remove_custom=remove_custom)
+            except OSError:
+                failed.append(project.name)
+        if failed:
+            QMessageBox.warning(
+                self,
+                self.tr("Excluir projeto"),
+                self.tr(
+                    "Não foi possível excluir: {names}. Algum programa está usando arquivos do projeto: "
+                    "outra janela do STZ GF UI, o jogo, o Explorer ou um editor de texto. Feche e tente de novo."
+                ).format(names=", ".join(failed)),
+            )
+        self._home_manage = False
+        self._update_title()
+        self._refresh_home()
+
+    def _open_home_project(self, root: Path) -> None:
+        if self.project is not None and os.path.normcase(str(self.project.root)) == os.path.normcase(str(root)):
+            self.continue_project()
+            return
+        self.switch_project(root)
+
+    def _start_home_sizes(self, roots: list[Path]) -> None:
+        """Tamanho em disco de cada projeto, calculado fora da tela (são centenas de arquivos)."""
+        pending = [
+            (str(root), storage.last_modified(root)) for root in roots
+            if (cached := self._home_sizes.get(str(root))) is None or cached[0] != storage.last_modified(root)
+        ]
+        if not pending:
+            return
+        results: SimpleQueue = SimpleQueue()
+
+        def work() -> None:
+            for key, modified in pending:
+                total = 0
+                for folder, _dirs, names in os.walk(key):
+                    for name in names:
+                        try:
+                            total += os.stat(os.path.join(folder, name)).st_size
+                        except OSError:
+                            pass
+                results.put((key, modified, total))
+            results.put(None)
+
+        Thread(target=work, name="gf-ui-project-sizes", daemon=True).start()
+        timer = QTimer(self)
+        timer.setInterval(120)
+
+        def poll() -> None:
+            while True:
+                try:
+                    item = results.get_nowait()
+                except Empty:
+                    return
+                if item is None:
+                    timer.stop()
+                    timer.deleteLater()
+                    return
+                key, modified, total = item
+                self._home_sizes[key] = (modified, total)
+                label = self._home_size_labels.get(key)
+                try:
+                    if label is not None:
+                        label.setText(self._human_size(total))
+                except RuntimeError:  # a tela inicial foi remontada nesse meio-tempo
+                    pass
+
+        timer.timeout.connect(poll)
+        timer.start()
+
+    def _home_notice_card(self) -> QFrame | None:
+        messages = self._manifest.messages_for(beta=self._beta_updates_enabled())
+        if not messages:
+            return None
+        message = messages[0]
+        card, layout = self._home_card(self.tr("AVISO"))
+        text = QLabel(message.text(self.language))
+        text.setObjectName("homeCardText")
+        text.setWordWrap(True)
+        layout.addWidget(text)
+        if message.url:
+            layout.addWidget(self._home_link(self.tr("Abrir link"), lambda: QDesktopServices.openUrl(QUrl(message.url))), 0, Qt.AlignmentFlag.AlignLeft)
+        return card
+
+    def _home_news_card(self) -> QFrame:
+        notes = release_notes.bundled()
+        card, layout = self._home_card(self.tr("NOVIDADES · {version}").format(version=__version__))
+        titles = []
+        if notes is not None:
+            sections = notes.for_language(self.language)
+            for section in release_notes.SECTIONS:
+                titles.extend(title.rstrip(".") for title, _text in sections.get(section, []))
+        text = QLabel("\n".join(f"• {title}" for title in titles[:3]) or self.tr("Sem novidades registradas."))
+        text.setObjectName("homeCardText")
+        text.setWordWrap(True)
+        layout.addWidget(text)
+        layout.addWidget(self._home_link(self.tr("Ver todas"), self.show_whats_new), 0, Qt.AlignmentFlag.AlignLeft)
+        return card
+
+    def _home_how_card(self) -> QFrame:
+        card, layout = self._home_card(self.tr("COMO FUNCIONA"))
+        text = QLabel(
+            "\n".join((
+                self.tr("1. O projeto é a sua cópia segura da UI."),
+                self.tr("2. Edite aqui, clicando e arrastando, ou no Notepad++ e aperte Ctrl+R."),
+                self.tr("3. F5 envia para o jogo; é só abrir pelo launcher."),
+            ))
+        )
+        text.setObjectName("homeCardText")
+        text.setWordWrap(True)
+        layout.addWidget(text)
+        locale = "pt" if self.language == "pt_BR" else "en"
+        url = f"{STZ_LABS_URL}/{locale}/projects/gf-ui-editor"
+        layout.addWidget(self._home_link(self.tr("Ver o vídeo"), lambda: QDesktopServices.openUrl(QUrl(url))), 0, Qt.AlignmentFlag.AlignLeft)
+        return card
 
     def _refresh_recent_projects(self) -> None:
         while self.recent_layout.count():
@@ -5007,11 +6345,11 @@ class EditorWindow(QMainWindow):
         self.recent_label.setVisible(bool(projects))
         self.recent_box.setVisible(bool(projects))
         for root in projects:
-            try:
-                project = Project.load(root)
-                title = project.name
-                details = self.tr("{count} arquivos · {path}").format(count=len(project.base_hashes), path=root.parent.name)
-            except (OSError, ValueError):
+            name, count = storage.peek_project(root)
+            if name is not None:
+                title = name
+                details = self.tr("{count} arquivos · {path}").format(count=count, path=root.parent.name)
+            else:
                 title, details = root.name, str(root)
             button = QPushButton(f"{title}\n{details}")
             button.setToolTip(str(root))
@@ -5021,6 +6359,9 @@ class EditorWindow(QMainWindow):
             self.recent_layout.addWidget(button)
 
     def _update_center_page(self) -> None:
+        if self.home_mode:
+            self.center_stack.setCurrentWidget(self.home_page)
+            return
         if self.document is None:
             if self.project is not None:
                 self.hero_title.setText(self.project.name)
@@ -5201,6 +6542,14 @@ class EditorWindow(QMainWindow):
                 pending = 0
             if pending:
                 texts.append(self.tr("{count} arquivo(s) ainda não publicados no jogo · F5").format(count=pending))
+        # O aviso também fica no botão, onde se clica: o rodapé passava despercebido.
+        send_text = self.tr("Enviar para o jogo")
+        self.test_action.setText(f"{send_text} · {pending}" if pending else send_text)
+        self.test_action.setToolTip(
+            self.tr("{count} arquivo(s) salvos no projeto ainda não estão no jogo. F5 envia.").format(count=pending)
+            if pending
+            else self.tr("Publica o projeto em UICustom e na pasta UI do jogo e o seleciona no launcher (F5)")
+        )
         for chip, text in zip(self.status_chips, texts + [""] * 4):
             chip.setText(text)
             chip.setVisible(bool(text))
@@ -5786,6 +7135,7 @@ class EditorWindow(QMainWindow):
             return
         self.project = project
         project.changes_ttl = CHANGES_TTL  # a tela pergunta várias vezes seguidas
+        self.leave_home()
         self._sync_layers_button()
         self.texts_panel.set_context(project.game_dir, project.root)
         if self.document is not None and not project.contains(self.document.path):
@@ -5798,6 +7148,10 @@ class EditorWindow(QMainWindow):
         self.test_action.setEnabled(project.game_dir is not None)
         self.export_action.setEnabled(True)
         self.export_texts_action.setEnabled(project.game_dir is not None)
+        self.save_version_action.setEnabled(True)
+        self.versions_action.setEnabled(True)
+        self.pull_action.setEnabled(project.game_dir is not None)
+        self.cleanup_action.setEnabled(True)
         self.import_action.setEnabled(True)
         self.publish_folder_action.setEnabled(project.game_dir is not None)
         self.project_folder_action.setEnabled(True)
@@ -5974,6 +7328,7 @@ class EditorWindow(QMainWindow):
 
     def show_side_page(self, key: str) -> None:
         """Abre uma seção da barra lateral: xml, textures, elements ou texts."""
+        self.leave_home()
         if key in ("xml", "textures"):
             self.side_tabs.setCurrentIndex(0)
             if key != self.files_mode:
@@ -6169,6 +7524,13 @@ class EditorWindow(QMainWindow):
         menu = QMenu(self)
         open_action = menu.addAction(self.tr("Abrir"))
         open_action.triggered.connect(lambda: self._file_activated(item, go_to_elements=True))
+        if path.suffix.lower() == ".xml":
+            program, label = text_editor_command()
+            text_action = menu.addAction(icon("type"), self.tr("Abrir no {program}").format(program=label))
+            text_action.setToolTip(
+                self.tr("Edite como texto e salve; depois Atualizar (Ctrl+R) traz a mudança para cá.")
+            )
+            text_action.triggered.connect(lambda: self.open_in_text_editor(path))
         if self.project is not None and self.project.contains(path):
             rename = menu.addAction(self.tr("Renomear…"))
             rename.triggered.connect(lambda: self.rename_project_file(path))
@@ -6192,6 +7554,16 @@ class EditorWindow(QMainWindow):
         if folder is not None:
             reveal.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))))
         menu.exec(self.files_tree.viewport().mapToGlobal(position))
+
+    def open_in_text_editor(self, path: Path) -> None:
+        """Abre o XML (a cópia do projeto) no Notepad++ ou no Bloco de Notas, sem esperar."""
+        program, label = text_editor_command()
+        if not QProcess.startDetached(program, [str(path)]):
+            QMessageBox.warning(self, self.tr("Abrir como texto"), self.tr("Não foi possível abrir o {program}.").format(program=label))
+            return
+        self.statusBar().showMessage(
+            self.tr("Aberto no {program}. Depois de salvar lá, aperte Ctrl+R aqui para ver a mudança.").format(program=label), 10000
+        )
 
     def _is_open(self, path: Path) -> bool:
         return self.document is not None and os.path.normcase(str(self.document.path.resolve())) == os.path.normcase(str(path.resolve()))
@@ -6393,13 +7765,14 @@ class EditorWindow(QMainWindow):
             return not self.document.is_dirty
         return True
 
-    def test_in_game(self) -> None:
+    def test_in_game(self, quiet: bool = False) -> None:
+        """Enviar para o jogo (F5). `quiet`: envio automático ao salvar, sem perguntar no meio."""
         if self.project is None or self.project.game_dir is None:
             return
         if not self._save_before_project_action():
             return
         pending = sorted(diff.relative for diff in self._official_diffs.values() if diff.new_ids)
-        if pending:
+        if pending and not quiet:
             answer = QMessageBox.question(
                 self,
                 self.tr("Controles novos do jogo"),
@@ -6457,6 +7830,15 @@ class EditorWindow(QMainWindow):
             )
             return
         self._update_status_chips()
+        self._game_backups = result.game_backups
+        if result.game_backups:
+            self.game_backup_text.setText(
+                self.tr(
+                    "{count} arquivo(s) da pasta do jogo estavam diferentes do que o editor enviou (editados fora?) e foram "
+                    "substituídos pelo envio; a versão de antes ficou guardada."
+                ).format(count=len(result.game_backups))
+            )
+        self.game_backup_banner.setVisible(bool(result.game_backups))
         message = self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
             count=result.copied_to_ui
         )
@@ -6529,12 +7911,23 @@ class EditorWindow(QMainWindow):
             path = self._run_with_progress(
                 self.tr("Compactando a UI…"), lambda progress: project.export_zip(Path(filename), progress=progress)
             )
+        except ValueError:
+            QMessageBox.information(
+                self,
+                self.tr("Exportar UI"),
+                self.tr("Todos os arquivos do projeto são iguais aos da UI oficial: não há nada para exportar ainda."),
+            )
+            return
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Falha ao exportar"), str(exc))
             return
-        self.statusBar().showMessage(
-            self.tr("Exportado para {path}. No launcher: Adicionar UI Customizada.").format(path=path), 12000
-        )
+        count, skipped = getattr(project, "last_export", (0, 0))
+        message = self.tr("Exportado para {path}. No launcher: Adicionar UI Customizada.").format(path=path)
+        if skipped:
+            message += " " + self.tr("{count} arquivo(s); {skipped} igual(is) ao oficial ficaram de fora.").format(
+                count=count, skipped=skipped
+            )
+        self.statusBar().showMessage(message, 12000)
 
     def export_texts_zip(self) -> None:
         project = self.project

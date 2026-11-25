@@ -4,10 +4,11 @@ kanban-plugin: board
 
 ## Agora
 
-- [ ] 0.7.0-beta.1 publicada: colher feedback dos testadores e promover a 0.7.0 [[roadmap]] [[release]]
+- [ ] Terminar a Fase 2 inteira → só então build da 0.7.0-beta.2 [[roadmap]] [[beta]]
+- [x] Versões do projeto (validado) [[roadmap]]
 
 
-## Fase 1 (0.7.0, via beta)
+## Fase 1 (0.7.0-beta.1)
 
 - [x] Resetar zoom: clique na porcentagem e Ctrl+0 [[roadmap]]
 - [x] XMLs: clique e setas ficam em Arquivos; duplo clique/Enter vão para Elementos [[roadmap]]
@@ -16,11 +17,15 @@ kanban-plugin: board
 - [x] "Abrir com" do Explorer registrado pelo instalador [[roadmap]]
 
 
-## Fase 2
+## Fase 2 (0.7.0-beta.2+)
 
-- [ ] Gerenciar e excluir projetos [[roadmap]]
-- [ ] Atualizar projeto da pasta do jogo ou do UICustom [[roadmap]]
-- [ ] Limpar projeto (map, ícones, iguais ao oficial, .history) [[roadmap]]
+- [x] Tela inicial completa (validada, sem commit) [[roadmap]]
+- [x] UI enviada e .zip = só o que difere do oficial (validado) [[launcher]]
+- [x] Gerenciar projetos: duplicar, renomear, excluir (+ UICustom), seleção múltipla [[roadmap]]
+- [x] Puxar arquivos da pasta do jogo + proteção no F5 (validado) [[roadmap]]
+- [x] "Abrir no Notepad++" no botão direito dos XMLs [[roadmap]]
+- [x] Contador no botão Enviar e opção "Enviar ao salvar" [[roadmap]]
+- [x] Limpar projeto: histórico, ícones não editados, sobras do UICustom (validado) [[roadmap]]
 
 
 ## Fase 3
