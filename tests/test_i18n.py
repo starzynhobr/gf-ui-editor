@@ -22,7 +22,7 @@ def test_english_catalog_localizes_ui_without_changing_xml_model(tmp_path: Path)
     try:
         window = EditorWindow(language="en_US")
         assert [action.text() for action in window.main_menu.actions()] == [
-            "File", "Project", "Edit", "View", "Language", "Help"
+            "File", "Project", "Edit", "View", "Language", "Interface", "Help"
         ]
         assert window.settings_button.menu() is window.main_menu
         language_menu = window.language_menu

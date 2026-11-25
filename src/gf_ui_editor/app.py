@@ -2703,6 +2703,18 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.isolate_action)
         language_menu = self.main_menu.addMenu(self.tr("Idioma"))
         self.language_menu = language_menu
+        # Interface clássica ou nova: vale na próxima vez que o editor abrir.
+        ui_mode_menu = self.main_menu.addMenu(self.tr("Interface"))
+        self.ui_mode_menu = ui_mode_menu
+        ui_mode_actions = QActionGroup(self)
+        ui_mode_actions.setExclusive(True)
+        for mode, label in (("classic", self.tr("Clássica")), ("web", self.tr("Nova (beta)"))):
+            action = ui_mode_menu.addAction(label)
+            action.setData(mode)
+            action.setCheckable(True)
+            action.setChecked(mode == (prefs.ui_mode if prefs.ui_mode in preferences.UI_MODES else "classic"))
+            ui_mode_actions.addAction(action)
+            action.triggered.connect(lambda _checked, selected=mode: self.set_ui_mode(selected))
         help_menu = self.main_menu.addMenu(self.tr("Ajuda"))
         language_actions = QActionGroup(self)
         language_actions.setExclusive(True)
@@ -8087,6 +8099,21 @@ class EditorWindow(QMainWindow):
         for action in self.language_button.menu().actions():
             action.setChecked(action.data() == self.language)
 
+    def set_ui_mode(self, mode: str) -> None:
+        """Interface ao abrir (clássica ou nova); vale ao reiniciar."""
+        prefs.ui_mode = mode
+        self.statusBar().showMessage(self.tr("A interface escolhida vale na próxima vez que o editor abrir."), 8000)
+
+    def warn_web_ui_unavailable(self) -> None:
+        QMessageBox.warning(
+            self,
+            self.tr("Interface nova indisponível"),
+            self.tr(
+                "A interface nova precisa do Microsoft Edge WebView2, que não foi encontrado neste Windows. "
+                "O editor abriu na interface clássica. Instale o WebView2 Runtime (site da Microsoft) para usar a nova."
+            ),
+        )
+
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         if getattr(self, "_closing_for_language", False) or self._confirm_discard_changes():
             event.accept()
@@ -8098,18 +8125,31 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Editor visual dos XMLs de UI do Grand Fantasia")
     parser.add_argument("xml", nargs="?", type=Path, help="XML que será aberto ao iniciar")
     parser.add_argument("--lang", choices=LANGUAGES, help="Idioma da interface nesta execução")
-    parser.add_argument("--ui", choices=("classic", "web"), default="classic", help="Interface: clássica (Qt) ou nova (web)")
+    parser.add_argument(
+        "--ui", choices=preferences.UI_MODES, help="Interface: clássica (Qt) ou nova (web); sem isto, a escolhida nas configurações"
+    )
     parser.add_argument("--dev", action="store_true", help="Interface web pelo servidor do Vite (npm run dev em web/)")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    if args.ui == "web":
+    from . import webview_runtime
+
+    def web_available() -> bool:
+        from .web_shell import WEB_DIST
+
+        return webview_runtime.webview2_version() is not None and (args.dev or webview_runtime.web_build_ready(WEB_DIST))
+
+    ui_mode, web_missing = webview_runtime.resolve_ui(args.ui, prefs.ui_mode, web_available)
+    if ui_mode == "web":
         from . import web_shell
 
         language = args.lang or prefs.language
-        return web_shell.run(language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=args.xml)
+        return web_shell.run(
+            language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=args.xml, prefs=prefs,
+            default_ui_directory=DEFAULT_UI_DIRECTORY,
+        )
     application = QApplication(sys.argv[:1])
     application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")
@@ -8121,6 +8161,8 @@ def main(argv: list[str] | None = None) -> int:
     window = EditorWindow(args.xml, language=language, restore_last_project=True)
     window.show()
     application._main_window = window
+    if web_missing:
+        QTimer.singleShot(0, window.warn_web_ui_unavailable)
     return application.exec()
 
 
