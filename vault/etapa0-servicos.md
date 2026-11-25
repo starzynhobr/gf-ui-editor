@@ -45,7 +45,7 @@ Mais ou menos 8,4 mil linhas:
 | 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | — | **Feito** |
 | 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | Sim | Baixo/médio |
 | 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) ou `game_layout.py` | 4111–4300, 4559–4830 | Sim, mas evitar junto com a 7 se ela mexer em 4559 | **Alto** |
-| 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | Sim | Médio |
+| 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | — | **Feito** |
 | 10 | Atualizações e manifesto | `updater.py`, `remote_manifest.py` | 2887–3050 | Depois da 2 | Baixo |
 | 11 | Funções soltas do topo | `about.py` (novo) | 160–345 | Sim | Muito baixo |
 
@@ -132,11 +132,11 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** os de interface são a rede: `test_dragging_a_game_centered_window_*`, `test_screen_coordinates_*`, `test_game_screen_frame_*`, `test_group_resize.py`, `test_window_resize.py`, `test_canvas_framing.py`. Faltam testes novos de tabela (entrada → geometria).
 - **Risco:** **alto**. Muitos efeitos colaterais no meio da conta: `_preview_default_position` desmarca uma ação e mostra mensagem, e `_root_draws_background` lê pixels do `QPixmap`. Esses dados entram como parâmetro, já calculados pela interface. É melhor fazer depois que o harness "mesma entrada, mesma saída" existir.
 
-### 9. Troca de textura e nova imagem
+### 9. Troca de textura e nova imagem (feita)
 
-- **Serviço:** `textures.py`: `ui_texture_names(folder)`, que hoje se repete em `change_selected_texture` e `new_image`, e `copy_texture_for_edit(project, source, name)`, que faz a cópia com histórico e o `remember_original`.
+- **Serviço:** `textures.py` reúne a listagem em `ui_texture_names(folder)` e a cópia em `copy_texture_for_edit(project, source, name)`, com histórico e `remember_original` nas substituições do projeto. A interface chama `backup_texture_for_edit` antes do `try` da cópia, como no fluxo anterior.
 - **Origem:** `change_selected_texture` (cópias com `shutil`), `new_image` (lista de nomes).
-- **Testes:** `test_texture_of_a_control_can_be_changed_undone_and_saved` e os do atlas.
+- **Testes:** `tests/test_textures.py` (sem Qt). Na interface continuam valendo `test_texture_of_a_control_can_be_changed_undone_and_saved` e os do atlas.
 - **Risco:** médio: o fluxo está misturado com menus.
 
 ### 10. Atualizações e manifesto
