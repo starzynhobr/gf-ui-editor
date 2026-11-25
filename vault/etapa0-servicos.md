@@ -172,6 +172,13 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - Na primeira vez, copia a UI, `data\Translate` e as listas do jogo para `%TEMP%\gf-ui-harness\pristine` (~1 GB). O jogo real só é lido.
 - Projetos, bancos e preferências vão para a caixa de areia (HOME/APPDATA trocados, QSettings desviado para INI, como no `tests/conftest.py`).
 - Fluxos atuais: criar projeto, abrir XML, modos de texto, filtro da árvore, mover e salvar, trocar textura (outro .dds e cópia), nova imagem com atlas, F5 com texto editado, renomear textura usada, apagar, restaurar, salvar versão e tela inicial, erro do jogo, verificar atualizações.
+- Fluxos de geometria (fatia 8), com XMLs reais e tela 1920 × 1080. Cada passo registra a geometria da raiz e dos filhos tocados, o deslocamento da tela, a moldura, a área fantasma, o painel, "Usar posições salvas", a mensagem da barra de status e o tamanho da pilha de desfazer:
+  - `geo_centralizada_arrastar`: Storage (raiz sem fundo) arrastada até encolher para 1 × 1, raiz e filho juntos, setas na raiz e num filho;
+  - `geo_centralizada_redimensionar`: alça da moldura, só o tamanho, posição e tamanho juntos;
+  - `geo_painel`: `edit_selected_geometry` movendo, redimensionando, as duas coisas e num filho; MailList (raiz com fundo) pelo painel;
+  - `geo_area_fantasma`: raiz longe do conteúdo (Storage mostra e remove a área; MailList não, por ter fundo);
+  - `geo_ancorada_e_livre`: Menu (ancorado, com os atalhos deslocados no preview), BasicChar (raiz no X/Y do XML) e Storage com posição salva no `User.ini`, no modo X/Y do XML e no automático;
+  - `geo_redimensionar_grupo`: grupo com a raiz (BasicChar) e só de filhos (Storage, com Shift).
 - Fluxo novo vai no fim de `harness/run_flows.py` (o log é comparado em ordem). Para uma fatia, rode o harness **antes** (referência = ponta da `migracao-web`) para ver que o fluxo novo passa igual nas duas e depois com a fatia.
 - Em 25/11/2026: `main` (0.7.0) × `migracao-web` (fatias 1–7, 9, 10) deu tudo igual.
 

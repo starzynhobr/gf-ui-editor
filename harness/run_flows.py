@@ -395,6 +395,256 @@ def updates():
 run("verificar_atualizacoes", updates)
 
 
+# ---- geometria da raiz e área fantasma (fatia 8) ----------------------------------------
+# XMLs reais: Storage (centralizada, raiz sem fundo), MailList (centralizada, raiz com fundo),
+# Menu (ancorada, atalhos deslocados no preview) e BasicChar (raiz no X/Y do XML).
+from PySide6.QtCore import QPointF  # noqa: E402
+
+GEO_SCREEN = (1920, 1080)
+
+
+def geo_open(name):
+    window.open_document(ui / name)
+    window.set_game_resolution(GEO_SCREEN)
+    deadline = time.time() + 30
+    while getattr(window, "_textures_pending", None) and time.time() < deadline:
+        pump(0.1)  # o fundo da raiz decide se há área fantasma: espera as texturas
+    pump(0.3)
+    window.undo_stack.clear()
+    window.select_element(0)
+    pump(0.1)
+
+
+def geo(note, indexes=()):
+    """Geometria da raiz e dos filhos tocados, tela, moldura, área fantasma e painel."""
+    doc = window.document
+    elements = doc.elements
+    ghost = window.ghost_item
+    props = window.properties
+    log(
+        "geo",
+        note=note,
+        file=doc.path.name,
+        geometry={f"{elements[i].window_id}#{i}": list(elements[i].geometry) for i in (0, *indexes)},
+        offset=list(window._screen_offset() or ()),
+        frame=list(window._window_frame_on_screen() or ()),
+        ghost=None if ghost is None else [ghost.pos().x(), ghost.pos().y(), ghost.rect().width(), ghost.rect().height()],
+        ghost_button=not props.ghost_button.isHidden(),
+        panel=[props.x_spin.value(), props.y_spin.value(), props.width_spin.value(), props.height_spin.value()],
+        saved_positions=window.saved_positions_action.isChecked(),
+        status=window.statusBar().currentMessage(),
+        undo=window.undo_stack.count(),
+        dirty=doc.is_dirty,
+    )
+    window.statusBar().clearMessage()
+
+
+def geo_undo_all():
+    while window.undo_stack.canUndo():
+        window.undo_stack.undo()
+    pump(0.1)
+
+
+def geo_root_drag(dx, dy, dw=0, dh=0):
+    root = window.document.elements[0].geometry
+    window.elements_dragged({0: (root, (root[0] + dx, root[1] + dy, root[2] + dw, root[3] + dh))})
+    pump(0.1)
+
+
+def geo_centered_drag():
+    geo_open("Storage.xml")
+    window.statusBar().clearMessage()
+    geo("aberto", (1, 2))
+    shot(window, "10_geo_storage_aberto")
+    geo_root_drag(-463, 4)  # o conteúdo sai de cima da raiz: ela encolhe para 1 x 1
+    geo("raiz arrastada", (1, 2))
+    shot(window, "10_geo_storage_arrastado")
+    root, child = window.document.elements[0].geometry, window.document.elements[1].geometry
+    window.elements_dragged({
+        0: (root, (root[0] + 25, root[1] - 9, root[2], root[3])),
+        1: (child, (child[0] + 25, child[1] - 9, child[2], child[3])),
+    })
+    pump(0.1)
+    geo("raiz e filho juntos", (1,))
+    window.select_element(0)
+    window.move_selected(7, -3)  # setas do teclado
+    geo("setas na raiz", (1,))
+    geo_undo_all()
+    geo("desfeito", (1, 2))
+    window.select_element(2)
+    window.move_selected(-4, 6)
+    geo("setas num filho", (2,))
+    geo_undo_all()
+
+
+run("geo_centralizada_arrastar", geo_centered_drag)
+
+
+def geo_centered_resize():
+    geo_open("Storage.xml")
+    item = window.items[0]
+    log("info", frame_mode=item.frame_mode)
+    item.begin_resize(QPointF(0, 0), axes=(1, 1))  # alça da moldura
+    item.resize_to(QPointF(40, 20))
+    item.end_resize()
+    pump(0.1)
+    geo("moldura redimensionada", (1,))
+    shot(window, "11_geo_storage_redimensionado")
+    geo_root_drag(0, 0, 30, -12)  # muda só o tamanho
+    geo("raiz com outro tamanho", (1,))
+    geo_root_drag(15, 10, 6, 6)  # move e muda o tamanho
+    geo("raiz movida e redimensionada", (1,))
+    geo_undo_all()
+    geo("desfeito", (1,))
+
+
+run("geo_centralizada_redimensionar", geo_centered_resize)
+
+
+def geo_panel():
+    geo_open("Storage.xml")
+    frame = window._window_frame_on_screen()
+    root = window.document.elements[0].geometry
+    log("info", frame=list(frame or ()), root=list(root))
+    x, y = frame if frame is not None else root[:2]
+    window.edit_selected_geometry((x + 234, y + 52, root[2], root[3]))  # X/Y da tela
+    pump(0.1)
+    geo("painel move a janela", (1,))
+    frame = window._window_frame_on_screen() or window.document.elements[0].geometry[:2]
+    root = window.document.elements[0].geometry
+    window.edit_selected_geometry((frame[0], frame[1], root[2] + 50, root[3] + 20))
+    pump(0.1)
+    geo("painel muda o tamanho", (1,))
+    window.edit_selected_geometry((frame[0] - 10, frame[1], 1, 1))
+    pump(0.1)
+    geo("painel move e muda o tamanho", (1,))
+    window.select_element(3)
+    child = window.document.elements[3].geometry
+    window.edit_selected_geometry((child[0] + 11, child[1] - 5, child[2] + 2, child[3]))
+    pump(0.1)
+    geo("painel num filho", (3,))
+    geo_undo_all()
+    shot(window, "12_geo_painel")
+    geo_open("MailList.xml")  # raiz com fundo: mover não encolhe
+    frame = window._window_frame_on_screen()
+    root = window.document.elements[0].geometry
+    x, y = frame if frame is not None else root[:2]
+    window.edit_selected_geometry((x - 300, y + 40, root[2], root[3]))
+    pump(0.1)
+    geo("painel move janela com fundo", (1,))
+    geo_undo_all()
+
+
+run("geo_painel", geo_panel)
+
+
+def geo_ghost():
+    for name in ("Storage.xml", "MailList.xml"):
+        geo_open(name)
+        root = window.document.elements[0].geometry
+        window.apply_geometries({0: (600, 50, root[2], root[3])})  # como um XML editado à mão
+        pump(0.1)
+        window.select_element(0)
+        geo("raiz longe do conteúdo", (1,))
+        shot(window, f"13_geo_fantasma_{name[:-4].lower()}")
+        window.remove_ghost_area()
+        pump(0.1)
+        geo("área fantasma removida", (1,))
+        geo_undo_all()
+        window.apply_geometries({0: root})
+        pump(0.1)
+        geo("de volta", (1,))
+
+
+run("geo_area_fantasma", geo_ghost)
+
+
+def geo_anchored_and_free():
+    geo_open("Menu.xml")  # ancorada; atalhos deslocados no preview entram no contorno
+    geo("menu aberto", (1,))
+    geo_root_drag(-120, -60)
+    geo("menu arrastado", (1,))
+    frame = window._window_frame_on_screen()
+    root = window.document.elements[0].geometry
+    x, y = frame if frame is not None else root[:2]
+    window.edit_selected_geometry((x + 20, y, root[2] - 40, root[3]))
+    pump(0.1)
+    geo("menu pelo painel", (1,))
+    geo_undo_all()
+    shot(window, "14_geo_menu")
+
+    geo_open("BasicChar.xml")  # raiz no X/Y do XML: arrastar a principal leva tudo
+    geo_root_drag(30, -20)
+    geo("janela livre arrastada", (1, 2))
+    geo_root_drag(0, 0, 12, 8)
+    geo("janela livre redimensionada", (1,))
+    root = window.document.elements[0].geometry
+    window.edit_selected_geometry((root[0] - 5, root[1] + 5, root[2], root[3]))
+    pump(0.1)
+    geo("janela livre pelo painel", (1,))
+    geo_undo_all()
+
+    # Posição salva no User.ini, com a raiz no X/Y do XML (modo manual): arrastar passa a
+    # mostrar a posição padrão do XML e desliga "Usar posições salvas".
+    import struct
+
+    def encode(rect):
+        return "".join(chr(65 + (b & 15)) + chr(65 + (b >> 4)) for b in struct.pack("<4i", *rect))
+
+    user_ini = GAME / "User.ini"
+    user_ini.write_text(f"[STORAGE]\nPosition={encode((300, 200, 282, 231))}\n", encoding="latin-1")
+    try:
+        geo_open("Storage.xml")
+        window.set_root_mode("xml")
+        pump(0.1)
+        window.statusBar().clearMessage()
+        geo("modo xml com posição salva", (1,))
+        geo_root_drag(40, 30)
+        geo("arrastada com posição salva", (1,))
+        shot(window, "15_geo_posicao_salva")
+        geo_undo_all()
+        window.saved_positions_action.setChecked(True)
+        window.set_root_mode("auto")
+        pump(0.1)
+        geo("centralizada com posição salva", (1,))
+        geo_root_drag(-50, 0)
+        geo("centralizada arrastada com posição salva", (1,))
+        geo_undo_all()
+    finally:
+        user_ini.unlink()
+        window.saved_positions_action.setChecked(True)
+
+
+run("geo_ancorada_e_livre", geo_anchored_and_free)
+
+
+def geo_group_resize():
+    geo_open("BasicChar.xml")  # sem moldura: a raiz entra no grupo
+    for index in (1, 2):
+        window.items[index].setSelected(True)
+    item = window.items[0]
+    item.begin_resize(QPointF(0, 0))
+    item.resize_to(QPointF(30, 18))
+    item.end_resize()
+    pump(0.1)
+    geo("grupo com a raiz", (1, 2))
+    geo_undo_all()
+    geo_open("Storage.xml")  # com moldura: só os filhos
+    window.select_element(1)
+    window.items[2].setSelected(True)
+    item = window.items[1]
+    item.begin_resize(QPointF(0, 0))
+    item.resize_to(QPointF(-6, 14), proportional=True)
+    item.end_resize()
+    pump(0.1)
+    geo("grupo de filhos", (1, 2))
+    shot(window, "16_geo_grupo")
+    geo_undo_all()
+
+
+run("geo_redimensionar_grupo", geo_group_resize)
+
+
 # ---- resultado: conteúdo dos arquivos gravados (sem nomes com data/hora) ----
 def digest(folder: Path, skip=()) -> dict[str, str]:
     result = {}
