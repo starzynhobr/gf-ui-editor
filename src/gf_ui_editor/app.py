@@ -153,6 +153,7 @@ from . import textures
 from .theme import COLORS, stylesheet
 from . import preferences
 from . import text_preview
+from .canvas_document import GAME_DRAWN_AREAS, element_preview_offset
 from . import window_geometry
 from .about import GAME_RESOLUTIONS, contributor_items, load_contributors, parse_resolution, text_editor_command as _text_editor_command
 
@@ -196,7 +197,6 @@ DEFAULT_HUD = (
     "BasicChar.xml", "Target.xml", "Radar.xml", "TinyClock.xml", "QuestTraceWnd.xml",
     "Channel.xml", "ShortcutBar.xml", "Menu.xml",
 )
-GAME_DRAWN_AREAS = {"basicchar.xml": (23, 7, 76, 76)}
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
@@ -4031,7 +4031,9 @@ class EditorWindow(QMainWindow):
             y = menu_shortcut_preview_y(self.document.path.name, element.window_id, root_y)
             if y is None or element.kind != "slot":
                 continue
-            self.items[element.index].set_preview_offset(QPointF(0, y - element.y if enabled else 0))
+            self.items[element.index].set_preview_offset(
+                QPointF(*element_preview_offset(self.document.path.name, root_y, element, enabled))
+            )
 
     def _content_bounds(self) -> QRectF | None:
         """Retângulo que envolve tudo menos a janela principal, em coordenadas do XML."""
@@ -5344,18 +5346,13 @@ class EditorWindow(QMainWindow):
             # a custom UI. Ignore the caption, which ignores view transforms.
             bounds = self.game_screen_item.mapRectToScene(self.game_screen_item.rect())
         else:
-            root = self.items[0]
-            bounds = root.mapRectToScene(root.rect())
-            # Without a screen preview, include nearby layout (even outside the
-            # root panel) but not distant controls used to hide artwork in-game.
-            neighborhood = bounds.adjusted(
-                -max(1920, bounds.width()), -max(1080, bounds.height()),
-                max(1920, bounds.width()), max(1080, bounds.height()),
-            )
-            for item in self.items.values():
-                item_bounds = item.mapRectToScene(item.rect())
-                if item.isVisible() and neighborhood.intersects(item_bounds):
-                    bounds = bounds.united(item_bounds)
+            def geometry(item):
+                rect = item.mapRectToScene(item.rect())
+                return rect.x(), rect.y(), rect.width(), rect.height()
+
+            bounds = QRectF(*window_geometry.nearby_bounds(
+                geometry(self.items[0]), (geometry(item) for item in self.items.values() if item.isVisible()),
+            ))
         self.view.fitInView(bounds.adjusted(-20, -20, 20, 20), Qt.AspectRatioMode.KeepAspectRatio)
         self.view.notify_zoom()
 

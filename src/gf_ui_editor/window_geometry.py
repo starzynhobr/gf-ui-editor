@@ -42,7 +42,7 @@ def grown(rect: RectF, margin: float) -> RectF:
     return x - margin, y - margin, width + 2 * margin, height + 2 * margin
 
 
-def content_bounds(elements: Iterable[tuple[Rect, tuple[float, float]]]) -> RectF | None:
+def content_bounds(elements: Iterable[tuple[RectF, tuple[float, float]]]) -> RectF | None:
     """Retângulo que envolve os elementos (geometria do XML + deslocamento do preview).
 
     Elementos sem largura ou altura contam com 1 px. None se não há elementos.
@@ -58,6 +58,23 @@ def content_bounds(elements: Iterable[tuple[Rect, tuple[float, float]]]) -> Rect
             right, bottom = max(right, ax + aw), max(bottom, ay + ah)
     if left is None:
         return None
+    return left, top, right - left, bottom - top
+
+
+def nearby_bounds(root: RectF, elements: Iterable[RectF]) -> RectF:
+    """Fit the root and nearby controls, excluding controls parked far off-screen."""
+    x, y, width, height = root
+    width, height = max(1, width), max(1, height)
+    margin_x, margin_y = max(1920, width), max(1080, height)
+    left, top, right, bottom = x, y, x + width, y + height
+    for ex, ey, w, h in elements:
+        w, h = max(1, w), max(1, h)
+        if (
+            ex < x + width + margin_x and ex + w > x - margin_x
+            and ey < y + height + margin_y and ey + h > y - margin_y
+        ):
+            left, top = min(left, ex), min(top, ey)
+            right, bottom = max(right, ex + w), max(bottom, ey + h)
     return left, top, right - left, bottom - top
 
 
