@@ -150,6 +150,27 @@ from .project import (
 from .atlas_dialog import AtlasDialog, TexturePreviewDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
+from . import preferences
+
+
+class QtPreferenceStore:
+    """preferences.Store sobre o QSettings de sempre (Registro no Windows).
+
+    Abre o QSettings a cada acesso, como antes: o que outra parte (ou um teste) gravar
+    direto nele vale na próxima leitura. Os valores chegam já no formato gravado até a 0.7.0.
+    """
+
+    def get(self, key: str) -> object | None:
+        return QSettings("Local", "GF UI Editor").value(key)
+
+    def set(self, key: str, value: object) -> None:
+        QSettings("Local", "GF UI Editor").setValue(key, value)
+
+    def remove(self, key: str) -> None:
+        QSettings("Local", "GF UI Editor").remove(key)
+
+
+prefs = preferences.Preferences(QtPreferenceStore())
 GAME_RESOLUTIONS = (
     (800, 600),
     (1024, 768),
@@ -2017,19 +2038,16 @@ class EditorWindow(QMainWindow):
         self.texture_watcher = QFileSystemWatcher(self)
         self.texture_watcher.fileChanged.connect(self._texture_file_changed)
 
-        settings = QSettings("Local", "GF UI Editor")
-        stored_resolution = str(settings.value("game_resolution", "game"))
+        stored_resolution = prefs.game_resolution
         # "game": acompanha o client.ini do jogo (padrão); senão, um tamanho fixo.
         self.follow_game_resolution = stored_resolution == "game"
         self.game_resolution = (
             self._client_resolution() if self.follow_game_resolution else parse_resolution(stored_resolution)
         )
-        background = str(settings.value("game_background", ""))
+        background = prefs.game_background
         self.game_background_path = Path(background) if background else None
         # "builtin": fundo do jogo embutido (padrão); "custom": captura própria; "none".
-        self.background_mode = str(
-            settings.value("background_mode", "custom" if self.game_background_path else "builtin")
-        )
+        self.background_mode = prefs.get("background_mode", "custom" if self.game_background_path else "builtin")
         self.game_screen_item: GameScreenItem | None = None
         self.game_drawn_item: GameDrawnItem | None = None
         self.reference_layer_items: list[ReferenceLayerItem] = []
@@ -2084,9 +2102,9 @@ class EditorWindow(QMainWindow):
         self.tree.setIndentation(14)
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         header.customContextMenuRequested.connect(self._tree_header_menu)
-        hidden = QSettings("Local", "GF UI Editor").value("tree_hidden_columns", "2")
+        hidden = prefs.tree_hidden_columns
         for column in (0, 2):
-            self.tree.setColumnHidden(column, str(column) in str(hidden).split(","))
+            self.tree.setColumnHidden(column, str(column) in hidden)
         elements_page = QWidget()
         elements_page.setObjectName("treePanel")
         tree_layout = QVBoxLayout(elements_page)
@@ -2372,7 +2390,7 @@ class EditorWindow(QMainWindow):
         if initial_path is not None:
             self.open_document(initial_path)
         elif restore_last_project:
-            last = str(QSettings("Local", "GF UI Editor").value("last_project", ""))
+            last = prefs.last_project
             if last and storage.is_project(Path(last)):
                 self.open_project(Path(last))
         if self.project is None and self.document is None:
@@ -2399,12 +2417,12 @@ class EditorWindow(QMainWindow):
         self.test_action.triggered.connect(lambda: self.test_in_game())
         self.publish_on_save_action = QAction(self.tr("Enviar para o jogo ao salvar"), self)
         self.publish_on_save_action.setCheckable(True)
-        self.publish_on_save_action.setChecked(QSettings("Local", "GF UI Editor").value("publish_on_save", "false") == "true")
+        self.publish_on_save_action.setChecked(prefs.publish_on_save)
         self.publish_on_save_action.setToolTip(
             self.tr("Cada Ctrl+S também envia para o jogo, para ver o ajuste no jogo na hora.")
         )
         self.publish_on_save_action.toggled.connect(
-            lambda on: QSettings("Local", "GF UI Editor").setValue("publish_on_save", "true" if on else "false")
+            lambda on: prefs.set("publish_on_save", on)
         )
         self.export_action = QAction(self.tr("Exportar UI (.zip)…"), self)
         self.export_action.setEnabled(False)
@@ -2481,7 +2499,7 @@ class EditorWindow(QMainWindow):
         # Texto no canvas como o jogo desenha. A maior parte dos textos vem do código do jogo,
         # então as amostras servem para ver se cabem na caixa.
         # Última escolha do usuário; o canvas é preenchido quando um arquivo abre.
-        saved_mode = str(QSettings("Local", "GF UI Editor").value("text_mode", "off"))
+        saved_mode = prefs.text_mode
         self.text_mode = saved_mode if saved_mode in TEXT_MODES else "off"
         self.text_mode_actions = QActionGroup(self)
         self.text_mode_menu = QMenu(self.tr("Texto como no jogo"), self)
@@ -2737,7 +2755,7 @@ class EditorWindow(QMainWindow):
         navigation_menu = view_menu.addMenu(self.tr("Navegação do canvas"))
         navigation_actions = QActionGroup(self)
         navigation_actions.setExclusive(True)
-        saved_style = str(QSettings("Local", "GF UI Editor").value("navigation_style", "corel"))
+        saved_style = prefs.navigation_style
         if saved_style not in EditorView.NAVIGATION_STYLES:
             saved_style = "corel"
         self.view.navigation_style = saved_style
@@ -2777,12 +2795,8 @@ class EditorWindow(QMainWindow):
         self.update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
         self.auto_update_action = QAction(self.tr("Verificar ao iniciar"), self)
         self.auto_update_action.setCheckable(True)
-        self.auto_update_action.setChecked(
-            QSettings("Local", "GF UI Editor").value("auto_update_check", "true") == "true"
-        )
-        self.auto_update_action.toggled.connect(
-            lambda on: QSettings("Local", "GF UI Editor").setValue("auto_update_check", "true" if on else "false")
-        )
+        self.auto_update_action.setChecked(prefs.auto_update_check)
+        self.auto_update_action.toggled.connect(lambda on: prefs.set("auto_update_check", on))
         self.beta_updates_action = QAction(self.tr("Receber versões beta"), self)
         self.beta_updates_action.setCheckable(True)
         self.beta_updates_action.setChecked(self._beta_updates_enabled())
@@ -2863,7 +2877,7 @@ class EditorWindow(QMainWindow):
                 self.brand_dot = QLabel()
                 self.brand_dot.setObjectName("brandDot")
                 self.brand_dot.setFixedSize(7, 7)
-                self.brand_dot.setVisible(not QSettings("Local", "GF UI Editor").value("brand_seen", False, type=bool))
+                self.brand_dot.setVisible(not prefs.brand_seen)
                 brand_layout = QHBoxLayout(self.brand_button)
                 brand_layout.setContentsMargins(12, 2, 12, 2)
                 brand_layout.setSpacing(7)
@@ -2888,18 +2902,17 @@ class EditorWindow(QMainWindow):
 
     # ---- atualização ----------------------------------------------------------
     def _automatic_update_check(self) -> None:
-        settings = QSettings("Local", "GF UI Editor")
-        if settings.value("auto_update_check", "true") != "true":
+        if not prefs.auto_update_check:
             return
-        last = float(settings.value("last_update_check", 0) or 0)
+        last = prefs.last_update_check
         if time.time() - last < 24 * 3600:
             return
-        settings.setValue("last_update_check", time.time())
+        prefs.last_update_check = time.time()
         self.check_for_updates(manual=False)
 
     def _load_remote_manifest(self) -> None:
         """Lê o manifesto remoto sem travar a janela (respeita "Verificar ao iniciar")."""
-        if QSettings("Local", "GF UI Editor").value("auto_update_check", "true") != "true":
+        if not prefs.auto_update_check:
             return
         results: SimpleQueue = SimpleQueue()
         Thread(target=lambda: results.put(remote_manifest.fetch()), name="gf-ui-manifest", daemon=True).start()
@@ -2934,11 +2947,7 @@ class EditorWindow(QMainWindow):
             )
             if answer == QMessageBox.StandardButton.Yes:
                 self.check_for_updates(manual=True)
-        settings = QSettings("Local", "GF UI Editor")
-        try:
-            seen = set(json.loads(str(settings.value("manifest_seen", "[]"))))
-        except ValueError:
-            seen = set()
+        seen = prefs.manifest_seen
         for message in manifest.messages_for(beta=self._beta_updates_enabled(), seen=seen)[:3]:
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.Warning if message.level == "warning" else QMessageBox.Icon.Information)
@@ -2950,7 +2959,7 @@ class EditorWindow(QMainWindow):
             if link is not None and box.clickedButton() is link:
                 QDesktopServices.openUrl(QUrl(message.url))
             seen.add(message.id)
-            settings.setValue("manifest_seen", json.dumps(sorted(seen)))
+            prefs.manifest_seen = seen
 
     def _feature_disabled(self, feature: str) -> bool:
         """Função desligada pelo manifesto remoto (até sair a correção); avisa quem tentou usar."""
@@ -2966,11 +2975,10 @@ class EditorWindow(QMainWindow):
     @staticmethod
     def _beta_updates_enabled() -> bool:
         # Uma versão beta instalada (ex.: baixada à mão) já fica no canal beta.
-        default = "true" if updater.is_prerelease(__version__) else "false"
-        return QSettings("Local", "GF UI Editor").value("beta_updates", default) == "true"
+        return prefs.get("beta_updates", updater.is_prerelease(__version__))
 
     def _set_beta_updates(self, enabled: bool) -> None:
-        QSettings("Local", "GF UI Editor").setValue("beta_updates", "true" if enabled else "false")
+        prefs.beta_updates = enabled
         if enabled:
             # Ao entrar no canal, já mostra se há uma beta (ou estável) mais nova.
             self.check_for_updates(manual=True)
@@ -3020,7 +3028,7 @@ class EditorWindow(QMainWindow):
                         ).format(version=__version__),
                     )
                 return
-            skipped = QSettings("Local", "GF UI Editor").value("skipped_update_version", "")
+            skipped = prefs.skipped_update_version
             if not manual and skipped == value.version:
                 return
             self._offer_update(value)
@@ -3041,7 +3049,7 @@ class EditorWindow(QMainWindow):
         )
         dialog.exec()
         if dialog.choice == SKIP:
-            QSettings("Local", "GF UI Editor").setValue("skipped_update_version", info.version)
+            prefs.skipped_update_version = info.version
         elif dialog.choice == UPDATE:
             self._install_update(info)
 
@@ -3157,7 +3165,7 @@ class EditorWindow(QMainWindow):
     def show_brand_popup(self) -> None:
         if self.brand_dot.isVisible():
             self.brand_dot.hide()
-            QSettings("Local", "GF UI Editor").setValue("brand_seen", True)
+            prefs.brand_seen = True
         popup = StzLabsPopup(self.language, self)
         popup.setStyleSheet(self.styleSheet())
         popup.adjustSize()
@@ -3171,7 +3179,7 @@ class EditorWindow(QMainWindow):
         if not self._save_before_project_action():
             self._sync_language_menu()
             return
-        QSettings("Local", "GF UI Editor").setValue("language", language)
+        prefs.language = language
         application = QApplication.instance()
         switch_language(application, language)
         # Os textos são definidos ao montar a janela: recriá-la aplica o idioma
@@ -3606,8 +3614,7 @@ class EditorWindow(QMainWindow):
 
     def _offer_project_for(self, path: Path) -> bool:
         """Sugere criar um projeto ao abrir um XML solto. True se o projeto foi criado."""
-        settings = QSettings("Local", "GF UI Editor")
-        if settings.value("offer_project_on_open", "true") != "true":
+        if not prefs.offer_project_on_open:
             return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
@@ -3626,14 +3633,14 @@ class EditorWindow(QMainWindow):
         box.setCheckBox(never)
         box.exec()
         if never.isChecked():
-            settings.setValue("offer_project_on_open", "false")
+            prefs.offer_project_on_open = False
         if box.clickedButton() is not create:
             return False
         return self.new_project(loose_dir=path.parent, focus=path)
 
     def set_navigation_style(self, style: str) -> None:
         self.view.navigation_style = style
-        QSettings("Local", "GF UI Editor").setValue("navigation_style", style)
+        prefs.navigation_style = style
 
     def _confirm_utf8_conversion(self, path: Path) -> bool:
         answer = QMessageBox.question(
@@ -3667,10 +3674,7 @@ class EditorWindow(QMainWindow):
         self.document = document
         self.leave_home()
         if self.project is not None and self.project.contains(document.path):
-            QSettings("Local", "GF UI Editor").setValue(
-                f"last_file/{self.project.custom_name}",
-                self.project.relative_key(document.path),
-            )
+            prefs.set_last_file(self.project.custom_name, self.project.relative_key(document.path))
         self._texture_generation += 1
         ui_directory = document.path.parent.resolve()
         if self.texture_cache is None or self.texture_cache.ui_directory != ui_directory:
@@ -3815,7 +3819,7 @@ class EditorWindow(QMainWindow):
 
     def set_text_mode(self, mode: str) -> None:
         if mode != self.text_mode:
-            QSettings("Local", "GF UI Editor").setValue("text_mode", mode)
+            prefs.text_mode = mode
         self.text_mode = mode
         for action in self.text_mode_actions.actions():
             action.setChecked(action.data() == mode)
@@ -4259,7 +4263,7 @@ class EditorWindow(QMainWindow):
             return "auto"
         if self.project is not None and self.project.contains(self.document.path):
             return self.project.root_modes.get(self._root_mode_key(), "auto")
-        return str(QSettings("Local", "GF UI Editor").value(f"root_mode/{self._root_mode_key()}", "auto"))
+        return prefs.root_mode(self._root_mode_key())
 
     def _sync_root_mode_actions(self) -> None:
         mode = self._root_mode()
@@ -4278,7 +4282,7 @@ class EditorWindow(QMainWindow):
                 self.project.root_modes[key] = mode
             self.project.save_manifest()
         else:
-            QSettings("Local", "GF UI Editor").setValue(f"root_mode/{key}", mode)
+            prefs.set_root_mode(key, mode)
         self._place_game_screen()
         if self.selected_index == 0:
             self.properties.set_anchor_hint(self._anchor_hint_for(0))
@@ -4288,7 +4292,7 @@ class EditorWindow(QMainWindow):
         return (client_resolution(game_dir) if game_dir is not None else None) or (1024, 768)
 
     def follow_client_resolution(self) -> None:
-        QSettings("Local", "GF UI Editor").setValue("game_resolution", "game")
+        prefs.game_resolution = "game"
         self.follow_game_resolution = True
         self.game_resolution = self._client_resolution()
         self._sync_resolution_actions()
@@ -4325,9 +4329,7 @@ class EditorWindow(QMainWindow):
     def set_game_resolution(self, resolution: tuple[int, int] | None) -> None:
         self.game_resolution = resolution
         self.follow_game_resolution = False
-        QSettings("Local", "GF UI Editor").setValue(
-            "game_resolution", f"{resolution[0]}x{resolution[1]}" if resolution else "off"
-        )
+        prefs.game_resolution = f"{resolution[0]}x{resolution[1]}" if resolution else "off"
         self._sync_resolution_actions()
         self._refresh_game_screen()
 
@@ -4378,15 +4380,15 @@ class EditorWindow(QMainWindow):
 
     def set_background_mode(self, mode: str) -> None:
         self.background_mode = mode
-        QSettings("Local", "GF UI Editor").setValue("background_mode", mode)
+        prefs.background_mode = mode
         self._sync_background_actions()
         self._refresh_game_screen()
 
     def set_game_background(self, path: Path | None) -> None:
         self.game_background_path = path
-        QSettings("Local", "GF UI Editor").setValue("game_background", str(path) if path else "")
+        prefs.game_background = str(path) if path else ""
         self.background_mode = "custom" if path is not None else "builtin"
-        QSettings("Local", "GF UI Editor").setValue("background_mode", self.background_mode)
+        prefs.background_mode = self.background_mode
         self._sync_background_actions()
         if path is not None:
             # A captura define a resolução: o jogo desenha a UI em pixels de
@@ -4516,7 +4518,7 @@ class EditorWindow(QMainWindow):
     def _set_tree_column_shown(self, column: int, shown: bool) -> None:
         self.tree.setColumnHidden(column, not shown)
         hidden = [str(value) for value in (0, 2) if self.tree.isColumnHidden(value)]
-        QSettings("Local", "GF UI Editor").setValue("tree_hidden_columns", ",".join(hidden))
+        prefs.tree_hidden_columns = hidden
 
     def _refresh_tree_labels(self) -> None:
         """Tipo + o texto que o jogo mostra no controle ("Botão · Nome"), quando se sabe."""
@@ -5682,7 +5684,7 @@ class EditorWindow(QMainWindow):
         self.leave_home()
         if project is None or self.document is not None:
             return
-        last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
+        last = prefs.last_file(project.custom_name)
         if last and (project.ui_dir / last).is_file():
             self.open_document(project.ui_dir / last)
 
@@ -5854,7 +5856,7 @@ class EditorWindow(QMainWindow):
         texts.setSpacing(2)
         name = QLabel(project.name)
         name.setObjectName("cardHeading")
-        last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
+        last = prefs.last_file(project.custom_name)
         try:
             modified = len(project.modified_files())
         except OSError:
@@ -6301,15 +6303,14 @@ class EditorWindow(QMainWindow):
                 self.tr("Não foi possível renomear. Feche o jogo, o Explorer e programas com arquivos do projeto abertos.\n\n{error}").format(error=exc),
             )
             return
-        settings = QSettings("Local", "GF UI Editor")
         if current:
             self.project = Project.load(new_root)
             self.project.changes_ttl = CHANGES_TTL
-            settings.setValue("last_project", str(new_root))
-            last = settings.value(f"last_file/{old_custom}", "")
+            prefs.last_project = str(new_root)
+            last = prefs.last_file(old_custom)
             if last and old_custom != self.project.custom_name:
-                settings.setValue(f"last_file/{self.project.custom_name}", last)
-                settings.remove(f"last_file/{old_custom}")
+                prefs.set_last_file(self.project.custom_name, last)
+                prefs.remove_last_file(old_custom)
             self._update_title()
         self.statusBar().showMessage(self.tr("Projeto renomeado para {name}.").format(name=name.strip()), 8000)
         self._refresh_home()
@@ -6355,7 +6356,7 @@ class EditorWindow(QMainWindow):
         if any(self._is_current_project(project.root) for project in projects):
             self.project = None
             self.texts_panel.set_context(None, None)
-            QSettings("Local", "GF UI Editor").remove("last_project")
+            prefs.remove("last_project")
         failed = []
         for project in projects:
             try:
@@ -6753,7 +6754,7 @@ class EditorWindow(QMainWindow):
     def _game_dir(self) -> Path | None:
         if self.project is not None and self.project.game_dir is not None:
             return self.project.game_dir
-        saved = str(QSettings("Local", "GF UI Editor").value("game_dir", ""))
+        saved = prefs.game_dir
         return project_module.configured_game_dir(saved, DEFAULT_UI_DIRECTORY)
 
     def new_project(self, loose_dir: Path | None = None, focus: Path | None = None) -> bool:
@@ -6766,7 +6767,7 @@ class EditorWindow(QMainWindow):
             return False
         game_dir = dialog.game_dir
         if game_dir is not None:
-            QSettings("Local", "GF UI Editor").setValue("game_dir", str(game_dir))
+            prefs.game_dir = str(game_dir)
         try:
             name, source = dialog.name_edit.text().strip(), dialog.source_dir
             include_assets = dialog.assets_check.isChecked()
@@ -7276,7 +7277,7 @@ class EditorWindow(QMainWindow):
         self.texts_panel.set_context(project.game_dir, project.root)
         if self.document is not None and not project.contains(self.document.path):
             self.close_document()
-        QSettings("Local", "GF UI Editor").setValue("last_project", str(root))
+        prefs.last_project = str(root)
         if self.follow_game_resolution:
             self.game_resolution = self._client_resolution()
             self._sync_resolution_actions()
@@ -7297,7 +7298,7 @@ class EditorWindow(QMainWindow):
         self._update_title()
         self._official_diffs = {}
         self._start_official_scan()
-        last = str(QSettings("Local", "GF UI Editor").value(f"last_file/{project.custom_name}", ""))
+        last = prefs.last_file(project.custom_name)
         if last and (project.ui_dir / last).is_file() and self.document is None:
             self.open_document(project.ui_dir / last)
 
@@ -7352,7 +7353,7 @@ class EditorWindow(QMainWindow):
 
     # ---- ordem das seções ------------------------------------------------------------------
     def _saved_section_order(self) -> list[str]:
-        return file_list.parse_section_order(str(QSettings("Local", "GF UI Editor").value("files_section_order", "")))
+        return file_list.parse_section_order(prefs.files_section_order)
 
     def _place_sections(self) -> None:
         for index, kind in enumerate(self._section_order):
@@ -7364,7 +7365,7 @@ class EditorWindow(QMainWindow):
         if not file_list.is_valid_section_order(order) or order == self._section_order:
             return
         self._section_order = list(order)
-        QSettings("Local", "GF UI Editor").setValue("files_section_order", ",".join(order))
+        prefs.files_section_order = ",".join(order)
         self._place_sections()
         self._apply_section_heights()
 
@@ -7419,7 +7420,7 @@ class EditorWindow(QMainWindow):
         menu.exec(title.mapToGlobal(position))
 
     def _section_heights(self) -> dict[str, int]:
-        return file_list.parse_section_heights(str(QSettings("Local", "GF UI Editor").value("files_section_heights", "{}")))
+        return file_list.parse_section_heights(prefs.files_section_heights)
 
     def _save_section_heights(self) -> None:
         sizes = dict(zip(self._section_order, self.files_splitter.sizes()))
@@ -7427,7 +7428,7 @@ class EditorWindow(QMainWindow):
         for kind in self._section_order:
             if kind != "all" and self.file_sections[kind][0].isVisibleTo(self.files_splitter) and sizes[kind] > 0:
                 heights[kind] = sizes[kind]
-        QSettings("Local", "GF UI Editor").setValue("files_section_heights", json.dumps(heights))
+        prefs.files_section_heights = json.dumps(heights)
 
     def _apply_section_heights(self) -> None:
         heights = self._section_heights()
@@ -7994,8 +7995,7 @@ class EditorWindow(QMainWindow):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        settings = QSettings("Local", "GF UI Editor")
-        if settings.value("publish_confirmed", "false") != "true":
+        if not prefs.publish_confirmed:
             answer = QMessageBox.question(
                 self,
                 self.tr("Enviar para o jogo"),
@@ -8009,7 +8009,7 @@ class EditorWindow(QMainWindow):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-            settings.setValue("publish_confirmed", "true")
+            prefs.publish_confirmed = True
         try:
             project = self.project
             result = self._run_with_progress(
@@ -8250,7 +8250,7 @@ def main(argv: list[str] | None = None) -> int:
     application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")
     application.setWindowIcon(QIcon(str(APP_ICON_PATH)))
-    language = args.lang or QSettings("Local", "GF UI Editor").value("language", "pt_BR")
+    language = args.lang or prefs.language
     if language not in LANGUAGES:
         language = "pt_BR"
     switch_language(application, language)
