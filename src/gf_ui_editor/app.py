@@ -151,6 +151,7 @@ from .atlas_dialog import AtlasDialog, TexturePreviewDialog
 from .texture_cache import TextureCache
 from .theme import COLORS, stylesheet
 from . import preferences
+from . import text_preview
 
 
 class QtPreferenceStore:
@@ -3770,29 +3771,16 @@ class EditorWindow(QMainWindow):
         return self.texture_cache.region_pixmap(*icon) if icon is not None else None
 
     def _game_text_for(self, element) -> str:
+        sample = None
         if self.document is not None and self._sample_visible():
             # Nick, nível e HP/MP vêm dos dados do jogador, não do XML nem do T_TextIndex.
             sample = player_sample.sample_text(self.document.path.name, element.window_id)
-            if sample:
-                return sample
-        if self.text_mode == "off":
-            return ""
-        if self.text_mode == "game":
-            # O jogo troca o WindowText pelo rótulo que o código escreve, quando há um.
-            # O jogo só escreve o WindowText em controles de texto ou botões; painéis e a
-            # raiz guardam ali só um nome interno ("PX1-1").
-            takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
-            fallback = element.window_text if takes_text else ""
-            return self._game_labels().get(element.window_id, fallback)
-        if element.window_text or self.text_mode == "xml":
-            return element.window_text
-        if "TextNode" not in element.child_tags and "ButtonNode" not in element.child_tags:
-            return ""
-        if not element.text_props or element.width < 4:
-            return ""
-        if self.text_mode == "short":
+        text = text_preview.element_text(element, self.text_mode, self._game_labels, sample)
+        if text is text_preview.SHORT:
             return self.tr("Texto")
-        return self.tr("Texto de exemplo bem comprido para testar o espaço")
+        if text is text_preview.LONG:
+            return self.tr("Texto de exemplo bem comprido para testar o espaço")
+        return text
 
     def _game_labels(self) -> dict[str, str]:
         if self.document is None:
@@ -3889,10 +3877,8 @@ class EditorWindow(QMainWindow):
             for element in document.elements:
                 if not element.visible:
                     continue
-                takes_text = "TextNode" in element.child_tags or "ButtonNode" in element.child_tags
-                text = labels.get(element.window_id, element.window_text if takes_text else "")
-                if self._sample_visible():
-                    text = player_sample.sample_text(name, element.window_id) or text
+                sample = player_sample.sample_text(name, element.window_id) if self._sample_visible() else None
+                text = text_preview.layer_text(element, labels, sample)
                 layer.add_control(
                     QRectF(element.x, element.y, element.width, element.height),
                     self._sample_pixmap(element, name) or self.texture_cache.pixmap_for(element),
@@ -5438,17 +5424,9 @@ class EditorWindow(QMainWindow):
             own_match = not query
             if isinstance(index, int):
                 element = self.document.elements[index]
-                searchable = " ".join(
-                    (
-                        element.window_id,
-                        kind_label(element.kind, element.ctrl_type),
-                        element.parent_id or "",
-                        element.window_text,
-                        element.texture_name or "",
-                        element.ctrl_type or "",
-                        self._game_labels().get(element.window_id, ""),
-                    )
-                ).casefold()
+                searchable = text_preview.search_text(
+                    element, kind_label(element.kind, element.ctrl_type), self._game_labels().get(element.window_id, "")
+                )
                 own_match = not query or query in searchable
             child_match = False
             for child_index in range(item.childCount()):

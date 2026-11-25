@@ -43,7 +43,7 @@ Mais ou menos 8,4 mil linhas:
 | 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | — | **Feito** |
 | 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | — | **Feito** |
 | 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | — | **Feito** |
-| 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | Sim | Baixo/médio |
+| 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | — | **Feito** |
 | 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) ou `game_layout.py` | 4111–4300, 4559–4830 | Sim, mas evitar junto com a 7 se ela mexer em 4559 | **Alto** |
 | 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | Sim | Médio |
 | 10 | Atualizações e manifesto | `updater.py`, `remote_manifest.py` | 2887–3050 | — | **Feito** |
@@ -118,12 +118,15 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** `tests/test_file_list.py` (+7). Na interface continuam valendo `test_renaming_a_texture_*` e os de apagar e restaurar.
 - **Import sem uso:** `difflib` ficou sem uso no `app.py` e não foi removido, pela regra de deixar a limpeza de imports para o fim da etapa.
 
-### 7. Textos no canvas
+### 7. Textos no canvas (feita)
 
-- **Serviço:** `text_preview.py`: `element_text(element, mode, labels, sample) -> str | SHORT | LONG`. A interface troca `SHORT`/`LONG` pelos textos traduzidos "Texto" e "Texto de exemplo bem comprido…". Também `layer_text(...)` para as camadas de referência e `search_text(element, label) -> str` para o filtro da árvore.
-- **Origem:** `_game_text_for`, o laço de textos em `_refresh_reference_layers`, a string pesquisável de `filter_tree`.
-- **Testes:** novos com `UIElement` de um XML pequeno. Na interface: `test_text_mode_draws_samples_like_the_game_and_flags_overflow`.
-- **Risco:** baixo/médio. `kind_label` vem do `i18n.py`, que usa Qt; o filtro deve receber o rótulo pronto.
+- **Serviço:** `src/gf_ui_editor/text_preview.py`:
+  - `element_text(element, mode, labels, sample) -> str | SHORT | LONG`. `labels` pode ser um dicionário ou uma função, chamada só no modo "game", como o `_game_labels` de antes. `sample` é o texto do personagem de exemplo, quando ele está visível. A interface troca `SHORT`/`LONG` por "Texto" e "Texto de exemplo bem comprido…", traduzidos;
+  - `layer_text(element, labels, sample)` para as camadas de referência;
+  - `search_text(element, kind, game_label)` para o filtro da árvore, que recebe o rótulo do tipo já traduzido (`kind_label` usa Qt);
+  - `takes_text(element)`.
+- **Origem:** `_game_text_for`, o laço de textos em `_refresh_reference_layers`, a string pesquisável de `filter_tree`. Quando calcular a amostra (personagem de exemplo visível) continua sendo decidido no `app.py`.
+- **Testes:** `tests/test_text_preview.py` (8, sem janela). Na interface continua valendo `test_text_mode_draws_samples_like_the_game_and_flags_overflow`.
 
 ### 8. Geometria da raiz e área fantasma
 
