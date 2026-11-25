@@ -31,7 +31,12 @@
       {"version": "0.7.0", "text": {"pt_BR": "Recarregar o XML editado fora do editor", "en_US": "Reloading XML edited outside the editor", "es_ES": "Recargar el XML editado fuera del editor", "fr_FR": "Recharger le XML modifié hors de l'éditeur"}},
       {"version": "0.7.0", "text": {"pt_BR": "\"Abrir com\" no Explorer", "en_US": "\"Open with\" in Explorer", "es_ES": "\"Abrir con\" en el Explorador", "fr_FR": "« Ouvrir avec » dans l'Explorateur"}},
       {"version": "0.7.0", "text": {"pt_BR": "Botão da tela inicial", "en_US": "Home button", "es_ES": "Botón de inicio", "fr_FR": "Bouton d'accueil"}},
-      {"version": "0.7.0", "text": {"pt_BR": "Voltar a 100% clicando no zoom", "en_US": "Back to 100% by clicking the zoom", "es_ES": "Volver al 100% haciendo clic en el zoom", "fr_FR": "Revenir à 100 % en cliquant sur le zoom"}}
+      {"version": "0.7.0", "text": {"pt_BR": "Voltar a 100% clicando no zoom", "en_US": "Back to 100% by clicking the zoom", "es_ES": "Volver al 100% haciendo clic en el zoom", "fr_FR": "Revenir à 100 % en cliquant sur le zoom"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Limpar projeto (histórico, ícones e sobras da cópia no jogo)", "en_US": "Clean up project (history, icons and leftovers in the game copy)", "es_ES": "Limpiar proyecto (historial, iconos y sobras de la copia en el juego)", "fr_FR": "Nettoyer le projet (historique, icônes et restes de la copie dans le jeu)"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Excluir e gerenciar projetos pela tela inicial", "en_US": "Deleting and managing projects from the home screen", "es_ES": "Eliminar y gestionar proyectos desde la pantalla de inicio", "fr_FR": "Supprimer et gérer les projets depuis l'écran d'accueil"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Puxar arquivos da pasta do jogo para o projeto", "en_US": "Pulling files from the game folder into the project", "es_ES": "Traer archivos de la carpeta del juego al proyecto", "fr_FR": "Récupérer des fichiers du dossier du jeu dans le projet"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Seções da lista com rolagem própria e ordem ajustável", "en_US": "List sections with their own scroll and adjustable order", "es_ES": "Secciones de la lista con desplazamiento propio y orden ajustable", "fr_FR": "Sections de la liste avec défilement propre et ordre modifiable"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Editar cor, contorno e alinhamento do texto", "en_US": "Editing text color, outline and alignment", "es_ES": "Editar color, contorno y alineación del texto", "fr_FR": "Modifier la couleur, le contour et l'alignement du texte"}}
     ]
   }
 ]

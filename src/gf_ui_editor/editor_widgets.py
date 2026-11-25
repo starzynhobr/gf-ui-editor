@@ -145,6 +145,11 @@ def game_font_family() -> str:
     return _game_font_family
 
 
+def bgr_value(color: QColor) -> str:
+    """Cor para o FontColor do XML (inteiro BGR: vermelho no byte baixo)."""
+    return str(color.red() | (color.green() << 8) | (color.blue() << 16))
+
+
 def game_color(value: str) -> QColor:
     """FontColor vem como inteiro BGR do Windows (65535 = amarelo)."""
     try:
@@ -169,6 +174,12 @@ class GameTextItem(QGraphicsItem):
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setZValue(self.Z_VALUE)
         self.text = ""
+        self.overflows = False
+        self._image: QImage | None = None
+        self._image_origin = QPointF()
+        self._configure(props, is_button)
+
+    def _configure(self, props: dict[str, str], is_button: bool) -> None:
         self.color = game_color(props.get("FontColor", "16777215"))
         self.outline = props.get("FontStyle") == "1"
         # Botões o jogo centraliza sempre; os demais seguem o TextAlign.
@@ -181,9 +192,11 @@ class GameTextItem(QGraphicsItem):
             # Medido no jogo: texto com contorno sai com 1 px a mais entre as letras
             # ("Ranque da Guilda" 99 px em vez de 84).
             self.font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
-        self.overflows = False
-        self._image: QImage | None = None
-        self._image_origin = QPointF()
+
+    def apply_props(self, props: dict[str, str], is_button: bool) -> None:
+        """Fonte editada no painel: redesenha com a cor, o contorno e o alinhamento novos."""
+        self._configure(props, is_button)
+        self.set_text(self.text)
 
     def _box(self) -> QRectF:
         return self.owner.rect()
@@ -454,6 +467,11 @@ class ElementItem(QGraphicsRectItem):
         super().setRect(*args)
         if getattr(self, "text_item", None) is not None:
             self.text_item.set_text(self.text_item.text)
+
+    def set_text_props(self, props: dict[str, str]) -> None:
+        self._text_props = dict(props)
+        if self.text_item is not None:
+            self.text_item.apply_props(self._text_props, self._is_button)
 
     def set_game_text(self, text: str) -> None:
         """Mostra (ou some com, se vazio) o texto como o jogo desenharia."""

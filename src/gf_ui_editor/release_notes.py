@@ -43,6 +43,10 @@ class ReleaseNotes:
     def since(self, current: str, limit: int = 5) -> list["ReleaseNotes"]:
         """Esta versão e as do histórico mais novas que `current`, da mais nova para a mais antiga."""
         newer = [release for release in (self, *self.history) if _version_key(release.version) > _version_key(current)]
+        # Estável para estável: as notas da estável já resumem as betas; mostrar as betas
+        # também repetiria os mesmos itens para quem nunca as instalou.
+        if not _is_prerelease(current) and not _is_prerelease(self.version):
+            newer = [release for release in newer if not _is_prerelease(release.version)]
         newer.sort(key=lambda release: _version_key(release.version), reverse=True)
         return newer[:limit] or [self]
 
@@ -53,6 +57,12 @@ class ReleaseNotes:
             if sections and any(sections.get(name) for name in SECTIONS):
                 return sections
         return {}
+
+
+def _is_prerelease(text: str) -> bool:
+    from .updater import is_prerelease  # updater importa este módulo
+
+    return is_prerelease(text)
 
 
 def _version_key(text: str) -> tuple[int, ...]:

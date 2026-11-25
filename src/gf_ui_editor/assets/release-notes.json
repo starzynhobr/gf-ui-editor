@@ -1,193 +1,303 @@
 {
-  "version": "0.7.0-beta.2",
+  "version": "0.7.0-beta.3",
   "date": "2026-11-25",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Tela inicial completa.",
-          "Ao abrir, o editor mostra o projeto em que você parou (com Continuar), todos os seus projetos com filtro e data da última edição, avisos e novidades. A casinha volta para ela de qualquer lugar."
+          "Editar a fonte do texto.",
+          "Em Aparência, cada controle com texto mostra Cor do texto (com seletor de cor), Contorno, Alinhamento e Tamanho, só os que ele tem no XML. O texto do canvas muda na hora e Ctrl+Z desfaz."
         ],
         [
-          "Gerenciar projetos.",
-          "Na tela inicial, o ⋯ de cada projeto tem Duplicar, Renomear e Excluir (vai para a Lixeira, com opção de apagar também a cópia no jogo). \"Gerenciar\" permite marcar vários de uma vez."
+          "Seções da lista com rolagem própria.",
+          "Camadas, Alterados e Todos ficam em caixas separadas, cada uma com a sua rolagem; as camadas não empurram mais a lista. Arraste o divisor para mudar a altura, que fica guardada."
         ],
         [
-          "Versões do projeto.",
-          "Projeto → Salvar versão guarda o projeto como está, num .zip pequeno (só o que difere da UI oficial). Em Versões do projeto dá para restaurar (o estado atual é salvo antes), criar um projeto novo a partir de uma versão ou excluir."
-        ],
-        [
-          "Puxar da pasta do jogo.",
-          "Projeto → Puxar da pasta do jogo compara a pasta UI do jogo (ou uma UI do UICustom) com o projeto e lista o que difere, dizendo de onde veio cada arquivo. Nada vem marcado; o que for substituído fica no histórico."
-        ],
-        [
-          "Limpar projeto.",
-          "Projeto → Limpar projeto libera espaço: backups antigos do histórico, ícones do jogo que você não editou e sobras da cópia no jogo. Os arquivos da UI ficam todos."
-        ],
-        [
-          "Abrir no Notepad++.",
-          "Botão direito num XML da lista → Abrir no Notepad++ (ou no Bloco de Notas, se ele não estiver instalado), abrindo a cópia do projeto. Depois de salvar lá, Ctrl+R traz a mudança."
-        ],
-        [
-          "Enviar para o jogo ao salvar.",
-          "Opção no menu Projeto: cada Ctrl+S também envia para o jogo, para ver o ajuste na hora. Vem desligada."
+          "Mudar a ordem das seções.",
+          "Arraste o título de uma seção (ex.: CAMADAS) para outro lugar, ou use o botão direito: Mover para cima, Mover para baixo e Restaurar ordem padrão. A ordem fica salva."
         ]
       ],
       "improved": [
         [
-          "Envio e .zip só com o que difere do oficial.",
-          "Enviar para o jogo (UICustom) e Exportar .zip levam só os arquivos diferentes da UI oficial; o launcher completa o resto com a pasta UI. No STZ-UI a cópia caiu de 376 MB para 131 MB e o .zip ficou com 6,5 MB."
+          "A roda do mouse não muda campos sem querer.",
+          "Rolando o painel de propriedades, a roda passa por cima de listas suspensas e campos numéricos sem trocar o valor; para mudar, clique no campo."
         ],
         [
-          "Contador no Enviar para o jogo.",
-          "Quando há arquivos salvos que ainda não estão no jogo, o botão mostra quantos (\"Enviar para o jogo · 3\"). Ctrl+S salva só no projeto."
-        ],
-        [
-          "Proteção no envio.",
-          "Se um arquivo da pasta UI do jogo foi editado fora do editor, o envio guarda uma cópia dele no histórico antes de substituir e avisa, com um botão para ver e trazer de volta."
+          "Mãozinha em mais lugares.",
+          "Botões das janelas de Versões, Puxar e Limpar e todas as listas suspensas mostram a mão ao passar o mouse."
         ]
       ]
     },
     "en_US": {
       "new": [
         [
-          "Full home screen.",
-          "On launch, the editor shows the project you were working on (with Continue), all your projects with a filter and last-edited date, notices and news. The house icon brings you back from anywhere."
+          "Edit the text font.",
+          "In Appearance, each control with text shows Text color (with a color picker), Outline, Alignment and Size, only the ones it has in the XML. The text on the canvas changes right away and Ctrl+Z undoes it."
         ],
         [
-          "Manage projects.",
-          "On the home screen, each project's ⋯ menu has Duplicate, Rename and Delete (goes to the Recycle Bin, optionally removing the game copy too). \"Manage\" lets you select several at once."
+          "List sections with their own scroll.",
+          "Layers, Modified and All sit in separate boxes, each with its own scroll; layers no longer push the list down. Drag the divider to change the height, which is remembered."
         ],
         [
-          "Project versions.",
-          "Project → Save version keeps the project as it is in a small .zip (only what differs from the official UI). In Project versions you can restore (the current state is saved first), create a new project from a version, or delete it."
-        ],
-        [
-          "Pull from the game folder.",
-          "Project → Pull from the game folder compares the game's UI folder (or a UI in UICustom) with the project and lists what differs, saying where each file came from. Nothing is checked; whatever gets replaced is kept in the history."
-        ],
-        [
-          "Clean up project.",
-          "Project → Clean up project frees space: old history backups, game icons you didn't edit and leftovers in the game copy. All UI files stay."
-        ],
-        [
-          "Open in Notepad++.",
-          "Right-click an XML in the list → Open in Notepad++ (or Notepad if it isn't installed), opening the project's copy. After saving there, Ctrl+R brings the change in."
-        ],
-        [
-          "Send to game on save.",
-          "Option in the Project menu: every Ctrl+S also sends to the game, so you see the change right away. Off by default."
+          "Change the order of the sections.",
+          "Drag a section's title (e.g. LAYERS) somewhere else, or right-click it: Move up, Move down and Restore default order. The order is saved."
         ]
       ],
       "improved": [
         [
-          "Sending and .zip carry only what differs from official.",
-          "Send to game (UICustom) and Export .zip carry only files that differ from the official UI; the launcher fills in the rest from the UI folder. For STZ-UI the copy went from 376 MB to 131 MB and the .zip is 6.5 MB."
+          "The mouse wheel no longer changes fields by accident.",
+          "When scrolling the properties panel, the wheel passes over dropdowns and number fields without changing their value; click the field to change it."
         ],
         [
-          "Counter on Send to game.",
-          "When saved files aren't in the game yet, the button shows how many (\"Send to game · 3\"). Ctrl+S only saves to the project."
-        ],
-        [
-          "Protection when sending.",
-          "If a file in the game's UI folder was edited outside the editor, sending keeps a copy of it in the history before replacing it and lets you know, with a button to view and bring it back."
+          "Hand cursor in more places.",
+          "Buttons in the Versions, Pull and Clean up windows and every dropdown show the hand on hover."
         ]
       ]
     },
     "es_ES": {
       "new": [
         [
-          "Pantalla de inicio completa.",
-          "Al abrir, el editor muestra el proyecto en el que estabas (con Continuar), todos tus proyectos con filtro y fecha de la última edición, avisos y novedades. La casita vuelve a ella desde cualquier lugar."
+          "Editar la fuente del texto.",
+          "En Apariencia, cada control con texto muestra Color del texto (con selector de color), Contorno, Alineación y Tamaño, solo los que tiene en el XML. El texto del lienzo cambia al instante y Ctrl+Z lo deshace."
         ],
         [
-          "Gestionar proyectos.",
-          "En la pantalla de inicio, el ⋯ de cada proyecto tiene Duplicar, Renombrar y Eliminar (va a la Papelera, con opción de borrar también la copia en el juego). \"Gestionar\" permite marcar varios a la vez."
+          "Secciones de la lista con desplazamiento propio.",
+          "Capas, Modificados y Todos quedan en cajas separadas, cada una con su desplazamiento; las capas ya no empujan la lista. Arrastra el divisor para cambiar la altura, que queda guardada."
         ],
         [
-          "Versiones del proyecto.",
-          "Proyecto → Guardar versión guarda el proyecto tal como está, en un .zip pequeño (solo lo que difiere de la UI oficial). En Versiones del proyecto se puede restaurar (el estado actual se guarda antes), crear un proyecto nuevo a partir de una versión o eliminarla."
-        ],
-        [
-          "Traer de la carpeta del juego.",
-          "Proyecto → Traer de la carpeta del juego compara la carpeta UI del juego (o una UI de UICustom) con el proyecto y lista lo que difiere, indicando de dónde vino cada archivo. Nada viene marcado; lo que se reemplace queda en el historial."
-        ],
-        [
-          "Limpiar proyecto.",
-          "Proyecto → Limpiar proyecto libera espacio: copias antiguas del historial, iconos del juego que no editaste y sobras de la copia en el juego. Todos los archivos de la UI se quedan."
-        ],
-        [
-          "Abrir en Notepad++.",
-          "Clic derecho en un XML de la lista → Abrir en Notepad++ (o en el Bloc de notas, si no está instalado), abriendo la copia del proyecto. Después de guardar allí, Ctrl+R trae el cambio."
-        ],
-        [
-          "Enviar al juego al guardar.",
-          "Opción en el menú Proyecto: cada Ctrl+S también envía al juego, para ver el ajuste al instante. Viene desactivada."
+          "Cambiar el orden de las secciones.",
+          "Arrastra el título de una sección (p. ej., CAPAS) a otro lugar, o usa el clic derecho: Mover hacia arriba, Mover hacia abajo y Restaurar orden predeterminado. El orden queda guardado."
         ]
       ],
       "improved": [
         [
-          "Envío y .zip solo con lo que difiere del oficial.",
-          "Enviar al juego (UICustom) y Exportar .zip llevan solo los archivos distintos de la UI oficial; el launcher completa el resto con la carpeta UI. En STZ-UI la copia bajó de 376 MB a 131 MB y el .zip quedó en 6,5 MB."
+          "La rueda del ratón ya no cambia campos sin querer.",
+          "Al desplazar el panel de propiedades, la rueda pasa por encima de listas desplegables y campos numéricos sin cambiar el valor; para cambiarlo, haz clic en el campo."
         ],
         [
-          "Contador en Enviar al juego.",
-          "Cuando hay archivos guardados que aún no están en el juego, el botón muestra cuántos (\"Enviar al juego · 3\"). Ctrl+S solo guarda en el proyecto."
-        ],
-        [
-          "Protección al enviar.",
-          "Si un archivo de la carpeta UI del juego se editó fuera del editor, el envío guarda una copia en el historial antes de reemplazarlo y avisa, con un botón para verlo y traerlo de vuelta."
+          "Manita en más lugares.",
+          "Los botones de las ventanas de Versiones, Traer y Limpiar y todas las listas desplegables muestran la mano al pasar el ratón."
         ]
       ]
     },
     "fr_FR": {
       "new": [
         [
-          "Écran d'accueil complet.",
-          "À l'ouverture, l'éditeur affiche le projet sur lequel vous étiez (avec Continuer), tous vos projets avec un filtre et la date de dernière modification, les avis et les nouveautés. La petite maison y ramène depuis n'importe où."
+          "Modifier la police du texte.",
+          "Dans Apparence, chaque contrôle avec du texte affiche Couleur du texte (avec sélecteur de couleur), Contour, Alignement et Taille, seulement ceux qu'il a dans le XML. Le texte du canevas change tout de suite et Ctrl+Z annule."
         ],
         [
-          "Gérer les projets.",
-          "Sur l'écran d'accueil, le menu ⋯ de chaque projet propose Dupliquer, Renommer et Supprimer (vers la Corbeille, avec l'option de supprimer aussi la copie dans le jeu). « Gérer » permet d'en sélectionner plusieurs à la fois."
+          "Sections de la liste avec défilement propre.",
+          "Calques, Modifiés et Tous sont dans des boîtes séparées, chacune avec son défilement ; les calques ne poussent plus la liste. Faites glisser le séparateur pour changer la hauteur, qui est mémorisée."
         ],
         [
-          "Versions du projet.",
-          "Projet → Enregistrer une version garde le projet tel quel dans un petit .zip (seulement ce qui diffère de l'UI officielle). Dans Versions du projet, vous pouvez restaurer (l'état actuel est enregistré avant), créer un nouveau projet à partir d'une version ou la supprimer."
-        ],
-        [
-          "Récupérer depuis le dossier du jeu.",
-          "Projet → Récupérer depuis le dossier du jeu compare le dossier UI du jeu (ou une UI de UICustom) avec le projet et liste ce qui diffère, en indiquant d'où vient chaque fichier. Rien n'est coché ; ce qui est remplacé est gardé dans l'historique."
-        ],
-        [
-          "Nettoyer le projet.",
-          "Projet → Nettoyer le projet libère de l'espace : anciennes sauvegardes de l'historique, icônes du jeu non modifiées et restes de la copie dans le jeu. Tous les fichiers de l'UI restent."
-        ],
-        [
-          "Ouvrir dans Notepad++.",
-          "Clic droit sur un XML de la liste → Ouvrir dans Notepad++ (ou le Bloc-notes s'il n'est pas installé), sur la copie du projet. Après l'avoir enregistré là-bas, Ctrl+R ramène la modification."
-        ],
-        [
-          "Envoyer au jeu à l'enregistrement.",
-          "Option du menu Projet : chaque Ctrl+S envoie aussi au jeu, pour voir le changement tout de suite. Désactivée par défaut."
+          "Changer l'ordre des sections.",
+          "Faites glisser le titre d'une section (ex. : CALQUES) ailleurs, ou faites un clic droit : Monter, Descendre et Rétablir l'ordre par défaut. L'ordre est enregistré."
         ]
       ],
       "improved": [
         [
-          "Envoi et .zip avec seulement ce qui diffère de l'officiel.",
-          "Envoyer au jeu (UICustom) et Exporter .zip n'emportent que les fichiers différents de l'UI officielle ; le launcher complète le reste avec le dossier UI. Pour STZ-UI, la copie est passée de 376 Mo à 131 Mo et le .zip fait 6,5 Mo."
+          "La molette ne change plus les champs par accident.",
+          "En faisant défiler le panneau des propriétés, la molette passe sur les listes déroulantes et les champs numériques sans changer leur valeur ; cliquez sur le champ pour le modifier."
         ],
         [
-          "Compteur sur Envoyer au jeu.",
-          "Quand des fichiers enregistrés ne sont pas encore dans le jeu, le bouton indique combien (« Envoyer au jeu · 3 »). Ctrl+S enregistre seulement dans le projet."
-        ],
-        [
-          "Protection à l'envoi.",
-          "Si un fichier du dossier UI du jeu a été modifié en dehors de l'éditeur, l'envoi en garde une copie dans l'historique avant de le remplacer et vous prévient, avec un bouton pour le voir et le récupérer."
+          "Curseur main à plus d'endroits.",
+          "Les boutons des fenêtres Versions, Récupérer et Nettoyer et toutes les listes déroulantes affichent la main au survol."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.7.0-beta.2",
+      "date": "2026-11-25",
+      "notes": {
+        "pt_BR": {
+          "new": [
+            [
+              "Tela inicial completa.",
+              "Ao abrir, o editor mostra o projeto em que você parou (com Continuar), todos os seus projetos com filtro e data da última edição, avisos e novidades. A casinha volta para ela de qualquer lugar."
+            ],
+            [
+              "Gerenciar projetos.",
+              "Na tela inicial, o ⋯ de cada projeto tem Duplicar, Renomear e Excluir (vai para a Lixeira, com opção de apagar também a cópia no jogo). \"Gerenciar\" permite marcar vários de uma vez."
+            ],
+            [
+              "Versões do projeto.",
+              "Projeto → Salvar versão guarda o projeto como está, num .zip pequeno (só o que difere da UI oficial). Em Versões do projeto dá para restaurar (o estado atual é salvo antes), criar um projeto novo a partir de uma versão ou excluir."
+            ],
+            [
+              "Puxar da pasta do jogo.",
+              "Projeto → Puxar da pasta do jogo compara a pasta UI do jogo (ou uma UI do UICustom) com o projeto e lista o que difere, dizendo de onde veio cada arquivo. Nada vem marcado; o que for substituído fica no histórico."
+            ],
+            [
+              "Limpar projeto.",
+              "Projeto → Limpar projeto libera espaço: backups antigos do histórico, ícones do jogo que você não editou e sobras da cópia no jogo. Os arquivos da UI ficam todos."
+            ],
+            [
+              "Abrir no Notepad++.",
+              "Botão direito num XML da lista → Abrir no Notepad++ (ou no Bloco de Notas, se ele não estiver instalado), abrindo a cópia do projeto. Depois de salvar lá, Ctrl+R traz a mudança."
+            ],
+            [
+              "Enviar para o jogo ao salvar.",
+              "Opção no menu Projeto: cada Ctrl+S também envia para o jogo, para ver o ajuste na hora. Vem desligada."
+            ]
+          ],
+          "improved": [
+            [
+              "Envio e .zip só com o que difere do oficial.",
+              "Enviar para o jogo (UICustom) e Exportar .zip levam só os arquivos diferentes da UI oficial; o launcher completa o resto com a pasta UI. No STZ-UI a cópia caiu de 376 MB para 131 MB e o .zip ficou com 6,5 MB."
+            ],
+            [
+              "Contador no Enviar para o jogo.",
+              "Quando há arquivos salvos que ainda não estão no jogo, o botão mostra quantos (\"Enviar para o jogo · 3\"). Ctrl+S salva só no projeto."
+            ],
+            [
+              "Proteção no envio.",
+              "Se um arquivo da pasta UI do jogo foi editado fora do editor, o envio guarda uma cópia dele no histórico antes de substituir e avisa, com um botão para ver e trazer de volta."
+            ]
+          ]
+        },
+        "en_US": {
+          "new": [
+            [
+              "Full home screen.",
+              "On launch, the editor shows the project you were working on (with Continue), all your projects with a filter and last-edited date, notices and news. The house icon brings you back from anywhere."
+            ],
+            [
+              "Manage projects.",
+              "On the home screen, each project's ⋯ menu has Duplicate, Rename and Delete (goes to the Recycle Bin, optionally removing the game copy too). \"Manage\" lets you select several at once."
+            ],
+            [
+              "Project versions.",
+              "Project → Save version keeps the project as it is in a small .zip (only what differs from the official UI). In Project versions you can restore (the current state is saved first), create a new project from a version, or delete it."
+            ],
+            [
+              "Pull from the game folder.",
+              "Project → Pull from the game folder compares the game's UI folder (or a UI in UICustom) with the project and lists what differs, saying where each file came from. Nothing is checked; whatever gets replaced is kept in the history."
+            ],
+            [
+              "Clean up project.",
+              "Project → Clean up project frees space: old history backups, game icons you didn't edit and leftovers in the game copy. All UI files stay."
+            ],
+            [
+              "Open in Notepad++.",
+              "Right-click an XML in the list → Open in Notepad++ (or Notepad if it isn't installed), opening the project's copy. After saving there, Ctrl+R brings the change in."
+            ],
+            [
+              "Send to game on save.",
+              "Option in the Project menu: every Ctrl+S also sends to the game, so you see the change right away. Off by default."
+            ]
+          ],
+          "improved": [
+            [
+              "Sending and .zip carry only what differs from official.",
+              "Send to game (UICustom) and Export .zip carry only files that differ from the official UI; the launcher fills in the rest from the UI folder. For STZ-UI the copy went from 376 MB to 131 MB and the .zip is 6.5 MB."
+            ],
+            [
+              "Counter on Send to game.",
+              "When saved files aren't in the game yet, the button shows how many (\"Send to game · 3\"). Ctrl+S only saves to the project."
+            ],
+            [
+              "Protection when sending.",
+              "If a file in the game's UI folder was edited outside the editor, sending keeps a copy of it in the history before replacing it and lets you know, with a button to view and bring it back."
+            ]
+          ]
+        },
+        "es_ES": {
+          "new": [
+            [
+              "Pantalla de inicio completa.",
+              "Al abrir, el editor muestra el proyecto en el que estabas (con Continuar), todos tus proyectos con filtro y fecha de la última edición, avisos y novedades. La casita vuelve a ella desde cualquier lugar."
+            ],
+            [
+              "Gestionar proyectos.",
+              "En la pantalla de inicio, el ⋯ de cada proyecto tiene Duplicar, Renombrar y Eliminar (va a la Papelera, con opción de borrar también la copia en el juego). \"Gestionar\" permite marcar varios a la vez."
+            ],
+            [
+              "Versiones del proyecto.",
+              "Proyecto → Guardar versión guarda el proyecto tal como está, en un .zip pequeño (solo lo que difiere de la UI oficial). En Versiones del proyecto se puede restaurar (el estado actual se guarda antes), crear un proyecto nuevo a partir de una versión o eliminarla."
+            ],
+            [
+              "Traer de la carpeta del juego.",
+              "Proyecto → Traer de la carpeta del juego compara la carpeta UI del juego (o una UI de UICustom) con el proyecto y lista lo que difiere, indicando de dónde vino cada archivo. Nada viene marcado; lo que se reemplace queda en el historial."
+            ],
+            [
+              "Limpiar proyecto.",
+              "Proyecto → Limpiar proyecto libera espacio: copias antiguas del historial, iconos del juego que no editaste y sobras de la copia en el juego. Todos los archivos de la UI se quedan."
+            ],
+            [
+              "Abrir en Notepad++.",
+              "Clic derecho en un XML de la lista → Abrir en Notepad++ (o en el Bloc de notas, si no está instalado), abriendo la copia del proyecto. Después de guardar allí, Ctrl+R trae el cambio."
+            ],
+            [
+              "Enviar al juego al guardar.",
+              "Opción en el menú Proyecto: cada Ctrl+S también envía al juego, para ver el ajuste al instante. Viene desactivada."
+            ]
+          ],
+          "improved": [
+            [
+              "Envío y .zip solo con lo que difiere del oficial.",
+              "Enviar al juego (UICustom) y Exportar .zip llevan solo los archivos distintos de la UI oficial; el launcher completa el resto con la carpeta UI. En STZ-UI la copia bajó de 376 MB a 131 MB y el .zip quedó en 6,5 MB."
+            ],
+            [
+              "Contador en Enviar al juego.",
+              "Cuando hay archivos guardados que aún no están en el juego, el botón muestra cuántos (\"Enviar al juego · 3\"). Ctrl+S solo guarda en el proyecto."
+            ],
+            [
+              "Protección al enviar.",
+              "Si un archivo de la carpeta UI del juego se editó fuera del editor, el envío guarda una copia en el historial antes de reemplazarlo y avisa, con un botón para verlo y traerlo de vuelta."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "new": [
+            [
+              "Écran d'accueil complet.",
+              "À l'ouverture, l'éditeur affiche le projet sur lequel vous étiez (avec Continuer), tous vos projets avec un filtre et la date de dernière modification, les avis et les nouveautés. La petite maison y ramène depuis n'importe où."
+            ],
+            [
+              "Gérer les projets.",
+              "Sur l'écran d'accueil, le menu ⋯ de chaque projet propose Dupliquer, Renommer et Supprimer (vers la Corbeille, avec l'option de supprimer aussi la copie dans le jeu). « Gérer » permet d'en sélectionner plusieurs à la fois."
+            ],
+            [
+              "Versions du projet.",
+              "Projet → Enregistrer une version garde le projet tel quel dans un petit .zip (seulement ce qui diffère de l'UI officielle). Dans Versions du projet, vous pouvez restaurer (l'état actuel est enregistré avant), créer un nouveau projet à partir d'une version ou la supprimer."
+            ],
+            [
+              "Récupérer depuis le dossier du jeu.",
+              "Projet → Récupérer depuis le dossier du jeu compare le dossier UI du jeu (ou une UI de UICustom) avec le projet et liste ce qui diffère, en indiquant d'où vient chaque fichier. Rien n'est coché ; ce qui est remplacé est gardé dans l'historique."
+            ],
+            [
+              "Nettoyer le projet.",
+              "Projet → Nettoyer le projet libère de l'espace : anciennes sauvegardes de l'historique, icônes du jeu non modifiées et restes de la copie dans le jeu. Tous les fichiers de l'UI restent."
+            ],
+            [
+              "Ouvrir dans Notepad++.",
+              "Clic droit sur un XML de la liste → Ouvrir dans Notepad++ (ou le Bloc-notes s'il n'est pas installé), sur la copie du projet. Après l'avoir enregistré là-bas, Ctrl+R ramène la modification."
+            ],
+            [
+              "Envoyer au jeu à l'enregistrement.",
+              "Option du menu Projet : chaque Ctrl+S envoie aussi au jeu, pour voir le changement tout de suite. Désactivée par défaut."
+            ]
+          ],
+          "improved": [
+            [
+              "Envoi et .zip avec seulement ce qui diffère de l'officiel.",
+              "Envoyer au jeu (UICustom) et Exporter .zip n'emportent que les fichiers différents de l'UI officielle ; le launcher complète le reste avec le dossier UI. Pour STZ-UI, la copie est passée de 376 Mo à 131 Mo et le .zip fait 6,5 Mo."
+            ],
+            [
+              "Compteur sur Envoyer au jeu.",
+              "Quand des fichiers enregistrés ne sont pas encore dans le jeu, le bouton indique combien (« Envoyer au jeu · 3 »). Ctrl+S enregistre seulement dans le projet."
+            ],
+            [
+              "Protection à l'envoi.",
+              "Si un fichier du dossier UI du jeu a été modifié en dehors de l'éditeur, l'envoi en garde une copie dans l'historique avant de le remplacer et vous prévient, avec un bouton pour le voir et le récupérer."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.7.0-beta.1",
       "date": "2026-11-24",

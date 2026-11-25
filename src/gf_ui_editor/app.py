@@ -17,7 +17,7 @@ import tempfile
 import time
 import zipfile
 
-from PySide6.QtCore import QCoreApplication, QEvent, QFile, QFileSystemWatcher, QProcess, QObject, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QFile, QFileSystemWatcher, QProcess, QObject, QPoint, QPointF, QRectF, QSize, QSettings, QSignalBlocker, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -84,6 +85,8 @@ from .editor_widgets import (
     GameScreenItem,
     STATE_ROLE,
     ElementStateDelegate,
+    bgr_value,
+    game_color,
     GhostAreaItem,
     ReferenceLayerItem,
     state_slot_at,
@@ -103,7 +106,7 @@ from .game_layout import (
 )
 from .i18n import LANGUAGE_NAMES, LANGUAGES, document_error_text, kind_label, switch_language
 from .icons import MONO_FONT, UI_FONT, icon, load_fonts
-from .interaction import install_pointer_cursors
+from .interaction import disable_wheel_changes, install_pointer_cursors
 from . import backgrounds
 from .controls import ControlError, delete_control, duplicate_control, free_window_id, new_image_control, owner_of
 from .game_updates import (
@@ -1378,6 +1381,18 @@ class AttributeCommand(QUndoCommand):
         self.window.apply_attribute(self.index, self.name, self.old)
 
 
+class FontCommand(QUndoCommand):
+    def __init__(self, window: "EditorWindow", index: int, name: str, old: str, new: str):
+        super().__init__(f"{name} = {new}")
+        self.window, self.index, self.name, self.old, self.new = window, index, name, old, new
+
+    def redo(self) -> None:
+        self.window.apply_font(self.index, self.name, self.new)
+
+    def undo(self) -> None:
+        self.window.apply_font(self.index, self.name, self.old)
+
+
 class TextureCommand(QUndoCommand):
     def __init__(self, window: "EditorWindow", changes: dict[int, tuple[str, str]]):
         super().__init__(QCoreApplication.translate("EditorWindow", "Trocar textura de {count} controle(s)").format(count=len(changes)))
@@ -1414,8 +1429,52 @@ class StructureCommand(QUndoCommand):
         self.window._swap_document(self.old, [])
 
 
+FILE_SECTIONS = ("layers", "changed", "all")  # ordem padrão das seções na lista de arquivos
+
+
+class SectionTitle(QLabel):
+    """Título de uma seção da lista: arrastar muda a seção de lugar (a ordem fica salva)."""
+
+    drag_moved = Signal(str, int)  # seção, y global
+    dropped = Signal(str, int)
+    DRAG_DISTANCE = 6
+
+    def __init__(self, kind: str):
+        super().__init__()
+        self.kind = kind
+        self._press: int | None = None
+        self._dragging = False
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+    def mousePressEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press = event.globalPosition().toPoint().y()
+            self._dragging = False
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        if self._press is not None:
+            y = event.globalPosition().toPoint().y()
+            if not self._dragging and abs(y - self._press) >= self.DRAG_DISTANCE:
+                self._dragging = True
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            if self._dragging:
+                self.drag_moved.emit(self.kind, y)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        if self._dragging:
+            self.dropped.emit(self.kind, event.globalPosition().toPoint().y())
+        self._press = None
+        self._dragging = False
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        super().mouseReleaseEvent(event)
+SECTION_ROW = 24  # altura aproximada de uma linha da lista, para a altura inicial das seções
+
+
 class PropertyPanel(QWidget):
     geometry_edited = Signal(tuple)
+    font_edited = Signal(str, str)
     ghost_fix_requested = Signal()
     atlas_requested = Signal()
     texture_change_requested = Signal()
@@ -1454,6 +1513,25 @@ class PropertyPanel(QWidget):
         self.change_texture_button.clicked.connect(self.texture_change_requested.emit)
         self.uv_value = QLabel("—")
         self.font_value = QLabel("—")
+        # Fonte: cada campo só aparece quando o controle tem o atributo no XML.
+        self.font_color_button = QPushButton()
+        self.font_color_button.setObjectName("fontColorButton")
+        self.font_color_button.setToolTip(self.tr("FontColor no XML. Clique para escolher a cor."))
+        self.font_color_button.clicked.connect(self._choose_font_color)
+        self.font_outline_combo = QComboBox()
+        self.font_outline_combo.setToolTip(self.tr("FontStyle no XML: o jogo desenha um contorno preto em volta das letras."))
+        self.font_align_combo = QComboBox()
+        self.font_align_combo.setToolTip(self.tr("TextAlign no XML."))
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(1, 72)
+        self.font_size_spin.setToolTip(
+            self.tr("FontSize no XML. O preview desenha sempre com a fonte do cliente (Arial 8); o tamanho só aparece no jogo.")
+        )
+        self.font_outline_combo.activated.connect(lambda *_: self._emit_font("FontStyle", self.font_outline_combo.currentData()))
+        self.font_align_combo.activated.connect(lambda *_: self._emit_font("TextAlign", self.font_align_combo.currentData()))
+        self.font_size_spin.editingFinished.connect(lambda: self._emit_font("FontSize", str(self.font_size_spin.value())))
+        self._font_values: dict[str, str] = {}
+        disable_wheel_changes(self.font_outline_combo, self.font_align_combo, self.font_size_spin)
         self.visible_value = QCheckBox()
         self.visible_value.setEnabled(False)
 
@@ -1470,6 +1548,7 @@ class PropertyPanel(QWidget):
         self.height_spin = self._spinbox(minimum=0)
         for spin in (self.x_spin, self.y_spin, self.width_spin, self.height_spin):
             spin.valueChanged.connect(self._emit_geometry)
+        disable_wheel_changes(self.x_spin, self.y_spin, self.width_spin, self.height_spin)
 
         details_form = QFormLayout()
         geometry_form = QFormLayout()
@@ -1489,6 +1568,12 @@ class PropertyPanel(QWidget):
         self._add_field(appearance_form, self.tr("Visível no XML"), self.visible_value)
         self._add_field(appearance_form, self.tr("Texto"), self.text_value)
         self._add_field(appearance_form, self.tr("Fonte"), self.font_value)
+        self._add_field(appearance_form, self.tr("Cor do texto"), self.font_color_button)
+        self._add_field(appearance_form, self.tr("Contorno"), self.font_outline_combo)
+        self._add_field(appearance_form, self.tr("Alinhamento"), self.font_align_combo)
+        self._add_field(appearance_form, self.tr("Tamanho"), self.font_size_spin)
+        self._appearance_form = appearance_form
+        self._set_font_rows({})
         self.x_spin.setToolTip(self.tr("WindowLeft no XML"))
         self.y_spin.setToolTip(self.tr("WindowTop no XML"))
         self.width_spin.setToolTip(self.tr("WindowHeight no XML"))
@@ -1609,6 +1694,62 @@ class PropertyPanel(QWidget):
             card_layout.addWidget(widget)
         return card
 
+    @staticmethod
+    def _fill_choices(combo: QComboBox, choices: list[tuple[str, str]], value: str) -> None:
+        combo.clear()
+        for label, data in choices:
+            combo.addItem(label, data)
+        if value not in {data for _label, data in choices}:
+            combo.addItem(value, value)  # valor fora do comum: mostra como está
+        combo.setCurrentIndex(combo.findData(value))
+
+    def _set_font_rows(self, font: dict[str, str], is_button: bool = False) -> None:
+        self._font_values = dict(font)
+        rows = {
+            "FontColor": self.font_color_button,
+            "FontStyle": self.font_outline_combo,
+            "TextAlign": self.font_align_combo,
+            "FontSize": self.font_size_spin,
+        }
+        for name, widget in rows.items():
+            self._appearance_form.setRowVisible(widget, name in font)
+        # Sem nenhum campo editável, a linha "Fonte" diz que o controle não tem texto próprio.
+        self._appearance_form.setRowVisible(self.font_value, not font)
+        if "FontColor" in font:
+            color = game_color(font["FontColor"])
+            swatch = QPixmap(14, 14)
+            swatch.fill(color)
+            self.font_color_button.setIcon(QIcon(swatch))
+            self.font_color_button.setText(color.name().upper())
+        if "FontStyle" in font:
+            self._fill_choices(self.font_outline_combo, [(self.tr("Sem contorno"), "0"), (self.tr("Com contorno"), "1")], font["FontStyle"])
+        if "TextAlign" in font:
+            self._fill_choices(
+                self.font_align_combo,
+                [(self.tr("Esquerda"), "0"), (self.tr("Centro"), "1"), (self.tr("Direita"), "2")],
+                font["TextAlign"],
+            )
+            self.font_align_combo.setToolTip(
+                self.tr("TextAlign no XML. Em botões o jogo centraliza o texto sempre.") if is_button else self.tr("TextAlign no XML.")
+            )
+        if "FontSize" in font:
+            with QSignalBlocker(self.font_size_spin):
+                try:
+                    self.font_size_spin.setValue(int(font["FontSize"]))
+                except ValueError:
+                    self.font_size_spin.setValue(9)
+
+    def _emit_font(self, name: str, value: str | None) -> None:
+        if self._loading or value is None or self._font_values.get(name) == value:
+            return
+        self.font_edited.emit(name, value)
+
+    def _choose_font_color(self) -> None:
+        current = game_color(self._font_values.get("FontColor", "16777215"))
+        color = QColorDialog.getColor(current, self, self.tr("Cor do texto"))
+        if color.isValid():
+            self._emit_font("FontColor", bgr_value(color))
+
     def set_ghost_warning(self, visible: bool) -> None:
         self.ghost_hint.setVisible(visible)
         self.ghost_button.setVisible(visible)
@@ -1679,6 +1820,7 @@ class PropertyPanel(QWidget):
                 self.atlas_button.setEnabled(False)
                 self.change_texture_button.setEnabled(False)
                 self.font_value.setText("—")
+                self._set_font_rows({})
                 self.visible_value.setChecked(False)
                 self.set_enabled(False)
                 return
@@ -1711,12 +1853,8 @@ class PropertyPanel(QWidget):
                 if element.uv is not None
                 else "—"
             )
-            font = ""
-            if element.font_color:
-                font += f"cor {element.font_color}"
-            if element.font_style:
-                font += f" · estilo {element.font_style}"
-            self.font_value.setText(font or "—")
+            self.font_value.setText(self.tr("Sem texto próprio"))
+            self._set_font_rows(element.font_attrs, element.kind == "button")
             self.visible_value.setChecked(element.visible)
             for spin, value in zip(
                 (self.x_spin, self.y_spin, self.width_spin, self.height_spin),
@@ -1967,29 +2105,29 @@ class EditorWindow(QMainWindow):
         self.file_filter_edit.setPlaceholderText(self.tr("Filtrar arquivos…"))
         self.file_filter_edit.setClearButtonEnabled(True)
         self.file_filter_edit.textChanged.connect(self._filter_files)
-        self.files_tree = QTreeWidget()
-        self.files_tree.setObjectName("filesTree")
-        self.files_tree.setHeaderHidden(True)
-        self.files_tree.setColumnCount(2)
-        self.files_tree.setRootIsDecorated(False)
-        self.files_tree.setIndentation(0)
-        self.files_tree.header().setStretchLastSection(False)
-        self.files_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.files_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        # Clique e setas abrem o XML no canvas sem sair da lista (dá para ir olhando um por um);
-        # duplo clique ou Enter abrem e vão para Elementos.
-        self.files_tree.itemClicked.connect(lambda item, _column: self._file_activated(item, go_to_elements=False))
-        self.files_tree.currentItemChanged.connect(self._file_current_changed)
         self._keyboard_preview = QTimer(self)
         self._keyboard_preview.setSingleShot(True)
         self._keyboard_preview.setInterval(150)  # segurar a seta não abre cada arquivo do caminho
         self._keyboard_preview.timeout.connect(self._preview_current_file)
-        self.files_tree.itemChanged.connect(self._file_layer_toggled)
         self._layer_click = False
-        self.files_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.files_tree.customContextMenuRequested.connect(self._files_context_menu)
-        self.files_tree.itemActivated.connect(lambda item, _column: self._file_activated(item, go_to_elements=True))
-        self.files_tree.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Seções da lista (como no NifSkope): Camadas, Alterados e Todos, cada uma com a sua
+        # rolagem, num divisor arrastável que lembra a altura. As camadas não empurram o resto.
+        self.files_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.files_splitter.setObjectName("filesSections")
+        self.files_splitter.setChildrenCollapsible(False)
+        self.files_splitter.setHandleWidth(6)
+        self.file_sections: dict[str, tuple[QWidget, QLabel, QTreeWidget]] = {}
+        for kind in FILE_SECTIONS:
+            self.file_sections[kind] = self._make_files_section(kind)
+        self._section_order = self._saved_section_order()
+        self._place_sections()
+        self.files_splitter.splitterMoved.connect(lambda *_: self._save_section_heights())
+        # Linha que mostra onde a seção arrastada vai ficar.
+        self._section_drop_line = QFrame(self.files_splitter)
+        self._section_drop_line.setObjectName("sectionDropLine")
+        self._section_drop_line.setVisible(False)
+        self.files_tree = self.file_sections["all"][2]
+        self._active_files_tree = self.files_tree
         files_page = QWidget()
         files_page.setObjectName("treePanel")
         files_layout = QVBoxLayout(files_page)
@@ -2020,7 +2158,7 @@ class EditorWindow(QMainWindow):
         # XML ou texturas: duas listas separadas, cada uma com seu ícone na barra lateral.
         self.files_mode = "xml"
         files_layout.addWidget(self.file_filter_edit)
-        files_layout.addWidget(self.files_tree)
+        files_layout.addWidget(self.files_splitter, 1)
 
         # Páginas do painel lateral: 0 arquivos (XML ou texturas), 1 elementos, 2 textos.
         self.side_tabs = QStackedWidget()
@@ -2080,6 +2218,7 @@ class EditorWindow(QMainWindow):
         self._sync_side_rail()
         self.properties = PropertyPanel()
         self.properties.geometry_edited.connect(self.edit_selected_geometry)
+        self.properties.font_edited.connect(self.edit_selected_font)
         self.properties.ghost_fix_requested.connect(self.remove_ghost_area)
         self.properties.atlas_requested.connect(self.open_selected_atlas)
         self.properties.texture_change_requested.connect(self.change_selected_texture)
@@ -3208,6 +3347,10 @@ class EditorWindow(QMainWindow):
             QLabel#heroTitle { font-size: 26px; font-weight: 600; color: ${TEXT_BRIGHT}; background: transparent; }
             QLabel#heroSubtitle { font-size: 14px; color: ${TEXT_MUTED}; background: transparent; }
             QWidget#treePanel, QWidget#propertiesPanel, QScrollArea#propertiesScroll { background: ${PANEL_BG}; }
+            QLabel#filesSectionTitle { color: ${TEXT_SECTION}; font-size: 10px; font-weight: 700; padding: 4px 6px 2px 6px; background: transparent; }
+            QSplitter#filesSections::handle { background: ${BORDER_INPUT}; margin: 2px 10px; }
+            QFrame#sectionDropLine { background: ${FOCUS_BLUE}; border-radius: 1px; }
+            QSplitter#filesSections::handle:hover { background: ${FOCUS_BLUE}; }
             QLabel#sectionLabel {
                 color: ${TEXT_SECTION};
                 font-size: 10px;
@@ -3768,10 +3911,7 @@ class EditorWindow(QMainWindow):
         QTimer.singleShot(0, self._refresh_files_keeping_scroll)
 
     def _refresh_files_keeping_scroll(self) -> None:
-        bar = self.files_tree.verticalScrollBar()
-        position = bar.value()
-        self._refresh_files()
-        bar.setValue(position)
+        self._refresh_files()  # já guarda e volta a rolagem de cada seção
 
     def build_default_hud(self) -> None:
         """Liga como camadas as janelas que o jogo mostra sempre na tela."""
@@ -6920,6 +7060,30 @@ class EditorWindow(QMainWindow):
         new = "1" if not element.visible else "0"
         self.undo_stack.push(AttributeCommand(self, index, "Visible", old, new))
 
+    def edit_selected_font(self, name: str, value: str) -> None:
+        if self.document is None or self.selected_index is None:
+            return
+        index = self.selected_index
+        old = self.document.elements[index].font_attrs.get(name)
+        if old is None or old == value:
+            return
+        if not self.document.font_editable(index, name):
+            self.statusBar().showMessage(self.tr("Não foi possível achar a fonte deste controle no XML."), 6000)
+            self.properties.set_element(self.document.elements[index])
+            return
+        self.undo_stack.push(FontCommand(self, index, name, old, value))
+
+    def apply_font(self, index: int, name: str, value: str) -> None:
+        assert self.document is not None
+        self.document.set_font(index, name, value)
+        element = self.document.elements[index]
+        item = self.items.get(index)
+        if item is not None:
+            item.set_text_props(element.text_props)
+        if self.selected_index == index:
+            self.properties.set_element(element)
+        self._update_title()
+
     def apply_attribute(self, index: int, name: str, value: str | None) -> None:
         assert self.document is not None
         element = self.document.elements[index]
@@ -7165,6 +7329,176 @@ class EditorWindow(QMainWindow):
         if last and (project.ui_dir / last).is_file() and self.document is None:
             self.open_document(project.ui_dir / last)
 
+    def _make_files_section(self, kind: str) -> tuple[QWidget, QLabel, QTreeWidget]:
+        frame = QWidget()
+        frame.setObjectName("transparent")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0, 2, 0, 0)
+        layout.setSpacing(2)
+        title = SectionTitle(kind)
+        title.setObjectName("filesSectionTitle")
+        title.setToolTip(self.tr("Arraste para mudar a seção de lugar. Botão direito: mais opções."))
+        title.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        title.customContextMenuRequested.connect(lambda position, k=kind, t=title: self._section_menu(k, t, position))
+        title.drag_moved.connect(self._section_drag_moved)
+        title.dropped.connect(self._section_dropped)
+        tree = QTreeWidget()
+        tree.setObjectName("filesTree")
+        tree.setHeaderHidden(True)
+        tree.setColumnCount(2)
+        tree.setRootIsDecorated(False)
+        tree.setIndentation(0)
+        tree.header().setStretchLastSection(False)
+        tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        # Clique e setas abrem o XML no canvas sem sair da lista (dá para ir olhando um por um);
+        # duplo clique ou Enter abrem e vão para Elementos.
+        tree.itemClicked.connect(lambda item, _column, t=tree: self._file_clicked(t, item))
+        tree.currentItemChanged.connect(lambda current, previous, t=tree: self._file_current_changed(current, previous, t))
+        tree.itemChanged.connect(self._file_layer_toggled)
+        tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(lambda position, t=tree: self._files_context_menu(position, t))
+        tree.itemActivated.connect(lambda item, _column: self._file_activated(item, go_to_elements=True))
+        tree.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout.addWidget(title)
+        layout.addWidget(tree, 1)
+        return frame, title, tree
+
+    def _file_trees(self) -> list[QTreeWidget]:
+        return [self.file_sections[kind][2] for kind in FILE_SECTIONS]
+
+    def _file_items(self):
+        """(seção, árvore, item) de todos os arquivos listados, na ordem das seções."""
+        for kind in FILE_SECTIONS:
+            tree = self.file_sections[kind][2]
+            for index in range(tree.topLevelItemCount()):
+                yield kind, tree, tree.topLevelItem(index)
+
+    def _file_clicked(self, tree: QTreeWidget, item: QTreeWidgetItem) -> None:
+        self._active_files_tree = tree
+        self._file_activated(item, go_to_elements=False)
+
+    # ---- ordem das seções ------------------------------------------------------------------
+    def _saved_section_order(self) -> list[str]:
+        value = str(QSettings("Local", "GF UI Editor").value("files_section_order", ""))
+        order = [kind for kind in value.split(",") if kind in FILE_SECTIONS]
+        return order if sorted(order) == sorted(FILE_SECTIONS) else list(FILE_SECTIONS)
+
+    def _place_sections(self) -> None:
+        for index, kind in enumerate(self._section_order):
+            self.files_splitter.insertWidget(index, self.file_sections[kind][0])
+        for index, kind in enumerate(self._section_order):
+            self.files_splitter.setStretchFactor(index, 1 if kind == "all" else 0)
+
+    def set_section_order(self, order: list[str]) -> None:
+        if sorted(order) != sorted(FILE_SECTIONS) or order == self._section_order:
+            return
+        self._section_order = list(order)
+        QSettings("Local", "GF UI Editor").setValue("files_section_order", ",".join(order))
+        self._place_sections()
+        self._apply_section_heights()
+
+    def _visible_sections(self) -> list[str]:
+        return [kind for kind in self._section_order if self.file_sections[kind][0].isVisibleTo(self.files_splitter)]
+
+    def _section_drop_index(self, y_global: int) -> int:
+        """Posição entre as seções visíveis onde o cursor solta (0 = antes da primeira)."""
+        y = self.files_splitter.mapFromGlobal(QPoint(0, y_global)).y()
+        visible = self._visible_sections()
+        for index, kind in enumerate(visible):
+            if y < self.file_sections[kind][0].geometry().center().y():
+                return index
+        return len(visible)
+
+    def _section_drag_moved(self, _kind: str, y_global: int) -> None:
+        visible = self._visible_sections()
+        index = self._section_drop_index(y_global)
+        if index < len(visible):
+            y = self.file_sections[visible[index]][0].geometry().top() - 3
+        else:
+            y = self.file_sections[visible[-1]][0].geometry().bottom() + 1
+        self._section_drop_line.setGeometry(4, max(0, y), self.files_splitter.width() - 8, 3)
+        self._section_drop_line.setVisible(True)
+        self._section_drop_line.raise_()
+
+    def _section_dropped(self, kind: str, y_global: int) -> None:
+        self._section_drop_line.setVisible(False)
+        visible = self._visible_sections()
+        index = self._section_drop_index(y_global)
+        target = [item for item in visible if item != kind]
+        before = visible[index] if index < len(visible) else None
+        if before == kind:
+            return
+        position = target.index(before) if before is not None else len(target)
+        target.insert(position, kind)
+        # Seções escondidas (vazias) ficam onde estavam em relação às outras.
+        hidden = [item for item in self._section_order if item not in visible]
+        self.set_section_order(self._merge_hidden(target, hidden) if hidden else target)
+
+    def _merge_hidden(self, visible_order: list[str], hidden: list[str]) -> list[str]:
+        order = list(visible_order)
+        for item in hidden:
+            previous = self._section_order.index(item)
+            # Põe logo depois da seção que vinha antes dela na ordem antiga.
+            anchor = next((other for other in reversed(self._section_order[:previous]) if other in order), None)
+            order.insert(order.index(anchor) + 1 if anchor is not None else 0, item)
+        return order
+
+    def _move_section(self, kind: str, step: int) -> None:
+        visible = self._visible_sections()
+        if kind not in visible:
+            return
+        index = visible.index(kind)
+        swap = index + step
+        if not 0 <= swap < len(visible):
+            return
+        visible[index], visible[swap] = visible[swap], visible[index]
+        hidden = [item for item in self._section_order if item not in visible]
+        self.set_section_order(self._merge_hidden(visible, hidden) if hidden else visible)
+
+    def _section_menu(self, kind: str, title: QLabel, position) -> None:
+        visible = self._visible_sections()
+        index = visible.index(kind) if kind in visible else -1
+        menu = QMenu(self)
+        up = menu.addAction(self.tr("Mover para cima"), lambda: self._move_section(kind, -1))
+        up.setEnabled(index > 0)
+        down = menu.addAction(self.tr("Mover para baixo"), lambda: self._move_section(kind, 1))
+        down.setEnabled(0 <= index < len(visible) - 1)
+        menu.addSeparator()
+        reset = menu.addAction(self.tr("Restaurar ordem padrão"), lambda: self.set_section_order(list(FILE_SECTIONS)))
+        reset.setEnabled(self._section_order != list(FILE_SECTIONS))
+        menu.exec(title.mapToGlobal(position))
+
+    def _section_heights(self) -> dict[str, int]:
+        try:
+            data = json.loads(str(QSettings("Local", "GF UI Editor").value("files_section_heights", "{}")))
+        except ValueError:
+            return {}
+        return {str(key): int(value) for key, value in data.items() if isinstance(value, (int, float))} if isinstance(data, dict) else {}
+
+    def _save_section_heights(self) -> None:
+        sizes = dict(zip(self._section_order, self.files_splitter.sizes()))
+        heights = self._section_heights()
+        for kind in self._section_order:
+            if kind != "all" and self.file_sections[kind][0].isVisibleTo(self.files_splitter) and sizes[kind] > 0:
+                heights[kind] = sizes[kind]
+        QSettings("Local", "GF UI Editor").setValue("files_section_heights", json.dumps(heights))
+
+    def _apply_section_heights(self) -> None:
+        heights = self._section_heights()
+        sizes: dict[str, int] = {}
+        for kind in self._section_order:
+            frame, _title, tree = self.file_sections[kind]
+            if kind == "all":
+                continue
+            if not frame.isVisibleTo(self.files_splitter):
+                sizes[kind] = 0
+                continue
+            default = min(30 + SECTION_ROW * max(1, tree.topLevelItemCount()), 30 + SECTION_ROW * 6)
+            sizes[kind] = heights.get(kind, default)
+        sizes["all"] = max(120, 4000 - sum(sizes.values()))  # "Todos" fica com o resto
+        self.files_splitter.setSizes([sizes[kind] for kind in self._section_order])
+
     def _files_directory(self) -> Path | None:
         if self.project is not None:
             return self.project.ui_dir
@@ -7179,29 +7513,28 @@ class EditorWindow(QMainWindow):
         próxima seta voltava ao topo. O mesmo arquivo aparece em mais de um grupo (Camadas,
         Alterados, Todos): volta para o mesmo grupo em que o usuário estava.
         """
-        current = self.files_tree.currentItem()
+        active = self._active_files_tree
+        current = active.currentItem()
         data = current.data(0, Qt.ItemDataRole.UserRole) if current is not None else None
-        group_index = self.files_tree.indexOfTopLevelItem(current.parent()) if current is not None and current.parent() else -1
-        position = self.files_tree.verticalScrollBar().value()
+        positions = {tree: tree.verticalScrollBar().value() for tree in self._file_trees()}
         self._rebuild_files_tree()
-        if not data:
-            return
-        wanted = os.path.normcase(str(data))
-        matches = []
-        for index in range(self.files_tree.topLevelItemCount()):
-            group = self.files_tree.topLevelItem(index)
-            for child_index in range(group.childCount()):
-                child = group.child(child_index)
-                value = child.data(0, Qt.ItemDataRole.UserRole)
-                if value and os.path.normcase(str(value)) == wanted:
-                    matches.append((index != group_index, child))
-        if matches:
-            with QSignalBlocker(self.files_tree):
-                self.files_tree.setCurrentItem(min(matches, key=lambda match: match[0])[1])
-            self.files_tree.verticalScrollBar().setValue(position)
+        if data:
+            wanted = os.path.normcase(str(data))
+            matches = [
+                (tree is not active, tree, item) for _kind, tree, item in self._file_items()
+                if item.data(0, Qt.ItemDataRole.UserRole) and os.path.normcase(str(item.data(0, Qt.ItemDataRole.UserRole))) == wanted
+            ]
+            if matches:
+                _other, tree, item = min(matches, key=lambda match: match[0])
+                with QSignalBlocker(tree):
+                    tree.setCurrentItem(item)
+                self._active_files_tree = tree
+        for tree, position in positions.items():
+            tree.verticalScrollBar().setValue(position)
 
     def _rebuild_files_tree(self) -> None:
-        self.files_tree.clear()
+        for tree in self._file_trees():
+            tree.clear()
         directory = self._files_directory()
         if self.project is not None:
             modified = self.project.modified_files()
@@ -7257,27 +7590,20 @@ class EditorWindow(QMainWindow):
             files = textures
         self.files_title.setText(self.tr("Texturas") if self.files_mode == "textures" else self.tr("Arquivos XML"))
         self._update_project_button()
-        groups: list[tuple[str, list[Path]]] = []
         changed = [path for path in files if path.as_posix() in modified]
         layers = set(self.project.reference_layers) if self.project is not None else set()
-        blocker = QSignalBlocker(self.files_tree)  # caixas marcadas aqui não são cliques
+        blockers = [QSignalBlocker(tree) for tree in self._file_trees()]  # caixas marcadas aqui não são cliques
         # Camadas marcadas no topo: fica fácil ver o que está ligado e desmarcar.
         layered = [path for path in files if path.as_posix() in layers]
-        if layered:
-            groups.append((self.tr("CAMADAS · {count}").format(count=len(layered)), layered))
-        if changed:
-            groups.append((self.tr("ALTERADOS · {count}").format(count=len(changed)), changed))
-        groups.append((self.tr("TODOS · {count}").format(count=len(files)), files))
-        for title, group_files in groups:
-            header = QTreeWidgetItem([title, ""])
-            header.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            header.setForeground(0, QColor(COLORS["TEXT_SECTION"]))
-            header_font = self.files_tree.font()
-            header_font.setPointSizeF(max(7.0, header_font.pointSizeF() - 1.5))
-            header_font.setBold(True)
-            header.setFont(0, header_font)
-            header.setFirstColumnSpanned(True)
-            self.files_tree.addTopLevelItem(header)
+        groups = {
+            "layers": (self.tr("CAMADAS · {count}").format(count=len(layered)), layered),
+            "changed": (self.tr("ALTERADOS · {count}").format(count=len(changed)), changed),
+            "all": (self.tr("TODOS · {count}").format(count=len(files)), files),
+        }
+        for kind, (title, group_files) in groups.items():
+            frame, title_label, tree = self.file_sections[kind]
+            title_label.setText(title)
+            frame.setVisible(kind == "all" or bool(group_files))
             for relative in group_files:
                 key = relative.as_posix()
                 item = QTreeWidgetItem([key, "●" if key in modified else ""])
@@ -7313,9 +7639,9 @@ class EditorWindow(QMainWindow):
                     item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                     item.setCheckState(0, Qt.CheckState.Checked if key in layers else Qt.CheckState.Unchecked)
                     item.setToolTip(0, self.tr("Marque para ver esta janela junto, onde o jogo a desenha (Preview do jogo)"))
-                header.addChild(item)
-            header.setExpanded(True)
-        del blocker
+                tree.addTopLevelItem(item)
+        del blockers
+        self._apply_section_heights()
         self._filter_files(self.file_filter_edit.text())
 
     def _set_files_mode(self, mode: str) -> None:
@@ -7372,15 +7698,16 @@ class EditorWindow(QMainWindow):
 
     def _filter_files(self, text: str) -> None:
         needle = text.strip().lower()
-        for index in range(self.files_tree.topLevelItemCount()):
-            group = self.files_tree.topLevelItem(index)
+        for kind in FILE_SECTIONS:
+            frame, _title, tree = self.file_sections[kind]
             visible = 0
-            for child_index in range(group.childCount()):
-                child = group.child(child_index)
+            for index in range(tree.topLevelItemCount()):
+                child = tree.topLevelItem(index)
                 hidden = bool(needle) and needle not in child.text(0).lower()
                 child.setHidden(hidden)
                 visible += not hidden
-            group.setHidden(visible == 0)
+            if kind != "all":
+                frame.setVisible(visible > 0)
 
     def _file_layer_toggled(self, item: QTreeWidgetItem, _column: int) -> None:
         data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -7393,22 +7720,24 @@ class EditorWindow(QMainWindow):
         checked = item.checkState(0) == Qt.CheckState.Checked
         self.set_reference_layer(name, checked)
         # O mesmo arquivo aparece em "Alterados" e "Todos": mantém as duas caixas iguais.
-        with QSignalBlocker(self.files_tree):
-            for index in range(self.files_tree.topLevelItemCount()):
-                group = self.files_tree.topLevelItem(index)
-                for child_index in range(group.childCount()):
-                    child = group.child(child_index)
-                    if child is not item and child.data(0, Qt.ItemDataRole.UserRole) == data:
-                        child.setCheckState(0, item.checkState(0))
+        blockers = [QSignalBlocker(tree) for tree in self._file_trees()]
+        for _kind, _tree, child in self._file_items():
+            if child is not item and child.data(0, Qt.ItemDataRole.UserRole) == data:
+                child.setCheckState(0, item.checkState(0))
+        del blockers
 
-    def _file_current_changed(self, current: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None) -> None:
+    def _file_current_changed(
+        self, current: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None, tree: QTreeWidget | None = None
+    ) -> None:
+        tree = tree or self.files_tree
         # Só a navegação pelo teclado: o clique já abre pelo itemClicked.
-        if current is None or QApplication.mouseButtons() != Qt.MouseButton.NoButton or not self.files_tree.hasFocus():
+        if current is None or QApplication.mouseButtons() != Qt.MouseButton.NoButton or not tree.hasFocus():
             return
+        self._active_files_tree = tree
         self._keyboard_preview.start()
 
     def _preview_current_file(self) -> None:
-        item = self.files_tree.currentItem()
+        item = self._active_files_tree.currentItem()
         data = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
         # Texturas abrem uma janela: pelas setas, só os XMLs são mostrados.
         if data and Path(data).suffix.lower() == ".xml":
@@ -7422,15 +7751,14 @@ class EditorWindow(QMainWindow):
         if self.document is None:
             return
         wanted = os.path.normcase(str(self.document.path))
-        with QSignalBlocker(self.files_tree):
-            for index in range(self.files_tree.topLevelItemCount()):
-                group = self.files_tree.topLevelItem(index)
-                for child_index in range(group.childCount()):
-                    child = group.child(child_index)
-                    data = child.data(0, Qt.ItemDataRole.UserRole)
-                    if data and os.path.normcase(str(data)) == wanted:
-                        self.files_tree.setCurrentItem(child)
-                        return
+        candidates = [
+            (tree is not self._active_files_tree, tree, child) for _kind, tree, child in self._file_items()
+            if child.data(0, Qt.ItemDataRole.UserRole) and os.path.normcase(str(child.data(0, Qt.ItemDataRole.UserRole))) == wanted
+        ]
+        if candidates:
+            _other, tree, child = min(candidates, key=lambda candidate: candidate[0])
+            with QSignalBlocker(tree):
+                tree.setCurrentItem(child)
 
     def _file_activated(self, item: QTreeWidgetItem, _column: int = 0, go_to_elements: bool = False) -> None:
         if self._layer_click:
@@ -7514,8 +7842,9 @@ class EditorWindow(QMainWindow):
             day = stamp.strftime("%d/%m")
         return f"{day} {stamp:%H:%M:%S}"
 
-    def _files_context_menu(self, position) -> None:
-        item = self.files_tree.itemAt(position)
+    def _files_context_menu(self, position, tree: QTreeWidget | None = None) -> None:
+        tree = tree or self.files_tree
+        item = tree.itemAt(position)
         data = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
         if not data:
             return
@@ -7553,7 +7882,7 @@ class EditorWindow(QMainWindow):
         reveal.setEnabled(folder is not None)
         if folder is not None:
             reveal.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))))
-        menu.exec(self.files_tree.viewport().mapToGlobal(position))
+        menu.exec(tree.viewport().mapToGlobal(position))
 
     def open_in_text_editor(self, path: Path) -> None:
         """Abre o XML (a cópia do projeto) no Notepad++ ou no Bloco de Notas, sem esperar."""

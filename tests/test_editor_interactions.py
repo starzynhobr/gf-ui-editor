@@ -81,11 +81,7 @@ def test_refresh_button_discovers_added_and_removed_xml_without_open_document(tm
     toolbar.widgetForAction(window.reload_textures_action).click()
     application.processEvents()
     assert window.project.files() == [Path("Novo.xml")]
-    listed = [
-        window.files_tree.topLevelItem(i).child(j)
-        for i in range(window.files_tree.topLevelItemCount())
-        for j in range(window.files_tree.topLevelItem(i).childCount())
-    ]
+    listed = [item for _kind, _tree, item in window._file_items()]
     assert listed and all(item.text(0) == "Novo.xml" for item in listed)
     assert all(not item.isHidden() for item in listed)
     assert window.file_filter_edit.text() == "Novo"
@@ -1492,9 +1488,9 @@ def test_default_hud_checks_the_always_visible_windows_and_lists_them_first(tmp_
     window.build_default_hud()
     application.processEvents()
     assert sorted(window.project.reference_layers) == ["Channel.xml", "Menu.xml", "Radar.xml"]  # Bank não é HUD
-    first_group = window.files_tree.topLevelItem(0)
-    assert first_group.text(0).startswith("CAMADAS") or first_group.text(0).startswith("LAYERS")
-    assert first_group.childCount() == 3
+    frame, title, tree = window.file_sections["layers"]
+    assert frame.isVisibleTo(window) and title.text().startswith("CAMADAS")
+    assert tree.topLevelItemCount() == 3
     window.set_reference_layers([])
     application.processEvents()
     assert window.project.reference_layers == []
@@ -1811,12 +1807,9 @@ def _two_xml_project(tmp_path: Path):
 
 
 def _file_item(window, name: str):
-    for i in range(window.files_tree.topLevelItemCount()):
-        group = window.files_tree.topLevelItem(i)
-        for j in range(group.childCount()):
-            child = group.child(j)
-            if child.text(0) == name:
-                return child
+    for _kind, _tree, child in window._file_items():
+        if child.text(0) == name:
+            return child
     raise AssertionError(name)
 
 
@@ -2328,4 +2321,171 @@ def test_new_project_dialogs_show_the_hand_cursor_on_buttons(tmp_path: Path) -> 
         enabled = [button for button in dialog.findChildren(QPushButton) if button.isEnabled()]
         assert enabled and all(button.cursor().shape() == Qt.CursorShape.PointingHandCursor for button in enabled)
         dialog.close()
+    window.close()
+
+
+FONT_SAMPLE = """<?xml version="1.0" ?>
+<Root_Node UI_File_Name="Fonte.xml">
+  <BaseWndProperty WindowID="1" WindowHeight="200" WindowWidth="100">
+    <Container_Node Child_Cnt="1">
+      <Style ParentNode="1" CtrlType="33554432" />
+      <BaseWndProperty WindowID="2" WindowText="Oi" WindowLeft="10" WindowTop="10" WindowHeight="80" WindowWidth="16">
+        <BaseCtrlProperty FontColor="16777215" FontStyle="1" />
+        <TextNode TextAlign="0" FontSize="9" />
+      </BaseWndProperty>
+    </Container_Node>
+  </BaseWndProperty>
+</Root_Node>
+"""
+
+
+def test_font_fields_edit_color_outline_align_and_size_with_undo(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QColorDialog, QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: QMessageBox.StandardButton.Ok)
+
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Fonte.xml"
+    path.write_bytes(FONT_SAMPLE.encode("big5"))
+    window = EditorWindow()
+    monkeypatch.setattr(window, "_confirm_diff_preview", lambda: True)
+    window.open_document(path)
+    panel = window.properties
+    window.select_element(0)
+    assert not panel._appearance_form.isRowVisible(panel.font_color_button)  # janela sem fonte própria
+    window.select_element(1)
+    for widget in (panel.font_color_button, panel.font_outline_combo, panel.font_align_combo, panel.font_size_spin):
+        assert panel._appearance_form.isRowVisible(widget)
+    assert panel.font_color_button.text() == "#FFFFFF"
+
+    window.items[1].set_game_text("Oi")  # texto visível no canvas
+    monkeypatch.setattr(QColorDialog, "getColor", lambda *a, **k: QColor(255, 255, 0))
+    panel.font_color_button.click()
+    assert window.document.elements[1].font_attrs["FontColor"] == "65535"  # amarelo em BGR
+    assert panel.font_color_button.text() == "#FFFF00"
+    assert window.items[1].text_item.color == QColor(255, 255, 0)  # preview atualizado
+
+    panel.font_align_combo.setCurrentIndex(panel.font_align_combo.findData("2"))
+    panel.font_align_combo.activated.emit(panel.font_align_combo.currentIndex())
+    panel.font_outline_combo.setCurrentIndex(panel.font_outline_combo.findData("0"))
+    panel.font_outline_combo.activated.emit(panel.font_outline_combo.currentIndex())
+    panel.font_size_spin.setValue(12)
+    panel.font_size_spin.editingFinished.emit()
+    assert window.document.elements[1].font_attrs == {"FontColor": "65535", "FontStyle": "0", "TextAlign": "2", "FontSize": "12"}
+    assert not window.items[1].text_item.outline
+
+    window.undo_stack.undo()  # tamanho volta
+    assert window.document.elements[1].font_attrs["FontSize"] == "9" and panel.font_size_spin.value() == 9
+    window.save_action.trigger()
+    saved = path.read_bytes()
+    assert b'<BaseCtrlProperty FontColor="65535" FontStyle="0" />' in saved
+    assert b'<TextNode TextAlign="2" FontSize="9" />' in saved
+    window.close()
+
+
+def test_file_list_sections_scroll_on_their_own_and_remember_height(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.resize(1200, 800)
+    window.show()
+    window.open_project(project.root)
+    window.show_side_page("xml")
+    application.processEvents()
+    layers_frame, layers_title, layers_tree = window.file_sections["layers"]
+    assert not layers_frame.isVisibleTo(window)  # sem camadas, a seção some
+    window.set_reference_layers(["Alpha.xml", "Beta.xml"])
+    application.processEvents()
+    assert layers_frame.isVisibleTo(window) and layers_tree.topLevelItemCount() == 2
+    assert window.files_tree.topLevelItemCount() == 3  # "Todos" continua com tudo, na própria árvore
+    assert layers_tree is not window.files_tree
+
+    # Arrastar o divisor guarda a altura das camadas, e ela volta depois de remontar a lista.
+    sizes = window.files_splitter.sizes()
+    sizes[0], sizes[2] = 150, sizes[2] + sizes[0] - 150
+    window.files_splitter.setSizes(sizes)
+    window._save_section_heights()
+    window._refresh_files()
+    application.processEvents()
+    assert abs(window.files_splitter.sizes()[0] - 150) <= 2
+    assert '"layers": 150' in str(QSettings("Local", "GF UI Editor").value("files_section_heights"))
+
+    # O filtro esconde a seção que ficou sem nenhum arquivo.
+    window.file_filter_edit.setText("Gamma")
+    application.processEvents()
+    assert not layers_frame.isVisibleTo(window)
+    window.file_filter_edit.setText("")
+    window.close()
+
+
+def test_file_sections_can_be_reordered_by_drag_or_menu_and_the_order_is_saved(tmp_path: Path) -> None:
+    from PySide6.QtCore import QPoint, QSettings
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.resize(1200, 800)
+    window.show()
+    window.open_project(project.root)
+    window.show_side_page("xml")
+    window.set_reference_layers(["Alpha.xml"])
+    application.processEvents()
+    splitter = window.files_splitter
+    order = lambda: [splitter.widget(i) for i in range(splitter.count())]  # noqa: E731
+    layers, all_files = window.file_sections["layers"][0], window.file_sections["all"][0]
+    assert order().index(layers) < order().index(all_files)
+
+    # Arrastar o título das Camadas para baixo do Todos.
+    bottom = splitter.mapToGlobal(QPoint(0, splitter.height() - 2)).y()
+    window._section_drag_moved("layers", bottom)
+    assert window._section_drop_line.isVisibleTo(window)
+    window._section_dropped("layers", bottom)
+    assert not window._section_drop_line.isVisibleTo(window)
+    assert order().index(layers) > order().index(all_files)
+    # "Alterados" está vazia (escondida) e continua logo depois das Camadas.
+    assert QSettings("Local", "GF UI Editor").value("files_section_order") == "all,layers,changed"
+
+    # Uma janela nova abre com a ordem salva.
+    window.close()
+    other = EditorWindow()
+    other.open_project(project.root)
+    assert other._section_order == ["all", "layers", "changed"]
+    # Menu: mover para cima e restaurar o padrão.
+    other.show()
+    other.show_side_page("xml")
+    application.processEvents()
+    other._move_section("layers", -1)
+    assert other._section_order == ["layers", "changed", "all"]
+    assert QSettings("Local", "GF UI Editor").value("files_section_order") == "layers,changed,all"
+    other.close()
+
+
+def test_wheel_over_property_fields_scrolls_the_panel_without_changing_values(tmp_path: Path) -> None:
+    from PySide6.QtCore import QPoint, QPointF
+    from PySide6.QtGui import QWheelEvent
+
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path / "Fonte.xml"
+    path.write_bytes(FONT_SAMPLE.encode("big5"))
+    window = EditorWindow()
+    window.resize(1200, 500)
+    window.show()
+    window.open_document(path)
+    window.select_element(1)
+    application.processEvents()
+    panel = window.properties
+    for widget in (panel.font_align_combo, panel.font_outline_combo, panel.font_size_spin, panel.x_spin):
+        before = widget.currentIndex() if hasattr(widget, "currentIndex") else widget.value()
+        event = QWheelEvent(
+            QPointF(5, 5), QPointF(widget.mapToGlobal(QPoint(5, 5))), QPoint(0, 0), QPoint(0, -120),
+            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False,
+        )
+        QApplication.sendEvent(widget, event)
+        after = widget.currentIndex() if hasattr(widget, "currentIndex") else widget.value()
+        assert after == before, widget
+    assert panel.font_align_combo.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    assert panel.font_color_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
     window.close()

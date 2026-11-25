@@ -60,7 +60,7 @@ Foco: o projeto como espaço de trabalho, inclusive para quem edita XML na mão.
 
 ## Fase 3 — edição (betas seguintes da 0.7.0)
 
-- [ ] **Fonte no painel do elemento:** editar cor, negrito, alinhamento e tamanho. Hoje só aparece como texto ("cor 65535 · estilo 1"), sem edição. Levantamento nos 365 XMLs oficiais:
+- [x] **Fonte no painel do elemento** (validada em 25/11/2026): em Aparência, Cor do texto (seletor de cor, grava BGR), Contorno, Alinhamento e Tamanho, cada campo só quando o controle tem o atributo; desfazer funciona e o texto do canvas muda na hora. `FontStyle=1` é **contorno preto**, não negrito (o preview já desenhava assim); o preview usa sempre Arial 8 do cliente, então o tamanho só aparece no jogo. A roda do mouse sobre listas suspensas e campos numéricos do painel rola o painel em vez de mudar o valor (pedido do usuário em 25/11/2026). Plano original: editar cor, negrito, alinhamento e tamanho. Hoje só aparece como texto ("cor 65535 · estilo 1"), sem edição. Levantamento nos 365 XMLs oficiais:
 
   | Atributo | Onde fica | Valores |
   |---|---|---|
@@ -70,7 +70,7 @@ Foco: o projeto como espaço de trabalho, inclusive para quem edita XML na mão.
   | `FontSize` | TextNode (6.305×) | 9 e 10 na maioria |
 
   Mostrar os campos só quando o controle tem o atributo; conferir a ordem dos canais de cor (65535 = amarelo indica BGR).
-- [ ] **Seções com rolagem própria na lista de XMLs** (estilo NifSkope): "Camadas" numa caixa de altura ajustável com rolagem própria, "Todos" com outra; divisor arrastável que lembra a altura. Hoje é uma árvore só e as camadas empurram o resto para baixo.
+- [x] **Seções com rolagem própria na lista de XMLs** (validada em 25/11/2026; uma árvore por seção num divisor vertical, alturas em `files_section_heights` no QSettings; seção sem arquivos some, também com o filtro; dá para **mudar a ordem** arrastando o título ou pelo botão direito — Mover para cima/baixo, Restaurar ordem padrão —, salva em `files_section_order`) (estilo NifSkope): "Camadas" numa caixa de altura ajustável com rolagem própria, "Todos" com outra; divisor arrastável que lembra a altura. Hoje é uma árvore só e as camadas empurram o resto para baixo.
 
 ## Depois
 

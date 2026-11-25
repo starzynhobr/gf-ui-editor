@@ -31,14 +31,14 @@ kanban-plugin: board
 
 ## Fase 3
 
-- [ ] Editar fonte: cor, negrito, alinhamento, tamanho [[roadmap]]
-- [ ] Seções com rolagem própria na lista de XMLs [[roadmap]]
+- [x] Editar fonte: cor, contorno, alinhamento, tamanho (validado) [[roadmap]]
+- [x] Seções com rolagem própria na lista de XMLs (validado) [[roadmap]]
 
 
 ## Depois
 
 - [ ] Aviso de atualização dos textos do jogo [[roadmap]]
-- [ ] Primeira beta pelo canal novo [[beta]]
+- [x] Primeira beta pelo canal novo (0.7.0-beta.1) [[beta]]
 - [ ] Estudo da migração web: preparar (extrair lógica do app.py, harness mesma-saída) e protótipo [[migracao-web]]
 
 

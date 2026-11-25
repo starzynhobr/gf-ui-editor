@@ -234,3 +234,26 @@ def test_stray_text_between_tags_is_reported_and_removed_on_save(tmp_path):
     expected = xml.replace('  Description="" />', "").replace('Child_Cnt="1"', 'Child_Cnt="2"')
     assert path.read_bytes() == expected.encode("big5")
     assert UIDocument.load(path).stray_texts() == []
+
+
+def test_font_attributes_are_edited_in_place_only_where_they_exist(tmp_path: Path) -> None:
+    path = tmp_path / "Teste.xml"
+    raw = write_sample(path)
+    document = UIDocument.load(path)
+    window, text = document.elements
+    assert text.font_attrs == {"FontColor": "16777215", "FontStyle": "1", "TextAlign": "0"}
+    assert document.font_editable(1, "FontColor") and not document.font_editable(1, "FontSize")
+    assert not document.font_editable(0, "FontColor")  # a janela não tem BaseCtrlProperty
+    with pytest.raises(ValueError):
+        document.set_font(1, "FontSize", "10")
+    document.set_font(1, "FontColor", "65535")
+    document.set_font(1, "TextAlign", "2")
+    assert document.is_dirty and text.text_props["FontColor"] == "65535"
+    document.save()
+    saved = path.read_bytes()
+    assert b'<BaseCtrlProperty FontColor="65535" FontStyle="1" />' in saved
+    assert b'<TextNode TextAlign="2" MultiLine="0" />' in saved
+    # Nada mais muda no arquivo.
+    assert saved.replace(b'"65535"', b'"16777215"').replace(b'TextAlign="2"', b'TextAlign="0"') == raw
+    assert not document.is_dirty
+    assert UIDocument.load(path).elements[1].font_attrs["FontColor"] == "65535"

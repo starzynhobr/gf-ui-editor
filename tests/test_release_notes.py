@@ -91,5 +91,15 @@ def test_history_orders_betas_before_their_stable_release() -> None:
             {"version": "0.6.0", "notes": {"en_US": {"new": [["Old.", "b"]]}}},
         ],
     }))
-    assert [r.version for r in notes.since("0.6.0")] == ["0.7.0", "0.7.0-beta.2", "0.7.0-beta.1"]
+    # Da estável para a estável: só a estável, que já resume as betas.
+    assert [r.version for r in notes.since("0.6.0")] == ["0.7.0"]
+    assert [r.version for r in notes.since("0.5.4")] == ["0.7.0", "0.6.0"]
+    # Quem estava numa beta vê também as betas que pulou.
     assert [r.version for r in notes.since("0.7.0-beta.1")] == ["0.7.0", "0.7.0-beta.2"]
+    # Canal beta saindo da estável para uma beta: as betas aparecem.
+    beta = release_notes.parse(json.dumps({
+        "version": "0.7.0-beta.2",
+        "notes": {"en_US": {"new": [["Beta 2.", "b"]]}},
+        "history": [{"version": "0.7.0-beta.1", "notes": {"en_US": {"new": [["Beta 1.", "b"]]}}}],
+    }))
+    assert [r.version for r in beta.since("0.6.0")] == ["0.7.0-beta.2", "0.7.0-beta.1"]

@@ -17,6 +17,14 @@ NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
 CONTAINER_TAG_RE = re.compile(r"<Container_Node\b[^>]*>")
 BACKGROUND_TAG_RE = re.compile(r"<BackGroundMap\b[^>]*>")
+# Atributos de fonte editáveis e a tag (filha direta do controle) onde cada um fica.
+FONT_FIELDS = {
+    "FontColor": "BaseCtrlProperty",
+    "FontStyle": "BaseCtrlProperty",
+    "TextAlign": "TextNode",
+    "FontSize": "TextNode",
+}
+FONT_TAG_RES = {tag: re.compile(rf"<{tag}\b[^>]*>") for tag in set(FONT_FIELDS.values())}
 # Qualquer tag (aspas podem conter ">"); o que sobra entre duas tags deveria ser só espaço.
 ANY_TAG_RE = re.compile(r"""<(?:[^"'>]|"[^"]*"|'[^']*')*>""")
 BUTTON_UV_STATES = ("FocusUV", "DownUV", "DisableUV")
@@ -109,6 +117,13 @@ class UIElement:
     # Como o jogo escreve o texto do controle: FontColor/FontStyle (BaseCtrlProperty)
     # e TextAlign/MultiLine (TextNode). Vazio quando o controle não tem texto.
     text_props: dict[str, str] = field(default_factory=dict)
+    # Fonte (FONT_FIELDS) só com os atributos que o controle já tem no XML.
+    font_attrs: dict[str, str] = field(default_factory=dict)
+    original_font_attrs: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def changed_font_attributes(self) -> dict[str, str]:
+        return {name: value for name, value in self.font_attrs.items() if self.original_font_attrs.get(name) != value}
 
     @staticmethod
     def _number(attrs: dict[str, str], name: str, default: int = 0) -> int:
@@ -430,7 +445,7 @@ class UIDocument:
             element.texture_name != element.original_texture_name for element in self.elements
         ) or any(
             element.changed_attributes or element.changed_uv_attributes or element.changed_offset_attributes
-            or element.changed_button_uv_attributes
+            or element.changed_button_uv_attributes or element.changed_font_attributes
             for element in self.elements
         )
 
@@ -499,6 +514,11 @@ class UIDocument:
             node = base.find(tag)
             if node is not None:
                 text_props.update(node.attrib)
+        font_attrs: dict[str, str] = {}
+        for name, tag in FONT_FIELDS.items():
+            node = base.find(tag)
+            if node is not None and name in node.attrib:
+                font_attrs[name] = node.attrib[name]
         return UIElement(
             index=len(self.elements),
             window_id=attrs.get("WindowID", "?"),
@@ -517,6 +537,8 @@ class UIDocument:
             original_progress_offset=progress_offset,
             child_tags=tuple(child.tag for child in base),
             text_props=text_props,
+            font_attrs=font_attrs,
+            original_font_attrs=dict(font_attrs),
         )
 
     def set_geometry(self, index: int, geometry: tuple[int, int, int, int]) -> None:
@@ -529,6 +551,30 @@ class UIDocument:
         start = self._start_tags[index].end()
         end = self._start_tags[index + 1].start() if index + 1 < len(self._start_tags) else len(self.text)
         return BACKGROUND_TAG_RE.search(self.text, start, end)
+
+    def _font_tag(self, index: int, tag: str) -> re.Match[str] | None:
+        """A tag <BaseCtrlProperty>/<TextNode> do próprio controle (antes do primeiro filho dele)."""
+        start = self._start_tags[index].end()
+        end = self._start_tags[index + 1].start() if index + 1 < len(self._start_tags) else len(self.text)
+        return FONT_TAG_RES[tag].search(self.text, start, end)
+
+    def font_editable(self, index: int, name: str) -> bool:
+        """O controle tem o atributo e a tag dele foi achada no texto com o mesmo valor."""
+        element = self.elements[index]
+        if name not in element.original_font_attrs:
+            return False
+        match = self._font_tag(index, FONT_FIELDS[name])
+        if match is None:
+            return False
+        found = re.search(rf'\b{name}\s*=\s*"([^"]*)"', match.group(0))
+        return found is not None and found.group(1) == element.original_font_attrs[name]
+
+    def set_font(self, index: int, name: str, value: str) -> None:
+        if not self.font_editable(index, name):
+            raise ValueError(f"Este controle não tem {name} editável.")
+        element = self.elements[index]
+        element.font_attrs[name] = value
+        element.text_props[name] = value
 
     def texture_editable(self, index: int) -> bool:
         return self._background_tag(index) is not None
@@ -646,6 +692,18 @@ class UIDocument:
                         (match.start(), match.end(), self._replace_attribute(match.group(0), "BGmap", element.texture_name or ""))
                     )
 
+        for element in self.elements:
+            changes = element.changed_font_attributes
+            for tag in sorted({FONT_FIELDS[name] for name in changes}):
+                match = self._font_tag(element.index, tag)
+                if match is None:
+                    raise DocumentError("Não foi possível achar a fonte do controle no XML.")
+                new_tag = match.group(0)
+                for name, value in changes.items():
+                    if FONT_FIELDS[name] == tag:
+                        new_tag = self._replace_attribute(new_tag, name, value)
+                replacements.append((match.start(), match.end(), new_tag))
+
         if self._fix_stray_text:
             for start, end in self._stray_text_spans():
                 gap = self.text[start:end]
@@ -734,4 +792,5 @@ class UIDocument:
             element.original_button_uvs = dict(element.button_uvs)
             element.original_progress_offset = element.progress_offset
             element.original_texture_name = element.texture_name
+            element.original_font_attrs = dict(element.font_attrs)
         return backup
