@@ -39,10 +39,10 @@ Mais ou menos 8,4 mil linhas:
 |---|---|---|---|---|---|
 | 1 | Lista de arquivos e seções | `file_list.py` (novo) | 7360–7810, 7810–7990 | — | **Feito** |
 | 2 | Preferências fora do `QSettings` | `preferences.py` (novo) | ~45 pontos espalhados | **Não**: toca o arquivo todo. Fazer sozinha, entre ondas | Médio |
-| 3 | Publicar (F5) e textos | `publish.py` (novo) + `text_data.py` | `test_in_game` (8040–8170), `_text_overrides` | Sim | Médio |
+| 3 | Publicar (F5) e textos | `publishing.py` (novo) + `text_data.py` | `test_in_game` (8040–8170), `_text_overrides` | — | **Feito** |
 | 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | Sim | Baixo |
 | 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | Sim | Baixo |
-| 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | Sim, depois da 1 (já feita) | Baixo |
+| 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | — | **Feito** |
 | 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | Sim | Baixo/médio |
 | 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) ou `game_layout.py` | 4111–4300, 4559–4830 | Sim, mas evitar junto com a 7 se ela mexer em 4559 | **Alto** |
 | 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | Sim | Médio |
@@ -69,12 +69,18 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** um teste unitário por tipo de chave, a migração com um dicionário falso no lugar do `QSettings` e o JSON corrompido caindo nos padrões. O `conftest.py` passa a isolar também o caminho do JSON.
 - **Risco:** médio. O código fica fácil, mas perder preferências do usuário é visível. A fatia toca o arquivo inteiro e conflita com todas as outras, por isso entra **sozinha**, entre duas ondas de fatias paralelas, e em dois commits (passo 1 e passo 2). O passo 2 pode esperar a [etapa 2](migracao-web.md#ordem-de-implementação) (casca), mas o passo 1 já é útil.
 
-### 3. Publicar (F5) e textos
+### 3. Publicar (F5) e textos (feita)
 
-- **Serviço:** `publish.py`: `pending_new_controls(official_diffs)`, que devolve a lista que gera o aviso de controles novos, e `publish_project(project, texts_disabled, progress) -> PublishOutcome`. O `PublishOutcome` traz o resultado de `project.publish`, `texts_changed`, `text_warnings`, `texts_blocked` e `needs_launcher_selection`. Dentro dele ficam a carimbagem do histórico em `data/<stamp>` e a limpeza das edições que voltaram ao original. `_text_overrides` vira `text_data.text_index_overrides(root)`.
+- **Serviço:** `src/gf_ui_editor/publishing.py` (o nome `publish` ficaria ambíguo com `Project.publish`):
+  - `pending_new_controls(diffs)`: a lista do aviso de controles novos;
+  - `publish_texts(project, texts_disabled, now=None) -> TextsOutcome(changed, warnings, blocked)`: carimbo `data/<stamp>` no histórico e limpeza das edições que voltaram ao original;
+  - `publish_project(project, texts_disabled, progress) -> PublishOutcome(result, texts)`: UI e textos de uma vez, para a interface web;
+  - `needs_launcher_selection(result, custom_name)`.
+
+  `_text_overrides` virou `text_data.text_index_overrides(root)`.
 - **Origem:** `test_in_game` (o miolo do `try`), `_text_overrides`.
-- **Testes:** `test_project.py` e `test_text_data.py` já cobrem as peças. Faltam testes novos do `publish_project` com jogo falso em `tmp_path`. Na interface: `test_publish_on_save_*` e os três testes que chamam `window.test_in_game()`.
-- **Risco:** médio. O `except OSError` hoje cobre `project.publish` **e** os textos; o serviço precisa deixar a exceção subir do mesmo jeito.
+- **`except OSError`:** a interface Qt continua chamando `project.publish` (dentro de `_run_with_progress`, em outra thread) e depois `publishing.publish_texts` (na thread da interface), as duas dentro do mesmo `try`. Os serviços não capturam `OSError`, então uma falha de disco nos textos continua caindo em "Falha ao publicar". O `publish_project` existe para a web e não é usado pela clássica, para não levar os textos para a outra thread.
+- **Testes:** `tests/test_publishing.py` (8, sem janela, incluindo `OSError` subindo dos textos). Na interface continuam valendo `test_publish_on_save_*` e os três testes que chamam `window.test_in_game()`.
 
 ### 4. Tela inicial e projetos
 
@@ -90,12 +96,17 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** `test_project.py` e `test_game_updates.py` ganham casos. Na interface: testes de novo projeto e de UI oficial.
 - **Risco:** baixo. O `_start_official_scan` recebe `base_bytes` como função, e basta passar `project.base_bytes`.
 
-### 6. Arquivos: importar, renomear, apagar, restaurar
+### 6. Arquivos: importar, renomear, apagar, restaurar (feita)
 
-- **Serviço:** `file_list.py` (acrescenta): `rename_target(path, typed_name) -> (target, replacing) | erro de nome` (caracteres proibidos, extensão automática), `delete_warning(project, path) -> "official"|("texture_users", n)|None`, `import_plan(project, sources) -> (targets, replaced)`, `restore_diff(path, source, from_label, to_label) -> str` e `restore_loose(path, source)` (backup `.before-gf-ui-editor-…` + cópia).
-- **Origem:** `rename_project_file`, `delete_project_file`, `import_files`, `restore_file` (só o diff e a cópia sem projeto).
-- **Testes:** `test_file_list.py`. Na interface: `test_renaming_a_texture_*`, os de apagar e restaurar.
-- **Risco:** baixo. Mexe no mesmo `file_list.py` da fatia 1, que já está fechada.
+- **Serviço:** `file_list.py` ganhou:
+  - `has_invalid_chars(name)` e `rename_target(path, name) -> (target, replacing)` (extensão automática; mudar só a caixa não substitui);
+  - `delete_warning(project, path) -> DeleteWarning(official, texture_users)`;
+  - `import_plan(project, sources) -> (targets, replaced)`;
+  - `restore_diff(path, source, current_label, restored_label) -> str`, que devolve vazio se os arquivos são iguais e deixa o `OSError` subir;
+  - `restore_file(project, path, source, now=None)`: `Project.restore` no projeto, ou backup `.before-gf-ui-editor-…` + cópia num XML solto.
+- **Origem:** `rename_project_file`, `delete_project_file`, `import_files`, `restore_file` (o diff e a cópia). Diálogos, perguntas e mensagens ficaram no `app.py`.
+- **Testes:** `tests/test_file_list.py` (+7). Na interface continuam valendo `test_renaming_a_texture_*` e os de apagar e restaurar.
+- **Import sem uso:** `difflib` ficou sem uso no `app.py` e não foi removido, pela regra de deixar a limpeza de imports para o fim da etapa.
 
 ### 7. Textos no canvas
 
@@ -136,7 +147,7 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 Onda A, em paralelo, com zonas e serviços diferentes:
 
 - **Codex:** fatia **4** (tela inicial) e fatia **5** (criar projeto, base oficial, erro do jogo). Não encostam em `file_list.py` nem nas zonas 3600–5530.
-- **Outro agente / Claude 2:** fatia **3** (publicar) e fatia **6** (arquivos).
+- **Claude 2:** fatia **3** (publicar) e fatia **6** (arquivos). **Feitas.**
 - A fatia **11** serve para quem terminar primeiro (zona 160–345, sem conflito com ninguém).
 
 Depois da onda A, a fatia **2** entra sozinha, seguida da **10**. A onda B vem por último: **7**, **9** e depois **8**, com cuidado.
