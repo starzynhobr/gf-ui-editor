@@ -1,6 +1,13 @@
 # Estado atual
 
-Revisão: **25/11/2026**. Última release publicada: **0.6.0** (24/11/2026).
+Revisão: **25/11/2026**. Última release publicada: **0.7.0** (25/11/2026).
+
+## 0.7.0 estável publicada (25/11/2026)
+- Reúne as betas 1–3 (Fases 1, 2 e 3) mais as correções finais, sem beta.4: `map` fora dos projetos novos, Limpar remove mapas iguais ao oficial, textos do F5/criação, tamanho na tela inicial recalculado após Limpar/Puxar/Salvar versão.
+- Notas consolidadas nos 4 idiomas; as betas ficam no `history` (estável para estável não as mostra).
+- Instalador: `GF-UI-Editor-Setup-0.7.0.exe` (e `GF-UI-Editor-Setup.exe`), SHA-256 `391E045E35EFBF2EF3279691411D1CCFAA60F8224EBFCD0C50AE571A25894757`.
+- Webhook "published" entregue (200) → card no #patch-notes.
+
 
 ## Beta 0.7.0-beta.3 publicada (25/11/2026, pre-release; Fase 3)
 - Fonte no painel (cor, contorno, alinhamento, tamanho); seções da lista com rolagem própria e ordem ajustável.

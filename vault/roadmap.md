@@ -72,10 +72,10 @@ Foco: o projeto como espaço de trabalho, inclusive para quem edita XML na mão.
   Mostrar os campos só quando o controle tem o atributo; conferir a ordem dos canais de cor (65535 = amarelo indica BGR).
 - [x] **Seções com rolagem própria na lista de XMLs** (validada em 25/11/2026; uma árvore por seção num divisor vertical, alturas em `files_section_heights` no QSettings; seção sem arquivos some, também com o filtro; dá para **mudar a ordem** arrastando o título ou pelo botão direito — Mover para cima/baixo, Restaurar ordem padrão —, salva em `files_section_order`) (estilo NifSkope): "Camadas" numa caixa de altura ajustável com rolagem própria, "Todos" com outra; divisor arrastável que lembra a altura. Hoje é uma árvore só e as camadas empurram o resto para baixo.
 
-## Correções antes da 0.7.0 (0.7.0-beta.4)
+## Correções finais (entraram direto na 0.7.0, sem beta.4)
 
-- [x] **`map` fora dos projetos novos** (implementado, falta testar): nenhum XML aponta para os `map/*.dds` (conferido nos XMLs da UI do jogo) e o editor só lê texturas da raiz de `ui/`; a afirmação anterior de que "o editor desenha com o map" estava errada. A criação deixa a pasta `map` de fora (menos ~163 MB por projeto, salvo com "incluir ícones"); projetos antigos continuam listando o que têm, e **Limpar projeto** ganhou "Mapas do jogo iguais ao oficial" (mapas editados ficam).
-- [x] **Textos do F5 e da criação** (implementado, falta testar): a barra do F5 dizia "Publicando no jogo… 653/704" e parecia enviar tudo; agora "Conferindo o que mudou e enviando para o jogo…", e no fim "Nada mudou: a pasta UI do jogo já está igual ao projeto" ou "N arquivo(s) enviados". A criação avisa que para o jogo só vai o que for alterado.
+- [x] **`map` fora dos projetos novos** (validado, 0.7.0): nenhum XML aponta para os `map/*.dds` (conferido nos XMLs da UI do jogo) e o editor só lê texturas da raiz de `ui/`; a afirmação anterior de que "o editor desenha com o map" estava errada. A criação deixa a pasta `map` de fora (menos ~163 MB por projeto, salvo com "incluir ícones"); projetos antigos continuam listando o que têm, e **Limpar projeto** ganhou "Mapas do jogo iguais ao oficial" (mapas editados ficam).
+- [x] **Textos do F5 e da criação** (validado, 0.7.0): a barra do F5 dizia "Publicando no jogo… 653/704" e parecia enviar tudo; agora "Conferindo o que mudou e enviando para o jogo…", e no fim "Nada mudou: a pasta UI do jogo já está igual ao projeto" ou "N arquivo(s) enviados". A criação avisa que para o jogo só vai o que for alterado.
 
 ## Depois
 
