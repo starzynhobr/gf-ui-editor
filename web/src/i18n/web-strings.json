@@ -1,0 +1,42 @@
+{
+  "A árvore de elementos chega junto com o canvas editável. Enquanto isso, ela está na interface clássica.": {
+    "en_US": "The element tree arrives with the editable canvas. Meanwhile, it is in the classic interface.",
+    "es_ES": "El árbol de elementos llega junto con el lienzo editable. Mientras tanto, está en la interfaz clásica.",
+    "fr_FR": "L'arborescence des éléments arrive avec le canevas modifiable. En attendant, elle est dans l'interface classique."
+  },
+  "Busca e edição de textos chegam num próximo bloco. Enquanto isso, estão na interface clássica.": {
+    "en_US": "Text search and editing arrive in an upcoming block. Meanwhile, they are in the classic interface.",
+    "es_ES": "La búsqueda y edición de textos llegan en un próximo bloque. Mientras tanto, están en la interfaz clásica.",
+    "fr_FR": "La recherche et la modification des textes arrivent dans un prochain bloc. En attendant, elles sont dans l'interface classique."
+  },
+  "Configurações": {
+    "en_US": "Settings",
+    "es_ES": "Configuración",
+    "fr_FR": "Paramètres"
+  },
+  "Em breve": {
+    "en_US": "Coming soon",
+    "es_ES": "Próximamente",
+    "fr_FR": "Bientôt"
+  },
+  "Não": {
+    "en_US": "No",
+    "es_ES": "No",
+    "fr_FR": "Non"
+  },
+  "OK": {
+    "en_US": "OK",
+    "es_ES": "Aceptar",
+    "fr_FR": "OK"
+  },
+  "Prévia de texturas: chega junto com o canvas da interface nova.": {
+    "en_US": "Texture preview: arrives with the new interface's canvas.",
+    "es_ES": "Vista previa de texturas: llega junto con el lienzo de la interfaz nueva.",
+    "fr_FR": "Aperçu des textures : arrive avec le canevas de la nouvelle interface."
+  },
+  "Sim": {
+    "en_US": "Yes",
+    "es_ES": "Sí",
+    "fr_FR": "Oui"
+  }
+}
