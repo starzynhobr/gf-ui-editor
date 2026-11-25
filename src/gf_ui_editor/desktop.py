@@ -64,3 +64,7 @@ def open_in_text_editor(path: Path, launch: Callable[[list[str]], object] | None
     program, label = text_editor_command()
     (launch or (lambda args: subprocess.Popen(args, close_fds=True)))([program, str(path)])
     return label
+
+
+def text_editor_name() -> str:
+    return text_editor_command()[1]

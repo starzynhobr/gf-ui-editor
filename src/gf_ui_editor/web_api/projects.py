@@ -489,6 +489,10 @@ class ProjectsApi:
     def open_in_text_editor(self, path: str) -> str:
         return desktop.open_in_text_editor(Path(path))
 
+    def text_editor_name(self) -> str:
+        """Nome do editor de texto para o menu ("Notepad++" ou "Bloco de Notas")."""
+        return desktop.text_editor_name()
+
     # ---- enviar para o jogo (F5) e exportar ------------------------------------------------
     def publish_info(self) -> dict:
         """O que a confirmação da primeira vez mostra."""
@@ -522,19 +526,20 @@ class ProjectsApi:
             "pending": self._pending(),
         }
 
-    def export_zip(self) -> dict | None:
-        """Exportar .zip: pergunta onde salvar. None se cancelou; {"empty": True} se nada difere do oficial."""
+    def pick_export_target(self) -> str | None:
+        """Onde salvar o .zip (Documentos/<pasta de envio>.zip sugerido). None se cancelou."""
         project = self._require_project()
-        default = Path.home() / "Documents"
-        target = self._ask_path("save", default, ("UI do launcher (*.zip)",), f"{project.custom_name}.zip")
+        target = self._ask_path("save", Path.home() / "Documents", ("UI do launcher (*.zip)",), f"{project.custom_name}.zip")
         if target is None:
             return None
-        if target.suffix.lower() != ".zip":
-            target = target.with_name(target.name + ".zip")
+        return str(target if target.suffix.lower() == ".zip" else target.with_name(target.name + ".zip"))
+
+    def export_zip(self, target: str) -> dict:
+        """Exportar .zip. {"empty": True} se nada difere do oficial; erro de disco sobe."""
+        project = self._require_project()
         try:
-            path = project.export_zip(target, progress=self._progress("export"))
+            path = project.export_zip(Path(target), progress=self._progress("export"))
         except ValueError:
             return {"empty": True}
         count, skipped = getattr(project, "last_export", (0, 0))
         return {"path": str(path), "count": count, "skipped": skipped}
-

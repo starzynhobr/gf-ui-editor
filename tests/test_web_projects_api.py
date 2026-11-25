@@ -158,9 +158,11 @@ def test_export_zip_asks_where_and_reports_empty_projects(tmp_path: Path, game: 
     api = Api(tmp_path, [str(target)], game=game)
     root = Path(_create(api, game)["state"]["project"]["root"])
     (root / "ui" / "Menu.xml").write_bytes(b"<UI changed/>")
-    result = api.export_zip()
-    assert result["path"] == str(target.with_suffix(".zip")) and result["count"] == 3
-    assert api.export_zip() is None  # cancelou
+    chosen = api.pick_export_target()
+    assert chosen == str(target.with_suffix(".zip"))
+    result = api.export_zip(chosen)
+    assert result["path"] == chosen and result["count"] == 3 and Path(chosen).is_file()
+    assert api.pick_export_target() is None  # cancelou
 
 
 def test_duplicate_rename_and_delete_projects(tmp_path: Path, game: Path, projects: Path) -> None:
