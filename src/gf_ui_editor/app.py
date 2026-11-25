@@ -126,6 +126,7 @@ from .game_updates import (
 )
 from . import cleanup, file_list, game_sync, release_notes, remote_manifest, updater, versions
 from .file_list import FILE_SECTIONS, TEXTURE_SUFFIXES
+from . import publishing
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
     CHANGES_TTL,
@@ -3802,8 +3803,7 @@ class EditorWindow(QMainWindow):
         """Textos do T_TextIndex editados no projeto (TextID -> texto), que valem antes do jogo."""
         if self.project is None:
             return {}
-        edits = text_data.load_edits(self.project.root).get("T_TextIndex.ini", {})
-        return {int(text_id): edit.fields[0] for text_id, edit in edits.items() if text_id.isdigit() and edit.fields}
+        return text_data.text_index_overrides(self.project.root)
 
     def _text_edits_changed(self) -> None:
         # Edição salva na aba Textos: o canvas e as camadas mostram o texto novo na hora.
@@ -8042,7 +8042,7 @@ class EditorWindow(QMainWindow):
             return
         if not self._save_before_project_action():
             return
-        pending = sorted(diff.relative for diff in self._official_diffs.values() if diff.new_ids)
+        pending = publishing.pending_new_controls(self._official_diffs.values())
         if pending and not quiet:
             answer = QMessageBox.question(
                 self,
@@ -8078,21 +8078,9 @@ class EditorWindow(QMainWindow):
                 self.tr("Conferindo o que mudou e enviando para o jogo…"), lambda progress: project.publish(progress=progress)
             )
             # Textos editados vão para data/Translate; o launcher pode ter baixado os originais de novo.
-            text_edits = text_data.load_edits(project.root)
-            texts_blocked = bool(text_edits) and self._manifest.is_disabled(remote_manifest.PUBLISH_TEXTS)
-            if texts_blocked:
-                text_edits = {}  # textos desligados pelo manifesto: a UI segue sendo enviada
-            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            texts_changed, text_warnings = text_data.publish_edits(
-                project.game_dir, text_edits, project.history_dir / "data" / stamp
-            ) if text_edits else (0, [])
-            # Textos que voltaram ao original já foram gravados no jogo: a edição sai do projeto.
-            reverted = {
-                name: {record_id: edit for record_id, edit in records.items() if edit.fields != edit.original}
-                for name, records in text_edits.items()
-            }
-            if reverted != text_edits:
-                text_data.save_edits(project.root, reverted)
+            # Dentro do mesmo try: falha de disco nos textos também cai em "Falha ao publicar".
+            texts = publishing.publish_texts(project, self._manifest.is_disabled(remote_manifest.PUBLISH_TEXTS))
+            texts_changed, text_warnings, texts_blocked = texts.changed, texts.warnings, texts.blocked
         except OSError as exc:
             QMessageBox.critical(
                 self,
@@ -8131,8 +8119,7 @@ class EditorWindow(QMainWindow):
                     items="\n".join(text_warnings[:20])
                 ),
             )
-        wanted = f"custom:{project.custom_name}"
-        if result.launcher_running and result.previous_selection != wanted:
+        if publishing.needs_launcher_selection(result, project.custom_name):
             QMessageBox.information(
                 self,
                 self.tr("Selecione a UI no launcher"),

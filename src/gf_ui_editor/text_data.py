@@ -142,6 +142,12 @@ def load_edits(project_root: Path) -> dict[str, dict[str, TextEdit]]:
     }
 
 
+def text_index_overrides(project_root: Path) -> dict[int, str]:
+    """Textos do T_TextIndex editados no projeto (TextID -> texto), que valem antes do jogo."""
+    edits = load_edits(project_root).get("T_TextIndex.ini", {})
+    return {int(text_id): edit.fields[0] for text_id, edit in edits.items() if text_id.isdigit() and edit.fields}
+
+
 def save_edits(project_root: Path, edits: dict[str, dict[str, TextEdit]]) -> None:
     storage.ProjectStore(project_root).replace_text_edits({
         name: {record_id: (edit.fields, edit.original) for record_id, edit in records.items()}
