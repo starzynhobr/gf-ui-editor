@@ -125,9 +125,11 @@ from .game_updates import (
     window_ids,
 )
 from . import cleanup, file_list, game_sync, release_notes, remote_manifest, updater, versions
+from . import home
 from .file_list import FILE_SECTIONS, TEXTURE_SUFFIXES
 from . import publishing
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
+from . import game_updates, project as project_module
 from .project import (
     CHANGES_TTL,
     PROJECTS_ROOT,
@@ -5723,29 +5725,22 @@ class EditorWindow(QMainWindow):
         return page
 
     def _relative_time(self, timestamp: float) -> str:
-        if not timestamp:
-            return "—"
-        seconds = max(0.0, time.time() - timestamp)
-        if seconds < 90:
+        key, value = home.relative_age(timestamp)
+        if key == "now":
             return self.tr("agora")
-        if seconds < 3600:
-            return self.tr("há {count} min").format(count=round(seconds / 60))
-        if seconds < 86400:
-            return self.tr("há {count} h").format(count=round(seconds / 3600))
-        days = int(seconds // 86400)
-        if days == 1:
+        if key == "minutes":
+            return self.tr("há {count} min").format(count=value)
+        if key == "hours":
+            return self.tr("há {count} h").format(count=value)
+        if key == "yesterday":
             return self.tr("ontem")
-        if days < 30:
-            return self.tr("há {count} dias").format(count=days)
-        return datetime.fromtimestamp(timestamp).strftime("%d/%m/%Y")
+        if key == "days":
+            return self.tr("há {count} dias").format(count=value)
+        return str(value) if value is not None else "—"
 
     @staticmethod
     def _human_size(size: int) -> str:
-        if size >= 1024**3:
-            return f"{size / 1024**3:.1f} GB"
-        if size >= 1024**2:
-            return f"{size / 1024**2:.0f} MB"
-        return f"{max(1, size // 1024)} KB"
+        return home.human_size(size)
 
     def _home_card(self, title: str) -> tuple[QFrame, QVBoxLayout]:
         card = QFrame()
@@ -5907,12 +5902,9 @@ class EditorWindow(QMainWindow):
 
     def _home_projects_card(self) -> QFrame:
         roots = list_projects()
-        current = os.path.normcase(str(self.project.root)) if self.project is not None else None
-        # Datas lidas antes de tudo e sem abrir os bancos para escrita (ver storage.peek_project).
-        modified = {str(root): storage.last_modified(root) for root in roots}
-        # Projeto aberto primeiro; depois os mais recentes.
-        roots.sort(key=lambda root: (os.path.normcase(str(root)) != current, -modified[str(root)]))
-        card, layout = self._home_card(self.tr("PROJETOS · {count}").format(count=len(roots)))
+        current = self.project.root if self.project is not None else None
+        projects = home.home_projects(roots, current)
+        card, layout = self._home_card(self.tr("PROJETOS · {count}").format(count=len(projects)))
         header = layout.itemAt(0).widget()
         layout.removeWidget(header)
         top = QHBoxLayout()
@@ -5961,10 +5953,10 @@ class EditorWindow(QMainWindow):
         self._home_size_labels = {}
         self._home_checks = {}
         entries = []
-        for root in roots:
+        for root, modified in projects:
             title, files = storage.peek_project(root)
             title = title or root.name
-            row = self._home_project_row(root, title, files, os.path.normcase(str(root)) == current, modified[str(root)])
+            row = self._home_project_row(root, title, files, home.is_same_root(current, root), modified)
             rows.addWidget(row)
             entries.append((title.lower(), row))
 
@@ -5977,13 +5969,13 @@ class EditorWindow(QMainWindow):
                 visible += needle in title
             empty.setVisible(visible == 0)
             empty.setText(
-                self.tr("Nenhum projeto com esse nome.") if roots else self.tr("Nenhum projeto ainda. Crie o primeiro em Novo projeto.")
+                self.tr("Nenhum projeto com esse nome.") if projects else self.tr("Nenhum projeto ainda. Crie o primeiro em Novo projeto.")
             )
 
         self.home_filter.textChanged.connect(apply_filter)
         apply_filter(self._home_filter_text)
         self._sync_home_manage()
-        self._start_home_sizes(roots)
+        self._start_home_sizes([root for root, _modified in projects])
         return card
 
     def _set_home_manage(self, enabled: bool) -> None:
@@ -6158,9 +6150,7 @@ class EditorWindow(QMainWindow):
         """Traz arquivos para o projeto (o substituído vai para o histórico). None se cancelado."""
         current = self._is_current_project(project.root)
         open_path = self.document.path if current and self.document is not None else None
-        affected = open_path is not None and any(
-            os.path.normcase(str(project.ui_dir / relative)) == os.path.normcase(str(open_path)) for relative, _ in items
-        )
+        affected = home.pull_affects_open_file(project.ui_dir, items, open_path)
         if affected and not self._confirm_discard_changes():
             return None
         try:
@@ -6273,7 +6263,8 @@ class EditorWindow(QMainWindow):
             self._refresh_home()
 
     def _is_current_project(self, root: Path) -> bool:
-        return self.project is not None and os.path.normcase(str(self.project.root)) == os.path.normcase(str(root))
+        current = self.project.root if self.project is not None else None
+        return home.is_same_root(current, root)
 
     def _home_duplicate(self, root: Path, title: str) -> None:
         name, accepted = QInputDialog.getText(
@@ -6407,14 +6398,7 @@ class EditorWindow(QMainWindow):
 
         def work() -> None:
             for key, modified in pending:
-                total = 0
-                for folder, _dirs, names in os.walk(key):
-                    for name in names:
-                        try:
-                            total += os.stat(os.path.join(folder, name)).st_size
-                        except OSError:
-                            pass
-                results.put((key, modified, total))
+                results.put((key, modified, home.project_disk_size(key)))
             results.put(None)
 
         Thread(target=work, name="gf-ui-project-sizes", daemon=True).start()
@@ -6770,10 +6754,7 @@ class EditorWindow(QMainWindow):
         if self.project is not None and self.project.game_dir is not None:
             return self.project.game_dir
         saved = str(QSettings("Local", "GF UI Editor").value("game_dir", ""))
-        if saved and Path(saved).is_dir():
-            return normalize_game_dir(Path(saved))
-        game_dir = DEFAULT_UI_DIRECTORY.parent
-        return game_dir if game_dir.is_dir() else None
+        return project_module.configured_game_dir(saved, DEFAULT_UI_DIRECTORY)
 
     def new_project(self, loose_dir: Path | None = None, focus: Path | None = None) -> bool:
         if not self._confirm_discard_changes():
@@ -6792,15 +6773,7 @@ class EditorWindow(QMainWindow):
             publish_folder = dialog.publish_folder
 
             def build(progress):
-                if not source.exists():
-                    raise FileNotFoundError(str(source))
-                if source.is_file():  # .zip: extrai para uma pasta temporária e parte dela
-                    with tempfile.TemporaryDirectory() as folder:
-                        return Project.create(
-                            name, extract_ui_zip(source, Path(folder)), game_dir, progress=progress,
-                            include_assets=include_assets, publish_folder=publish_folder,
-                        )
-                return Project.create(
+                return project_module.create_from_source(
                     name, source, game_dir, progress=progress, include_assets=include_assets,
                     publish_folder=publish_folder,
                 )
@@ -6808,10 +6781,7 @@ class EditorWindow(QMainWindow):
             project = self._run_with_progress(
                 self.tr("Copiando a UI para o projeto (para o jogo só vai o que você alterar)…"), build
             )
-            for loose in dialog.loose_files:
-                target, _backup = project.import_file(loose)
-                if focus is not None and loose == focus:
-                    focus = target
+            focus = project.import_loose_files(dialog.loose_files, focus)
         except FileExistsError as exc:
             QMessageBox.warning(
                 self, self.tr("Projeto já existe"), self.tr("Já existe um projeto em {path}.").format(path=exc.args[0])
@@ -6836,18 +6806,7 @@ class EditorWindow(QMainWindow):
     def _project_base_bytes(self, relative: str) -> bytes | None:
         """O arquivo como era na criação do projeto (para saber de qual versão oficial partiu)."""
         project = self.project
-        if project is None:
-            return None
-        path = project.ui_dir / relative
-        original = project.original_path_for(path)
-        try:
-            if original.is_file():
-                return original.read_bytes()
-            data = path.read_bytes()
-        except OSError:
-            return None
-        key = Path(relative).as_posix()
-        return data if project.base_hashes.get(key) == hashlib.sha1(data).hexdigest() else None
+        return project.base_bytes(relative) if project is not None else None
 
     def _start_official_scan(self) -> None:
         """Compara a UI do projeto com a oficial em segundo plano (a janela não trava)."""
@@ -6855,7 +6814,7 @@ class EditorWindow(QMainWindow):
         if project is None or project.game_dir is None:
             return
         game_dir, ui_dir, root = project.game_dir, project.ui_dir, project.root
-        base_bytes = self._project_base_bytes
+        base_bytes = project.base_bytes
         signals = self._scan_signals
 
         def work() -> None:
@@ -7170,21 +7129,16 @@ class EditorWindow(QMainWindow):
         )
         if not accepted or not text.strip():
             return
-        parsed = parse_game_error(text)
-        if parsed is None:
+        project_ui_dir = self.project.ui_dir if self.project is not None else None
+        located = game_updates.locate_error(lambda: self._document_game_dir() or self._game_dir(), project_ui_dir, text)
+        if located is None:
             QMessageBox.information(
                 self,
                 self.tr("Resolver erro do jogo"),
                 self.tr("Não encontrei um arquivo .cpp e um ID=… nessa mensagem."),
             )
             return
-        cpp, window_id = parsed
-        game_dir = self._document_game_dir() or self._game_dir()
-        candidates = error_candidates(game_dir, cpp, window_id) if game_dir is not None else []
-        if not candidates and game_dir is not None and self.project is not None:
-            # Erro com .cpp genérico (ex.: "Filename.cpp"): procura pelo ID nos XMLs do
-            # oficial que o projeto não tem.
-            candidates = files_missing_id(game_dir, self.project.ui_dir, window_id)
+        cpp, window_id, candidates = located
         if not candidates:
             QMessageBox.information(
                 self,

@@ -40,8 +40,8 @@ Mais ou menos 8,4 mil linhas:
 | 1 | Lista de arquivos e seções | `file_list.py` (novo) | 7360–7810, 7810–7990 | — | **Feito** |
 | 2 | Preferências fora do `QSettings` | `preferences.py` (novo) | ~45 pontos espalhados | **Não**: toca o arquivo todo. Fazer sozinha, entre ondas | Médio |
 | 3 | Publicar (F5) e textos | `publishing.py` (novo) + `text_data.py` | `test_in_game` (8040–8170), `_text_overrides` | — | **Feito** |
-| 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | Sim | Baixo |
-| 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | Sim | Baixo |
+| 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | — | **Feito** |
+| 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | — | **Feito** |
 | 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | — | **Feito** |
 | 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | Sim | Baixo/médio |
 | 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) ou `game_layout.py` | 4111–4300, 4559–4830 | Sim, mas evitar junto com a 7 se ela mexer em 4559 | **Alto** |
@@ -82,19 +82,19 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **`except OSError`:** a interface Qt continua chamando `project.publish` (dentro de `_run_with_progress`, em outra thread) e depois `publishing.publish_texts` (na thread da interface), as duas dentro do mesmo `try`. Os serviços não capturam `OSError`, então uma falha de disco nos textos continua caindo em "Falha ao publicar". O `publish_project` existe para a web e não é usado pela clássica, para não levar os textos para a outra thread.
 - **Testes:** `tests/test_publishing.py` (8, sem janela, incluindo `OSError` subindo dos textos). Na interface continuam valendo `test_publish_on_save_*` e os três testes que chamam `window.test_in_game()`.
 
-### 4. Tela inicial e projetos
+### 4. Tela inicial e projetos (feita)
 
-- **Serviço:** `home.py`: `home_projects(current_root)`, que devolve os projetos ordenados (aberto primeiro, depois os mais recentes) com a data; `project_disk_size(root)`, a soma que hoje fica dentro da thread de `_start_home_sizes`; `human_size(bytes)`; `relative_age(timestamp)`, que devolve `("now"|"minutes"|"hours"|"yesterday"|"days"|"date", valor)` enquanto a interface traduz; `is_same_root(a, b)` (hoje `_is_current_project`); `pull_affects_open_file(...)`.
+- **Serviço:** `src/gf_ui_editor/home.py`. `home_projects(roots, current_root)` recebe a lista obtida no `app.py` e devolve os projetos ordenados (aberto primeiro, depois os mais recentes) com a data. O módulo também calcula o tamanho em disco, formata os tamanhos, compara caminhos e verifica se um arquivo puxado afeta o XML aberto. `relative_age(timestamp)` devolve `("now"|"minutes"|"hours"|"yesterday"|"days"|"date", valor)` para a interface traduzir.
 - **Origem:** `_relative_time`, `_human_size`, `_home_projects_card` (só a ordenação), `_start_home_sizes` (só o cálculo; a thread e o `QTimer` ficam), `_is_current_project`, `pull_into_project` (cálculo de `affected`).
-- **Testes:** novos para ordenação, tamanho e idade relativa (com `time` fixo). Na interface: `test_home_*`, `test_cleanup_recalculates_the_project_size_on_the_home_screen`. Cuidado: os testes fazem `monkeypatch` em `app_module.list_projects`, então `home_projects` deve receber a lista pronta ou a função como parâmetro.
+- **Testes:** `tests/test_home.py` cobre ordenação, tamanhos, idade relativa, comparação de caminhos, arquivos puxados e importação sem PySide6. Na interface continuam valendo `test_home_*` e `test_cleanup_recalculates_the_project_size_on_the_home_screen`.
 - **Risco:** baixo.
 
-### 5. Criar projeto, base oficial e erro do jogo
+### 5. Criar projeto, base oficial e erro do jogo (feita)
 
-- **Serviço:** `project.py` ganha `create_from_source(name, source, game_dir, ..., loose_files)`, com a extração do `.zip` para uma pasta temporária e a importação dos soltos, e `Project.base_bytes(relative)`, hoje `_project_base_bytes`. `game_updates.py` ganha `locate_error(game_dir, project_ui_dir, text)`, que junta `parse_game_error`, `error_candidates` e `files_missing_id`.
+- **Serviço:** `src/gf_ui_editor/project.py` reúne a criação a partir de pasta ou `.zip` em `create_from_source`, a importação dos soltos em `Project.import_loose_files`, a leitura da base em `Project.base_bytes` e a escolha da pasta configurada do jogo em `configured_game_dir`. `src/gf_ui_editor/game_updates.py` localiza os XMLs candidatos em `locate_error`.
 - **Origem:** `new_project` (função `build` e laço dos soltos), `_project_base_bytes`, `resolve_game_error` (a busca, não os diálogos), `_game_dir` (só a regra; `DEFAULT_UI_DIRECTORY` continua no `app.py` por causa do `conftest.py`).
-- **Testes:** `test_project.py` e `test_game_updates.py` ganham casos. Na interface: testes de novo projeto e de UI oficial.
-- **Risco:** baixo. O `_start_official_scan` recebe `base_bytes` como função, e basta passar `project.base_bytes`.
+- **Testes:** `tests/test_project.py` e `tests/test_game_updates.py` cobrem criação, base, pasta configurada, busca do erro e importação dos módulos sem PySide6. Na interface continuam valendo os testes de novo projeto e de UI oficial.
+- **Risco:** baixo. A busca em segundo plano recebe `project.base_bytes` do mesmo projeto que forneceu as pastas da comparação.
 
 ### 6. Arquivos: importar, renomear, apagar, restaurar (feita)
 

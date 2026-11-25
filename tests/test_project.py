@@ -1,7 +1,9 @@
 import zipfile
 from pathlib import Path
 
-from gf_ui_editor.project import Project, is_backup_file, select_custom_ui
+import pytest
+
+from gf_ui_editor.project import Project, configured_game_dir, create_from_source, is_backup_file, select_custom_ui
 
 
 def _game(tmp_path: Path) -> Path:
@@ -187,6 +189,78 @@ def test_project_can_start_from_a_zip(tmp_path: Path) -> None:
         bundle.writestr("leia-me.txt", "x")
     with pytest.raises(ValueError):
         extract_ui_zip(empty, tmp_path / "out4")
+
+
+@pytest.mark.parametrize("use_zip", [False, True])
+def test_create_from_source_imports_loose_files_after_copying_the_base(tmp_path: Path, use_zip: bool) -> None:
+    game = _game(tmp_path)
+    source = game / "UI"
+    if use_zip:
+        source = tmp_path / "Preset.zip"
+        with zipfile.ZipFile(source, "w") as archive:
+            archive.writestr("Preset/Radar.xml", b"<a/>")
+            archive.writestr("Preset/skin/m.dds", b"dds")
+    loose = tmp_path / "Radar.xml"
+    loose.write_bytes(b"<edited/>")
+    updates = []
+
+    project = create_from_source(
+        "New", source, game, projects_root=tmp_path / "projects", include_assets=True,
+        publish_folder="Custom", progress=lambda done, total: updates.append((done, total)), loose_files=[loose],
+    )
+
+    radar = project.ui_dir / loose.name
+    assert radar.read_bytes() == b"<edited/>"
+    assert project.history(radar)[0].read_bytes() == b"<a/>"
+    assert project.base_bytes("Radar.xml") == b"<a/>"
+    assert (project.ui_dir / "skin" / "m.dds").read_bytes() == b"dds"
+    assert project.game_dir == game and project.include_assets and project.publish_folder == "Custom"
+    assert updates == [(1, 2), (2, 2)]
+
+    new = tmp_path / "New.xml"
+    new.write_bytes(b"<new/>")
+    assert project.import_loose_files([new], new) == project.ui_dir / new.name
+    assert project.base_bytes(new.name) is None
+
+
+def test_create_from_source_reports_a_missing_or_invalid_source(tmp_path: Path) -> None:
+    source = tmp_path / "broken.zip"
+    projects_root = tmp_path / "projects"
+
+    with pytest.raises(FileNotFoundError) as missing:
+        create_from_source("New", source, None, projects_root=projects_root)
+    assert missing.value.args == (str(source),)
+
+    source.write_bytes(b"not a zip")
+    with pytest.raises(zipfile.BadZipFile):
+        create_from_source("New", source, None, projects_root=projects_root)
+    assert not projects_root.exists()
+
+
+def test_base_bytes_uses_a_matching_current_file_or_the_saved_original(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    project = Project.create("New", game / "UI", game, projects_root=tmp_path / "projects")
+    radar = project.ui_dir / "Radar.xml"
+    texture = project.ui_dir / "skin" / "m.dds"
+    assert project.base_bytes("skin/m.dds") == b"dds"
+
+    texture.write_bytes(b"external change")
+    assert project.base_bytes("skin/m.dds") is None
+    assert project.base_bytes("missing.xml") is None
+
+    project.remember_original(radar)
+    radar.unlink()
+    assert project.base_bytes(radar.name) == b"<a/>"
+
+
+def test_configured_game_dir_resolves_the_saved_ui_before_the_default(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    fallback = tmp_path / "fallback"
+    fallback.mkdir()
+
+    assert configured_game_dir(str(game / "UI"), fallback / "UI") == game
+    assert configured_game_dir(str(tmp_path / "missing"), fallback / "UI") == fallback
+    assert configured_game_dir("", tmp_path / "missing" / "UI") is None
 
 
 def test_import_file_replaces_same_name_anywhere_or_adds_to_root(tmp_path: Path) -> None:
