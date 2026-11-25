@@ -34,10 +34,14 @@ class WebApi(ProjectsApi, CanvasApi):
     Cada área fica no seu módulo em `web_api/` (um dono por arquivo).
     """
 
-    def __init__(self, language: str, dev: bool) -> None:
+    def __init__(
+        self, language: str, dev: bool, prefs: Any = None, default_ui_directory: Path | None = None,
+        xml: Path | None = None,
+    ) -> None:
         self._language = language
         self._dev = dev
         self._window: Any = None
+        self._setup_projects(prefs, default_ui_directory, xml)
 
     # ---- infraestrutura ---------------------------------------------------------------
     def _attach(self, window: Any) -> None:
@@ -61,10 +65,14 @@ def _start_url(dev: bool) -> str:
     return index.as_uri()
 
 
-def run(language: str = "pt_BR", dev: bool = False, xml: Path | None = None) -> int:
+def run(
+    language: str = "pt_BR", dev: bool = False, xml: Path | None = None, prefs: Any = None,
+    default_ui_directory: Path | None = None,
+) -> int:
+    """`prefs`: as mesmas preferências da clássica (o app.py passa o objeto global)."""
     import webview
 
-    api = WebApi(language, dev)
+    api = WebApi(language, dev, prefs, default_ui_directory, xml)
     window = webview.create_window(
         APP_TITLE, _start_url(dev), js_api=api, width=1440, height=900, min_size=(1024, 680),
         background_color="#111318",
