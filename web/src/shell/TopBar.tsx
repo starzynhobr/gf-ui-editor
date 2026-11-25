@@ -1,0 +1,108 @@
+// Barra superior: casinha, projeto ˅ / arquivo, salvar e, à direita, Exportar e Enviar · N.
+import { useEffect, useState } from 'react'
+import { api, type HomeProject } from '../api'
+import { useT } from '../i18n'
+import { useShell } from '../store'
+import { browseProject, exportZip, goHome, newProject, openProject, publishToGame } from '../actions'
+import { Icon } from '../ui/Icon'
+import { openMenuAt, type MenuItem } from '../ui/Menu'
+
+export default function TopBar() {
+  const t = useT()
+  const shell = useShell((state) => state.shell)
+  const [recent, setRecent] = useState<HomeProject[]>([])
+  const project = shell?.project ?? null
+  const fileName = shell?.open_path?.split(/[\\/]/).pop() ?? null
+  const pending = shell?.pending ?? 0
+  const canPublish = Boolean(project?.game_dir)
+
+  useEffect(() => {
+    document.title = project ? `STZ GF UI [${project.name}]${fileName ? ` — ${fileName}` : ''}` : 'STZ GF UI'
+  }, [project, fileName])
+
+  const loadRecent = async () => {
+    const data = await api.homeData()
+    setRecent(data.projects.slice(0, 8))
+    return data.projects.slice(0, 8)
+  }
+
+  const projectMenu = async (element: HTMLElement) => {
+    const list = await loadRecent().catch(() => recent)
+    const items: MenuItem[] = [
+      { label: t('Novo projeto…'), icon: 'folder-plus', hint: 'Ctrl+Shift+N', onClick: () => void newProject() },
+      { label: t('Abrir projeto…'), icon: 'folder-open', hint: 'Ctrl+Shift+O', onClick: () => void browseProject() },
+      {
+        label: t('Projetos recentes'),
+        submenu: list.length
+          ? list.map((item) => ({ label: item.title, checked: item.current, onClick: () => void openProject(item.root) }))
+          : [{ label: t('Nenhum projeto ainda. Crie o primeiro em Novo projeto.'), disabled: true }],
+      },
+      { separator: true },
+      { label: t('Tela inicial'), icon: 'home', onClick: () => void goHome() },
+      { label: t('Abrir pasta do projeto'), icon: 'file', disabled: !project, onClick: () => project && void api.openFolder(project.root) },
+    ]
+    openMenuAt(element, items)
+  }
+
+  const projectTip = project
+    ? [t('Editando em: {path}', { path: project.ui_dir }), project.publish_dir ? t('Publica em: {path}', { path: project.publish_dir }) : '']
+        .filter(Boolean)
+        .join('\n')
+    : shell?.loose_dir
+      ? t('Editando em: {path}', { path: shell.loose_dir })
+      : ''
+
+  return (
+    <header className="flex h-11 shrink-0 items-center gap-1 border-b border-border bg-chrome px-2" data-testid="topbar">
+      <button className="icon-button h-8 w-8" title={t('Tela inicial: fecha o XML aberto e mostra os projetos recentes')} onClick={() => void goHome()}>
+        <Icon name="home" size={18} />
+      </button>
+      <button
+        className="flex h-8 max-w-[280px] items-center gap-1.5 rounded-md px-2.5 font-semibold text-bright hover:bg-hover"
+        title={projectTip}
+        data-testid="project-button"
+        onClick={(event) => void projectMenu(event.currentTarget)}
+      >
+        <span className="truncate">{project ? project.name : t('Sem projeto')}</span>
+        <Icon name="chevron-down" size={14} className="text-muted" />
+      </button>
+      {fileName && (
+        <div className="flex min-w-0 items-center gap-2 text-[12px]" data-testid="breadcrumb">
+          <span className="text-muted">/</span>
+          <span className="truncate font-mono text-text" title={shell?.open_path ?? ''}>
+            {fileName}
+          </span>
+        </div>
+      )}
+      <div className="mx-1.5 h-5 w-px bg-border" />
+      <button className="btn btn-ghost h-8 px-2" disabled title={t('Salvar com backup')}>
+        <Icon name="save" size={16} />
+        {t('Salvar')}
+      </button>
+      <div className="flex-1" />
+      <button className="btn h-8" disabled={!project} onClick={() => void exportZip()} data-testid="export-zip">
+        <Icon name="package" size={16} />
+        {t('Exportar UI (.zip)…')}
+      </button>
+      <button
+        className="btn btn-primary ml-1 h-8"
+        disabled={!canPublish}
+        data-testid="publish"
+        title={
+          pending
+            ? t('{count} arquivo(s) salvos no projeto ainda não estão no jogo. F5 envia.', { count: pending })
+            : t('Publica o projeto em UICustom e na pasta UI do jogo e o seleciona no launcher (F5)')
+        }
+        onClick={() => void publishToGame()}
+      >
+        <Icon name="send" size={16} />
+        {t('Enviar para o jogo')}
+        {pending > 0 && (
+          <span className="rounded-full bg-white/20 px-1.5 font-mono text-[11px]" data-testid="publish-count">
+            {pending}
+          </span>
+        )}
+      </button>
+    </header>
+  )
+}

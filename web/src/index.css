@@ -5,17 +5,33 @@
   --color-window: #111318;
   --color-chrome: #0c0e12;
   --color-panel: #14171d;
+  --color-card: #181b22;
+  --color-card-border: #232833;
   --color-input: #0f1116;
+  --color-menu: #171a21;
+  --color-chip: #171a21;
   --color-text: #d9dde6;
   --color-bright: #f1f3f8;
   --color-muted: #8a93a6;
+  --color-icon: #aeb6c6;
   --color-disabled: #4b5263;
   --color-border: #1f232c;
   --color-border-input: #262b36;
+  --color-border-strong: #2a2f3b;
   --color-hover: #1a1e27;
   --color-pressed: #232833;
   --color-selected: #241d3a;
   --color-accent: #7c4ce0;
+  --color-accent-hover: #8c5ff0;
+  --color-accent-border: #a77bff;
+  --color-accent-soft: #241d3a;
+  --color-accent-text: #cbb9ff;
+  --color-gold: #ffbe1e;
+  --color-warning: #ffcf6b;
+  --color-warning-bg: #2a2312;
+  --color-warning-border: #5c4a1a;
+  --color-danger: #f87171;
+  --color-success: #5eead4;
   --font-sans: "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, monospace;
 }
@@ -25,6 +41,7 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -35,9 +52,109 @@ body {
   /* Comportamentos de navegador que um app desktop não tem. */
   user-select: none;
   overscroll-behavior: none;
+  -webkit-user-drag: none;
 }
 
 input,
-textarea {
+textarea,
+.selectable {
   user-select: text;
+}
+
+img,
+a {
+  -webkit-user-drag: none;
+}
+
+button {
+  cursor: default;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2f3b;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3a4050;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border-input bg-panel px-3 text-text transition-colors enabled:hover:border-border-strong enabled:hover:bg-hover enabled:active:bg-pressed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-accent-border/60 bg-accent font-medium text-white enabled:hover:border-accent-border enabled:hover:bg-accent-hover enabled:active:bg-accent;
+  }
+  .btn-danger {
+    @apply border-danger/40 bg-danger/15 text-danger enabled:hover:border-danger/70 enabled:hover:bg-danger/25;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent;
+  }
+  .icon-button {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-icon transition-colors hover:bg-hover hover:text-bright disabled:opacity-40;
+  }
+  .field {
+    @apply h-8 rounded-md border border-border-input bg-input px-2.5 text-text outline-none placeholder:text-disabled focus:border-accent-border/70 read-only:text-muted;
+  }
+  .section-label {
+    @apply text-[11px] font-semibold tracking-[0.08em] text-muted uppercase;
+  }
+  .card {
+    @apply rounded-xl border border-card-border bg-card;
+  }
+  .chip {
+    @apply inline-flex h-[22px] items-center rounded-full border border-border bg-chip px-2.5 text-[12px] whitespace-nowrap text-muted;
+  }
+  .chip-warning {
+    @apply border-warning-border bg-warning-bg text-warning;
+  }
+  .hint-warning {
+    @apply rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-[12px] text-warning;
+  }
+  .link {
+    @apply text-accent-text hover:underline;
+  }
+}
+
+select.field {
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a93a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+select.field option {
+  background: var(--color-menu);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
