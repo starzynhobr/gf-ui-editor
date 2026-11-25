@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from gf_ui_editor import file_list
 from gf_ui_editor.file_list import FILE_SECTIONS
 from gf_ui_editor.project import Project
@@ -147,3 +149,78 @@ def test_service_does_not_import_qt() -> None:
     env = {**os.environ, "PYTHONPATH": str(Path(file_list.__file__).parents[1])}
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
     assert result.stdout.strip() == "False"
+
+
+def test_rename_target_keeps_the_extension_and_flags_replacement(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    radar = project.ui_dir / "Radar.xml"
+    assert file_list.rename_target(radar, "Mapa") == (project.ui_dir / "Mapa.xml", False)
+    assert file_list.rename_target(radar, "Mapa.txt") == (project.ui_dir / "Mapa.txt", False)
+    assert file_list.rename_target(radar, "Bag") == (project.ui_dir / "Bag.xml", True)
+    assert file_list.rename_target(radar, "radar") == (project.ui_dir / "radar.xml", False)  # só a caixa muda
+    assert file_list.has_invalid_chars("a/b") and file_list.has_invalid_chars(r"a\b") and file_list.has_invalid_chars('a"b')
+    assert not file_list.has_invalid_chars("Novo nome.xml")
+
+
+def test_delete_warning_for_official_xml_and_used_texture(tmp_path: Path, monkeypatch) -> None:
+    project = _project(tmp_path, game=True)
+    seen: list[str] = []
+    monkeypatch.setattr(file_list, "official_text_for", lambda game_dir, relative: seen.append(relative) or (
+        "<oficial/>" if relative == "Radar.xml" else None
+    ))
+    assert file_list.delete_warning(project, project.ui_dir / "Radar.xml") == file_list.DeleteWarning(official=True)
+    assert file_list.delete_warning(project, project.ui_dir / "Shop.xml") == file_list.DeleteWarning()
+    assert seen == ["Radar.xml", "Shop.xml"]
+    assert file_list.delete_warning(project, project.ui_dir / "Main.dds") == file_list.DeleteWarning(texture_users=2)
+    assert file_list.delete_warning(project, project.ui_dir / "skin" / "m.dds") == file_list.DeleteWarning()
+
+
+def test_delete_warning_without_game_folder_skips_the_official_check(tmp_path: Path, monkeypatch) -> None:
+    project = _project(tmp_path)
+    monkeypatch.setattr(file_list, "official_text_for", lambda *_args: pytest.fail("sem pasta do jogo"))
+    assert file_list.delete_warning(project, project.ui_dir / "Radar.xml") == file_list.DeleteWarning()
+
+
+def test_import_plan_points_to_existing_files_by_name(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    outside = tmp_path / "fora"
+    outside.mkdir()
+    for name in ("m.dds", "Novo.xml"):
+        (outside / name).write_bytes(b"x")
+    targets, replaced = file_list.import_plan(project, [outside / "m.dds", outside / "Novo.xml"])
+    assert targets == {outside / "m.dds": project.ui_dir / "skin" / "m.dds", outside / "Novo.xml": project.ui_dir / "Novo.xml"}
+    assert replaced == [project.ui_dir / "skin" / "m.dds"]
+
+
+def test_restore_diff_compares_big5_lines(tmp_path: Path) -> None:
+    current, source = tmp_path / "A.xml", tmp_path / "old.xml"
+    current.write_bytes("<a>\n<b x=\"1\"/>\n".encode("big5"))
+    source.write_bytes("<a>\n<b x=\"2\"/>\n".encode("big5"))
+    assert file_list.restore_diff(current, source, "A.xml (atual)", "versão") == (
+        "--- A.xml (atual)\n+++ versão\n@@ -1,2 +1,2 @@\n <a>\n-<b x=\"1\"/>\n+<b x=\"2\"/>"
+    )
+    assert file_list.restore_diff(current, current, "a", "b") == ""
+    with pytest.raises(OSError):
+        file_list.restore_diff(current, tmp_path / "sumiu.xml", "a", "b")
+
+
+def test_restore_file_of_loose_xml_keeps_a_backup_beside_it(tmp_path: Path) -> None:
+    current, source = tmp_path / "A.xml", tmp_path / "old.xml"
+    current.write_bytes(b"novo")
+    source.write_bytes(b"velho")
+    file_list.restore_file(None, current, source, now=datetime(2026, 11, 25, 9, 8, 7))
+    assert current.read_bytes() == b"velho"
+    assert (tmp_path / "A.before-gf-ui-editor-20261125-090807.xml").read_bytes() == b"novo"
+    assert file_list.history_entries(None, current)[0] == [tmp_path / "A.before-gf-ui-editor-20261125-090807.xml"]
+
+
+def test_restore_file_in_project_goes_through_its_history(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    radar = project.ui_dir / "Radar.xml"
+    source = tmp_path / "old.xml"
+    source.write_bytes(b"<velho/>")
+    file_list.restore_file(project, radar, source)
+    assert radar.read_bytes() == b"<velho/>"
+    backups, _original = file_list.history_entries(project, radar)
+    assert [backup.read_bytes() for backup in backups] == [b'<a BGmap="Main.dds"/>']
+    assert not list(radar.parent.glob("Radar.before-gf-ui-editor-*"))

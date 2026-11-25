@@ -7244,8 +7244,7 @@ class EditorWindow(QMainWindow):
         sources = [Path(name) for name in names]
         if not sources:
             return
-        targets = {source: self.project.import_target(source) for source in sources}
-        replaced = [target for target in targets.values() if target.exists()]
+        _targets, replaced = file_list.import_plan(self.project, sources)
         if replaced:
             listing = "\n".join(
                 f"• {target.relative_to(self.project.ui_dir).as_posix()}" for target in replaced[:15]
@@ -7875,13 +7874,11 @@ class EditorWindow(QMainWindow):
         name = name.strip()
         if not accepted or not name or name == path.name:
             return
-        if any(char in name for char in '\\/:*?"<>|'):
+        if file_list.has_invalid_chars(name):
             QMessageBox.warning(self, self.tr("Renomear"), self.tr("O nome não pode ter \\ / : * ? \" < > |."))
             return
-        if not Path(name).suffix:
-            name += path.suffix
-        target = path.with_name(name)
-        replacing = target.exists() and os.path.normcase(str(target)) != os.path.normcase(str(path))
+        target, replacing = file_list.rename_target(path, name)
+        name = target.name
         if replacing:
             answer = QMessageBox.question(
                 self,
@@ -7927,21 +7924,17 @@ class EditorWindow(QMainWindow):
         if self.project is None:
             return
         details = self.tr("Uma cópia fica no histórico do projeto.")
-        game_dir = self.project.game_dir
-        if path.suffix.lower() == ".xml" and game_dir is not None:
-            relative = self.project.relative_key(path)
-            if official_text_for(game_dir, relative) is not None:
-                details = self.tr(
-                    "Este arquivo existe na UI oficial: sem ele, o jogo pode usar o da UI padrão ou acusar erro. "
-                    "Uma cópia fica no histórico do projeto."
-                )
-        elif path.suffix.lower() in TEXTURE_SUFFIXES:
-            users = self._xml_using_texture(path.name)
-            if users:
-                details = self.tr(
-                    "{count} XML(s) do projeto ainda usam esta textura e ficariam sem imagem. "
-                    "Uma cópia fica no histórico do projeto."
-                ).format(count=len(users))
+        warning = file_list.delete_warning(self.project, path)
+        if warning.official:
+            details = self.tr(
+                "Este arquivo existe na UI oficial: sem ele, o jogo pode usar o da UI padrão ou acusar erro. "
+                "Uma cópia fica no histórico do projeto."
+            )
+        elif warning.texture_users:
+            details = self.tr(
+                "{count} XML(s) do projeto ainda usam esta textura e ficariam sem imagem. "
+                "Uma cópia fica no histórico do projeto."
+            ).format(count=warning.texture_users)
         answer = QMessageBox.question(self, self.tr("Apagar {name}?").format(name=path.name), details)
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -7969,14 +7962,12 @@ class EditorWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return
         try:
-            current = path.read_bytes().decode("big5", errors="replace").splitlines()
-            restored = source.read_bytes().decode("big5", errors="replace").splitlines()
+            diff = file_list.restore_diff(
+                path, source, self.tr("{name} (atual)").format(name=path.name), self.tr("versão restaurada")
+            )
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
             return
-        diff = "\n".join(
-            difflib.unified_diff(current, restored, fromfile=self.tr("{name} (atual)").format(name=path.name), tofile=self.tr("versão restaurada"), lineterm="")
-        )
         if not diff:
             self.statusBar().showMessage(self.tr("Essa versão é igual ao arquivo atual."), 5000)
             return
@@ -8002,14 +7993,7 @@ class EditorWindow(QMainWindow):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            if self.project is not None and self.project.contains(path):
-                self.project.restore(path, source)
-            else:
-                backup = path.with_name(
-                    f"{path.stem}.before-gf-ui-editor-{datetime.now():%Y%m%d-%H%M%S}{path.suffix}"
-                )
-                shutil.copy2(path, backup)
-                shutil.copy2(source, path)
+            file_list.restore_file(self.project, path, source)
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
             return

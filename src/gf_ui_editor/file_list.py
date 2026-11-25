@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import difflib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 from typing import TYPE_CHECKING
 
+from .game_updates import official_text_for
 from .project import is_backup_file, projects_publishing_to
 
 if TYPE_CHECKING:
@@ -182,3 +185,70 @@ def backup_stamp(backup: Path) -> datetime | None:
     if not match:
         return None
     return datetime.strptime(match[1] + match[2], "%Y%m%d%H%M%S")
+
+
+# ---- importar, renomear, apagar, restaurar -----------------------------------------------
+INVALID_NAME_CHARS = '\\/:*?"<>|'
+
+
+def has_invalid_chars(name: str) -> bool:
+    return any(char in name for char in INVALID_NAME_CHARS)
+
+
+def rename_target(path: Path, name: str) -> tuple[Path, bool]:
+    """Destino ao renomear `path` para `name` (sem extensão, mantém a atual) e se ele
+    substitui outro arquivo (mudar só maiúsculas/minúsculas não substitui)."""
+    if not Path(name).suffix:
+        name += path.suffix
+    target = path.with_name(name)
+    replacing = target.exists() and os.path.normcase(str(target)) != os.path.normcase(str(path))
+    return target, replacing
+
+
+@dataclass
+class DeleteWarning:
+    official: bool = False  # o XML existe na UI oficial
+    texture_users: int = 0  # XMLs do projeto que ainda usam a textura
+
+
+def delete_warning(project: "Project", path: Path) -> DeleteWarning:
+    """O que avisar antes de apagar um arquivo do projeto."""
+    game_dir = project.game_dir
+    if path.suffix.lower() == ".xml" and game_dir is not None:
+        relative = project.relative_key(path)
+        return DeleteWarning(official=official_text_for(game_dir, relative) is not None)
+    if is_texture(path):
+        return DeleteWarning(texture_users=len(xml_using_texture(project, path.name)))
+    return DeleteWarning()
+
+
+def import_plan(project: "Project", sources: list[Path]) -> tuple[dict[Path, Path], list[Path]]:
+    """Destino de cada arquivo importado e os que já existem no projeto (serão substituídos)."""
+    targets = {source: project.import_target(source) for source in sources}
+    replaced = [target for target in targets.values() if target.exists()]
+    return targets, replaced
+
+
+def restore_diff(path: Path, source: Path, current_label: str, restored_label: str) -> str:
+    """Diff unificado entre o arquivo atual e a versão a restaurar; vazio se iguais.
+
+    Erros de leitura (OSError) sobem para quem chamou.
+    """
+    current = path.read_bytes().decode("big5", errors="replace").splitlines()
+    restored = source.read_bytes().decode("big5", errors="replace").splitlines()
+    return "\n".join(
+        difflib.unified_diff(current, restored, fromfile=current_label, tofile=restored_label, lineterm="")
+    )
+
+
+def restore_file(project: "Project | None", path: Path, source: Path, now: datetime | None = None) -> None:
+    """Volta `path` para `source`. No projeto o estado atual vai para o histórico; num XML
+    solto fica um backup `.before-gf-ui-editor-…` ao lado."""
+    if project is not None and project.contains(path):
+        project.restore(path, source)
+        return
+    backup = path.with_name(
+        f"{path.stem}.before-gf-ui-editor-{(now or datetime.now()):%Y%m%d-%H%M%S}{path.suffix}"
+    )
+    shutil.copy2(path, backup)
+    shutil.copy2(source, path)
