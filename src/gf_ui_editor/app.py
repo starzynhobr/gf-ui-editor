@@ -125,6 +125,7 @@ from .game_updates import (
     window_ids,
 )
 from . import cleanup, file_list, game_sync, release_notes, remote_manifest, updater, versions
+from . import home
 from .file_list import FILE_SECTIONS, TEXTURE_SUFFIXES
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
@@ -5723,29 +5724,22 @@ class EditorWindow(QMainWindow):
         return page
 
     def _relative_time(self, timestamp: float) -> str:
-        if not timestamp:
-            return "—"
-        seconds = max(0.0, time.time() - timestamp)
-        if seconds < 90:
+        key, value = home.relative_age(timestamp)
+        if key == "now":
             return self.tr("agora")
-        if seconds < 3600:
-            return self.tr("há {count} min").format(count=round(seconds / 60))
-        if seconds < 86400:
-            return self.tr("há {count} h").format(count=round(seconds / 3600))
-        days = int(seconds // 86400)
-        if days == 1:
+        if key == "minutes":
+            return self.tr("há {count} min").format(count=value)
+        if key == "hours":
+            return self.tr("há {count} h").format(count=value)
+        if key == "yesterday":
             return self.tr("ontem")
-        if days < 30:
-            return self.tr("há {count} dias").format(count=days)
-        return datetime.fromtimestamp(timestamp).strftime("%d/%m/%Y")
+        if key == "days":
+            return self.tr("há {count} dias").format(count=value)
+        return str(value) if value is not None else "—"
 
     @staticmethod
     def _human_size(size: int) -> str:
-        if size >= 1024**3:
-            return f"{size / 1024**3:.1f} GB"
-        if size >= 1024**2:
-            return f"{size / 1024**2:.0f} MB"
-        return f"{max(1, size // 1024)} KB"
+        return home.human_size(size)
 
     def _home_card(self, title: str) -> tuple[QFrame, QVBoxLayout]:
         card = QFrame()
@@ -5907,12 +5901,9 @@ class EditorWindow(QMainWindow):
 
     def _home_projects_card(self) -> QFrame:
         roots = list_projects()
-        current = os.path.normcase(str(self.project.root)) if self.project is not None else None
-        # Datas lidas antes de tudo e sem abrir os bancos para escrita (ver storage.peek_project).
-        modified = {str(root): storage.last_modified(root) for root in roots}
-        # Projeto aberto primeiro; depois os mais recentes.
-        roots.sort(key=lambda root: (os.path.normcase(str(root)) != current, -modified[str(root)]))
-        card, layout = self._home_card(self.tr("PROJETOS · {count}").format(count=len(roots)))
+        current = self.project.root if self.project is not None else None
+        projects = home.home_projects(roots, current)
+        card, layout = self._home_card(self.tr("PROJETOS · {count}").format(count=len(projects)))
         header = layout.itemAt(0).widget()
         layout.removeWidget(header)
         top = QHBoxLayout()
@@ -5961,10 +5952,10 @@ class EditorWindow(QMainWindow):
         self._home_size_labels = {}
         self._home_checks = {}
         entries = []
-        for root in roots:
+        for root, modified in projects:
             title, files = storage.peek_project(root)
             title = title or root.name
-            row = self._home_project_row(root, title, files, os.path.normcase(str(root)) == current, modified[str(root)])
+            row = self._home_project_row(root, title, files, home.is_same_root(current, root), modified)
             rows.addWidget(row)
             entries.append((title.lower(), row))
 
@@ -5977,13 +5968,13 @@ class EditorWindow(QMainWindow):
                 visible += needle in title
             empty.setVisible(visible == 0)
             empty.setText(
-                self.tr("Nenhum projeto com esse nome.") if roots else self.tr("Nenhum projeto ainda. Crie o primeiro em Novo projeto.")
+                self.tr("Nenhum projeto com esse nome.") if projects else self.tr("Nenhum projeto ainda. Crie o primeiro em Novo projeto.")
             )
 
         self.home_filter.textChanged.connect(apply_filter)
         apply_filter(self._home_filter_text)
         self._sync_home_manage()
-        self._start_home_sizes(roots)
+        self._start_home_sizes([root for root, _modified in projects])
         return card
 
     def _set_home_manage(self, enabled: bool) -> None:
@@ -6158,9 +6149,7 @@ class EditorWindow(QMainWindow):
         """Traz arquivos para o projeto (o substituído vai para o histórico). None se cancelado."""
         current = self._is_current_project(project.root)
         open_path = self.document.path if current and self.document is not None else None
-        affected = open_path is not None and any(
-            os.path.normcase(str(project.ui_dir / relative)) == os.path.normcase(str(open_path)) for relative, _ in items
-        )
+        affected = home.pull_affects_open_file(project.ui_dir, items, open_path)
         if affected and not self._confirm_discard_changes():
             return None
         try:
@@ -6273,7 +6262,8 @@ class EditorWindow(QMainWindow):
             self._refresh_home()
 
     def _is_current_project(self, root: Path) -> bool:
-        return self.project is not None and os.path.normcase(str(self.project.root)) == os.path.normcase(str(root))
+        current = self.project.root if self.project is not None else None
+        return home.is_same_root(current, root)
 
     def _home_duplicate(self, root: Path, title: str) -> None:
         name, accepted = QInputDialog.getText(
@@ -6407,14 +6397,7 @@ class EditorWindow(QMainWindow):
 
         def work() -> None:
             for key, modified in pending:
-                total = 0
-                for folder, _dirs, names in os.walk(key):
-                    for name in names:
-                        try:
-                            total += os.stat(os.path.join(folder, name)).st_size
-                        except OSError:
-                            pass
-                results.put((key, modified, total))
+                results.put((key, modified, home.project_disk_size(key)))
             results.put(None)
 
         Thread(target=work, name="gf-ui-project-sizes", daemon=True).start()

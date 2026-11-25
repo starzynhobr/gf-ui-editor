@@ -40,7 +40,7 @@ Mais ou menos 8,4 mil linhas:
 | 1 | Lista de arquivos e seções | `file_list.py` (novo) | 7360–7810, 7810–7990 | — | **Feito** |
 | 2 | Preferências fora do `QSettings` | `preferences.py` (novo) | ~45 pontos espalhados | **Não**: toca o arquivo todo. Fazer sozinha, entre ondas | Médio |
 | 3 | Publicar (F5) e textos | `publish.py` (novo) + `text_data.py` | `test_in_game` (8040–8170), `_text_overrides` | Sim | Médio |
-| 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | Sim | Baixo |
+| 4 | Tela inicial e projetos | `home.py` (novo) | 5720–5760, 5900–6000, 6150–6450 | — | **Feito** |
 | 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | Sim | Baixo |
 | 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | Sim, depois da 1 (já feita) | Baixo |
 | 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | Sim | Baixo/médio |
@@ -76,11 +76,11 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** `test_project.py` e `test_text_data.py` já cobrem as peças. Faltam testes novos do `publish_project` com jogo falso em `tmp_path`. Na interface: `test_publish_on_save_*` e os três testes que chamam `window.test_in_game()`.
 - **Risco:** médio. O `except OSError` hoje cobre `project.publish` **e** os textos; o serviço precisa deixar a exceção subir do mesmo jeito.
 
-### 4. Tela inicial e projetos
+### 4. Tela inicial e projetos (feita)
 
-- **Serviço:** `home.py`: `home_projects(current_root)`, que devolve os projetos ordenados (aberto primeiro, depois os mais recentes) com a data; `project_disk_size(root)`, a soma que hoje fica dentro da thread de `_start_home_sizes`; `human_size(bytes)`; `relative_age(timestamp)`, que devolve `("now"|"minutes"|"hours"|"yesterday"|"days"|"date", valor)` enquanto a interface traduz; `is_same_root(a, b)` (hoje `_is_current_project`); `pull_affects_open_file(...)`.
+- **Serviço:** `src/gf_ui_editor/home.py`. `home_projects(roots, current_root)` recebe a lista obtida no `app.py` e devolve os projetos ordenados (aberto primeiro, depois os mais recentes) com a data. O módulo também calcula o tamanho em disco, formata os tamanhos, compara caminhos e verifica se um arquivo puxado afeta o XML aberto. `relative_age(timestamp)` devolve `("now"|"minutes"|"hours"|"yesterday"|"days"|"date", valor)` para a interface traduzir.
 - **Origem:** `_relative_time`, `_human_size`, `_home_projects_card` (só a ordenação), `_start_home_sizes` (só o cálculo; a thread e o `QTimer` ficam), `_is_current_project`, `pull_into_project` (cálculo de `affected`).
-- **Testes:** novos para ordenação, tamanho e idade relativa (com `time` fixo). Na interface: `test_home_*`, `test_cleanup_recalculates_the_project_size_on_the_home_screen`. Cuidado: os testes fazem `monkeypatch` em `app_module.list_projects`, então `home_projects` deve receber a lista pronta ou a função como parâmetro.
+- **Testes:** `tests/test_home.py` cobre ordenação, tamanhos, idade relativa, comparação de caminhos, arquivos puxados e importação sem PySide6. Na interface continuam valendo `test_home_*` e `test_cleanup_recalculates_the_project_size_on_the_home_screen`.
 - **Risco:** baixo.
 
 ### 5. Criar projeto, base oficial e erro do jogo
