@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
-import re
 import shutil
 import sys
 from threading import Thread
@@ -125,7 +124,8 @@ from .game_updates import (
     snapshot_official_ui,
     window_ids,
 )
-from . import cleanup, game_sync, release_notes, remote_manifest, updater, versions
+from . import cleanup, file_list, game_sync, release_notes, remote_manifest, updater, versions
+from .file_list import FILE_SECTIONS, TEXTURE_SUFFIXES
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from .project import (
     CHANGES_TTL,
@@ -194,7 +194,6 @@ DEFAULT_HUD = (
     "Channel.xml", "ShortcutBar.xml", "Menu.xml",
 )
 GAME_DRAWN_AREAS = {"basicchar.xml": (23, 7, 76, 76)}
-TEXTURE_SUFFIXES = (".dds", ".tga")
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
@@ -1440,9 +1439,6 @@ class StructureCommand(QUndoCommand):
 
     def undo(self) -> None:
         self.window._swap_document(self.old, [])
-
-
-FILE_SECTIONS = ("layers", "changed", "all")  # ordem padrão das seções na lista de arquivos
 
 
 class SectionTitle(QLabel):
@@ -7403,9 +7399,7 @@ class EditorWindow(QMainWindow):
 
     # ---- ordem das seções ------------------------------------------------------------------
     def _saved_section_order(self) -> list[str]:
-        value = str(QSettings("Local", "GF UI Editor").value("files_section_order", ""))
-        order = [kind for kind in value.split(",") if kind in FILE_SECTIONS]
-        return order if sorted(order) == sorted(FILE_SECTIONS) else list(FILE_SECTIONS)
+        return file_list.parse_section_order(str(QSettings("Local", "GF UI Editor").value("files_section_order", "")))
 
     def _place_sections(self) -> None:
         for index, kind in enumerate(self._section_order):
@@ -7414,7 +7408,7 @@ class EditorWindow(QMainWindow):
             self.files_splitter.setStretchFactor(index, 1 if kind == "all" else 0)
 
     def set_section_order(self, order: list[str]) -> None:
-        if sorted(order) != sorted(FILE_SECTIONS) or order == self._section_order:
+        if not file_list.is_valid_section_order(order) or order == self._section_order:
             return
         self._section_order = list(order)
         QSettings("Local", "GF UI Editor").setValue("files_section_order", ",".join(order))
@@ -7446,38 +7440,17 @@ class EditorWindow(QMainWindow):
 
     def _section_dropped(self, kind: str, y_global: int) -> None:
         self._section_drop_line.setVisible(False)
-        visible = self._visible_sections()
-        index = self._section_drop_index(y_global)
-        target = [item for item in visible if item != kind]
-        before = visible[index] if index < len(visible) else None
-        if before == kind:
-            return
-        position = target.index(before) if before is not None else len(target)
-        target.insert(position, kind)
         # Seções escondidas (vazias) ficam onde estavam em relação às outras.
-        hidden = [item for item in self._section_order if item not in visible]
-        self.set_section_order(self._merge_hidden(target, hidden) if hidden else target)
-
-    def _merge_hidden(self, visible_order: list[str], hidden: list[str]) -> list[str]:
-        order = list(visible_order)
-        for item in hidden:
-            previous = self._section_order.index(item)
-            # Põe logo depois da seção que vinha antes dela na ordem antiga.
-            anchor = next((other for other in reversed(self._section_order[:previous]) if other in order), None)
-            order.insert(order.index(anchor) + 1 if anchor is not None else 0, item)
-        return order
+        order = file_list.order_after_drop(
+            self._section_order, self._visible_sections(), kind, self._section_drop_index(y_global)
+        )
+        if order is not None:
+            self.set_section_order(order)
 
     def _move_section(self, kind: str, step: int) -> None:
-        visible = self._visible_sections()
-        if kind not in visible:
-            return
-        index = visible.index(kind)
-        swap = index + step
-        if not 0 <= swap < len(visible):
-            return
-        visible[index], visible[swap] = visible[swap], visible[index]
-        hidden = [item for item in self._section_order if item not in visible]
-        self.set_section_order(self._merge_hidden(visible, hidden) if hidden else visible)
+        order = file_list.order_after_move(self._section_order, self._visible_sections(), kind, step)
+        if order is not None:
+            self.set_section_order(order)
 
     def _section_menu(self, kind: str, title: QLabel, position) -> None:
         visible = self._visible_sections()
@@ -7493,11 +7466,7 @@ class EditorWindow(QMainWindow):
         menu.exec(title.mapToGlobal(position))
 
     def _section_heights(self) -> dict[str, int]:
-        try:
-            data = json.loads(str(QSettings("Local", "GF UI Editor").value("files_section_heights", "{}")))
-        except ValueError:
-            return {}
-        return {str(key): int(value) for key, value in data.items() if isinstance(value, (int, float))} if isinstance(data, dict) else {}
+        return file_list.parse_section_heights(str(QSettings("Local", "GF UI Editor").value("files_section_heights", "{}")))
 
     def _save_section_heights(self) -> None:
         sizes = dict(zip(self._section_order, self.files_splitter.sizes()))
@@ -7559,20 +7528,11 @@ class EditorWindow(QMainWindow):
         for tree in self._file_trees():
             tree.clear()
         directory = self._files_directory()
+        listing = file_list.project_listing(self.project) if self.project is not None else file_list.loose_listing(directory)
+        modified, files, textures = listing.modified, listing.xml, listing.textures
         if self.project is not None:
-            modified = self.project.modified_files()
-            files = [path for path in self.project.files() if path.suffix.lower() == ".xml"]
-            # Só as da pasta principal da UI: as de subpastas (mapas, ícones) são milhares.
-            textures = [
-                path for path in self.project.files()
-                if path.suffix.lower() in TEXTURE_SUFFIXES and len(path.parts) == 1
-            ]
             self.project_path_label.setVisible(False)
-            others = (
-                projects_publishing_to(self.project.custom_name, exclude=self.project.root)
-                if self.project.game_dir is not None
-                else []
-            )
+            others = listing.shared_publish
             self.shared_publish_warning.setText(
                 self.tr(
                     "O projeto {projects} também envia para UICustom/{folder}: um sobrescreve o outro no jogo. "
@@ -7594,14 +7554,6 @@ class EditorWindow(QMainWindow):
                 else self.tr("Crie um projeto para editar fora da pasta do jogo e testar com F5.")
             )
             self.loose_project_button.setVisible(directory is not None)
-            modified = set()
-            files = []
-            textures = []
-            if directory is not None:
-                files = sorted(
-                    (path.relative_to(directory) for path in directory.glob("*.xml") if not is_backup_file(path.name)),
-                    key=lambda item: item.as_posix().lower(),
-                )
         current = os.path.normcase(str(self.document.path)) if self.document is not None else None
         bold = self.files_tree.font()
         bold.setBold(True)
@@ -7613,15 +7565,13 @@ class EditorWindow(QMainWindow):
             files = textures
         self.files_title.setText(self.tr("Texturas") if self.files_mode == "textures" else self.tr("Arquivos XML"))
         self._update_project_button()
-        changed = [path for path in files if path.as_posix() in modified]
         layers = set(self.project.reference_layers) if self.project is not None else set()
         blockers = [QSignalBlocker(tree) for tree in self._file_trees()]  # caixas marcadas aqui não são cliques
-        # Camadas marcadas no topo: fica fácil ver o que está ligado e desmarcar.
-        layered = [path for path in files if path.as_posix() in layers]
+        grouped = file_list.file_groups(files, modified, layers)
         groups = {
-            "layers": (self.tr("CAMADAS · {count}").format(count=len(layered)), layered),
-            "changed": (self.tr("ALTERADOS · {count}").format(count=len(changed)), changed),
-            "all": (self.tr("TODOS · {count}").format(count=len(files)), files),
+            "layers": (self.tr("CAMADAS · {count}").format(count=len(grouped["layers"])), grouped["layers"]),
+            "changed": (self.tr("ALTERADOS · {count}").format(count=len(grouped["changed"])), grouped["changed"]),
+            "all": (self.tr("TODOS · {count}").format(count=len(grouped["all"])), grouped["all"]),
         }
         for kind, (title, group_files) in groups.items():
             frame, title_label, tree = self.file_sections[kind]
@@ -7842,20 +7792,13 @@ class EditorWindow(QMainWindow):
     # ---- histórico ------------------------------------------------------------
     def _history_entries(self, path: Path) -> tuple[list[Path], Path | None]:
         """Backups (mais recente primeiro) e o original, se houver."""
-        if self.project is not None and self.project.contains(path):
-            original = self.project.original_path_for(path)
-            return self.project.history(path), original if original.exists() else None
-        backups = sorted(
-            path.parent.glob(f"{path.stem}.before-gf-ui-editor-*{path.suffix}"), key=lambda item: item.name, reverse=True
-        )
-        return backups, None
+        return file_list.history_entries(self.project, path)
 
     @staticmethod
     def _backup_label(backup: Path) -> str:
-        match = re.search(r"(\d{8})-(\d{6})", backup.name)
-        if not match:
+        stamp = file_list.backup_stamp(backup)
+        if stamp is None:
             return backup.name
-        stamp = datetime.strptime(match[1] + match[2], "%Y%m%d%H%M%S")
         today = datetime.now().date()
         if stamp.date() == today:
             day = QCoreApplication.translate("EditorWindow", "hoje")
@@ -7923,18 +7866,7 @@ class EditorWindow(QMainWindow):
     def _xml_using_texture(self, name: str) -> list[Path]:
         """XMLs do projeto com BGmap apontando para a textura `name`."""
         assert self.project is not None
-        pattern = re.compile(rb'BGmap\s*=\s*"' + re.escape(name.encode("latin-1", "ignore")) + rb'"', re.IGNORECASE)
-        found = []
-        for relative in self.project.files():
-            if relative.suffix.lower() != ".xml":
-                continue
-            path = self.project.ui_dir / relative
-            try:
-                if pattern.search(path.read_bytes()):
-                    found.append(path)
-            except OSError:
-                continue
-        return found
+        return file_list.xml_using_texture(self.project, name)
 
     def rename_project_file(self, path: Path) -> None:
         if self.project is None:
@@ -7989,20 +7921,7 @@ class EditorWindow(QMainWindow):
     def _retarget_texture(self, paths: list[Path], old: str, new: str) -> None:
         """Troca BGmap="old" por BGmap="new" mexendo só nesse atributo, com backup de cada XML."""
         assert self.project is not None
-        pattern = re.compile(r'(BGmap\s*=\s*")' + re.escape(old) + r'(")', re.IGNORECASE)
-        for path in paths:
-            try:
-                raw = path.read_bytes()
-                text = raw.decode("big5")
-            except (OSError, UnicodeDecodeError):
-                continue
-            changed = pattern.sub(lambda match: match.group(1) + new + match.group(2), text)
-            if changed == text:
-                continue
-            self.project.remember_original(path)
-            shutil.copy2(path, self.project.history_path_for(path))
-            path.write_bytes(changed.encode("big5"))
-        self.project.invalidate_changes()
+        file_list.retarget_texture(self.project, paths, old, new)
 
     def delete_project_file(self, path: Path) -> None:
         if self.project is None:
