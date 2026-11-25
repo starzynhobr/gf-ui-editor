@@ -2,6 +2,12 @@
 
 Revisão: **25/11/2026**. Última release publicada: **0.6.0** (24/11/2026).
 
+## Beta 0.7.0-beta.3 publicada (25/11/2026, pre-release; Fase 3)
+- Fonte no painel (cor, contorno, alinhamento, tamanho); seções da lista com rolagem própria e ordem ajustável.
+- Roda do mouse não muda campos do painel; mãozinha nos diálogos e listas suspensas.
+- Notas: estável para estável não mostra as betas (`release_notes.since`).
+- Instalador: `GF-UI-Editor-Setup-0.7.0-beta.3.exe`, SHA-256 `0B223CCB761A5A7190F770A9F0A26963AAB866F73D075CD60DD320356A6DC549`.
+
 ## Beta 0.7.0-beta.2 publicada (25/11/2026, pre-release; Fase 2)
 - Tela inicial completa; gerenciar projetos (duplicar, renomear, excluir com a cópia no jogo, seleção múltipla).
 - Versões do projeto (checkpoints .zip só com o que difere do oficial).
