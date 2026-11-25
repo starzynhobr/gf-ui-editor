@@ -153,6 +153,7 @@ from . import textures
 from .theme import COLORS, stylesheet
 from . import preferences
 from . import text_preview
+from . import window_geometry
 
 
 class QtPreferenceStore:
@@ -4103,13 +4104,14 @@ class EditorWindow(QMainWindow):
         """Retângulo que envolve tudo menos a janela principal, em coordenadas do XML."""
         if self.document is None or len(self.document.elements) < 2:
             return None
-        bounds = QRectF()
-        for element in self.document.elements[1:]:
-            area = QRectF(element.x, element.y, max(1, element.width), max(1, element.height))
-            bounds = bounds.united(area.translated(self.items[element.index].preview_offset))
-        return bounds
+        bounds = window_geometry.content_bounds(
+            (element.geometry, (offset.x(), offset.y()))
+            for element in self.document.elements[1:]
+            for offset in (self.items[element.index].preview_offset,)
+        )
+        return QRectF(*bounds) if bounds is not None else None
 
-    GHOST_TOLERANCE = 8
+    GHOST_TOLERANCE = window_geometry.GHOST_TOLERANCE
 
     def _ghost_area(self, geometry: tuple[int, int, int, int] | None = None) -> QRectF | None:
         """Parte da tela que o jogo ainda trata como janela, longe do conteúdo.
@@ -4121,19 +4123,13 @@ class EditorWindow(QMainWindow):
         bounds = self._content_bounds()
         if bounds is None or self._screen_offset() is None or not self._root_position_is_set_by_game():
             return None
-        x, y, width, height = geometry or self.document.elements[0].geometry
-        if width <= 1 and height <= 1:
-            return None
-        area = QRectF(x, y, max(1, width), max(1, height))
-        margin = self.GHOST_TOLERANCE
-        # Uma dentro da outra é uma janela comum (com folga ou com conteúdo maior); só
-        # há área sobrando quando o conteúdo saiu de cima da janela principal.
-        if bounds.adjusted(-margin, -margin, margin, margin).contains(area):
-            return None
-        if area.adjusted(-margin, -margin, margin, margin).contains(bounds):
-            return None
-        # Com fundo próprio visível a área não é invisível, e encolher apagaria o fundo.
-        return None if self._root_draws_background() else area
+        area = window_geometry.ghost_area(
+            geometry or self.document.elements[0].geometry,
+            (bounds.x(), bounds.y(), bounds.width(), bounds.height()),
+            self._root_draws_background,
+            self.GHOST_TOLERANCE,
+        )
+        return QRectF(*area) if area is not None else None
 
     def _sync_ghost_area(self) -> None:
         area = self._ghost_area()
@@ -4159,16 +4155,13 @@ class EditorWindow(QMainWindow):
 
     def _collapsed_root(self, geometry: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
         """A mesma janela com 1 × 1, com o X/Y compensado para o conteúdo não sair do lugar."""
-        return self._resized_root(geometry, 1, 1)
+        return window_geometry.collapsed_root(geometry, self._root_screen_for)
 
     def _resized_root(
         self, geometry: tuple[int, int, int, int], width: int, height: int
     ) -> tuple[int, int, int, int]:
         # O ponto onde o jogo põe a janela depende do tamanho dela (centro, canto direito...).
-        x, y = geometry[:2]
-        before = self._root_screen_for(geometry)
-        after = self._root_screen_for((x, y, width, height))
-        return x + after[0] - before[0], y + after[1] - before[1], width, height
+        return window_geometry.resized_root(geometry, width, height, self._root_screen_for)
 
     def _without_ghost_area(self, geometry: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
         """Depois de mover a janela: encolhe a principal se ela fosse sobrar longe do conteúdo."""
@@ -4720,17 +4713,10 @@ class EditorWindow(QMainWindow):
         frame = self._window_frame_on_screen() if self.selected_index == 0 else None
         if frame is not None:
             # O painel mostra a posição na tela; a raiz anda ao contrário (ver _root_move_as_screen_move).
-            moved_root = (
-                element.x - (geometry[0] - frame[0]), element.y - (geometry[1] - frame[1]),
-                element.width, element.height,
+            geometry = window_geometry.root_from_panel(
+                element.geometry, geometry, frame,
+                resize_root=self._resized_root, without_ghost_area=self._without_ghost_area,
             )
-            if geometry[2:] != element.geometry[2:]:
-                # Mudar o tamanho desloca o ponto onde o jogo põe a janela: o conteúdo não deve pular.
-                geometry = self._resized_root(moved_root, geometry[2], geometry[3])
-            elif moved_root != element.geometry:
-                geometry = self._without_ghost_area(moved_root)
-            else:
-                geometry = moved_root
         if element.geometry != geometry:
             moved = frame is None and element.geometry[:2] != geometry[:2]
             self.undo_stack.push(
@@ -4749,35 +4735,16 @@ class EditorWindow(QMainWindow):
         """
         if 0 not in changes or self.document is None:
             return changes
-        # A moldura da raiz pode estar desenhada fora do X/Y do XML: vale o deslocamento.
-        old, new = changes[0]
-        dx, dy = new[0] - old[0], new[1] - old[1]
-        x, y = self.document.elements[0].geometry[:2]
-        root = self.document.elements[0].geometry
-        if set(changes) == {0} and self._root_position_is_set_by_game():
-            if new[2:] != old[2:]:
-                moved = (x - dx, y - dy, root[2], root[3])
-                return {0: (root, self._resized_root(moved, new[2], new[3]))}
-            moved = (x - dx, y - dy, new[2], new[3])
-            if self._window_frame_on_screen() is not None and (dx or dy):
-                moved = self._without_ghost_area(moved)
-            return {0: (root, moved)}
-        if set(changes) == {0} and new[2:] == old[2:] and (dx or dy):
-            # Janela comum: arrastar a principal é mover a janela inteira. Movendo tudo junto,
-            # muda a posição padrão dela sem mexer na relação entre os elementos.
-            shown_at = self._preview_default_position()
-            if shown_at is not None:
-                # A janela estava desenhada na posição salva: o padrão do XML passa a ser
-                # o ponto da tela onde ela foi solta, não o X/Y antigo mais o arraste.
-                dx, dy = shown_at[0] + dx - x, shown_at[1] + dy - y
-            return {
-                element.index: (
-                    element.geometry, (element.x + dx, element.y + dy, element.width, element.height)
-                )
-                for element in self.document.elements
-                if element.index == 0 or element.index not in self.locked_indexes
-            }
-        return {**changes, 0: (root, (x + dx, y + dy, new[2], new[3]))}
+        return window_geometry.root_move_as_screen_move(
+            changes,
+            {element.index: element.geometry for element in self.document.elements},
+            self.locked_indexes,
+            set_by_game=self._root_position_is_set_by_game,
+            resize_root=self._resized_root,
+            frame_on_screen=self._window_frame_on_screen,
+            without_ghost_area=self._without_ghost_area,
+            preview_default_position=self._preview_default_position,
+        )
 
     def _preview_default_position(self) -> tuple[int, int] | None:
         """Ao mover uma janela com posição salva no User.ini, o preview passa a mostrar a do XML.

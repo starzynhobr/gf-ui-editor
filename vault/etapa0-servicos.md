@@ -44,7 +44,7 @@ Mais ou menos 8,4 mil linhas:
 | 5 | Criar projeto, base oficial e erro do jogo | `project.py`, `game_updates.py` | 6770–6900, 7160–7240 | — | **Feito** |
 | 6 | Arquivos: importar, renomear, apagar, restaurar | `file_list.py` (acrescenta) | 7237–7290, 7870–8040 | — | **Feito** |
 | 7 | Textos no canvas | `text_preview.py` (novo) | 3767–3810, 3853–3900, `filter_tree` | — | **Feito** |
-| 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) ou `game_layout.py` | 4111–4300, 4559–4830 | Sim, mas evitar junto com a 7 se ela mexer em 4559 | **Alto** |
+| 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) | 4111–4300, 4559–4830 | — | **Feito** |
 | 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | — | **Feito** |
 | 10 | Atualizações e manifesto | `updater.py`, `remote_manifest.py` | 2887–3050 | — | **Feito** |
 | 11 | Funções soltas do topo | `about.py` (novo) | 160–345 | Sim | Muito baixo |
@@ -128,7 +128,23 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Origem:** `_game_text_for`, o laço de textos em `_refresh_reference_layers`, a string pesquisável de `filter_tree`. Quando calcular a amostra (personagem de exemplo visível) continua sendo decidido no `app.py`.
 - **Testes:** `tests/test_text_preview.py` (8, sem janela). Na interface continua valendo `test_text_mode_draws_samples_like_the_game_and_flags_overflow`.
 
-### 8. Geometria da raiz e área fantasma
+### 8. Geometria da raiz e área fantasma (feita)
+
+**Como ficou:**
+- **Serviço:** `src/gf_ui_editor/window_geometry.py`, só com tuplas:
+  - `contains` e `grown` (o `QRectF.contains`/`adjusted` de antes, com a mesma regra de retângulo nulo);
+  - `content_bounds(elementos)`;
+  - `ghost_area(raiz, conteúdo, tem_fundo)`;
+  - `resized_root(geometria, largura, altura, posição_na_tela)` e `collapsed_root`;
+  - `root_move_as_screen_move(mudanças, geometrias, bloqueados, ...)`;
+  - `root_from_panel(raiz, digitado, moldura, ...)`, a conta de `edit_selected_geometry`;
+  - `GHOST_TOLERANCE`.
+- **O que ficou na interface e entra como função:** onde o jogo põe a raiz (`_root_screen_for`), se ela tem fundo visível (`_root_draws_background`, lê pixels), se o jogo posiciona a janela, onde está a moldura, o `_without_ghost_area` (com a mensagem) e o `_preview_default_position` (desmarca "Usar posições salvas" e mostra a mensagem). O serviço só chama cada uma nos mesmos ramos e na mesma ordem de antes, e os testes conferem essa ordem.
+- **No `app.py`:** os métodos continuam no lugar, como fachadas finas que convertem `QRectF` ↔ tupla. As checagens de preview ligado e de janela posicionada pelo jogo continuam em `_ghost_area`.
+- **Testes:** `tests/test_window_geometry.py` (38, sem Qt; a tabela da área fantasma foi conferida contra o `QRectF` real). Os testes de interface seguem como rede.
+- **Harness:** os fluxos `geo_*` entraram antes da fatia e saíram iguais contra a `migracao-web` antes e depois dela (log, arquivos e capturas).
+
+**Plano original:**
 
 - **Serviço:** `window_geometry.py`, ou uma seção nova em `game_layout.py`, só com tuplas: `content_bounds(elements, offsets)`, `ghost_area(root_geometry, bounds, tolerance)`, `resized_root(geometry, w, h, screen_for)`, `root_move_as_screen_move(changes, root, set_by_game, frame_on_screen, shown_at, locked)`, `root_edit_from_panel(...)`.
 - **Origem:** `_content_bounds`, `_ghost_area`, `_collapsed_root`, `_resized_root`, `_without_ghost_area` (sem a mensagem), `_root_move_as_screen_move`, a conta de `edit_selected_geometry`.
@@ -190,7 +206,7 @@ Onda A, em paralelo, com zonas e serviços diferentes:
 - **Claude 2:** fatia **3** (publicar) e fatia **6** (arquivos). **Feitas.**
 - A fatia **11** serve para quem terminar primeiro (zona 160–345, sem conflito com ninguém).
 
-Depois da onda A, a fatia **2** entra sozinha (passo 1 feito), seguida da **10**. A onda B vem por último: **7**, **9** e depois **8**, com cuidado.
+Depois da onda A, a fatia **2** entra sozinha (passo 1 feito), seguida da **10**. A onda B vem por último: **7**, **9** e depois **8**, com cuidado (feitas).
 
 ## Como diminuir o conflito no merge
 
