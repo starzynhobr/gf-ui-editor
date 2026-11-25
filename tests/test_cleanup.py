@@ -57,7 +57,7 @@ def test_icons_cleanup_removes_only_official_icons_and_turns_off_include_assets(
     cleanup.apply(project, plan, icons=True)
     assert not (project.ui_dir / "itemicon" / "a.dds").exists()
     assert (project.ui_dir / "itemicon" / "b.dds").exists() and project.include_assets  # sobrou um editado
-    assert (project.ui_dir / "map" / "m.dds").exists()  # o map nunca sai
+    assert (project.ui_dir / "map" / "m.dds").exists()  # a opção dos ícones não mexe no map
 
     (project.ui_dir / "itemicon" / "b.dds").write_bytes(b"icon-b")  # voltou ao oficial
     cleanup.apply(project, cleanup.scan(project), icons=True)
@@ -85,3 +85,19 @@ def test_adopted_publish_folder_is_never_cleaned(tmp_path: Path) -> None:
     (game / "UICustom" / "Alheia" / "Outro.xml").write_text("<x/>", encoding="utf-8")
     project = Project.create("C", game / "UI", game, projects_root=tmp_path / "projects", publish_folder="Alheia")
     assert cleanup.scan(project).custom == []
+
+
+def test_maps_cleanup_removes_official_maps_even_without_include_assets(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    project = Project.create("C", game / "UI", game, projects_root=tmp_path / "projects")
+    assert not (project.ui_dir / "map").exists()  # projetos novos já vêm sem o map
+    # Projeto antigo: tinha o map copiado, com um mapa editado.
+    (project.ui_dir / "map").mkdir()
+    (project.ui_dir / "map" / "m.dds").write_bytes(b"map")
+    (project.ui_dir / "map" / "editado.dds").write_bytes(b"meu mapa")
+    plan = cleanup.scan(project)
+    assert [p.name for p in plan.maps] == ["m.dds"] and plan.maps_left == 1
+    cleanup.apply(project, plan, maps=True)
+    assert not (project.ui_dir / "map" / "m.dds").exists()
+    assert (project.ui_dir / "map" / "editado.dds").exists()
+    assert [p.as_posix() for p in project.files() if p.parts[0] == "map"] == ["map/editado.dds"]

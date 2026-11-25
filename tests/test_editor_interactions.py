@@ -2293,7 +2293,7 @@ def test_cleanup_dialog_offers_history_and_cleans_the_project(tmp_path: Path, mo
     assert not dialog.clean_button.isEnabled()  # nada escolhido de início
     assert not dialog.icons_check.isVisibleTo(dialog) and not dialog.custom_check.isVisibleTo(dialog)
     dialog.history_all.setChecked(True)
-    assert dialog.clean_button.isEnabled() and dialog.choice() == {"history": "all", "icons": False, "custom": False}
+    assert dialog.clean_button.isEnabled() and dialog.choice() == {"history": "all", "icons": False, "custom": False, "maps": False}
     window.clean_project(window.project, plan, **dialog.choice())
     assert not backup.exists() and teste.exists()
     assert "liberados" in window.statusBar().currentMessage()
@@ -2488,4 +2488,33 @@ def test_wheel_over_property_fields_scrolls_the_panel_without_changing_values(tm
         assert after == before, widget
     assert panel.font_align_combo.cursor().shape() == Qt.CursorShape.PointingHandCursor
     assert panel.font_color_button.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    window.close()
+
+
+def test_f5_says_when_nothing_changed(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QMessageBox
+
+    application = QApplication.instance() or QApplication([])
+    game, project = _game_project(tmp_path)
+    QSettings("Local", "GF UI Editor").setValue("publish_confirmed", "true")
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.test_in_game()
+    assert "Nada mudou" in window.statusBar().currentMessage()
+    window.close()
+
+
+def test_cleanup_recalculates_the_project_size_on_the_home_screen(tmp_path: Path) -> None:
+    from gf_ui_editor import cleanup, storage
+
+    application = QApplication.instance() or QApplication([])
+    game, project = _game_project(tmp_path)
+    backup = project.history_path_for(project.ui_dir / "Teste.xml")
+    backup.write_bytes(b"x" * 50_000)
+    window = EditorWindow()
+    window._home_sizes[str(project.root)] = (storage.last_modified(project.root), 999_999)  # tamanho antigo
+    window.clean_project(project, cleanup.scan(project), history="all")
+    assert str(project.root) not in window._home_sizes  # a tela inicial recalcula
     window.close()

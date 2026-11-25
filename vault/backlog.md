@@ -6,7 +6,9 @@ kanban-plugin: board
 
 - [x] Fase 2 inteira → 0.7.0-beta.2 publicada (25/11/2026) [[roadmap]] [[beta]]
 - [x] 0.7.0-beta.3 publicada (Fase 3, 25/11/2026) [[roadmap]] [[release]]
-- [ ] Validar a beta.3 e lançar a 0.7.0 estável em seguida (notas reunindo as 3 betas) [[release]]
+- [x] `map` fora dos projetos novos + Limpar mapas + textos do F5/criação (implementado, falta testar) [[roadmap]]
+- [ ] Publicar a 0.7.0-beta.4, validar e lançar a 0.7.0 estável em seguida (notas reunindo as betas) [[release]]
+- [ ] Projetos leves (UI base como fonte da verdade), candidato a 0.8.0 [[roadmap]]
 - [x] Versões do projeto (validado) [[roadmap]]
 
 

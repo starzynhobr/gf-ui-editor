@@ -72,7 +72,14 @@ Foco: o projeto como espaço de trabalho, inclusive para quem edita XML na mão.
   Mostrar os campos só quando o controle tem o atributo; conferir a ordem dos canais de cor (65535 = amarelo indica BGR).
 - [x] **Seções com rolagem própria na lista de XMLs** (validada em 25/11/2026; uma árvore por seção num divisor vertical, alturas em `files_section_heights` no QSettings; seção sem arquivos some, também com o filtro; dá para **mudar a ordem** arrastando o título ou pelo botão direito — Mover para cima/baixo, Restaurar ordem padrão —, salva em `files_section_order`) (estilo NifSkope): "Camadas" numa caixa de altura ajustável com rolagem própria, "Todos" com outra; divisor arrastável que lembra a altura. Hoje é uma árvore só e as camadas empurram o resto para baixo.
 
+## Correções antes da 0.7.0 (0.7.0-beta.4)
+
+- [x] **`map` fora dos projetos novos** (implementado, falta testar): nenhum XML aponta para os `map/*.dds` (conferido nos XMLs da UI do jogo) e o editor só lê texturas da raiz de `ui/`; a afirmação anterior de que "o editor desenha com o map" estava errada. A criação deixa a pasta `map` de fora (menos ~163 MB por projeto, salvo com "incluir ícones"); projetos antigos continuam listando o que têm, e **Limpar projeto** ganhou "Mapas do jogo iguais ao oficial" (mapas editados ficam).
+- [x] **Textos do F5 e da criação** (implementado, falta testar): a barra do F5 dizia "Publicando no jogo… 653/704" e parecia enviar tudo; agora "Conferindo o que mudou e enviando para o jogo…", e no fim "Nada mudou: a pasta UI do jogo já está igual ao projeto" ou "N arquivo(s) enviados". A criação avisa que para o jogo só vai o que for alterado.
+
 ## Depois
+
+- [ ] **Projetos leves (UI base como fonte da verdade)** — ideia de 25/11/2026: o projeto guarda só os arquivos alterados e o resto vem de uma UI base guardada uma vez por CRC; ao salvar um arquivo ainda não alterado, ele é copiado para o projeto (cópia na escrita). O modelo é o mesmo do launcher e das versões (.zip só com o que difere do oficial). Peças que já existem: lista oficial com CRC, cache `.official-ui` por CRC, `shipped_files`, formato das versões. Trabalho grande: `project.ui_dir / arquivo` aparece em muitos lugares, as texturas precisam de busca em camadas, e Notepad++ / editor de imagem precisam de arquivo real (copiar antes de abrir). Candidato a 0.8.0, com uma conversão dos projetos atuais.
 
 - [ ] **Aviso de atualização dos textos do jogo:** detectar pelo CRC do `GameDataFileListT.txt` que o launcher trocou os `.ini`; mostrar IDs novos, textos oficiais alterados e edições do projeto desfeitas (com "Reenviar edições"); comparar ignorando CRLF/LF.
 - [ ] **Abrir pasta sem projeto** (antes "Verificar pasta"): o modo XML solto com escolha de pasta e as checagens da UI oficial. Saiu da Fase 2: trataria o sintoma (editar na pasta do jogo); fica para se alguém ainda precisar.

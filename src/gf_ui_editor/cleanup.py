@@ -1,8 +1,9 @@
 """Limpar projeto: libera espaço sem deixar o projeto incompleto.
 
-O projeto continua com todos os arquivos que o editor usa para desenhar (inclusive o `map`):
-o editor lê as texturas da pasta `ui/` do projeto, e o F5 deixa a pasta UI do jogo igual a ela.
+O projeto continua com os arquivos que o editor usa para desenhar: as texturas da raiz de `ui/`.
 O que pode sair:
+- mapas do jogo (`map`, ~163 MB) iguais ao oficial: nenhum XML aponta para eles e o editor
+  não os lê; a pasta UI do jogo já tem os oficiais (mapas editados ficam);
 - backups do `.history` (os antigos ou todos); os originais (`original.*`) ficam, porque são
   a cópia oficial usada para desfazer e para restaurar versões;
 - pastas de ícones do jogo (itemicon, skillicon…) trazidas com "incluir ícones" na criação,
@@ -20,7 +21,7 @@ from pathlib import Path
 import time
 
 from . import gamedata
-from .project import GAME_ASSET_FOLDERS, ORIGINAL_NAME, Project, owned_custom_folder
+from .project import GAME_ASSET_FOLDERS, MAP_FOLDER, ORIGINAL_NAME, Project, owned_custom_folder
 
 OLD_DAYS = 30
 TEMP_SUFFIX = ".gf-ui-editor.tmp"
@@ -32,6 +33,8 @@ class CleanupPlan:
     history_all: list[Path] = field(default_factory=list)  # todos os backups (sem os originais)
     icons: list[Path] = field(default_factory=list)  # ícones do jogo iguais ao oficial
     icons_left: int = 0  # ícones editados que ficam
+    maps: list[Path] = field(default_factory=list)  # mapas do jogo iguais ao oficial
+    maps_left: int = 0  # mapas editados que ficam
     custom: list[Path] = field(default_factory=list)  # sobras em UICustom/<nome>
     custom_dir: Path | None = None
     temporary: list[Path] = field(default_factory=list)
@@ -94,6 +97,14 @@ def scan(project: Project, days: int = OLD_DAYS, progress=None) -> CleanupPlan:
                     plan.icons.append(path)
                 else:
                     plan.icons_left += 1
+    map_dir = project.ui_dir / MAP_FOLDER
+    if official and map_dir.is_dir():
+        for path in _walk(map_dir):
+            relative = path.relative_to(project.ui_dir).as_posix()
+            if gamedata.is_official(path, relative, official):
+                plan.maps.append(path)
+            else:
+                plan.maps_left += 1
     if not project.publish_folder:
         custom_dir = owned_custom_folder(project)
         if custom_dir is not None:
@@ -129,7 +140,10 @@ def _prune_empty(folder: Path | None) -> None:
                 pass
 
 
-def apply(project: Project, plan: CleanupPlan, *, history: str | None = None, icons: bool = False, custom: bool = False) -> CleanupResult:
+def apply(
+    project: Project, plan: CleanupPlan, *, history: str | None = None, icons: bool = False, custom: bool = False,
+    maps: bool = False,
+) -> CleanupResult:
     """Apaga o escolhido. `history`: None, "old" (os antigos) ou "all" (todos os backups)."""
     result = CleanupResult()
     if history == "all":
@@ -149,6 +163,11 @@ def apply(project: Project, plan: CleanupPlan, *, history: str | None = None, ic
         if not remaining:
             project.include_assets = False
             project.save_manifest()
+        project.invalidate_changes()
+        project.files(refresh=True)
+    if maps and plan.maps:
+        _remove(plan.maps, result)
+        _prune_empty(project.ui_dir)
         project.invalidate_changes()
         project.files(refresh=True)
     if custom and plan.custom:

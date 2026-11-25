@@ -77,7 +77,10 @@ def test_history_lists_every_version_newer_than_installed() -> None:
     assert [release.version for release in notes.since("0.5.0")] == ["0.5.1"]
     bundled = release_notes.bundled()
     assert bundled.history, "a versão embutida deve trazer o histórico das anteriores"
-    assert len(bundled.since("0.0.0", limit=100)) == len(bundled.history) + 1
+    # Saindo de uma estável para outra estável, as betas ficam de fora (a estável já as resume).
+    skip_betas = release_notes._is_prerelease(bundled.version) is False
+    expected = [r for r in bundled.history if not (skip_betas and release_notes._is_prerelease(r.version))]
+    assert len(bundled.since("0.0.0", limit=100)) == len(expected) + 1
     assert len(bundled.since("0.0.0")) <= 5  # a janela mostra no máximo 5 versões puladas
 
 

@@ -530,8 +530,7 @@ class CleanupDialog(QDialog):
         summary.setWordWrap(True)
         layout.addWidget(summary)
         note = QLabel(self.tr(
-            "Os arquivos da UI ficam todos (inclusive o map): o editor desenha com eles e o F5 deixa o jogo igual ao projeto. "
-            "O que é apagado aqui não dá para desfazer."
+            "Os XMLs e as texturas que o editor desenha ficam. O que é apagado aqui não dá para desfazer."
         ))
         note.setWordWrap(True)
         note.setObjectName("panelSubtitle")
@@ -565,6 +564,15 @@ class CleanupDialog(QDialog):
         self.icons_check.setVisible(bool(plan.icons))
         self.icons_check.toggled.connect(lambda *_: self._sync())
         layout.addWidget(self.icons_check)
+        self.maps_check = QCheckBox(self.tr("Mapas do jogo iguais ao oficial (pasta map): {size}, {count} arquivos").format(
+            size=size(cleanup.size_of(plan.maps)), count=len(plan.maps)
+        ))
+        self.maps_check.setToolTip(
+            self.tr("Nenhum XML usa estes mapas e o jogo já tem os oficiais na pasta UI. Mapas editados ficam no projeto.")
+        )
+        self.maps_check.setVisible(bool(plan.maps))
+        self.maps_check.toggled.connect(lambda *_: self._sync())
+        layout.addWidget(self.maps_check)
         custom_name = plan.custom_dir.name if plan.custom_dir is not None else ""
         self.custom_check = QCheckBox(self.tr("Cópia no jogo (UICustom/{folder}): arquivos que a UI não precisa levar, {size}, {count} arquivos").format(
             folder=custom_name, size=size(cleanup.size_of(plan.custom)), count=len(plan.custom)
@@ -575,7 +583,7 @@ class CleanupDialog(QDialog):
         layout.addWidget(self.custom_check)
         self.nothing = QLabel(self.tr("Nada para limpar: o projeto já está enxuto."))
         self.nothing.setObjectName("panelSubtitle")
-        self.nothing.setVisible(not (plan.history_all or plan.icons or plan.custom))
+        self.nothing.setVisible(not (plan.history_all or plan.icons or plan.maps or plan.custom))
         layout.addWidget(self.nothing)
 
         buttons = QHBoxLayout()
@@ -594,7 +602,10 @@ class CleanupDialog(QDialog):
 
     def choice(self) -> dict:
         history = "all" if self.history_all.isChecked() else "old" if self.history_old.isChecked() else None
-        return {"history": history, "icons": self.icons_check.isChecked(), "custom": self.custom_check.isChecked()}
+        return {
+            "history": history, "icons": self.icons_check.isChecked(), "custom": self.custom_check.isChecked(),
+            "maps": self.maps_check.isChecked(),
+        }
 
     def chosen_size(self) -> int:
         choice = self.choice()
@@ -604,11 +615,13 @@ class CleanupDialog(QDialog):
             total += cleanup.size_of(self.plan.icons)
         if choice["custom"]:
             total += cleanup.size_of(self.plan.custom)
+        if choice["maps"]:
+            total += cleanup.size_of(self.plan.maps)
         return total
 
     def _sync(self) -> None:
         choice = self.choice()
-        anything = bool(choice["history"] or choice["icons"] or choice["custom"])
+        anything = bool(choice["history"] or choice["icons"] or choice["custom"] or choice["maps"])
         self.clean_button.setText(self.tr("Limpar ({size})").format(size=EditorWindow._human_size(self.chosen_size())))
         self.clean_button.setEnabled(anything)
 
@@ -2640,7 +2653,7 @@ class EditorWindow(QMainWindow):
         self.pull_action.triggered.connect(lambda: self.project and self.show_pull(self.project.root))
         project_menu.addAction(self.pull_action)
         self.cleanup_action = QAction(icon("trash"), self.tr("Limpar projeto…"), self)
-        self.cleanup_action.setToolTip(self.tr("Libera espaço: histórico antigo, ícones não editados e sobras da cópia no jogo"))
+        self.cleanup_action.setToolTip(self.tr("Libera espaço: histórico antigo, mapas e ícones não editados e sobras da cópia no jogo"))
         self.cleanup_action.setEnabled(False)
         self.cleanup_action.triggered.connect(lambda: self.project and self.show_cleanup(self.project.root))
         project_menu.addAction(self.cleanup_action)
@@ -6116,6 +6129,7 @@ class EditorWindow(QMainWindow):
         if self._is_current_project(project.root):
             self._refresh_files()
             self._update_status_chips()
+        self._forget_home_size(project.root)
         if self.home_mode:
             self._refresh_home()
         self.statusBar().showMessage(
@@ -6163,6 +6177,7 @@ class EditorWindow(QMainWindow):
             if affected and open_path is not None:
                 self.open_document(open_path)
             self._update_status_chips()
+        self._forget_home_size(project.root)
         self.statusBar().showMessage(
             self.tr("{count} arquivo(s) trazidos para o projeto. O que foi substituído está no histórico.").format(count=count), 10000
         )
@@ -6192,6 +6207,7 @@ class EditorWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Salvar versão"), str(exc))
             return False
+        self._forget_home_size(project.root)
         self.statusBar().showMessage(
             self.tr("Versão salva ({size}). Projeto → Versões do projeto para voltar a ela.").format(
                 size=self._human_size(path.stat().st_size)
@@ -6377,6 +6393,11 @@ class EditorWindow(QMainWindow):
             self.continue_project()
             return
         self.switch_project(root)
+
+    def _forget_home_size(self, root: Path) -> None:
+        """O tamanho guardado vale enquanto o banco do projeto não muda; limpar, puxar ou salvar
+        versão mexem só nos arquivos, então o tamanho é recalculado na próxima tela inicial."""
+        self._home_sizes.pop(str(root), None)
 
     def _start_home_sizes(self, roots: list[Path]) -> None:
         """Tamanho em disco de cada projeto, calculado fora da tela (são centenas de arquivos)."""
@@ -6788,7 +6809,9 @@ class EditorWindow(QMainWindow):
                     publish_folder=publish_folder,
                 )
 
-            project = self._run_with_progress(self.tr("Copiando arquivos da UI para o projeto…"), build)
+            project = self._run_with_progress(
+                self.tr("Copiando a UI para o projeto (para o jogo só vai o que você alterar)…"), build
+            )
             for loose in dialog.loose_files:
                 target, _backup = project.import_file(loose)
                 if focus is not None and loose == focus:
@@ -8133,7 +8156,7 @@ class EditorWindow(QMainWindow):
         try:
             project = self.project
             result = self._run_with_progress(
-                self.tr("Publicando no jogo…"), lambda progress: project.publish(progress=progress)
+                self.tr("Conferindo o que mudou e enviando para o jogo…"), lambda progress: project.publish(progress=progress)
             )
             # Textos editados vão para data/Translate; o launcher pode ter baixado os originais de novo.
             text_edits = text_data.load_edits(project.root)
@@ -8168,8 +8191,12 @@ class EditorWindow(QMainWindow):
                 ).format(count=len(result.game_backups))
             )
         self.game_backup_banner.setVisible(bool(result.game_backups))
-        message = self.tr("Publicado: {count} arquivo(s) atualizados na pasta UI. Abra o jogo pelo launcher ou direto.").format(
-            count=result.copied_to_ui
+        message = (
+            self.tr("Publicado: {count} arquivo(s) enviados para a pasta UI. Abra o jogo pelo launcher ou direto.").format(
+                count=result.copied_to_ui
+            )
+            if result.copied_to_ui
+            else self.tr("Nada mudou: a pasta UI do jogo já está igual ao projeto.")
         )
         if texts_changed:
             message += " " + self.tr("Textos: {count} arquivo(s) de data/Translate atualizados.").format(count=texts_changed)

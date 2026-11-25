@@ -49,6 +49,10 @@ _BACKUP_PATTERNS = (
 # Pastas de recursos do jogo (ícones de itens, skills, telas de carregamento):
 # ~18 mil arquivos. Ficam fora do projeto, a menos que ele as inclua de propósito.
 GAME_ASSET_FOLDERS = {"itemicon", "skillicon", "uiicon", "loadingframe", "loading_705", "original", "dm"}
+# Minimapas e mapas do mundo (~163 MB): o jogo os carrega pelo código, nenhum XML aponta para eles
+# e o editor só lê texturas da raiz da UI. Projetos novos não os copiam (a pasta UI do jogo já
+# tem); projetos antigos que os têm continuam listando, e "Limpar projeto" tira os oficiais.
+MAP_FOLDER = "map"
 
 
 def is_backup_file(name: str) -> bool:
@@ -155,6 +159,8 @@ class Project:
         ui_dir = root / "ui"
         hashes: dict[str, str] = {}
         files = _ui_files(source_dir, include_assets)
+        if not include_assets:
+            files = [relative for relative in files if relative.parts[0].lower() != MAP_FOLDER or len(relative.parts) == 1]
         for done, relative in enumerate(files, 1):
             target = ui_dir / relative
             target.parent.mkdir(parents=True, exist_ok=True)

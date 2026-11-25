@@ -11,10 +11,10 @@ from gf_ui_editor.project import Project
 def _game(tmp_path: Path) -> Path:
     game = tmp_path / "game"
     ui = game / "UI"
-    (ui / "map").mkdir(parents=True)
+    (ui / "skin").mkdir(parents=True)
     (ui / "Radar.xml").write_text("<a/>", encoding="utf-8")
     (ui / "Menu.xml").write_text("<menu/>", encoding="utf-8")
-    (ui / "map" / "m.dds").write_bytes(b"dds")
+    (ui / "skin" / "m.dds").write_bytes(b"dds")
     lines = []
     for path in sorted(ui.rglob("*")):
         if path.is_file():
@@ -68,15 +68,15 @@ def test_official_copy_comes_from_the_game_folder_when_there_is_no_original(tmp_
     game = _game(tmp_path)
     project = Project.create("V", game / "UI", game, projects_root=tmp_path / "projects")
     checkpoint = versions.save_version(project)
-    (project.ui_dir / "map" / "m.dds").write_bytes(b"editado fora")  # sem original no histórico
+    (project.ui_dir / "skin" / "m.dds").write_bytes(b"editado fora")  # sem original no histórico
     result = versions.restore_version(project, checkpoint)
-    assert (project.ui_dir / "map" / "m.dds").read_bytes() == b"dds"
+    assert (project.ui_dir / "skin" / "m.dds").read_bytes() == b"dds"
     assert result.reverted == 1
     # Sem cópia oficial em lugar nenhum, o arquivo fica como está e é avisado.
-    (project.ui_dir / "map" / "m.dds").write_bytes(b"de novo")
-    (game / "UI" / "map" / "m.dds").write_bytes(b"outra UI")
+    (project.ui_dir / "skin" / "m.dds").write_bytes(b"de novo")
+    (game / "UI" / "skin" / "m.dds").write_bytes(b"outra UI")
     result = versions.restore_version(project, checkpoint)
-    assert result.unresolved == ["map/m.dds"] and (project.ui_dir / "map" / "m.dds").read_bytes() == b"de novo"
+    assert result.unresolved == ["skin/m.dds"] and (project.ui_dir / "skin" / "m.dds").read_bytes() == b"de novo"
 
 
 def test_project_from_version_is_a_new_project_with_that_state(tmp_path: Path) -> None:

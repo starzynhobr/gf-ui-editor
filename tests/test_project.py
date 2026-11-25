@@ -7,9 +7,9 @@ from gf_ui_editor.project import Project, is_backup_file, select_custom_ui
 def _game(tmp_path: Path) -> Path:
     game = tmp_path / "game"
     ui = game / "UI"
-    (ui / "map").mkdir(parents=True)
+    (ui / "skin").mkdir(parents=True)
     (ui / "Radar.xml").write_text("<a/>", encoding="utf-8")
-    (ui / "map" / "m.dds").write_bytes(b"dds")
+    (ui / "skin" / "m.dds").write_bytes(b"dds")
     (ui / "Radar.before-gf-ui-editor-20260101-000000.xml").write_text("old", encoding="utf-8")
     (ui / "NPCTalk_original.xml").write_text("old", encoding="utf-8")
     (game / "Launcher.ini").write_bytes(
@@ -30,7 +30,7 @@ def test_backup_names_are_recognised() -> None:
 def test_project_lifecycle(tmp_path: Path) -> None:
     game = _game(tmp_path)
     project = Project.create("Minha UI", game / "UI", game, projects_root=tmp_path / "projects")
-    assert [p.as_posix() for p in project.files()] == ["map/m.dds", "Radar.xml"]
+    assert [p.as_posix() for p in project.files()] == ["Radar.xml", "skin/m.dds"]
     assert project.modified_files() == set()
 
     (project.ui_dir / "Radar.xml").write_text("<b/>", encoding="utf-8")
@@ -41,7 +41,7 @@ def test_project_lifecycle(tmp_path: Path) -> None:
     assert backup.parent == project.history_dir / "Radar.xml"
 
     archive = project.export_zip(tmp_path / "out.zip")
-    assert sorted(zipfile.ZipFile(archive).namelist()) == ["Minha-UI/Radar.xml", "Minha-UI/map/m.dds"]
+    assert sorted(zipfile.ZipFile(archive).namelist()) == ["Minha-UI/Radar.xml", "Minha-UI/skin/m.dds"]
 
     result = project.publish()
     assert (game / "UICustom" / "Minha-UI" / "Radar.xml").read_text(encoding="utf-8") == "<b/>"
@@ -198,7 +198,7 @@ def test_import_file_replaces_same_name_anywhere_or_adds_to_root(tmp_path: Path)
     (loose / "Novo.xml").write_text("<n/>", encoding="utf-8")
 
     target, backup = project.import_file(loose / "M.DDS")
-    assert target == project.ui_dir / "map" / "m.dds"
+    assert target == project.ui_dir / "skin" / "m.dds"
     assert target.read_bytes() == b"new dds"
     assert backup is not None and backup.read_bytes() == b"dds"
     assert project.original_path_for(target).read_bytes() == b"dds"
@@ -269,14 +269,14 @@ def test_ui_ships_only_files_that_differ_from_official(tmp_path: Path) -> None:
 
     (project.ui_dir / "Radar.xml").write_text("<b/>", encoding="utf-8")
     (project.ui_dir / "Novo.dds").write_bytes(b"novo")  # não existe no oficial: vai
-    stale = game / "UICustom" / "Enxuta" / "map" / "m.dds"  # de um envio antigo, completo
+    stale = game / "UICustom" / "Enxuta" / "skin" / "m.dds"  # de um envio antigo, completo
     stale.parent.mkdir(parents=True)
     stale.write_bytes(b"dds")
 
     result = project.publish()
     custom = game / "UICustom" / "Enxuta"
     assert sorted(p.relative_to(custom).as_posix() for p in custom.rglob("*") if p.is_file()) == ["Novo.dds", "Radar.xml"]
-    assert result.skipped_official == 1  # o map/m.dds, igual ao oficial
+    assert result.skipped_official == 1  # o skin/m.dds, igual ao oficial
     assert (game / "UI" / "Radar.xml").read_text(encoding="utf-8") == "<b/>"
 
     archive = project.export_zip(tmp_path / "out.zip")
@@ -289,10 +289,10 @@ def test_ui_folder_still_gets_official_files_the_project_has(tmp_path: Path) -> 
     game = _game(tmp_path)
     _official_list(game)
     project = Project.create("Base", game / "UI", game, projects_root=tmp_path / "projects")
-    (game / "UI" / "map" / "m.dds").write_bytes(b"de outra UI")
+    (game / "UI" / "skin" / "m.dds").write_bytes(b"de outra UI")
     project.publish()
-    assert (game / "UI" / "map" / "m.dds").read_bytes() == b"dds"
-    assert not (game / "UICustom" / "Base" / "map" / "m.dds").exists()
+    assert (game / "UI" / "skin" / "m.dds").read_bytes() == b"dds"
+    assert not (game / "UICustom" / "Base" / "skin" / "m.dds").exists()
 
 
 def test_duplicate_project_copies_everything_but_history_and_gets_its_own_folder(tmp_path: Path) -> None:
@@ -377,3 +377,15 @@ def test_checking_who_publishes_where_does_not_keep_other_projects_open(tmp_path
     assert projects_publishing_to("comum", projects_root=tmp_path / "projects") == ["Outro"]
     # Nenhuma conexão ficou aberta: a pasta pode ser renomeada (no Windows, falharia com o banco aberto).
     os.replace(other.root, other.root.with_name("Movido"))
+
+
+def test_new_projects_leave_the_game_map_folder_out(tmp_path: Path) -> None:
+    game = _game(tmp_path)
+    (game / "UI" / "map").mkdir()
+    (game / "UI" / "map" / "S001m.dds").write_bytes(b"mapa")
+    project = Project.create("Sem mapa", game / "UI", game, projects_root=tmp_path / "projects")
+    assert not (project.ui_dir / "map").exists()
+    assert all(relative.parts[0] != "map" for relative in project.files())
+    # Com "incluir ícones", vem tudo, como antes.
+    full = Project.create("Completa", game / "UI", game, projects_root=tmp_path / "projects", include_assets=True)
+    assert (full.ui_dir / "map" / "S001m.dds").exists()
