@@ -1,73 +1,191 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0-beta.1",
   "date": "2026-11-24",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Exportar textos (.zip).",
-          "Projeto → Exportar textos gera um .zip com os arquivos de data/Translate que o projeto edita, já com as suas alterações aplicadas sobre a versão atual do jogo. É só extrair na pasta do jogo de outro PC, sem precisar do editor lá."
+          "Navegar entre XMLs sem sair da lista.",
+          "Clicar num XML ou usar as setas ↑↓ abre o arquivo no canvas e mantém você em Arquivos XML. Duplo clique ou Enter abrem e vão para Elementos."
         ],
         [
-          "Receber versões beta.",
-          "Nova opção em Ajuda: marque para receber também as versões em teste, antes de virarem estáveis. Ao marcar, o editor já verifica se há uma nova. Desmarque para voltar às estáveis."
+          "Atualizar recarrega o XML editado fora.",
+          "Se o XML aberto foi alterado em outro programa (como o Notepad++), Atualizar (Ctrl+R) o recarrega mantendo o zoom. Se houver alterações não salvas no editor, ele pergunta antes."
         ],
         [
-          "Avisos dentro do editor.",
-          "Avisos importantes (por exemplo, quando o jogo atualiza ou uma versão tem um problema conhecido) passam a aparecer no próprio editor, uma vez cada."
+          "Atalhos das seções.",
+          "Ctrl+1 Arquivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos e Ctrl+4 Textos. O atalho aparece na dica de cada ícone da barra lateral."
+        ],
+        [
+          "Voltar a 100% de zoom.",
+          "Clique na porcentagem do zoom (ou use Ctrl+0) para voltar ao tamanho real."
+        ],
+        [
+          "Botão da tela inicial.",
+          "Uma casinha no canto superior esquerdo leva aos projetos recentes de qualquer lugar."
+        ],
+        [
+          "\"Abrir com\" no Windows.",
+          "O editor aparece em \"Abrir com\" ao clicar com o botão direito num .xml, para ver só aquele arquivo, sem projeto. Ele não vira o programa padrão dos .xml."
         ]
       ]
     },
     "en_US": {
       "new": [
         [
-          "Export texts (.zip).",
-          "Project → Export texts creates a .zip with the data/Translate files your project edits, with your changes applied over the game's current version. Just extract it into the game folder on another PC, no editor needed there."
+          "Browse XMLs without leaving the list.",
+          "Clicking an XML or using the ↑↓ arrows opens the file on the canvas and keeps you in XML Files. Double-click or Enter opens it and goes to Elements."
         ],
         [
-          "Receive beta versions.",
-          "New option in Help: check it to also get versions still in testing, before they become stable. When you check it, the editor looks for a new one right away. Uncheck it to go back to stable versions."
+          "Refresh reloads XML edited outside.",
+          "If the open XML was changed in another program (like Notepad++), Refresh (Ctrl+R) reloads it and keeps the zoom. If there are unsaved changes in the editor, it asks first."
         ],
         [
-          "Notices inside the editor.",
-          "Important notices (for example, when the game updates or a version has a known problem) now show up in the editor itself, once each."
+          "Section shortcuts.",
+          "Ctrl+1 XML Files, Ctrl+2 Textures, Ctrl+3 Elements and Ctrl+4 Texts. The shortcut shows in each sidebar icon's tooltip."
+        ],
+        [
+          "Back to 100% zoom.",
+          "Click the zoom percentage (or use Ctrl+0) to return to actual size."
+        ],
+        [
+          "Home button.",
+          "A house icon in the top-left corner takes you to recent projects from anywhere."
+        ],
+        [
+          "\"Open with\" in Windows.",
+          "The editor shows up in \"Open with\" when you right-click an .xml, to view just that file without a project. It does not become the default program for .xml files."
         ]
       ]
     },
     "es_ES": {
       "new": [
         [
-          "Exportar textos (.zip).",
-          "Proyecto → Exportar textos genera un .zip con los archivos de data/Translate que edita el proyecto, con tus cambios aplicados sobre la versión actual del juego. Solo hay que extraerlo en la carpeta del juego de otro PC, sin necesidad del editor allí."
+          "Navegar entre XML sin salir de la lista.",
+          "Hacer clic en un XML o usar las flechas ↑↓ abre el archivo en el lienzo y te mantiene en Archivos XML. Doble clic o Enter lo abren y van a Elementos."
         ],
         [
-          "Recibir versiones beta.",
-          "Nueva opción en Ayuda: márcala para recibir también las versiones en prueba, antes de que sean estables. Al marcarla, el editor busca una nueva enseguida. Desmárcala para volver a las estables."
+          "Actualizar recarga el XML editado fuera.",
+          "Si el XML abierto se modificó en otro programa (como Notepad++), Actualizar (Ctrl+R) lo recarga manteniendo el zoom. Si hay cambios sin guardar en el editor, pregunta antes."
         ],
         [
-          "Avisos dentro del editor.",
-          "Los avisos importantes (por ejemplo, cuando el juego se actualiza o una versión tiene un problema conocido) ahora aparecen en el propio editor, una vez cada uno."
+          "Atajos de las secciones.",
+          "Ctrl+1 Archivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos y Ctrl+4 Textos. El atajo aparece en la pista de cada icono de la barra lateral."
+        ],
+        [
+          "Volver al 100% de zoom.",
+          "Haz clic en el porcentaje del zoom (o usa Ctrl+0) para volver al tamaño real."
+        ],
+        [
+          "Botón de inicio.",
+          "Una casita en la esquina superior izquierda lleva a los proyectos recientes desde cualquier lugar."
+        ],
+        [
+          "\"Abrir con\" en Windows.",
+          "El editor aparece en \"Abrir con\" al hacer clic derecho en un .xml, para ver solo ese archivo, sin proyecto. No se convierte en el programa predeterminado de los .xml."
         ]
       ]
     },
     "fr_FR": {
       "new": [
         [
-          "Exporter les textes (.zip).",
-          "Projet → Exporter les textes crée un .zip avec les fichiers de data/Translate modifiés par le projet, avec vos changements appliqués sur la version actuelle du jeu. Il suffit de l'extraire dans le dossier du jeu d'un autre PC, sans avoir besoin de l'éditeur."
+          "Parcourir les XML sans quitter la liste.",
+          "Cliquer sur un XML ou utiliser les flèches ↑↓ ouvre le fichier sur le canevas et vous laisse dans Fichiers XML. Double-clic ou Entrée l'ouvrent et passent à Éléments."
         ],
         [
-          "Recevoir les versions bêta.",
-          "Nouvelle option dans Aide : cochez-la pour recevoir aussi les versions en test, avant qu'elles deviennent stables. En la cochant, l'éditeur cherche tout de suite une nouvelle version. Décochez-la pour revenir aux versions stables."
+          "Actualiser recharge le XML modifié ailleurs.",
+          "Si le XML ouvert a été modifié dans un autre programme (comme Notepad++), Actualiser (Ctrl+R) le recharge en gardant le zoom. S'il y a des modifications non enregistrées dans l'éditeur, il demande d'abord."
         ],
         [
-          "Avis dans l'éditeur.",
-          "Les avis importants (par exemple quand le jeu est mis à jour ou qu'une version a un problème connu) apparaissent désormais dans l'éditeur, une fois chacun."
+          "Raccourcis des sections.",
+          "Ctrl+1 Fichiers XML, Ctrl+2 Textures, Ctrl+3 Éléments et Ctrl+4 Textes. Le raccourci apparaît dans l'info-bulle de chaque icône de la barre latérale."
+        ],
+        [
+          "Revenir au zoom 100 %.",
+          "Cliquez sur le pourcentage du zoom (ou utilisez Ctrl+0) pour revenir à la taille réelle."
+        ],
+        [
+          "Bouton d'accueil.",
+          "Une petite maison en haut à gauche ramène aux projets récents depuis n'importe où."
+        ],
+        [
+          "« Ouvrir avec » dans Windows.",
+          "L'éditeur apparaît dans « Ouvrir avec » au clic droit sur un .xml, pour voir seulement ce fichier, sans projet. Il ne devient pas le programme par défaut des .xml."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.6.0",
+      "date": "2026-11-24",
+      "notes": {
+        "pt_BR": {
+          "new": [
+            [
+              "Exportar textos (.zip).",
+              "Projeto → Exportar textos gera um .zip com os arquivos de data/Translate que o projeto edita, já com as suas alterações aplicadas sobre a versão atual do jogo. É só extrair na pasta do jogo de outro PC, sem precisar do editor lá."
+            ],
+            [
+              "Receber versões beta.",
+              "Nova opção em Ajuda: marque para receber também as versões em teste, antes de virarem estáveis. Ao marcar, o editor já verifica se há uma nova. Desmarque para voltar às estáveis."
+            ],
+            [
+              "Avisos dentro do editor.",
+              "Avisos importantes (por exemplo, quando o jogo atualiza ou uma versão tem um problema conhecido) passam a aparecer no próprio editor, uma vez cada."
+            ]
+          ]
+        },
+        "en_US": {
+          "new": [
+            [
+              "Export texts (.zip).",
+              "Project → Export texts creates a .zip with the data/Translate files your project edits, with your changes applied over the game's current version. Just extract it into the game folder on another PC, no editor needed there."
+            ],
+            [
+              "Receive beta versions.",
+              "New option in Help: check it to also get versions still in testing, before they become stable. When you check it, the editor looks for a new one right away. Uncheck it to go back to stable versions."
+            ],
+            [
+              "Notices inside the editor.",
+              "Important notices (for example, when the game updates or a version has a known problem) now show up in the editor itself, once each."
+            ]
+          ]
+        },
+        "es_ES": {
+          "new": [
+            [
+              "Exportar textos (.zip).",
+              "Proyecto → Exportar textos genera un .zip con los archivos de data/Translate que edita el proyecto, con tus cambios aplicados sobre la versión actual del juego. Solo hay que extraerlo en la carpeta del juego de otro PC, sin necesidad del editor allí."
+            ],
+            [
+              "Recibir versiones beta.",
+              "Nueva opción en Ayuda: márcala para recibir también las versiones en prueba, antes de que sean estables. Al marcarla, el editor busca una nueva enseguida. Desmárcala para volver a las estables."
+            ],
+            [
+              "Avisos dentro del editor.",
+              "Los avisos importantes (por ejemplo, cuando el juego se actualiza o una versión tiene un problema conocido) ahora aparecen en el propio editor, una vez cada uno."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "new": [
+            [
+              "Exporter les textes (.zip).",
+              "Projet → Exporter les textes crée un .zip avec les fichiers de data/Translate modifiés par le projet, avec vos changements appliqués sur la version actuelle du jeu. Il suffit de l'extraire dans le dossier du jeu d'un autre PC, sans avoir besoin de l'éditeur."
+            ],
+            [
+              "Recevoir les versions bêta.",
+              "Nouvelle option dans Aide : cochez-la pour recevoir aussi les versions en test, avant qu'elles deviennent stables. En la cochant, l'éditeur cherche tout de suite une nouvelle version. Décochez-la pour revenir aux versions stables."
+            ],
+            [
+              "Avis dans l'éditeur.",
+              "Les avis importants (par exemple quand le jeu est mis à jour ou qu'une version a un problème connu) apparaissent désormais dans l'éditeur, une fois chacun."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.5.4",
       "date": "2026-11-01",

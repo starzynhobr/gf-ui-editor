@@ -21,6 +21,8 @@ UninstallDisplayIcon={app}\{#AppExeName}
 ; reabre é a entrada de [Run], também em modo silencioso.
 CloseApplications=force
 RestartApplications=no
+; Avisa o Explorer da entrada nova em "Abrir com" (seção [Registry]).
+ChangesAssociations=yes
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -44,6 +46,18 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDescription: "Atalhos adicionais:"
+
+[Registry]
+; "Abrir com" dos .xml no Explorer, só para este usuário (sem admin). Não vira o programa
+; padrão dos .xml: só entra na lista. Tudo sai ao desinstalar.
+Root: HKCU; Subkey: "Software\Classes\STZGFUI.xml"; ValueType: string; ValueName: ""; ValueData: "XML de UI do Grand Fantasia"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\STZGFUI.xml\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"",0"
+Root: HKCU; Subkey: "Software\Classes\STZGFUI.xml\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.xml\OpenWithProgids"; ValueType: string; ValueName: "STZGFUI.xml"; ValueData: ""; Flags: uninsdeletevalue
+; Nome mostrado na lista "Abrir com".
+Root: HKCU; Subkey: "Software\Classes\Applications\{#AppExeName}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Applications\{#AppExeName}\SupportedTypes"; ValueType: string; ValueName: ".xml"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#AppExeName}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""
 
 [Run]
 ; Sem "skipifsilent": na atualização automática (instalação /SILENT) o editor

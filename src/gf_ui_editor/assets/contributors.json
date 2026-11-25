@@ -20,5 +20,18 @@
       "es_ES": ["Sugirió otras formas de navegar por el lienzo; se convirtió en los estilos Paint.NET y Photoshop."],
       "fr_FR": ["A suggéré d'autres façons de naviguer dans le canevas ; c'est devenu les styles Paint.NET et Photoshop."]
     }
+  },
+  {
+    "name": "Harlem",
+    "color": "#7C3AED",
+    "tags": ["ideas", "qa", "navigation"],
+    "items": [
+      {"version": "0.7.0", "text": {"pt_BR": "Navegar entre XMLs pelas setas, sem sair da lista", "en_US": "Browsing XMLs with the arrow keys without leaving the list", "es_ES": "Navegar entre XML con las flechas, sin salir de la lista", "fr_FR": "Parcourir les XML avec les flèches, sans quitter la liste"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Atalhos Ctrl+1..4 para as seções", "en_US": "Ctrl+1..4 shortcuts for the sections", "es_ES": "Atajos Ctrl+1..4 para las secciones", "fr_FR": "Raccourcis Ctrl+1..4 pour les sections"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Recarregar o XML editado fora do editor", "en_US": "Reloading XML edited outside the editor", "es_ES": "Recargar el XML editado fuera del editor", "fr_FR": "Recharger le XML modifié hors de l'éditeur"}},
+      {"version": "0.7.0", "text": {"pt_BR": "\"Abrir com\" no Explorer", "en_US": "\"Open with\" in Explorer", "es_ES": "\"Abrir con\" en el Explorador", "fr_FR": "« Ouvrir avec » dans l'Explorateur"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Botão da tela inicial", "en_US": "Home button", "es_ES": "Botón de inicio", "fr_FR": "Bouton d'accueil"}},
+      {"version": "0.7.0", "text": {"pt_BR": "Voltar a 100% clicando no zoom", "en_US": "Back to 100% by clicking the zoom", "es_ES": "Volver al 100% haciendo clic en el zoom", "fr_FR": "Revenir à 100 % en cliquant sur le zoom"}}
+    ]
   }
 ]

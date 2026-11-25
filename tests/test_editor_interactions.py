@@ -1722,6 +1722,11 @@ def test_beta_updates_toggle_saves_the_choice_and_checks_right_away(monkeypatch)
     monkeypatch.setattr(updater, "check_for_update", fake_check)
     shown: list[str] = []
     monkeypatch.setattr(QMessageBox, "information", lambda _parent, _title, text: shown.append(text))
+    import gf_ui_editor.app as app_module
+
+    monkeypatch.setattr(app_module, "__version__", "0.7.0-beta.1")
+    assert EditorWindow._beta_updates_enabled()  # uma beta instalada já fica no canal beta
+    monkeypatch.setattr(app_module, "__version__", "0.6.0")
     window = EditorWindow()
     assert not window.beta_updates_action.isChecked()  # estável: desligado por padrão
     window.beta_updates_action.setChecked(True)
@@ -1795,3 +1800,182 @@ def test_min_version_in_manifest_offers_the_update(monkeypatch) -> None:
     window.apply_remote_manifest(remote_manifest.parse(b'{"schema": 1, "min_version": "0.0.1"}'))
     assert asked == []
     window.close()
+
+
+def _two_xml_project(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("Alpha.xml", "Beta.xml", "Gamma.xml"):
+        (source / name).write_bytes(SAMPLE.replace("Teste.xml", name).encode("big5"))
+    return Project.create("Nav", source, None, projects_root=tmp_path / "projects")
+
+
+def _file_item(window, name: str):
+    for i in range(window.files_tree.topLevelItemCount()):
+        group = window.files_tree.topLevelItem(i)
+        for j in range(group.childCount()):
+            child = group.child(j)
+            if child.text(0) == name:
+                return child
+    raise AssertionError(name)
+
+
+def test_clicking_xml_files_keeps_the_list_and_double_click_goes_to_elements(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.show_side_page("xml")
+    window.files_tree.itemClicked.emit(_file_item(window, "Alpha.xml"), 0)
+    assert window.document.path.name == "Alpha.xml"
+    assert window.side_tabs.currentIndex() == 0  # continua na lista de arquivos
+    window.files_tree.itemClicked.emit(_file_item(window, "Beta.xml"), 0)
+    assert window.document.path.name == "Beta.xml" and window.side_tabs.currentIndex() == 0
+    window.files_tree.itemActivated.emit(_file_item(window, "Beta.xml"), 0)  # duplo clique / Enter
+    assert window.side_tabs.currentIndex() == 1
+    window.close()
+
+
+def test_arrow_keys_preview_xml_files_without_leaving_the_list(tmp_path: Path) -> None:
+    import time
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.show()
+    window.show_side_page("xml")
+    window.files_tree.itemClicked.emit(_file_item(window, "Alpha.xml"), 0)
+    window.files_tree.setCurrentItem(_file_item(window, "Alpha.xml"))
+    window.activateWindow()
+    window.files_tree.setFocus()
+    application.processEvents()
+    if not window.files_tree.hasFocus():
+        pytest.skip("sem foco de teclado nesta plataforma")
+    # Cada seta continua de onde parou, mesmo com a lista remontada ao abrir o XML.
+    for expected in ("Beta.xml", "Gamma.xml"):
+        QTest.keyClick(window.files_tree, Qt.Key.Key_Down)
+        deadline = time.monotonic() + 3
+        while window.document.path.name != expected and time.monotonic() < deadline:
+            application.processEvents()
+        assert window.document.path.name == expected
+    QTest.keyClick(window.files_tree, Qt.Key.Key_Up)
+    deadline = time.monotonic() + 3
+    while window.document.path.name != "Beta.xml" and time.monotonic() < deadline:
+        application.processEvents()
+    assert window.document.path.name == "Beta.xml"
+    assert window.side_tabs.currentIndex() == 0
+    window.close()
+
+
+def test_ctrl_number_shortcuts_switch_side_sections(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.open_project(project.root)
+    assert [a.shortcut().toString() for a in window.side_page_actions.values()] == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4"]
+    window.side_page_actions["elements"].trigger()
+    assert window.side_tabs.currentIndex() == 1
+    window.side_page_actions["texts"].trigger()
+    assert window.side_tabs.currentIndex() == 2
+    window.side_page_actions["xml"].trigger()
+    assert window.side_tabs.currentIndex() == 0 and window.files_mode == "xml"
+    assert "Ctrl+3" in window.side_rail_buttons["elements"].toolTip()
+    window.side_rail_buttons["textures"].setEnabled(False)  # sem texturas: o atalho não faz nada
+    window.side_page_actions["textures"].trigger()
+    assert window.files_mode == "xml"
+    window.close()
+
+
+def test_zoom_percentage_resets_to_100_and_home_button_returns_to_start(tmp_path: Path) -> None:
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.open_project(project.root)
+    window.open_document(project.ui_dir / "Alpha.xml")
+    assert window.reset_zoom_action.isEnabled() and window.reset_zoom_action.shortcut().toString() == "Ctrl+0"
+    window.view.zoom_by(2.5)
+    assert window.zoom_label.text() != "100%"
+    window.zoom_label.click()
+    assert abs(window.view.transform().m11() - 1) < 1e-6 and window.zoom_label.text() == "100%"
+    window.home_action.trigger()
+    assert window.document is None and window.center_stack.currentWidget() is window.empty_page
+    window.home_action.trigger()  # já na tela inicial: não faz mal
+    assert window.center_stack.currentWidget() is window.empty_page
+    window.close()
+
+
+def test_refresh_reloads_the_open_xml_edited_outside_and_keeps_the_zoom(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    application = QApplication.instance() or QApplication([])
+    project = _two_xml_project(tmp_path)
+    window = EditorWindow()
+    window.open_project(project.root)
+    path = project.ui_dir / "Alpha.xml"
+    window.open_document(path)
+    window.view.zoom_by(2)
+    zoom = window.view.transform().m11()
+    window.reload_textures_action.trigger()  # nada mudou: não relê
+    document = window.document
+    assert window.document is document
+    # Editado fora (Notepad++): largura 80 -> 120.
+    path.write_bytes(path.read_bytes().replace(b'WindowHeight="100"', b'WindowHeight="120"'))
+    window.reload_textures_action.trigger()
+    assert window.document is not document and window.document.elements[0].width == 120
+    assert abs(window.view.transform().m11() - zoom) < 1e-6
+    # Com alteração não salva, pergunta; "Não" mantém a do editor.
+    window.select_element(0)
+    window.properties.x_spin.setValue(17)
+    path.write_bytes(path.read_bytes().replace(b'WindowHeight="120"', b'WindowHeight="140"'))
+    asked: list[str] = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: asked.append(a[2]) or QMessageBox.StandardButton.No)
+    window.reload_textures_action.trigger()
+    assert asked and window.document.elements[0].x == 17 and window.document.elements[0].width == 120
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window.reload_textures_action.trigger()
+    assert window.document.elements[0].width == 140 and not window.document.is_dirty
+    window.close()
+
+
+def test_contributions_newest_first_with_both_formats() -> None:
+    from gf_ui_editor.app import contributor_items
+
+    legacy = {"text": {"pt_BR": ["Um", "Dois"], "en_US": ["One", "Two"]}}
+    assert contributor_items(legacy, "en_US") == [("One", None), ("Two", None)]
+    assert contributor_items(legacy, "fr_FR") == [("Um", None), ("Dois", None)]  # sem francês: português
+    assert contributor_items({"text": {"pt_BR": "Só um"}}, "pt_BR") == [("Só um", None)]
+    person = {"items": [
+        {"version": "0.5.0", "text": {"pt_BR": "Antiga"}},
+        {"version": "0.7.0", "text": {"pt_BR": "Nova A", "en_US": "New A"}},
+        {"version": "0.7.0", "text": {"pt_BR": "Nova B"}},
+        {"version": "0.6.0", "text": {}},
+    ]}
+    assert contributor_items(person, "en_US") == [("New A", "0.7.0"), ("Nova B", "0.7.0"), ("Antiga", "0.5.0")]
+
+
+def test_stz_popup_collapses_long_contribution_lists_and_scrolls(monkeypatch) -> None:
+    from PySide6.QtWidgets import QFrame, QLabel, QToolButton
+
+    import gf_ui_editor.app as app_module
+
+    application = QApplication.instance() or QApplication([])
+    many = [
+        {"name": f"Pessoa {n}", "tags": ["ideas"],
+         "items": [{"version": f"0.{k}.0", "text": {"pt_BR": f"Ideia {k}"}} for k in range(1, 7)]}
+        for n in range(8)
+    ]
+    monkeypatch.setattr(app_module, "load_contributors", lambda: many)
+    popup = app_module.StzLabsPopup("pt_BR")
+    # Nada do popup pode virar janela solta (o "+N" sem dono abria uma janelinha no Windows).
+    assert [w for w in QApplication.topLevelWidgets() if isinstance(w, QToolButton) and w.isVisible()] == []
+    assert popup.contributors_list.height() <= popup.LIST_MAX_HEIGHT  # 8 pessoas: a lista rola
+    first = popup.contributors_list.widget().findChildren(QFrame, "stzCard")[0]
+    text = next(label for label in first.findChildren(QLabel) if label.objectName() == "stzCardText")
+    more = first.findChild(QToolButton, "stzMore")
+    assert text.text().splitlines() == ["• Ideia 6", "• Ideia 5", "• Ideia 4"] and more.text() == "+3 contribuições"
+    more.click()
+    assert len(text.text().splitlines()) == 6 and more.text() == "Mostrar menos"
+    labels = [label.text() for label in first.findChildren(QLabel)]
+    assert "desde 0.1.0" in labels and "· 6 contribuições" in labels
+    popup.close()

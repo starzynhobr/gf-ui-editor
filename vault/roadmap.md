@@ -15,15 +15,17 @@ Estável. Leva o que já está pronto e prepara o canal beta, para que as betas 
 
 ## Fase 1 — ajustes rápidos (0.7.0)
 
-Primeira a passar por beta (`0.7.0-beta.N`) antes da estável.
+Primeira a passar por beta. Tudo implementado na `0.7.0-beta.1` (24/11/2026); falta testar e promover a `0.7.0`.
 
-- [ ] **Resetar zoom:** clicar na porcentagem (ex.: "236%") volta a 100%; atalho `Ctrl+0`. Hoje há −, + e Enquadrar.
-- [ ] **Navegar entre XMLs sem trocar de aba:** clique simples e setas ↑↓ abrem o XML no canvas e ficam em Arquivos XML; duplo clique ou Enter vão para Elementos. Hoje o clique pula sempre para Elementos (`side_tabs.setCurrentIndex(1)` em `app.py`).
-- [ ] **Atalhos das seções:** `Ctrl+1` Arquivos XML, `Ctrl+2` Texturas, `Ctrl+3` Elementos, `Ctrl+4` Textos, com o atalho no tooltip de cada ícone da barra lateral ([D01](decisions.md)).
-- [ ] **Botão Home** no canto superior esquerdo, antes do seletor de projeto. A ação "Tela inicial" já existe no menu ⚙ → Arquivo, mas só funciona com um XML aberto.
-- [ ] **"Abrir com" no Explorer:** o instalador registra o editor na lista "Abrir com" dos `.xml` (HKCU, sem admin, sem virar o programa padrão e removido ao desinstalar). Abrir pelo argumento já funciona hoje: só o XML, sem projeto, em ~0,4 s (NPCTalk.xml, 120 elementos). Opcional: item direto "Abrir no STZ GF UI" no menu clássico (no Windows 11 fica em "Mostrar mais opções").
+- [x] **Resetar zoom:** clicar na porcentagem (ex.: "236%") volta a 100%; atalho `Ctrl+0`. Hoje há −, + e Enquadrar.
+- [x] **Navegar entre XMLs sem trocar de aba:** clique simples e setas ↑↓ abrem o XML no canvas e ficam em Arquivos XML; duplo clique ou Enter vão para Elementos. Hoje o clique pula sempre para Elementos (`side_tabs.setCurrentIndex(1)` em `app.py`).
+- [x] **Atalhos das seções:** `Ctrl+1` Arquivos XML, `Ctrl+2` Texturas, `Ctrl+3` Elementos, `Ctrl+4` Textos, com o atalho no tooltip de cada ícone da barra lateral ([D01](decisions.md)).
+- [x] **Botão Home** no canto superior esquerdo, antes do seletor de projeto. A ação "Tela inicial" já existe no menu ⚙ → Arquivo, mas só funciona com um XML aberto.
+- [x] **"Abrir com" no Explorer:** o instalador registra o editor na lista "Abrir com" dos `.xml` (HKCU, sem admin, sem virar o programa padrão e removido ao desinstalar). Abrir pelo argumento já funciona hoje: só o XML, sem projeto, em ~0,4 s (NPCTalk.xml, 120 elementos). Opcional: item direto "Abrir no STZ GF UI" no menu clássico (no Windows 11 fica em "Mostrar mais opções").
 
 ## Fase 2 — projetos
+
+- [ ] **Tela inicial de verdade** (feedback no teste da 0.7.0-beta.1): ocupa a janela toda (esconde a lista de arquivos e as propriedades), projeto atual em destaque com "Continuar" (hoje o projeto aberto nem aparece nos Recentes), recentes com tamanho e data, gerenciar/excluir ali mesmo, novidades e avisos. Hoje ela é quase uma cópia maior do menu do projeto.
 
 - [ ] **Gerenciar e excluir projetos:** botão direito nos Recentes ("Remover da lista", "Excluir projeto…" para a Lixeira, com confirmação) e uma tela "Gerenciar projetos" com tamanho, data e seleção múltipla.
 - [ ] **Atualizar o projeto a partir da pasta do jogo ou de uma UI do UICustom:** o botão de atualizar pergunta a origem (projeto, `Grand Fantasia Violet\UI`, UICustom); lista os arquivos diferentes e novos para escolher; o que for substituído vai para `.history`. Evita criar um projeto novo cada vez que se quer puxar a UI de novo.

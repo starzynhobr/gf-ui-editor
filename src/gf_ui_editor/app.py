@@ -277,6 +277,34 @@ def load_contributors() -> list[dict]:
         return []
 
 
+CONTRIBUTIONS_SHOWN = 3  # o card mostra as mais recentes; o resto abre no "+N"
+
+
+def contributor_items(person: dict, language: str) -> list[tuple[str, str | None]]:
+    """Contribuições de uma pessoa como (texto, versão), das mais recentes para as mais antigas.
+
+    Formato novo: "items": [{"version": "0.7.0", "text": {"pt_BR": "…", …}}, …].
+    Formato antigo (sem versão): "text": {"pt_BR": ["…", …]} ou um texto só; mantém a ordem.
+    """
+    def pick(texts: object) -> object:
+        if not isinstance(texts, dict):
+            return texts
+        return texts.get(language) or texts.get("pt_BR") or next(iter(texts.values()), "")
+
+    items: list[tuple[str, str | None]] = []
+    for item in person.get("items", []) if isinstance(person.get("items"), list) else []:
+        if isinstance(item, dict) and isinstance(text := pick(item.get("text")), str) and text:
+            version = item.get("version")
+            items.append((text, str(version) if version else None))
+    if items:
+        # Estável: dentro da mesma versão, vale a ordem escrita no arquivo.
+        return sorted(items, key=lambda entry: updater.parse_version(entry[1] or "0"), reverse=True)
+    legacy = pick(person.get("text", {}))
+    if isinstance(legacy, str):
+        legacy = [legacy]
+    return [(text, None) for text in legacy if isinstance(text, str) and text]
+
+
 class StzLabsPopup(QFrame):
     """Cartão flutuante da pílula STZ Labs: o site e quem ajudou a construir o editor."""
 
@@ -335,8 +363,23 @@ class StzLabsPopup(QFrame):
         section.addStretch(1)
         section.addWidget(section_count)
         body.addLayout(section)
+        # Só a lista rola: topo e convite ficam sempre à vista, com quantas pessoas houver.
+        self.contributors_list = QScrollArea()
+        self.contributors_list.setObjectName("stzList")
+        self.contributors_list.setWidgetResizable(True)
+        self.contributors_list.setFrameShape(QFrame.Shape.NoFrame)
+        self.contributors_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        cards = QWidget()
+        cards.setObjectName("transparent")
+        cards_layout = QVBoxLayout(cards)
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+        cards_layout.setSpacing(8)
         for person in contributors:
-            body.addWidget(self._contributor_card(person, language, tag_labels))
+            cards_layout.addWidget(self._contributor_card(person, language, tag_labels))
+        cards_layout.addStretch(1)
+        self.contributors_list.setWidget(cards)
+        body.addWidget(self.contributors_list)
+        self._fit_list_height()
         invite = QLabel(self.tr("💡 Teve uma ideia ou achou um bug? Conte no Discord — quem ajuda entra aqui."))
         invite.setObjectName("stzInvite")
         invite.setWordWrap(True)
@@ -350,6 +393,16 @@ class StzLabsPopup(QFrame):
         layout.addLayout(body)
         install_pointer_cursors(self)
 
+    LIST_MAX_HEIGHT = 380
+
+    def _fit_list_height(self) -> None:
+        """Altura da lista: a do conteúdo, até o limite; acima disso, rola."""
+        content = self.contributors_list.widget()
+        content.adjustSize()
+        height = min(content.sizeHint().height(), self.LIST_MAX_HEIGHT)
+        self.contributors_list.setFixedHeight(height)
+        self.adjustSize()
+
     def _contributor_card(self, person: dict, language: str, tag_labels: dict[str, str]) -> QFrame:
         card = QFrame()
         card.setObjectName("stzCard")
@@ -362,14 +415,41 @@ class StzLabsPopup(QFrame):
         )
         title = QLabel(name)
         title.setObjectName("stzCardName")
-        texts = person.get("text", {})
-        # Uma contribuição por linha; com mais de uma, vira lista como num changelog.
-        items = texts.get(language) or texts.get("pt_BR", [])
-        if isinstance(items, str):
-            items = [items]
-        text = QLabel("\n".join(f"• {item}" for item in items) if len(items) > 1 else "".join(items))
+        entries = contributor_items(person, language)
+        versions = [version for _text, version in entries if version]
+        since = QLabel(
+            self.tr("desde {version}").format(version=min(versions, key=updater.parse_version)) if versions else ""
+        )
+        since.setObjectName("stzCardMeta")
+        name_row = QHBoxLayout()
+        name_row.setSpacing(6)
+        name_row.addWidget(title)
+        if len(entries) > 1:
+            count = QLabel(self.tr("· {count} contribuições").format(count=len(entries)))
+            count.setObjectName("stzCardMeta")
+            name_row.addWidget(count)
+        name_row.addStretch(1)
+        name_row.addWidget(since)
+        # Uma contribuição por linha, as mais recentes primeiro; com muitas, o resto abre no "+N".
+        text = QLabel()
         text.setObjectName("stzCardText")
         text.setWordWrap(True)
+        texts = [item for item, _version in entries]
+        hidden = max(0, len(texts) - CONTRIBUTIONS_SHOWN)
+        more = QToolButton(card)  # com dono desde já: sem ele, setVisible abria uma janelinha solta
+        more.setObjectName("stzMore")
+        more.setCheckable(True)
+        more.setVisible(hidden > 0)
+
+        def show(expanded: bool) -> None:
+            visible = texts if expanded else texts[:CONTRIBUTIONS_SHOWN]
+            text.setText("\n".join(f"• {item}" for item in visible) if len(texts) > 1 else "".join(visible))
+            more.setText(self.tr("Mostrar menos") if expanded else self.tr("+{count} contribuições").format(count=hidden))
+            if hasattr(self, "contributors_list") and self.contributors_list.widget() is not None:
+                self._fit_list_height()  # ao abrir/fechar; na montagem quem ajusta é o __init__
+
+        more.toggled.connect(show)
+        show(False)
         tags = QHBoxLayout()
         tags.setSpacing(4)
         for tag in person.get("tags", []):
@@ -379,8 +459,9 @@ class StzLabsPopup(QFrame):
         tags.addStretch(1)
         column = QVBoxLayout()
         column.setSpacing(3)
-        column.addWidget(title)
+        column.addLayout(name_row)
         column.addWidget(text)
+        column.addWidget(more, 0, Qt.AlignmentFlag.AlignLeft)
         column.addSpacing(3)
         column.addLayout(tags)
         row = QHBoxLayout(card)
@@ -1490,12 +1571,19 @@ class EditorWindow(QMainWindow):
         self.files_tree.header().setStretchLastSection(False)
         self.files_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.files_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.files_tree.itemClicked.connect(self._file_activated)
+        # Clique e setas abrem o XML no canvas sem sair da lista (dá para ir olhando um por um);
+        # duplo clique ou Enter abrem e vão para Elementos.
+        self.files_tree.itemClicked.connect(lambda item, _column: self._file_activated(item, go_to_elements=False))
+        self.files_tree.currentItemChanged.connect(self._file_current_changed)
+        self._keyboard_preview = QTimer(self)
+        self._keyboard_preview.setSingleShot(True)
+        self._keyboard_preview.setInterval(150)  # segurar a seta não abre cada arquivo do caminho
+        self._keyboard_preview.timeout.connect(self._preview_current_file)
         self.files_tree.itemChanged.connect(self._file_layer_toggled)
         self._layer_click = False
         self.files_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.files_tree.customContextMenuRequested.connect(self._files_context_menu)
-        self.files_tree.itemActivated.connect(self._file_activated)
+        self.files_tree.itemActivated.connect(lambda item, _column: self._file_activated(item, go_to_elements=True))
         self.files_tree.setCursor(Qt.CursorShape.PointingHandCursor)
         files_page = QWidget()
         files_page.setObjectName("treePanel")
@@ -1545,21 +1633,30 @@ class EditorWindow(QMainWindow):
         rail_layout.setContentsMargins(6, 8, 6, 8)
         rail_layout.setSpacing(4)
         self.side_rail_buttons: dict[str, QToolButton] = {}
-        for key, icon_name, label in (
+        self.side_page_actions: dict[str, QAction] = {}
+        for number, (key, icon_name, label) in enumerate((
             ("xml", "file", self.tr("Arquivos XML")),
             ("textures", "image", self.tr("Texturas")),
             ("elements", "layers", self.tr("Elementos")),
             ("texts", "type", self.tr("Textos")),
-        ):
+        ), 1):
             button = QToolButton()
             button.setObjectName("railButton")
             button.setIcon(icon(icon_name, COLORS["ICON"], 20))
             button.setIconSize(QSize(20, 20))
             button.setCheckable(True)
-            button.setToolTip(label)
+            button.setToolTip(f"{label} (Ctrl+{number})")
             button.clicked.connect(lambda _checked=False, value=key: self.show_side_page(value))
             rail_layout.addWidget(button)
             self.side_rail_buttons[key] = button
+            # Ctrl+1..4 trocam de seção de qualquer lugar da janela (se a seção estiver disponível).
+            action = QAction(label, self)
+            action.setShortcut(f"Ctrl+{number}")
+            action.triggered.connect(
+                lambda _checked=False, value=key: self.side_rail_buttons[value].isEnabled() and self.show_side_page(value)
+            )
+            self.addAction(action)
+            self.side_page_actions[key] = action
         rail_layout.addStretch(1)
         # A engrenagem guarda o que antes ficava na barra de menus.
         self.settings_button = QToolButton()
@@ -1769,6 +1866,10 @@ class EditorWindow(QMainWindow):
         self.fit_action.setShortcut("F")
         self.fit_action.setEnabled(False)
         self.fit_action.triggered.connect(self.fit_scene)
+        self.reset_zoom_action = QAction(self.tr("Zoom 100%"), self)
+        self.reset_zoom_action.setShortcut("Ctrl+0")
+        self.reset_zoom_action.setEnabled(False)
+        self.reset_zoom_action.triggered.connect(lambda: self.view.zoom_by(1 / self.view.transform().m11()))
         self.labels_action = QAction(self.tr("Mostrar identificadores"), self)
         self.labels_action.setCheckable(True)
         self.labels_action.setChecked(False)
@@ -1806,7 +1907,7 @@ class EditorWindow(QMainWindow):
         self.atlas_action.triggered.connect(self.open_selected_atlas)
         self.reload_textures_action = QAction(self.tr("Atualizar arquivos e texturas"), self)
         self.reload_textures_action.setToolTip(
-            self.tr("Atualiza a lista de XMLs e recarrega as texturas do disco (Ctrl+R)")
+            self.tr("Atualiza a lista de XMLs e recarrega do disco o XML aberto e as texturas (Ctrl+R)")
         )
         self.reload_textures_action.setShortcut("Ctrl+R")
         self.reload_textures_action.setIcon(icon("refresh"))
@@ -1934,7 +2035,8 @@ class EditorWindow(QMainWindow):
         self.recent_menu = file_menu.addMenu(self.tr("Projetos recentes"))
         self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
         self.home_action = QAction(self.tr("Tela inicial"), self)
-        self.home_action.setToolTip(self.tr("Fecha o XML aberto e mostra os projetos recentes"))
+        self.home_action.setIcon(icon("home"))
+        self.home_action.setToolTip(self.tr("Tela inicial: fecha o XML aberto e mostra os projetos recentes"))
         self.home_action.triggered.connect(self.go_home)
         file_menu.addAction(self.home_action)
         file_menu.addSeparator()
@@ -1967,6 +2069,7 @@ class EditorWindow(QMainWindow):
         edit_menu.addAction(self.game_hide_action)
         view_menu = self.main_menu.addMenu(self.tr("Visualização"))
         view_menu.addAction(self.fit_action)
+        view_menu.addAction(self.reset_zoom_action)
         view_menu.addAction(self.labels_action)
         view_menu.addMenu(self.text_mode_menu)
         view_menu.addAction(self.textures_action)
@@ -2090,6 +2193,8 @@ class EditorWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(18, 18))
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        # Casinha no canto: volta à tela inicial (projetos recentes) de qualquer lugar.
+        toolbar.addAction(self.home_action)
         # Nome do projeto: troca de projeto e mostra os caminhos na dica.
         self.project_button = QToolButton()
         self.project_button.setObjectName("projectButton")
@@ -2554,6 +2659,10 @@ class EditorWindow(QMainWindow):
             QFrame#stzCard QLabel { background: transparent; }
             QLabel#stzCardName { color: ${TEXT_BRIGHT}; font-weight: 600; }
             QLabel#stzCardText { color: ${TEXT_MUTED}; font-size: 12px; }
+            QLabel#stzCardMeta { color: ${TEXT_MUTED}; font-size: 11px; }
+            QToolButton#stzMore { background: transparent; border: 0; padding: 0; color: #FF8F3D; font-size: 12px; }
+            QToolButton#stzMore:hover { color: #FFB070; }
+            QScrollArea#stzList, QScrollArea#stzList > QWidget > QWidget { background: transparent; border: 0; }
             QLabel#stzTag {
                 background: #1F2028;
                 border: 1px solid #2A2B33;
@@ -2725,6 +2834,11 @@ class EditorWindow(QMainWindow):
                 border-radius: 10px;
             }
             QFrame#floatingBar QToolButton#pill { border-radius: 7px; padding: 4px 9px; color: ${TEXT_PRIMARY}; }
+            QFrame#floatingBar QToolButton#zoomLabel {
+                font-family: "${MONO_FONT}", Consolas, monospace; font-size: 12px;
+                color: ${TEXT_BRIGHT}; border-radius: 7px; padding: 4px 6px; background: transparent;
+            }
+            QFrame#floatingBar QToolButton#zoomLabel:hover { background: ${BUTTON_HOVER_BG}; }
             QFrame#floatingBar QToolButton#pill:checked { background: ${ACCENT_SOFT_BG}; color: ${ACCENT_TEXT}; }
             QFrame#floatingBar QToolButton#pillWarning {
                 border-radius: 7px; padding: 4px 9px; background: #3a2e12; color: ${SELECTION_GOLD}; font-weight: 600;
@@ -2906,6 +3020,7 @@ class EditorWindow(QMainWindow):
         self._rebuild_tree()
         self.save_action.setEnabled(True)
         self.fit_action.setEnabled(True)
+        self.reset_zoom_action.setEnabled(True)
         self.reload_textures_action.setEnabled(True)
         self._watch_texture_files()
         self._update_element_actions()
@@ -4341,10 +4456,54 @@ class EditorWindow(QMainWindow):
             return
         self.items[index].set_pixmap(self._sample_pixmap(element) or self.texture_cache.pixmap_for(element))
 
+    def _reload_open_document_if_changed(self) -> bool:
+        """Relê o XML aberto se ele mudou no disco (editado fora do editor). True se relido.
+
+        Mantém zoom e posição da vista; com alterações não salvas, pergunta antes de descartar.
+        """
+        if self.document is None:
+            return False
+        path = self.document.path
+        try:
+            current = path.read_bytes()
+        except OSError:
+            return False
+        if current == self.document.raw:
+            return False
+        if self.document.is_dirty:
+            answer = QMessageBox.question(
+                self,
+                self.tr("XML alterado fora do editor"),
+                self.tr(
+                    "{name} foi alterado fora do editor. Recarregar do disco e descartar as alterações não salvas?"
+                ).format(name=path.name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return False
+        transform = self.view.transform()
+        scroll = (self.view.horizontalScrollBar().value(), self.view.verticalScrollBar().value())
+        if self.texture_cache is not None:
+            self.texture_cache.invalidate()  # o Atualizar também relê os DDS
+        self.open_document(path)
+        if self.document is None or self.document.path != path:
+            return False
+        self.view.setTransform(transform)
+        self.view.horizontalScrollBar().setValue(scroll[0])
+        self.view.verticalScrollBar().setValue(scroll[1])
+        self.view.notify_zoom()
+        return True
+
     def reload_all_textures(self) -> None:
         if self.project is not None:
             self.project.files(refresh=True)
+        reloaded = self._reload_open_document_if_changed()
         self._refresh_files()
+        if reloaded:
+            # open_document já recarrega as texturas do zero.
+            self.statusBar().showMessage(self.tr("XML recarregado do disco, com arquivos e texturas."), 4000)
+            return
         if self.document is None or self.texture_cache is None:
             self.statusBar().showMessage(self.tr("Lista de arquivos atualizada."), 4000)
             return
@@ -4821,15 +4980,19 @@ class EditorWindow(QMainWindow):
         self.properties.set_element(None)
         self.save_action.setEnabled(False)
         self.fit_action.setEnabled(False)
+        self.reset_zoom_action.setEnabled(False)
         self._watch_texture_files()
         self._update_element_actions()
         self._update_title()
         self._refresh_files()
 
     def go_home(self) -> None:
-        if self.document is None or not self._confirm_discard_changes():
-            return
-        self.close_document()
+        """Mostra a tela inicial; com um XML aberto, fecha-o (perguntando se há alterações)."""
+        if self.document is not None:
+            if not self._confirm_discard_changes():
+                return
+            self.close_document()
+        self._update_center_page()
 
     def _refresh_recent_projects(self) -> None:
         while self.recent_layout.count():
@@ -4972,10 +5135,13 @@ class EditorWindow(QMainWindow):
         zoom_out.setIcon(icon("minus", size=15))
         zoom_out.setToolTip(self.tr("Diminuir zoom"))
         zoom_out.clicked.connect(lambda: self.view.zoom_by(1 / 1.25))
-        self.zoom_label = QLabel("100%")
+        # A porcentagem também é um botão: clicar volta a 100% (como Ctrl+0).
+        self.zoom_label = QToolButton()
+        self.zoom_label.setText("100%")
         self.zoom_label.setObjectName("zoomLabel")
-        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.zoom_label.setMinimumWidth(48)
+        self.zoom_label.setToolTip(self.tr("Voltar a 100% (Ctrl+0)"))
+        self.zoom_label.clicked.connect(self.reset_zoom_action.trigger)
         zoom_in = QToolButton()
         zoom_in.setObjectName("pill")
         zoom_in.setIcon(icon("plus", size=15))
@@ -5653,6 +5819,34 @@ class EditorWindow(QMainWindow):
         return None
 
     def _refresh_files(self) -> None:
+        """Remonta a lista mantendo o item atual (e a rolagem).
+
+        Abrir um XML remonta a lista (negrito, alterados); sem isto o item atual se perdia e a
+        próxima seta voltava ao topo. O mesmo arquivo aparece em mais de um grupo (Camadas,
+        Alterados, Todos): volta para o mesmo grupo em que o usuário estava.
+        """
+        current = self.files_tree.currentItem()
+        data = current.data(0, Qt.ItemDataRole.UserRole) if current is not None else None
+        group_index = self.files_tree.indexOfTopLevelItem(current.parent()) if current is not None and current.parent() else -1
+        position = self.files_tree.verticalScrollBar().value()
+        self._rebuild_files_tree()
+        if not data:
+            return
+        wanted = os.path.normcase(str(data))
+        matches = []
+        for index in range(self.files_tree.topLevelItemCount()):
+            group = self.files_tree.topLevelItem(index)
+            for child_index in range(group.childCount()):
+                child = group.child(child_index)
+                value = child.data(0, Qt.ItemDataRole.UserRole)
+                if value and os.path.normcase(str(value)) == wanted:
+                    matches.append((index != group_index, child))
+        if matches:
+            with QSignalBlocker(self.files_tree):
+                self.files_tree.setCurrentItem(min(matches, key=lambda match: match[0])[1])
+            self.files_tree.verticalScrollBar().setValue(position)
+
+    def _rebuild_files_tree(self) -> None:
         self.files_tree.clear()
         directory = self._files_directory()
         if self.project is not None:
@@ -5852,7 +6046,38 @@ class EditorWindow(QMainWindow):
                     if child is not item and child.data(0, Qt.ItemDataRole.UserRole) == data:
                         child.setCheckState(0, item.checkState(0))
 
-    def _file_activated(self, item: QTreeWidgetItem, _column: int = 0) -> None:
+    def _file_current_changed(self, current: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None) -> None:
+        # Só a navegação pelo teclado: o clique já abre pelo itemClicked.
+        if current is None or QApplication.mouseButtons() != Qt.MouseButton.NoButton or not self.files_tree.hasFocus():
+            return
+        self._keyboard_preview.start()
+
+    def _preview_current_file(self) -> None:
+        item = self.files_tree.currentItem()
+        data = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        # Texturas abrem uma janela: pelas setas, só os XMLs são mostrados.
+        if data and Path(data).suffix.lower() == ".xml":
+            self._file_activated(item, go_to_elements=False)
+
+    def _is_open_document(self, path: Path) -> bool:
+        return self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path))
+
+    def _select_open_document_in_files(self) -> None:
+        """Volta a seleção da lista para o XML aberto (quando a troca foi cancelada)."""
+        if self.document is None:
+            return
+        wanted = os.path.normcase(str(self.document.path))
+        with QSignalBlocker(self.files_tree):
+            for index in range(self.files_tree.topLevelItemCount()):
+                group = self.files_tree.topLevelItem(index)
+                for child_index in range(group.childCount()):
+                    child = group.child(child_index)
+                    data = child.data(0, Qt.ItemDataRole.UserRole)
+                    if data and os.path.normcase(str(data)) == wanted:
+                        self.files_tree.setCurrentItem(child)
+                        return
+
+    def _file_activated(self, item: QTreeWidgetItem, _column: int = 0, go_to_elements: bool = False) -> None:
         if self._layer_click:
             self._layer_click = False
             return
@@ -5864,13 +6089,13 @@ class EditorWindow(QMainWindow):
             # Primeiro uma prévia dentro do editor; o botão "Abrir .dds" leva ao editor de imagem.
             TexturePreviewDialog(path, len(self._xml_using_texture(path.name)), self).exec()
             return
-        if self.document is not None and os.path.normcase(str(self.document.path)) == os.path.normcase(str(path)):
-            self.side_tabs.setCurrentIndex(1)
-            return
-        if not self._confirm_discard_changes():
-            return
-        self.open_document(path)
-        self.side_tabs.setCurrentIndex(1)
+        if not self._is_open_document(path):
+            if not self._confirm_discard_changes():
+                self._select_open_document_in_files()
+                return
+            self.open_document(path)
+        if go_to_elements:
+            self.show_side_page("elements")
 
     def _run_with_progress(self, label: str, work):
         """Roda `work(progress)` fora da thread da interface, com barra de progresso.
@@ -5943,7 +6168,7 @@ class EditorWindow(QMainWindow):
         backups, original = self._history_entries(path)
         menu = QMenu(self)
         open_action = menu.addAction(self.tr("Abrir"))
-        open_action.triggered.connect(lambda: self._file_activated(item))
+        open_action.triggered.connect(lambda: self._file_activated(item, go_to_elements=True))
         if self.project is not None and self.project.contains(path):
             rename = menu.addAction(self.tr("Renomear…"))
             rename.triggered.connect(lambda: self.rename_project_file(path))

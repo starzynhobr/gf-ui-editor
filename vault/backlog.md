@@ -4,16 +4,16 @@ kanban-plugin: board
 
 ## Agora
 
-- [ ] Começar a Fase 1 quando decidido (sai como 0.7.0-beta.1) [[roadmap]]
+- [ ] Testar a 0.7.0-beta.1 (Fase 1) e promover a 0.7.0 [[roadmap]] [[release]]
 
 
 ## Fase 1 (0.7.0, via beta)
 
-- [ ] Resetar zoom: clique na porcentagem e Ctrl+0 [[roadmap]]
-- [ ] XMLs: clique e setas ficam em Arquivos; duplo clique/Enter vão para Elementos [[roadmap]]
-- [ ] Ctrl+1..4 nas seções da barra lateral [[roadmap]]
-- [ ] Botão Home no topo, funcionando sempre [[roadmap]]
-- [ ] "Abrir com" do Explorer registrado pelo instalador [[roadmap]]
+- [x] Resetar zoom: clique na porcentagem e Ctrl+0 [[roadmap]]
+- [x] XMLs: clique e setas ficam em Arquivos; duplo clique/Enter vão para Elementos [[roadmap]]
+- [x] Ctrl+1..4 nas seções da barra lateral [[roadmap]]
+- [x] Botão Home no topo, funcionando sempre [[roadmap]]
+- [x] "Abrir com" do Explorer registrado pelo instalador [[roadmap]]
 
 
 ## Fase 2
