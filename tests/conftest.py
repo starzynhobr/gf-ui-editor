@@ -1,11 +1,31 @@
 """Isola o QSettings dos testes: nada lê nem grava as preferências reais do usuário."""
 import tempfile
 
-from PySide6.QtCore import QSettings
+import PySide6.QtCore as QtCore
 
 _SETTINGS_DIR = tempfile.mkdtemp(prefix="gf-ui-editor-tests-")
-QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, _SETTINGS_DIR)
+QtCore.QSettings.setDefaultFormat(QtCore.QSettings.Format.IniFormat)
+QtCore.QSettings.setPath(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope, _SETTINGS_DIR)
+
+
+class _IsolatedQSettings(QtCore.QSettings):
+    """QSettings("Local", "GF UI Editor") ignora o setDefaultFormat e vai direto ao Registro.
+
+    Aqui o construtor com organização/aplicativo vira o INI da pasta temporária. Precisa
+    ser trocado antes de o editor importar o QSettings (o conftest carrega primeiro).
+    """
+
+    def __init__(self, *args, **kwargs):
+        # QSettings(arquivo, formato) já é explícito; só o (organização, aplicativo) é desviado.
+        if args and isinstance(args[0], str) and not (len(args) > 1 and isinstance(args[1], QtCore.QSettings.Format)):
+            super().__init__(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope, *args, **kwargs)
+        else:
+            super().__init__(*args, **kwargs)
+
+
+QtCore.QSettings = _IsolatedQSettings
+QSettings = _IsolatedQSettings
+assert not QSettings("Local", "GF UI Editor").fileName().startswith("\\HKEY"), "QSettings dos testes no Registro"
 
 import pytest
 
@@ -14,6 +34,7 @@ import pytest
 def _fresh_settings():
     """Cada teste parte das mesmas preferências, sem a moldura do jogo (quem precisa liga)."""
     settings = QSettings("Local", "GF UI Editor")
+    assert settings.fileName().startswith(_SETTINGS_DIR.replace("\\", "/")[:3]) and "HKEY" not in settings.fileName()
     settings.clear()
     settings.setValue("game_resolution", "off")
     settings.sync()
