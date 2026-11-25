@@ -1,6 +1,14 @@
 # Estado atual
 
-Revisão: **24/11/2026**. Última release publicada: **0.6.0** (24/11/2026).
+Revisão: **25/11/2026**. Última release publicada: **0.6.0** (24/11/2026).
+
+## Beta 0.7.0-beta.2 publicada (25/11/2026, pre-release; Fase 2)
+- Tela inicial completa; gerenciar projetos (duplicar, renomear, excluir com a cópia no jogo, seleção múltipla).
+- Versões do projeto (checkpoints .zip só com o que difere do oficial).
+- Puxar da pasta do jogo + proteção no F5 (cópia no .history dos arquivos editados fora, aviso com "Ver").
+- Limpar projeto (histórico, ícones não editados, sobras do UICustom).
+- Envio e .zip só com o que difere do oficial; contador no Enviar; Enviar ao salvar; Abrir no Notepad++.
+- Instalador: `GF-UI-Editor-Setup-0.7.0-beta.2.exe`, SHA-256 `2844B7553BBDD1D0E6FA181C99DF93E7C616AB06E5216092D13C3BABF71D3E85`.
 
 ## Beta 0.7.0-beta.1 publicada (24/11/2026, pre-release; Fase 1)
 

@@ -4,7 +4,8 @@ kanban-plugin: board
 
 ## Agora
 
-- [ ] Terminar a Fase 2 inteira → só então build da 0.7.0-beta.2 [[roadmap]] [[beta]]
+- [x] Fase 2 inteira → 0.7.0-beta.2 publicada (25/11/2026) [[roadmap]] [[beta]]
+- [ ] Colher feedback da 0.7.0-beta.2 (Harlem e testadores) antes da Fase 3 [[roadmap]] [[release]]
 - [x] Versões do projeto (validado) [[roadmap]]
 
 
