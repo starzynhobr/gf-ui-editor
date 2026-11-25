@@ -157,6 +157,24 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Testes:** os de `test_editor_interactions.py` importam esses nomes de `gf_ui_editor.app` e fazem `monkeypatch` em `app_module.text_editor_command`/`load_contributors`. O `app.py` reimporta os nomes (`from .about import ...`) e chama pelo nome global, então o `monkeypatch` continua funcionando.
 - **Risco:** muito baixo, e o ganho também é pequeno. É uma boa fatia para testar um agente novo.
 
+## Harness "mesma entrada, mesma saída"
+
+`harness/run.ps1` roda fluxos reais do editor (janela de verdade, XMLs do jogo) numa caixa de areia, na versão de referência (um ref do git, padrão `main`) e na árvore atual, e compara:
+- **log** de passos, perguntas e avisos, em ordem;
+- **arquivos gravados**, por sha1: UI do projeto, pasta UI do jogo, UICustom, `data/Translate`, `Launcher.ini`, edições de texto e quantidade de itens no histórico;
+- **capturas** de cada passo, pixel a pixel.
+
+```powershell
+.\harnessun.ps1                    # referência = main
+.\harnessun.ps1 -Reference migracao-web
+```
+
+- Na primeira vez, copia a UI, `data\Translate` e as listas do jogo para `%TEMP%\gf-ui-harness\pristine` (~1 GB). O jogo real só é lido.
+- Projetos, bancos e preferências vão para a caixa de areia (HOME/APPDATA trocados, QSettings desviado para INI, como no `tests/conftest.py`).
+- Fluxos atuais: criar projeto, abrir XML, modos de texto, filtro da árvore, mover e salvar, trocar textura (outro .dds e cópia), nova imagem com atlas, F5 com texto editado, renomear textura usada, apagar, restaurar, salvar versão e tela inicial, erro do jogo, verificar atualizações.
+- Fluxo novo vai no fim de `harness/run_flows.py` (o log é comparado em ordem). Para uma fatia, rode o harness **antes** (referência = ponta da `migracao-web`) para ver que o fluxo novo passa igual nas duas e depois com a fatia.
+- Em 25/11/2026: `main` (0.7.0) × `migracao-web` (fatias 1–7, 9, 10) deu tudo igual.
+
 ## Paralelo: o que o Codex pode pegar
 
 Onda A, em paralelo, com zonas e serviços diferentes:
