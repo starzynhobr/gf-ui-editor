@@ -4,7 +4,7 @@ kanban-plugin: board
 
 ## Agora
 
-- [ ] Testar a 0.7.0-beta.1 (Fase 1) e promover a 0.7.0 [[roadmap]] [[release]]
+- [ ] 0.7.0-beta.1 publicada: colher feedback dos testadores e promover a 0.7.0 [[roadmap]] [[release]]
 
 
 ## Fase 1 (0.7.0, via beta)
