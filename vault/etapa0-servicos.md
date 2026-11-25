@@ -47,7 +47,7 @@ Mais ou menos 8,4 mil linhas:
 | 8 | Geometria da raiz e área fantasma | `window_geometry.py` (novo) | 4111–4300, 4559–4830 | — | **Feito** |
 | 9 | Troca de textura e nova imagem | `textures.py` (novo) | 4956–5060, 7118–7160 | — | **Feito** |
 | 10 | Atualizações e manifesto | `updater.py`, `remote_manifest.py` | 2887–3050 | — | **Feito** |
-| 11 | Funções soltas do topo | `about.py` (novo) | 160–345 | Sim | Muito baixo |
+| 11 | Funções soltas do topo | `about.py` (novo) | 160–345 | Sim | **Feito** |
 
 ### 1. Lista de arquivos e seções (feita)
 
@@ -167,10 +167,11 @@ Hoje cada ponto faz `QSettings("Local", "GF UI Editor").value(...)` com um padr�
 - **Origem:** `_automatic_update_check`, `_beta_updates_enabled`, `apply_remote_manifest`, `check_for_updates`. As leituras e gravações continuam pelo `prefs`.
 - **Testes:** `test_updater.py` (+4, incluindo o de não importar PySide6, que cobre também o `remote_manifest`) e `test_remote_manifest.py` (+1). Na interface continuam valendo `test_beta_updates_toggle_*`, `test_remote_manifest_*` e `test_min_version_*`.
 
-### 11. Funções soltas do topo
+### 11. Funções soltas do topo (feita)
 
 - **Serviço:** `about.py`: `parse_resolution`, `text_editor_command`, `load_contributors`, `contributor_items`, `GAME_RESOLUTIONS`.
-- **Testes:** os de `test_editor_interactions.py` importam esses nomes de `gf_ui_editor.app` e fazem `monkeypatch` em `app_module.text_editor_command`/`load_contributors`. O `app.py` reimporta os nomes (`from .about import ...`) e chama pelo nome global, então o `monkeypatch` continua funcionando.
+- **Interface.** O `app.py` reimporta as definições e traduz “Bloco de Notas” no adaptador Qt de `text_editor_command`. As chamadas continuam pelos nomes globais, inclusive para o `monkeypatch` de `text_editor_command` e `load_contributors` em `test_editor_interactions.py`.
+- **Testes.** `tests/test_about.py` cobre resoluções, seleção do editor de texto, leitura e formatação das contribuições e a importação do serviço sem PySide6.
 - **Risco:** muito baixo, e o ganho também é pequeno. É uma boa fatia para testar um agente novo.
 
 ## Harness "mesma entrada, mesma saída"
