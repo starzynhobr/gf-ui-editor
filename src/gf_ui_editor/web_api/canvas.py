@@ -13,6 +13,8 @@ class CanvasApi:
     """Métodos públicos viram window.pywebview.api.<nome>. Só tipos JSON."""
 
     def _attach_canvas_assets(self) -> None:
+        if getattr(self, "_canvas_assets", None) is not None:
+            return
         self._canvas_assets = WebAssets(self._window, self._emit)
         self._window.events.closed += self._canvas_assets.close
 

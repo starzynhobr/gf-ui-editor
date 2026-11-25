@@ -93,9 +93,12 @@ api = web_shell.WebApi("pt_BR", False, app_module.prefs, app_module.DEFAULT_UI_D
 api._dialogs = answer
 import webview  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from offscreen import capture_window, window_options  # noqa: E402
+
 window = webview.create_window(
     web_shell.APP_TITLE, web_shell._start_url(False), js_api=api, width=1440, height=900, min_size=(1024, 680),
-    background_color="#111318", on_top=True,
+    background_color="#111318", **window_options(),
 )
 api._attach(window)
 
@@ -150,14 +153,11 @@ def _hwnd() -> int:
 
 
 def shot(name: str) -> None:
-    """Captura a área da janela (ela fica por cima de tudo durante o teste)."""
+    """Captura a janela (fora da tela e sem foco; ver harness/offscreen.py)."""
     time.sleep(0.35)
-    from PIL import ImageGrab
-
-    rect = ctypes.wintypes.RECT()
-    ctypes.windll.user32.GetWindowRect(_hwnd(), ctypes.byref(rect))
     path = OUT / "shots" / f"{name}.png"
-    ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom), all_screens=True).save(path)
+    if not capture_window(_hwnd(), path):
+        FAILED.append(f"captura {name}")
     log("shot", name=name, path=str(path))
 
 
@@ -209,8 +209,10 @@ def scenario() -> None:
     js("__smoke.click('[data-section=all] [data-file=\"BasicChar.xml\"]')")
     crumb = wait("__smoke.text('[data-testid=breadcrumb]')", 5, "breadcrumb")
     check("XML aberto na barra", crumb is not None and "BasicChar.xml" in crumb, crumb=crumb)
+    drawn = wait("!!__smoke.q('[data-testid=center] canvas')", 20, "canvas desenhado")
     center = js("__smoke.text('[data-testid=center]')") or ""
-    check("canvas recebe o caminho", "BasicChar.xml" in center or bool(js("!!__smoke.q('[data-testid=center] canvas')")), center=center[:120])
+    check("canvas desenha o XML", bool(drawn) and "Error" not in center, center=center[:200])
+    time.sleep(1.5)  # texturas carregando no worker
     check("último XML lembrado", app_module.prefs.last_file("Smoke-Test") == "BasicChar.xml")
     js("__smoke.setValue('[data-testid=files-panel] input', '')")
     shot("04-xml-aberto")

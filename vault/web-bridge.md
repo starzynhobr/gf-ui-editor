@@ -32,8 +32,17 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - Preferências: `preferences.Preferences` com o mesmo armazenamento da clássica (as duas interfaces leem as mesmas preferências).
 - Textos visíveis: i18n no front com os mesmos 4 idiomas (pt_BR, en_US, es_ES, fr_FR); os catálogos vêm dos `.ts` do Qt convertidos por script (`web/scripts/`), e texto novo sai traduzido nos 4.
 - Comportamentos de navegador desligados: menu de contexto padrão, Ctrl+roda zoom da página, Ctrl+R/F5 recarregando, seleção de texto fora de campos.
+- `WebApi._attach(window)` liga a janela e chama o preparo de cada área (`_attach_canvas_assets`…): scripts que montam a janela só chamam `_attach`.
 
-## Bloco 1 (em andamento)
+## Testes da web
+
+- Janelas de teste **sem foco e fora da tela**: `create_window(..., **window_options())` e capturas com `capture_window(hwnd, caminho)` (PrintWindow), de `harness/offscreen.py`. Nada pisca nem rouba o foco. `GF_HARNESS_VISIBLE=1` mostra a janela para depurar. A clássica já roda com `QT_QPA_PLATFORM=offscreen`.
+- Caixa de areia: HOME/APPDATA trocados e QSettings desviado para INI (senão grava nas preferências reais).
+- `harness/web_smoke.py <saida> <copia_do_jogo>`: tela inicial → novo projeto → abrir XML (canvas desenhado) → F5 → idioma → bloqueios do navegador.
+- `harness/canvas_compare.py`: canvas da clássica × da web, pixel a pixel com tolerância.
+- `harness/run.ps1`: a clássica tem que sair igual à referência.
+
+## Bloco 1 (feito, 25/11/2026)
 
 - **Claude 2 — casca e projetos:** layout geral (barra superior, lateral com Arquivos XML / Texturas / Elementos / Textos e Ctrl+1..4, barra de status), tema, i18n, tela inicial completa (continuar, projetos com filtro/tamanho/data, novo projeto, abrir, duplicar/renomear/excluir), lista de Arquivos XML e Texturas com as seções (camadas/alterados/todos, lista virtualizada), abrir um XML (passa o caminho ao `CanvasView`), F5 "Enviar para o jogo" e a escolha de interface (preferência `ui_mode` lida no `main` quando não há `--ui`; item nas configurações das duas interfaces, vale ao reiniciar).
 - **Codex — canvas só leitura:** decodificador DDS em TypeScript num Web Worker (RGB 32 bits, DXT1, ARGB4444), acesso aos arquivos pela pasta mapeada, `CanvasView` com Konva: elementos com textura e recorte (UV), zoom, pan, enquadrar, contornos, preview do jogo (posições calculadas no Python: `game_layout`, deslocamentos de preview), modos de texto (via `text_preview`), seleção visual de um elemento (sem editar ainda).

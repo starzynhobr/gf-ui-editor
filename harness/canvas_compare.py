@@ -11,6 +11,7 @@ import argparse
 import base64
 from hashlib import sha256
 import json
+import sys
 import os
 from pathlib import Path
 import subprocess
@@ -143,9 +144,14 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
     from gf_ui_editor.web_shell import WebApi
 
     api = WebApi("pt_BR", False)
-    window = webview.create_window("GF UI canvas comparison", page.as_uri(), js_api=api, width=1320, height=1000)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from offscreen import window_options
+
+    window = webview.create_window(
+        "GF UI canvas comparison", page.as_uri(), js_api=api, width=1320, height=1000, **window_options()
+    )
     api._attach(window)
-    api._attach_canvas_assets()
+
     failures = []
     hashes = []
     checks = {}

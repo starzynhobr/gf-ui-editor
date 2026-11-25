@@ -45,7 +45,9 @@ class WebApi(ProjectsApi, CanvasApi):
 
     # ---- infraestrutura ---------------------------------------------------------------
     def _attach(self, window: Any) -> None:
+        """Liga a janela: cada área prepara o que precisa dela (ex.: pastas mapeadas do canvas)."""
         self._window = window
+        self._attach_canvas_assets()
 
     def _emit(self, event: str, payload: Any = None) -> None:
         if self._window is not None:
@@ -78,7 +80,6 @@ def run(
         background_color="#111318",
     )
     api._attach(window)
-    api._attach_canvas_assets()
     webview.start(debug=dev, gui="edgechromium" if sys.platform == "win32" else None)
     return 0
 
