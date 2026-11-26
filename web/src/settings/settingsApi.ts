@@ -1,7 +1,7 @@
 // Ponte do bloco 4: Configurações (web_api/settings.py) e atualizador/manifesto (web_api/updates.py).
 import { call } from '../bridge'
 
-export type ThemeValue = 'dark' | 'midnight' | 'light'
+export type ThemeValue = 'dark' | 'midnight' | 'light' | 'cappuccino' | 'rosa'
 export type NavigationStyle = 'corel' | 'paintnet' | 'photoshop'
 export type BackgroundMode = 'builtin' | 'custom' | 'none'
 

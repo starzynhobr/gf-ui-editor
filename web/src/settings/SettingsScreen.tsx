@@ -10,7 +10,7 @@ import { refreshShell } from '../actions'
 import { applyCanvasPreference } from '../doc/store'
 import { openWhatsNew } from '../home/WhatsNewDialog'
 import { LANGUAGES, setLanguage, t, useT } from '../i18n'
-import { loadUiState, setTheme, useUi, type ThemeName } from '../shell/uiState'
+import { THEMES, loadUiState, setTheme, useUi, type ThemeName } from '../shell/uiState'
 import { setShell, showStatus, useShell } from '../store'
 import { message } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
@@ -134,6 +134,18 @@ const THEME_ICON: Record<ThemeName, ReactNode> = {
     <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
       <circle cx="8" cy="8" r="3" fill="currentColor" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  ),
+  cappuccino: (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path d="M2.5 6.5h9v3a4 4 0 0 1-4 4h-1a4 4 0 0 1-4-4z" fill="currentColor" />
+      <path d="M11.5 7.5h.8a1.7 1.7 0 0 1 0 3.4h-1.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M5.5 1.8c-.6.7.6 1.4 0 2.4M8.5 1.8c-.6.7.6 1.4 0 2.4" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  ),
+  rosa: (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path d="M8 14s-5.5-3.3-5.5-7.2A3 3 0 0 1 8 4.9a3 3 0 0 1 5.5 1.9C13.5 10.7 8 14 8 14Z" fill="currentColor" />
     </svg>
   ),
 }
@@ -266,10 +278,10 @@ function SettingsPanel() {
               <Segmented
                 name="web_theme"
                 value={theme}
-                options={(['dark', 'midnight', 'light'] as const).map((value) => ({
+                options={THEMES.map((value) => ({
                   value,
                   icon: THEME_ICON[value],
-                  label: { dark: t('Escuro'), midnight: t('Meia-noite'), light: t('Claro') }[value],
+                  label: { dark: t('Escuro'), midnight: t('Meia-noite'), light: t('Claro'), cappuccino: t('Cappuccino'), rosa: t('Rosa') }[value],
                 }))}
                 onChange={(value) => {
                   setTheme(value)

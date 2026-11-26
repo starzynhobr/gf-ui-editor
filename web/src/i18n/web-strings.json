@@ -99,6 +99,16 @@
     "es_ES": "Medianoche",
     "fr_FR": "Minuit"
   },
+  "Cappuccino": {
+    "en_US": "Cappuccino",
+    "es_ES": "Cappuccino",
+    "fr_FR": "Cappuccino"
+  },
+  "Rosa": {
+    "en_US": "Pink",
+    "es_ES": "Rosa",
+    "fr_FR": "Rose"
+  },
   "Claro": {
     "en_US": "Light",
     "es_ES": "Claro",

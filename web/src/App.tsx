@@ -3,7 +3,7 @@
 import { TooltipHost } from './ui/TooltipHost'
 import { Toaster } from 'sonner'
 import { ResizeHandle } from './ui/ResizeHandle'
-import { loadUiState, panelWidth, useUi } from './shell/uiState'
+import { isLightTheme, loadUiState, panelWidth, useUi } from './shell/uiState'
 import { useEffect, useState } from 'react'
 import { api, errorText } from './api'
 import { setLanguage, useT } from './i18n'
@@ -152,7 +152,7 @@ export default function App() {
       <DialogHost />
       <ProgressOverlay />
       <TooltipHost />
-      <Toaster theme={theme === 'light' ? 'light' : 'dark'} position="bottom-right" offset={40} toastOptions={{ className: "gf-toast" }} />
+      <Toaster theme={isLightTheme(theme) ? 'light' : 'dark'} position="bottom-right" offset={40} toastOptions={{ className: "gf-toast" }} />
     </div>
   )
 }

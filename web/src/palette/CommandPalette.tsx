@@ -99,7 +99,7 @@ function Palette() {
 
   const elements = useMemo(() => doc?.elements ?? [], [doc])
   const searching = query.trim().length > 0
-  const themeNames = { dark: t('Escuro'), midnight: t('Meia-noite'), light: t('Claro') }
+  const themeNames = { dark: t('Escuro'), midnight: t('Meia-noite'), light: t('Claro'), cappuccino: t('Cappuccino'), rosa: t('Rosa') }
 
   return (
     <motion.div

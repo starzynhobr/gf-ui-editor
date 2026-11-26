@@ -3,8 +3,10 @@
 import { create } from 'zustand'
 import { call } from '../bridge'
 
-export type ThemeName = 'dark' | 'midnight' | 'light'
-export const THEMES: ThemeName[] = ['dark', 'midnight', 'light']
+export type ThemeName = 'dark' | 'midnight' | 'light' | 'cappuccino' | 'rosa'
+export const THEMES: ThemeName[] = ['dark', 'midnight', 'light', 'cappuccino', 'rosa']
+/** Temas claros: toasts (sonner) e outros componentes que só conhecem claro/escuro. */
+export const isLightTheme = (theme: ThemeName) => theme === 'light' || theme === 'rosa'
 
 export const PANEL_LIMITS = {
   left: { min: 240, max: 560, initial: 310 },

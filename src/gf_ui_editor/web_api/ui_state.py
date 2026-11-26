@@ -6,7 +6,7 @@ localStorage: o pywebview roda em modo privado e o armazenamento do navegador so
 
 from __future__ import annotations
 
-THEMES = ("dark", "midnight", "light")
+THEMES = ("dark", "midnight", "light", "cappuccino", "rosa")
 
 
 class UiStateApi:
