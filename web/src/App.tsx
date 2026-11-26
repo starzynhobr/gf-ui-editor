@@ -33,6 +33,7 @@ import { call, on } from './bridge'
 import { MenuHost } from './ui/Menu'
 import SourcePanel from './source/SourcePanel'
 import StandaloneBar from './doc/StandaloneBar'
+import ExternalChangeBar from './doc/ExternalChangeBar'
 import CommandPalette from './palette/CommandPalette'
 
 export default function App() {
@@ -129,6 +130,7 @@ export default function App() {
         <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
           {view === 'workspace' && <Banners />}
           {view === 'workspace' && <StandaloneBar />}
+          {view === 'workspace' && <ExternalChangeBar />}
           <div className="relative min-h-0 flex-1">
           {view === 'home' ? (
             <HomeScreen />

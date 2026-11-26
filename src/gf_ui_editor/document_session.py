@@ -7,12 +7,13 @@ from hashlib import sha256
 from pathlib import Path
 from threading import RLock
 
-from . import atlas, game_layout, window_geometry
+from . import atlas, game_layout, game_updates, window_geometry
 from .canvas_document import PreviewContext, describe_scene, project_ui_root
 from .project import Project
 from . import standalone_document
-from .xml_document import DocumentError, UIDocument, UVRect
+from .xml_document import DocumentError, ExternalModificationError, UIDocument, UVRect, unified_xml_diff
 from .xml_source import SourceError, replace_source, source_view
+from .xml_watch import XmlWatch, read_revision
 
 
 def _rect(value, *, dimensions: bool = True) -> window_geometry.Rect:
@@ -31,7 +32,7 @@ def _index(document: UIDocument, value) -> int:
     return value
 
 
-def save_document(document: UIDocument, project: Project | None) -> Path | None:
+def save_document(document: UIDocument, project: Project | None, *, expected_raw: bytes | None = None) -> Path | None:
     """Save with the same original, backup, and change-cache handling as Qt."""
     if not document.is_dirty:
         return
@@ -45,7 +46,7 @@ def save_document(document: UIDocument, project: Project | None) -> Path | None:
             project.remember_original(document.path)
         except OSError:
             pass
-    backup = document.save(project.history_path_for(document.path) if in_project else None)
+    backup = document.save(project.history_path_for(document.path) if in_project else None, expected_raw=expected_raw)
     if project is not None:
         project.invalidate_changes()
     if in_project:
@@ -167,6 +168,11 @@ class DocumentSession:
         self._saved_positions = True
         self._project: Project | None = None
         self._standalone = False
+        self._xml_encoding = False
+        self._watch = XmlWatch()
+        self._external: dict | None = None
+        self._external_document: UIDocument | None = None
+        self._published_raw: bytes | None = None
         self._source_past: list[UIDocument] = []
         self._source_future: list[UIDocument] = []
 
@@ -182,6 +188,7 @@ class DocumentSession:
     def open(
         self, path: str | Path | None, resolution: tuple[int, int] | None = None, *,
         saved_positions: bool = True, project: Project | None = None, standalone: bool = False,
+        xml_encoding: bool = False,
     ) -> dict | None:
         with self._lock:
             if path is None:
@@ -189,15 +196,18 @@ class DocumentSession:
                 self._project = None
                 self._standalone = False
                 self._reset_source_history()
+                self._reset_watch()
                 return None
-            document = project.load_document(Path(path)) if project is not None else UIDocument.load(Path(path), xml_encoding=standalone)
+            document = project.load_document(Path(path)) if project is not None else UIDocument.load(Path(path), xml_encoding=xml_encoding)
             context = PreviewContext.load(document.path, resolution, saved_positions=saved_positions)
             scene = describe_scene(document, context)
             self._document, self._context, self._resolution = document, context, resolution
             self._saved_positions = saved_positions
             self._project = project
             self._standalone = standalone
+            self._xml_encoding = xml_encoding and project is None
             self._reset_source_history()
+            self._reset_watch()
             return scene
 
     def configure_preview(
@@ -228,17 +238,29 @@ class DocumentSession:
             document, context = self._require()
             if document.path != Path(path).resolve() or document.render_text() != expected:
                 raise ValueError("O XML mudou desde o início da edição. Cancele e reabra a edição do código.")
-            if text == expected:
-                return {"changed": False}
-            try:
-                replacement = replace_source(document, text)
-            except SourceError as exc:
-                return {"issue": {"message": str(exc), "line": exc.line, "column": exc.column}}
-            scene = describe_scene(replacement, context)
-            self._source_past.append(document)
-            self._source_future.clear()
-            self._document = replacement
-            return {"changed": True, "doc": scene}
+            return self._replace_source(document, context, text, expected)
+
+    def _replace_source(self, document: UIDocument, context: PreviewContext, text: str, current: str) -> dict:
+        if text == current:
+            return {"changed": False}
+        try:
+            replacement = replace_source(document, text)
+        except SourceError as exc:
+            return {"issue": {"message": str(exc), "line": exc.line, "column": exc.column}}
+        scene = describe_scene(replacement, context)
+        self._source_past.append(document)
+        self._source_future.clear()
+        self._document = replacement
+        return {"changed": True, "doc": scene}
+
+    def insert_controls(self, path: Path, official: str, ids: list[str]) -> dict:
+        with self._lock:
+            document, context = self._require()
+            if document.path != path:
+                raise ValueError("O XML aberto mudou.")
+            current = document.render_text()
+            text, _ = game_updates.insert_controls(current, official, set(ids))
+            return self._replace_source(document, context, text, current)
 
     def move_source_history(self, redo: bool) -> dict:
         with self._lock:
@@ -311,31 +333,110 @@ class DocumentSession:
             context.refresh_labels(document.path)
             return describe_scene(document, context)
 
-    def save(self, project: Project | None) -> dict:
+    def save(self, project: Project | None, *, expected_raw: bytes | None = None) -> dict:
         with self._lock:
             document, context = self._require()
-            save_document(document, None if self._standalone else project)
+            save_document(document, None if self._standalone else project, expected_raw=expected_raw)
             self._reset_source_history()
+            self._reset_watch()
             return describe_scene(document, context)
 
     def revert(self) -> dict:
         with self._lock:
             document, _ = self._require()
             scene = self.open(document.path, self._resolution, saved_positions=self._saved_positions,
-                              project=self._project, standalone=self._standalone)
+                              project=self._project, standalone=self._standalone, xml_encoding=self._xml_encoding)
             assert scene is not None
             return scene
 
-    def external_change(self) -> str | None:
+    def _reset_watch(self) -> None:
+        self._watch = XmlWatch()
+        self._external = self._external_document = self._published_raw = None
+
+    def _disk_path(self, document: UIDocument) -> Path:
+        return self._project.read_path(document.path) if self._project is not None else document.path
+
+    @staticmethod
+    def _token(raw: bytes | None) -> str:
+        return sha256(raw).hexdigest() if raw is not None else "missing"
+
+    def watch(self, path: Path) -> dict | None:
         with self._lock:
-            if self._document is None:
-                return None
             document = self._document
-            try:
-                path = self._project.read_path(document.path) if self._project is not None else document.path
-                current = path.read_bytes()
-            except FileNotFoundError:
-                return "missing"
-            except OSError:
+            if document is None or document.path != path:
                 return None
-            return sha256(current).hexdigest() if current != document.raw else None
+            revision = self._watch.poll(self._disk_path(document))
+            if revision is None:
+                return self._external
+            raw, = revision
+            if raw is not None and raw in (document.raw, self._published_raw):
+                self._external = self._external_document = None
+                return None
+            token = self._token(raw)
+            if self._external is not None and self._external["token"] == token:
+                return self._external
+            self._external_document = None
+            error = None
+            if raw is None:
+                error = "O XML aberto não está mais no disco."
+            else:
+                try:
+                    self._external_document = UIDocument.from_bytes(path, raw, xml_encoding=self._xml_encoding)
+                except DocumentError as exc:
+                    error = str(exc)
+            self._external = {"token": token, "error": error}
+            return self._external
+
+    def _checked_external(self, path: Path, token: str) -> UIDocument | None:
+        document, _ = self._require()
+        candidate, change = self._external_document, self._external
+        if path != document.path or candidate is None or change is None or change["token"] != token:
+            return None
+        try:
+            return candidate if read_revision(self._disk_path(document)) == candidate.raw else None
+        except OSError:
+            return None
+
+    def reload_external(self, path: Path, token: str) -> dict | None:
+        with self._lock:
+            candidate = self._checked_external(path, token)
+            if candidate is None:
+                return None
+            _, context = self._require()
+            scene = describe_scene(candidate, context)
+            self._document = candidate
+            self._reset_source_history()
+            self._reset_watch()
+            return scene
+
+    def compare_external(self, path: Path, token: str, draft: str | None = None) -> str | None:
+        with self._lock:
+            candidate = self._checked_external(path, token)
+            if candidate is None:
+                return None
+            document, _ = self._require()
+            return unified_xml_diff(candidate.text, document.render_text() if draft is None else draft,
+                                    f"{path.name} (disco)", f"{path.name} (editor)")
+
+    def save_checked(self, path: Path, token: str | None) -> dict:
+        with self._lock:
+            document, _ = self._require()
+            if document.path != path:
+                raise ValueError("O XML aberto mudou.")
+            current = read_revision(self._disk_path(document))
+            if current is None:
+                raise ValueError("O XML aberto não está mais no disco.")
+            if current != document.raw and self._token(current) != token:
+                return {"conflict": self._token(current)}
+            try:
+                return {"doc": self.save(self._project, expected_raw=current)}
+            except ExternalModificationError:
+                return {"conflict": self._token(read_revision(self._disk_path(document)))}
+
+    def note_published(self, target: Path, source: Path) -> None:
+        with self._lock:
+            if self._document is not None and self._document.path == target:
+                try:
+                    self._published_raw = source.read_bytes()
+                except OSError:
+                    pass

@@ -1,4 +1,49 @@
 {
+  "Recarregar": {
+    "en_US": "Reload",
+    "es_ES": "Recargar",
+    "fr_FR": "Recharger"
+  },
+  "Sobrescrever": {
+    "en_US": "Overwrite",
+    "es_ES": "Sobrescribir",
+    "fr_FR": "Écraser"
+  },
+  "Recarregado: alterado fora do editor": {
+    "en_US": "Reloaded after an external edit",
+    "es_ES": "Recargado tras un cambio externo",
+    "fr_FR": "Rechargé après une modification externe"
+  },
+  "O arquivo mudou fora do editor": {
+    "en_US": "The file changed outside the editor",
+    "es_ES": "El archivo cambió fuera del editor",
+    "fr_FR": "Le fichier a été modifié en dehors de l’éditeur"
+  },
+  "Manter as minhas": {
+    "en_US": "Keep my changes",
+    "es_ES": "Conservar mis cambios",
+    "fr_FR": "Conserver mes modifications"
+  },
+  "O arquivo mudou novamente no disco.": {
+    "en_US": "The file changed again on disk.",
+    "es_ES": "El archivo volvió a cambiar en el disco.",
+    "fr_FR": "Le fichier a de nouveau changé sur le disque."
+  },
+  "Diferenças entre o XML no disco e o XML no editor.": {
+    "en_US": "Differences between the XML on disk and in the editor.",
+    "es_ES": "Diferencias entre el XML en disco y en el editor.",
+    "fr_FR": "Différences entre le XML sur le disque et dans l’éditeur."
+  },
+  "Nenhuma diferença no texto do XML.": {
+    "en_US": "No differences in the XML text.",
+    "es_ES": "No hay diferencias en el texto XML.",
+    "fr_FR": "Aucune différence dans le texte XML."
+  },
+  "Sobrescrever o XML do disco com as suas alterações?": {
+    "en_US": "Overwrite the XML on disk with your changes?",
+    "es_ES": "¿Sobrescribir el XML del disco con tus cambios?",
+    "fr_FR": "Écraser le XML sur le disque avec vos modifications ?"
+  },
   "Importar para o projeto": {
     "en_US": "Import into project",
     "es_ES": "Importar al proyecto",

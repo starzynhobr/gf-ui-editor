@@ -381,6 +381,10 @@ class UIDocument:
             raw = (source or xml_path).read_bytes()
         except OSError as exc:
             raise DocumentError(f"Não foi possível ler {xml_path}: {exc}", code="read", details={"path": xml_path, "error": exc}) from exc
+        return cls.from_bytes(xml_path, raw, xml_encoding=xml_encoding)
+
+    @classmethod
+    def from_bytes(cls, xml_path: Path, raw: bytes, *, xml_encoding: bool = False) -> "UIDocument":
         if xml_encoding:
             # Keep the byte order and BOM when an external XML declares Unicode.
             for prefix, encoding in ((b"\xff\xfe\x00\x00", "utf-32-le"), (b"\x00\x00\xfe\xff", "utf-32-be"),
@@ -771,17 +775,20 @@ class UIDocument:
     def _backup_path(self) -> Path:
         return backup_path_for(self.path)
 
-    def save(self, backup_path: Path | None = None) -> Path:
+    def _require_saved_revision(self, expected: bytes) -> None:
         try:
-            current_raw = self.path.read_bytes()
+            current = self.path.read_bytes()
         except OSError as exc:
             raise DocumentError(f"Não foi possível reler o arquivo antes de salvar: {exc}", code="reread", details={"error": exc}) from exc
-        if current_raw != self.raw:
+        if current != expected:
             raise ExternalModificationError(
                 "O XML foi alterado por outro programa desde que foi aberto. "
                 "Reabra o arquivo para não sobrescrever mudanças externas.",
                 code="external_change",
             )
+
+    def save(self, backup_path: Path | None = None, *, expected_raw: bytes | None = None) -> Path:
+        self._require_saved_revision(self.raw if expected_raw is None else expected_raw)
 
         new_text = self.render_text()
         try:
@@ -792,7 +799,8 @@ class UIDocument:
 
         backup = backup_path or self._backup_path()
         try:
-            shutil.copyfile(self.path, backup)
+            if expected_raw is None:
+                shutil.copyfile(self.path, backup)
             fd, temporary_name = tempfile.mkstemp(
                 prefix=f".{self.path.stem}.", suffix=".gf-ui-editor.tmp", dir=self.path.parent
             )
@@ -801,6 +809,9 @@ class UIDocument:
                     temporary.write(new_raw)
                     temporary.flush()
                     os.fsync(temporary.fileno())
+                if expected_raw is not None:
+                    self._require_saved_revision(expected_raw)
+                    backup.write_bytes(expected_raw)
                 os.replace(temporary_name, self.path)
             except Exception:
                 try:

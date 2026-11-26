@@ -57,7 +57,7 @@ def test_apply_source_is_reversible_and_saves_exact_big5(tmp_path: Path):
     assert result["changed"] and result["doc"]["elements"][1]["geometry"][0] == 52
     assert session.source()["text"] == applied
     assert "-      <BaseWndProperty WindowID=\"2\" WindowLeft=\"20\"" in session.diff()
-    assert path.read_bytes() == original and session.external_change() is None
+    assert path.read_bytes() == original and session.watch(path) is None
     assert session.move_source_history(False)["elements"][1]["geometry"][0] == 43
     assert session.source()["text"] == expected
     assert not session.edit([{**edit, "before": edit["after"], "after": before}])["dirty"]

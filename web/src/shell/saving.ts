@@ -7,6 +7,7 @@ import { showStatus, useShell } from '../store'
 import { ask, message } from '../ui/dialogs'
 import { openDiffDialog } from '../ui/DiffDialog'
 import { confirmSourceDraft } from '../source/SourcePanel'
+import { ExternalSaveConflict, type ExternalChange } from '../doc/store'
 import { docState, previewSave, revert, save, StoreUnavailable } from './doc'
 
 const fileName = () => docState().path?.split(/[\\/]/).pop() ?? ''
@@ -34,12 +35,29 @@ export async function saveDocument(): Promise<boolean> {
     confirm: t('Salvar'),
   })
   if (!accepted) return false
-  try {
-    await save()
-  } catch (error) {
-    if (error instanceof StoreUnavailable) return false
-    await message('error', t('Falha ao salvar'), errorText(error))
-    return false
+  let confirmation: ExternalChange | undefined
+  for (;;) {
+    try {
+      await save(confirmation)
+      break
+    } catch (error) {
+      if (error instanceof StoreUnavailable) return false
+      if (!(error instanceof ExternalSaveConflict)) {
+        await message('error', t('Falha ao salvar'), errorText(error))
+        return false
+      }
+      const { choice } = await ask({
+        tone: 'warning',
+        title: t('O arquivo mudou fora do editor'),
+        text: t('Sobrescrever o XML do disco com as suas alterações?'),
+        choices: [
+          { id: 'cancel', label: t('Cancelar') },
+          { id: 'overwrite', label: t('Sobrescrever'), kind: 'danger' },
+        ],
+      })
+      if (choice !== 'overwrite') return false
+      confirmation = { path: error.path, token: error.token }
+    }
   }
   const shell = await refreshShell()
   const inProject = Boolean(shell.project && state.path.replace(/\//g, '\\').toLowerCase()

@@ -146,7 +146,7 @@ def test_bridge_routes_drop_and_single_instance_preserves_project(files, monkeyp
     path.write_bytes(external)
     with pytest.raises(ExternalModificationError, match="outro programa"):
         api.doc_save()
-    assert api.doc_external_change() and path.read_bytes() == external
+    assert api.doc_save_checked(str(path))["conflict"] and path.read_bytes() == external
     assert list(path.parent.glob("Window.before-gf-ui-editor-*.xml")) == [backup]
 
     imported = api.standalone_import(str(path), "Imported", False, True)
@@ -154,6 +154,31 @@ def test_bridge_routes_drop_and_single_instance_preserves_project(files, monkeyp
     assert imported["state"]["open_path"] == str(project.ui_dir / "Imported.xml")
     assert imported["doc"]["elements"][0]["geometry"][0] == 33
     assert b'WindowLeft="33"' in Path(imported["path"]).read_bytes() and path.read_bytes() == external
+
+
+def test_drop_game_xml_matching_light_project_base_is_standalone(files):
+    game, projects, source, _ = files
+    name = "WorldMap2.xml"
+    (source / name).write_bytes(xml("project.dds"))
+    installed = game / "UI" / name
+    installed.write_bytes(xml("project.dds"))
+    with (game / "GameDataFileList.txt").open("a", encoding="ascii") as listing:
+        listing.write(f"\nUI/{name}|{installed.stat().st_size}|{zlib.crc32(installed.read_bytes()):08X}|0|0|")
+    project = Project.create("Project", source, game, projects, light=True)
+    installed.write_bytes(xml("game.dds"))
+    target = project.ui_dir / name
+    assert not target.exists()
+    api = WebApi("pt_BR", False, default_ui_directory=game / "UI")
+    api.open_project(str(project.root))
+    api.open_xml(str(target))
+
+    result = api.open_dropped_xmls([str(installed)])
+    assert not result["errors"]
+    assert result["state"]["open_path"] == str(installed)
+    assert result["state"]["standalone_paths"] == [str(installed)]
+    assert result["state"]["project"]["root"] == str(project.root)
+    assert api.doc_open(str(installed))["elements"][0]["texture"] == "game.dds"
+    assert api.doc_open(str(target))["elements"][0]["texture"] == "project.dds"
 
 
 def test_project_and_game_keep_strict_big5_loading(files):
@@ -175,9 +200,8 @@ def test_project_and_game_keep_strict_big5_loading(files):
         assert exc.value.code == "utf8"
 
     assert api.open_dropped_xmls([str(game_path)])["errors"]
-    assert api.open_loose(str(game_path))["standalone_paths"] == []
     with pytest.raises(DocumentError) as exc:
-        api.doc_open(str(game_path))
+        api.open_loose(str(game_path))
     assert exc.value.code == "utf8"
 
     backup = convert_utf8_file_to_big5(target)

@@ -7,7 +7,7 @@ import { openAtlas, previewTexture } from '../web/src/atlas'
 import { drawText, sceneRows, sceneTextRequests } from '../web/src/canvas/drawScene'
 import { loadTextMasks } from '../web/src/canvas/gameText'
 import CanvasView from '../web/src/canvas/CanvasView'
-import { previewSave, redo, save, select, setHidden, setIsolated, setLocked, undo, useDoc } from '../web/src/doc/store'
+import { keepExternal, previewSave, redo, reloadExternal, save, select, setHidden, setIsolated, setLocked, undo, useDoc } from '../web/src/doc/store'
 import DdsProbe from './canvas_compare_dds?worker&inline'
 import '../web/src/index.css'
 
@@ -234,6 +234,11 @@ Object.assign(window, {
     open: editOpen,
     state: useDoc.getState,
     select, setHidden, setLocked, setIsolated, undo, redo, save, previewSave,
+    keepExternal, reloadExternal,
+    camera: () => {
+      const group = Konva.stages[0].findOne('Group')!
+      return [group.x(), group.y(), group.scaleX()]
+    },
     openAtlas, previewTexture,
     atlasPoint(x: number, y: number) {
       const image = document.querySelector<HTMLCanvasElement>('.gf-atlas-surface > canvas')!

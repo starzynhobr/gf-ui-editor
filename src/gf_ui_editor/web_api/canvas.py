@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import RLock
 
 from ..about import GAME_RESOLUTIONS, parse_resolution
 from ..backgrounds import BACKGROUNDS_DIRECTORY
@@ -11,7 +12,8 @@ from ..game_layout import DEFAULT_HUD
 from ..game_text_raster import prepare_web_rasterizer, web_text_mask
 from ..text_preview import layer_text
 from ..web_assets import WebAssets
-from ..xml_document import DocumentError
+from ..xml_document import DocumentError, UIDocument
+from ..xml_watch import XmlWatch
 
 
 BACKGROUND_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp"}
@@ -19,6 +21,11 @@ BACKGROUND_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp"}
 
 class CanvasApi:
     """Métodos públicos viram window.pywebview.api.<nome>. Só tipos JSON."""
+
+    def _setup_canvas(self) -> None:
+        self._layer_lock = RLock()
+        self._layer_sources: dict[Path, tuple[XmlWatch, bytes | None, UIDocument | None]] = {}
+        self._layer_project = None
 
     def _attach_canvas_assets(self) -> None:
         if getattr(self, "_canvas_assets", None) is not None:
@@ -119,21 +126,60 @@ class CanvasApi:
             return {"names": [], "scenes": [], "inProject": False}
         scenes = []
         if resolution is not None:
-            current = Path(path).resolve()
-            for name in project.reference_layers:
-                source = (project.ui_dir / name).resolve()
-                if source == current or not project.contains(source) or source.suffix.lower() != ".xml":
-                    continue
-                try:
-                    document = project.load_document(source)
-                    context = PreviewContext.load(source, tuple(resolution), saved_positions=saved_positions)
-                except (DocumentError, OSError, ValueError):
-                    continue
-                scene = describe_scene(document, context)
-                for item, element in zip(scene["elements"], document.elements, strict=True):
-                    item["layer_text"] = layer_text(element, {})
-                scenes.append({"name": name, "base": self.asset_base(str(source)), "scene": scene})
+            with self._layer_lock:
+                for name, source in self._watched_layers(project, path):
+                    if source not in self._layer_sources:
+                        try:
+                            document = project.load_document(source)
+                        except DocumentError:
+                            document = None
+                        self._layer_sources[source] = XmlWatch(), document.raw if document else None, document
+                    _, _, document = self._layer_sources[source]
+                    if document is not None:
+                        scenes.append(self._layer_scene(name, document, resolution, saved_positions))
         return {"names": project.reference_layers, "scenes": scenes, "inProject": True}
+
+    def _watched_layers(self, project, path: str):
+        if self._layer_project is not project:
+            self._layer_project = project
+            self._layer_sources.clear()
+        current = Path(path).resolve()
+        layers = [(name, (project.ui_dir / name).resolve()) for name in project.reference_layers]
+        valid = [(name, source) for name, source in layers if project.contains(source) and source.suffix.lower() == ".xml"]
+        watched = {source for _, source in valid}
+        for source in self._layer_sources.keys() - watched:
+            del self._layer_sources[source]
+        return [(name, source) for name, source in valid if source != current]
+
+    def _layer_scene(self, name: str, document: UIDocument, resolution: list[int], saved_positions: bool) -> dict:
+        context = PreviewContext.load(document.path, tuple(resolution), saved_positions=saved_positions)
+        scene = describe_scene(document, context)
+        for item, element in zip(scene["elements"], document.elements, strict=True):
+            item["layer_text"] = layer_text(element, {})
+        return {"name": name, "base": self.asset_base(str(document.path)), "scene": scene}
+
+    def canvas_watch_layers(self, path: str, resolution: list[int], saved_positions: bool) -> dict:
+        project = self._project_for_path(Path(path))
+        scenes, errors = [], []
+        if project is not None:
+            with self._layer_lock:
+                for name, source in self._watched_layers(project, path):
+                    if source not in self._layer_sources:
+                        continue
+                    watch, previous, document = self._layer_sources[source]
+                    revision = watch.poll(project.read_path(source))
+                    if revision is None or revision[0] == previous:
+                        continue
+                    raw, = revision
+                    try:
+                        if raw is None:
+                            raise ValueError("O XML aberto não está mais no disco.")
+                        document = UIDocument.from_bytes(source, raw)
+                        scenes.append(self._layer_scene(name, document, resolution, saved_positions))
+                    except (DocumentError, ValueError) as exc:
+                        errors.append(f"{name}: {exc}")
+                    self._layer_sources[source] = watch, raw, document
+        return {"scenes": scenes, "errors": errors}
 
     def canvas_change_layers(self, path: str, action: str, name: str | None = None) -> None:
         """Update the project layers shared by the canvas toolbar and file list."""

@@ -26,6 +26,7 @@ const useFallback = create<DocState & { active: boolean }>(() => ({
   canUndo: false,
   canRedo: false,
   error: null,
+  externalChange: null,
 }))
 
 /** O estado do documento, venha do store do canvas ou do modo só leitura. */
@@ -135,15 +136,8 @@ export const applyEdits = (edits: Edit[], label: string) => guard(() => store.ap
 export const undo = () => guard(() => store.undo(), () => undefined)
 export const redo = () => guard(() => store.redo(), () => undefined)
 export const previewSave = () => guard(() => store.previewSave(), () => '')
-export const save = () => guard(() => store.save(), unavailable)
+export const save = (confirmation?: store.ExternalChange) => guard(() => store.save(confirmation), unavailable)
 export const revert = () => guard(() => store.revert(), () => undefined)
 
-/**
- * Controles do oficial que faltam (game_updates.insert_controls) como um passo de desfazer.
- * Usa `insertControls(ids, label)` do doc/store quando o canvas o oferecer; até lá, avisa.
- */
-export async function insertOfficialControls(ids: string[], label: string): Promise<void> {
-  const insert = (store as unknown as Record<string, unknown>).insertControls
-  if (typeof insert !== 'function' || useFallback.getState().active) throw new StoreUnavailable('inserir controles indisponível')
-  await (insert as (ids: string[], label: string) => Promise<void>)(ids, label)
-}
+export const insertOfficialControls = (ids: string[], label: string) =>
+  guard(() => store.insertControls(ids, label), unavailable)
