@@ -15,9 +15,11 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from threading import Timer
 from typing import Any
 
 from . import __version__
+from .ui_session import Restart, WebStartup, WEB_START_TIMEOUT
 from .web_api.canvas import CanvasApi
 from .web_api.document import DocumentApi
 from .web_api.projects import ProjectsApi
@@ -47,11 +49,13 @@ class WebApi(
 
     def __init__(
         self, language: str, dev: bool, prefs: Any = None, default_ui_directory: Path | None = None,
-        xml: Path | None = None,
+        xml: Path | None = None, startup: WebStartup | None = None,
     ) -> None:
         self._language = language
         self._dev = dev
         self._window: Any = None
+        self._web_startup = startup
+        self._restart: Restart | None = None
         self._setup_projects(prefs, default_ui_directory, xml)
         self._setup_document()
 
@@ -70,6 +74,16 @@ class WebApi(
     def app_info(self) -> dict:
         return {"version": __version__, "language": self._language, "dev": self._dev}
 
+    def shell_ready(self) -> None:
+        """A casca montou após receber a resposta de startup pela ponte."""
+        if self._web_startup is not None:
+            self._web_startup.ready()
+
+    def close_window(self, restart: bool = False) -> None:
+        if restart:
+            self._restart = Restart(self._project.root if self._project is not None else self._open_path)
+        super().close_window()
+
 
 def _start_url(dev: bool) -> str:
     if dev:
@@ -82,15 +96,15 @@ def _start_url(dev: bool) -> str:
 
 def run(
     language: str = "pt_BR", dev: bool = False, xml: Path | None = None, prefs: Any = None,
-    default_ui_directory: Path | None = None, instance: Any = None,
-) -> int:
+    default_ui_directory: Path | None = None, instance: Any = None, *, startup: WebStartup,
+) -> Restart | None:
     """`prefs`: as mesmas preferências da clássica (o app.py passa o objeto global).
 
     `instance` (single_instance.Instance): pedidos de outros .exe chegam à ponte.
     """
     import webview
 
-    api = WebApi(language, dev, prefs, default_ui_directory, xml)
+    api = WebApi(language, dev, prefs, default_ui_directory, xml, startup)
     if instance is not None:
         instance.on_message(api._on_instance_message)
     window = webview.create_window(
@@ -99,8 +113,20 @@ def run(
     )
     api._attach(window)
     window.events.shown += lambda: apply_window_chrome(window)
-    webview.start(debug=dev, gui="edgechromium" if sys.platform == "win32" else None)
-    return 0
+
+    def expire() -> None:
+        if startup.expire():
+            api.close_window()
+
+    watchdog = Timer(WEB_START_TIMEOUT, expire)
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        webview.start(debug=dev, gui="edgechromium" if sys.platform == "win32" else None)
+    finally:
+        startup.finish()
+        watchdog.cancel()
+    return api._restart
 
 
 def apply_window_chrome(window: Any) -> None:

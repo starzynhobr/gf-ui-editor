@@ -6,16 +6,17 @@ então a consulta à rede pode bloquear aqui sem travar a janela.
 
 Eventos para o front:
 - ``progress`` ({label: "update", done, total}) durante o download;
-- ``open_external`` ({path}) quando um segundo .exe manda um arquivo para esta janela.
+- ``open_external`` ({path, project?}) quando outro .exe manda um XML ou projeto.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 import threading
 from typing import Any
 
-from .. import __version__, app_updates, desktop, updater
+from .. import __version__, app_updates, desktop, storage, updater
 
 MANIFEST_WAIT_SECONDS = 10.0
 
@@ -94,7 +95,8 @@ class UpdatesApi:
         self._bring_to_front()
         path = message.get("open")
         if isinstance(path, str) and path:
-            self._emit("open_external", {"path": path})
+            payload = {"path": path, "project": True} if storage.is_project(Path(path)) else {"path": path}
+            self._emit("open_external", payload)
 
     def _bring_to_front(self) -> None:
         window = getattr(self, "_window", None)

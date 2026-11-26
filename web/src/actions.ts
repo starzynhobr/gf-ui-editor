@@ -324,10 +324,3 @@ export async function exportZip(): Promise<void> {
     text += ' ' + t('{count} arquivo(s); {skipped} igual(is) ao oficial ficaram de fora.', { count: result.count, skipped: result.skipped })
   showStatus(text, 12)
 }
-
-// ---- configurações ---------------------------------------------------------------------------
-export async function setUiMode(mode: 'classic' | 'web'): Promise<void> {
-  await api.setUiMode(mode)
-  await refreshShell()
-  showStatus(t('A interface escolhida vale na próxima vez que o editor abrir.'), 8)
-}

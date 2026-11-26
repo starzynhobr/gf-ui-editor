@@ -28,8 +28,8 @@ import { installShortcuts } from './shell/shortcuts'
 import { DialogHost } from './ui/dialogs'
 import SettingsHost, { useSettings } from './settings/SettingsScreen'
 import { startupChecks } from './settings/updates'
-import { openExternalXml } from './actions'
-import { on } from './bridge'
+import { openExternalXml, openProject } from './actions'
+import { call, on } from './bridge'
 import { MenuHost } from './ui/Menu'
 import SourcePanel from './source/SourcePanel'
 import CommandPalette from './palette/CommandPalette'
@@ -46,6 +46,11 @@ export default function App() {
   const storeReady = useEditingAvailable()
   const canvasEpoch = useSettings((state) => state.canvasEpoch)
   const [error, setError] = useState<string | null>(null)
+  const shellMounted = shell !== null && !error
+
+  useEffect(() => {
+    if (shellMounted) void call('shell_ready').catch(() => {})
+  }, [shellMounted])
 
   useEffect(() => {
     void loadUiState()
@@ -62,7 +67,10 @@ export default function App() {
     const unshortcut = installShortcuts()
     const ungameText = installGameTextEditing()
     // Outro .exe ("Abrir com") mandou um XML para esta janela.
-    const unexternal = on('open_external', (payload) => void openExternalXml((payload as { path: string }).path))
+    const unexternal = on('open_external', (payload) => {
+      const { path, project } = payload as { path: string; project?: boolean }
+      void (project ? openProject(path) : openExternalXml(path))
+    })
     return () => {
       unexternal()
       uninstall()

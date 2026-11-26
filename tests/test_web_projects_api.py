@@ -59,6 +59,22 @@ def test_startup_shows_home_without_a_last_project(tmp_path: Path, projects: Pat
     assert state["language"] == "pt_BR" and state["ui_mode"] == "classic"
 
 
+def test_startup_reopens_project_from_restart_argument(tmp_path: Path, game: Path, projects: Path) -> None:
+    first = Api(tmp_path, game=game)
+    project = _create(first, game)["state"]["project"]
+    root = Path(project["root"])
+    path = str(Path(project["ui_dir"]) / "BasicChar.xml")
+    first.open_xml(path)
+    first.prefs.last_project = ""
+
+    restarted = Api(tmp_path, game=game)
+    restarted._setup_projects(first.prefs, game / "UI", root)
+    state = restarted.startup()
+    assert state["view"] == "workspace"
+    assert state["project"]["root"] == str(root)
+    assert state["open_path"] == path
+
+
 def test_create_project_opens_it_and_reports_progress(tmp_path: Path, game: Path, projects: Path) -> None:
     api = Api(tmp_path, game=game)
     form = api.new_project_form()

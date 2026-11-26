@@ -66,13 +66,13 @@ export function ask(options: Omit<AskSpec, 'type' | 'resolve' | 'tone'> & { tone
 }
 
 /** Sim/Não. */
-export async function confirm(title: string, text: string): Promise<boolean> {
+export async function confirm(title: string, text: string, labels = { no: t('Não'), yes: t('Sim') }): Promise<boolean> {
   const { choice } = await ask({
     title,
     text,
     choices: [
-      { id: 'no', label: t('Não') },
-      { id: 'yes', label: t('Sim'), kind: 'primary' },
+      { id: 'no', label: labels.no },
+      { id: 'yes', label: labels.yes, kind: 'primary' },
     ],
   })
   return choice === 'yes'

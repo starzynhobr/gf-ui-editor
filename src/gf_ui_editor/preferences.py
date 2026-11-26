@@ -69,6 +69,7 @@ KEYS: dict[str, Key] = {
     # Interface
     "language": Key("str", "pt_BR"),
     "ui_mode": Key("str", "classic"),  # "classic" (Qt) ou "web" (nova, beta); vale ao reiniciar
+    "web_starting": Key("json", {}),
     "navigation_style": Key("str", "corel"),
     "text_mode": Key("str", "off"),
     "tree_hidden_columns": Key("str", "2"),  # colunas da árvore de elementos, "0,2"
