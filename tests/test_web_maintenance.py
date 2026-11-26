@@ -25,7 +25,8 @@ END = "  </BaseWndProperty>\r\n</Root_Node>\r\n"
 
 
 def _xml(name: str, child: bool) -> bytes:
-    return (ROOT.format(name=name) + (CHILD if child else "") + END).encode("big5")
+    empty = '    <Container_Node Child_Cnt="0">\r\n    </Container_Node>\r\n'  # o contêiner fica, sem o controle
+    return (ROOT.format(name=name) + (CHILD if child else empty) + END).encode("big5")
 
 
 class Api(ProjectsApi, MaintenanceApi):
