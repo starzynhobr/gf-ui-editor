@@ -17,6 +17,7 @@ import { Icon } from '../ui/Icon'
 import { EmptyState } from '../ui/EmptyState'
 import { openMenu, type MenuItem } from '../ui/Menu'
 import { TexturePeek, useTexturePeek } from './TexturePeek'
+import StandaloneFiles from '../doc/StandaloneFiles'
 
 const ROW_HEIGHT = 24
 const HEADER_HEIGHT = 28
@@ -271,7 +272,8 @@ export default function FilesPanel() {
           )}
         </div>
       )}
-      {data && !data.in_project && !data.directory && (
+      {mode === 'xml' && <StandaloneFiles filter={needle} />}
+      {data && !data.in_project && !data.directory && !shell?.standalone_paths?.length && (
         <EmptyState
           icon="folder-plus"
           title={t('Sem projeto')}

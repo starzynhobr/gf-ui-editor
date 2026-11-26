@@ -65,6 +65,7 @@ class WebApi(
         self._window = window
         self._attach_canvas_assets()
         self._attach_projects(window)
+        window.events.loaded += self._attach_xml_drop
 
     def _emit(self, event: str, payload: Any = None) -> None:
         if self._window is not None:

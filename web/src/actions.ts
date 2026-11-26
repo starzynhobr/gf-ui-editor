@@ -109,15 +109,25 @@ export async function openLooseXml(): Promise<void> {
 
 /** "Abrir com" com a janela já aberta: outro .exe mandou este arquivo (evento open_external). */
 export async function openExternalXml(path: string): Promise<void> {
-  const open = useShell.getState().shell?.open_path
-  if (open?.toLowerCase() === path.toLowerCase()) return
-  if (!(await confirmDiscard())) return
-  try {
-    enterWorkspace(await api.openLoose(path))
-    useShell.setState({ page: 'xml' })
-  } catch (error) {
-    await message('error', t('Não foi possível abrir'), errorText(error))
-  }
+  await openDroppedXmls([path])
+}
+
+let dropQueue: Promise<void> = Promise.resolve()
+
+export function openDroppedXmls(paths: string[]): Promise<void> {
+  dropQueue = dropQueue.then(async () => {
+    try {
+      const open = useShell.getState().shell?.open_path
+      if (paths.length === 1 && open?.toLowerCase() === paths[0].toLowerCase()) return
+      if (!(await confirmDiscard())) return
+      const { state, errors } = await call<{ state: ShellState; errors: { path: string; message: string }[] }>('open_dropped_xmls', paths)
+      setShell(state, { view: state.open_path ? 'workspace' : useShell.getState().view, page: 'xml' })
+      if (errors.length) await message('error', t('Não foi possível abrir'), errors.map(({ path, message }) => `${path}\n${message}`).join('\n\n'))
+    } catch (error) {
+      await message('error', t('Não foi possível abrir'), errorText(error))
+    }
+  })
+  return dropQueue
 }
 
 export async function openXml(path: string): Promise<void> {

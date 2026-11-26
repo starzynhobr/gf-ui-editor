@@ -10,6 +10,7 @@ import { message } from '../ui/dialogs'
 import { docState, editingAvailable, openDocument, setIsolated, useDocState } from './doc'
 import { closeRequested } from './saving'
 import { useSource } from '../source/SourcePanel'
+import { openDroppedXmls } from '../actions'
 
 export default function DocSync() {
   const openPath = useShell((state) => state.shell?.open_path ?? null)
@@ -21,7 +22,9 @@ export default function DocSync() {
   const shown = useRef<string | null>(null)
 
   useEffect(() => {
-    openDocument(openPath).catch((reason) => void message('error', t('Não foi possível abrir'), String(reason)))
+    if (docState().path !== openPath) {
+      openDocument(openPath).catch((reason) => void message('error', t('Não foi possível abrir'), String(reason)))
+    }
   }, [openPath])
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export default function DocSync() {
   }, [dirty, draftDirty])
 
   useEffect(() => on('close_requested', () => void closeRequested()), [])
+  useEffect(() => on('drop_xml', (paths) => void openDroppedXmls(paths as string[])), [])
 
   // Gancho para o harness/web_smoke.py: saber se a edição já existe (store do canvas) e ler o estado.
   useEffect(() => {

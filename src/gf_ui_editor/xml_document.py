@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 
 
 START_TAG_RE = re.compile(r"<BaseWndProperty\b[^>]*>")
+XML_ENCODING_RE = re.compile(rb'''<\?xml\s+[^?]*?encoding\s*=\s*['"]([\w.-]+)['"]''', re.I)
 NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 # Deslocamento do estado preenchido de barras (ProgressNode/OffSetUV).
 SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
@@ -324,6 +325,16 @@ def convert_utf8_file_to_big5(path: str | Path, backup_path: Path | None = None)
     return backup
 
 
+def unified_xml_diff(before: str, after: str, old_label: str, new_label: str) -> str:
+    # Keep line endings visible when they are the only change.
+    keepends = before != after and before.splitlines() == after.splitlines()
+    return "\n".join(difflib.unified_diff(
+        [repr(line) for line in before.splitlines(True)] if keepends else before.splitlines(),
+        [repr(line) for line in after.splitlines(True)] if keepends else after.splitlines(),
+        fromfile=old_label, tofile=new_label, lineterm="",
+    ))
+
+
 class UIDocument:
     encoding = "big5"
 
@@ -364,19 +375,49 @@ class UIDocument:
             )
 
     @classmethod
-    def load(cls, path: str | Path, *, source: Path | None = None) -> "UIDocument":
+    def load(cls, path: str | Path, *, source: Path | None = None, xml_encoding: bool = False) -> "UIDocument":
         xml_path = Path(path).resolve()
         try:
             raw = (source or xml_path).read_bytes()
         except OSError as exc:
             raise DocumentError(f"Não foi possível ler {xml_path}: {exc}", code="read", details={"path": xml_path, "error": exc}) from exc
+        if xml_encoding:
+            # Keep the byte order and BOM when an external XML declares Unicode.
+            for prefix, encoding in ((b"\xff\xfe\x00\x00", "utf-32-le"), (b"\x00\x00\xfe\xff", "utf-32-be"),
+                                     (b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be"),
+                                     (b"<\x00?\x00", "utf-16-le"), (b"\x00<\x00?", "utf-16-be"),
+                                     (b"\xef\xbb\xbf", "utf-8")):
+                if raw.startswith(prefix):
+                    return cls._from_bytes(xml_path, raw, encoding)
+            declaration = XML_ENCODING_RE.match(raw)
+            if declaration is not None:
+                encoding = declaration[1].decode("ascii").lower()
+                try:
+                    return cls._from_bytes(xml_path, raw, encoding)
+                except LookupError as exc:
+                    raise DocumentError(f"Codificação XML desconhecida: {encoding}", code="decode") from exc
+            try:
+                return cls._from_bytes(xml_path, raw, cls.encoding)
+            except DocumentError as big5_error:
+                if big5_error.code not in ("decode", "roundtrip", "utf8"):
+                    raise
+                try:
+                    return cls._from_bytes(xml_path, raw, "utf-8")
+                except DocumentError as utf8_error:
+                    if utf8_error.code != "decode":
+                        raise
+                    raise big5_error from None
+        return cls._from_bytes(xml_path, raw, cls.encoding)
+
+    @classmethod
+    def _from_bytes(cls, xml_path: Path, raw: bytes, encoding: str) -> "UIDocument":
         try:
-            text = raw.decode(cls.encoding)
-        except UnicodeDecodeError as exc:
-            if utf8_text_convertible_to_big5(raw) is not None:
+            text = raw.decode(encoding)
+        except UnicodeError as exc:
+            if encoding == cls.encoding and utf8_text_convertible_to_big5(raw) is not None:
                 raise DocumentError("O arquivo foi salvo como UTF-8, não Big5.", code="utf8", details={"path": xml_path}) from exc
-            raise DocumentError(f"O arquivo não pôde ser decodificado como Big5: {exc}", code="decode", details={"error": exc}) from exc
-        if text.encode(cls.encoding) != raw:
+            raise DocumentError(f"O arquivo não pôde ser decodificado como {encoding}: {exc}", code="decode", details={"error": exc}) from exc
+        if text.encode(encoding) != raw:
             if utf8_text_convertible_to_big5(raw) is not None:
                 raise DocumentError("O arquivo foi salvo como UTF-8, não Big5.", code="utf8", details={"path": xml_path})
             raise DocumentError("A leitura Big5 não preserva exatamente os bytes do arquivo.", code="roundtrip")
@@ -384,7 +425,9 @@ class UIDocument:
             root = ET.fromstring(text)
         except ET.ParseError as exc:
             raise DocumentError(f"XML inválido: {exc}", code="invalid_xml", details={"error": exc}) from exc
-        return cls(xml_path, raw, text, root)
+        document = cls(xml_path, raw, text, root)
+        document.encoding = encoding
+        return document
 
     def child_count_mismatches(self) -> list[tuple[int, int]]:
         """(Child_Cnt declarado, controles reais) de cada Container_Node que não bate.
@@ -436,6 +479,7 @@ class UIDocument:
         except ET.ParseError as exc:
             raise DocumentError(f"XML inválido: {exc}", code="invalid_xml", details={"error": exc}) from exc
         document = UIDocument(self.path, self.raw, text, root)
+        document.encoding = self.encoding
         document._structure_changed = text != self.raw.decode(self.encoding)
         return document
 
@@ -720,18 +764,8 @@ class UIDocument:
 
     def unified_diff(self) -> str:
         """Retorna apenas a prévia textual; não grava nem cria backup."""
-        before = self.raw.decode(self.encoding)
-        after = self.render_text()
-        # Keep line endings visible when they are the only change.
-        keepends = before != after and before.splitlines() == after.splitlines()
-        return "\n".join(
-            difflib.unified_diff(
-                [repr(line) for line in before.splitlines(True)] if keepends else before.splitlines(),
-                [repr(line) for line in after.splitlines(True)] if keepends else after.splitlines(),
-                fromfile=self.path.name,
-                tofile=f"{self.path.name} (editado)",
-                lineterm="",
-            )
+        return unified_xml_diff(
+            self.raw.decode(self.encoding), self.render_text(), self.path.name, f"{self.path.name} (editado)",
         )
 
     def _backup_path(self) -> Path:

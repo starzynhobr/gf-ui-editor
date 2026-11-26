@@ -11,7 +11,8 @@ import os
 from urllib.parse import unquote, urlsplit
 
 from .project import Project
-from .textures import find_texture, ui_texture_names
+from .standalone_document import StandaloneTextures
+from .textures import ui_texture_names
 
 
 def _texture_signatures(directory: Path) -> dict[str, tuple[int, int]]:
@@ -39,24 +40,30 @@ class WebAssets:
         self._stop = Event()
         self._lock = Lock()
         self._mapped: set[str] = set()
-        self._watched: dict[Path, tuple[str, Project | None, dict[str, tuple]]] = {}
-        self._layered: dict[str, tuple[Path, Project]] = {}
+        self._watched: dict[str, tuple[Path, Project | StandaloneTextures | None, dict[str, tuple]]] = {}
+        self._layered: dict[str, tuple[Path, Project | StandaloneTextures]] = {}
+        self._requested: dict[str, set[str]] = {}
         self._thread: Thread | None = None
 
     def close(self) -> None:
         self._stop.set()
 
-    def base(self, directory: Path, *, watch: bool = False, project: Project | None = None) -> str:
+    def base(self, directory: Path, *, watch: bool = False, project: Project | None = None,
+             standalone: StandaloneTextures | None = None) -> str:
         directory = directory.resolve()
-        if project is None and not directory.is_dir():
+        source = standalone or project
+        if source is None and not directory.is_dir():
             raise NotADirectoryError(directory)
 
         from Microsoft.Web.WebView2.Core import CoreWebView2HostResourceAccessKind
         from System import Action
 
         # Folder mappings and layered streams need separate hosts even for the same logical folder.
-        kind = "layered" if project is not None else "assets"
-        digest = sha256(os.fsencode(os.path.normcase(directory))).hexdigest()[:24]
+        kind = "standalone" if standalone is not None else "layered" if project is not None else "assets"
+        identity = [directory]
+        if standalone is not None:
+            identity.extend((standalone.project.root if standalone.project else Path(), standalone.game or Path()))
+        digest = sha256(b"\0".join(os.fsencode(os.path.normcase(path)) for path in identity)).hexdigest()[:24]
         host = f"gfui-{kind}-{digest}.local"
         native = self._window.native
 
@@ -64,10 +71,10 @@ class WebAssets:
             core = native.webview.CoreWebView2
             if core is None:
                 raise RuntimeError("WebView2 is not ready")
-            if project is not None:
+            if source is not None:
                 if not self._layered:
                     core.WebResourceRequested += self._serve_texture
-                self._layered[host] = (directory, project)
+                self._layered[host] = (directory, source)
                 if host not in self._mapped:
                     from Microsoft.Web.WebView2.Core import CoreWebView2WebResourceContext
 
@@ -84,9 +91,12 @@ class WebAssets:
         base = f"https://{host}/"
         if watch:
             with self._lock:
-                previous = self._watched.get(directory)
-                if previous is None or previous[1] is not project:
-                    self._watched[directory] = (base, project, self._signatures(directory, project))
+                previous = self._watched.get(host)
+                if isinstance(source, StandaloneTextures):
+                    self._requested.setdefault(host, set())
+                    self._watched[host] = (directory, source, previous[2] if previous else {})
+                elif previous is None or previous[1] is not source:
+                    self._watched[host] = (directory, source, self._signatures(directory, source))
                 if self._thread is None:
                     self._thread = Thread(target=self._watch, name="web-canvas-textures", daemon=True)
                     self._thread.start()
@@ -99,7 +109,7 @@ class WebAssets:
         mapping = self._layered.get(uri.hostname)
         if mapping is None:
             return
-        directory, project = mapping
+        directory, source = mapping
         relative = Path(unquote(uri.path.removeprefix("/")))
         stream = None
         if (
@@ -107,11 +117,20 @@ class WebAssets:
             and relative.suffix.lower() in (".dds", ".tga") and event.Request.Method == "GET"
         ):
             try:
-                logical = directory / relative
-                path = project.read_path(logical)
-                if not path.is_file():
-                    logical = find_texture(logical.parent, logical.name, project)
-                    path = project.read_path(logical) if logical is not None else None
+                if isinstance(source, StandaloneTextures):
+                    name = relative.as_posix()
+                    path = source.resolve(name)
+                    with self._lock:
+                        self._requested.setdefault(uri.hostname, set()).add(name)
+                else:
+                    logical = directory / relative
+                    path = source.read_path(logical)
+                    if not path.is_file():
+                        key = logical.relative_to(source.ui_dir)
+                        lookup = StandaloneTextures(directory, source, source.game_dir)
+                        path = lookup.project_texture(key)
+                        if path is None and key.as_posix().lower() not in source.deleted:
+                            path = lookup.fallback_texture(key) or lookup.fallback_texture(relative)
                 if path is not None and path.is_file():
                     stream = File.Open(str(path), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)
             except Exception:
@@ -142,12 +161,29 @@ class WebAssets:
         while not self._stop.wait(1):
             with self._lock:
                 watched = list(self._watched.items())
-            for directory, (base, project, previous) in watched:
-                current = self._signatures(directory, project)
-                names = [name for name in previous.keys() | current.keys() if previous.get(name) != current.get(name)]
-                if names and not self._stop.is_set():
+            for host, (directory, source, previous) in watched:
+                if isinstance(source, StandaloneTextures):
                     with self._lock:
-                        if self._watched[directory][1] is not project:
-                            continue
-                        self._watched[directory] = (base, project, current)
-                    self._emit("canvas_textures_changed", {"base": base, "names": sorted(names)})
+                        requested = self._requested[host].copy()
+                    current = {}
+                    for name in requested:
+                        signature = ()
+                        try:
+                            path = source.resolve(name)
+                            if path is not None:
+                                stat = path.stat()
+                                signature = (path, stat.st_mtime_ns, stat.st_size)
+                        except (OSError, ValueError):
+                            pass
+                        current[name] = signature
+                    known = previous.keys()
+                else:
+                    current = self._signatures(directory, source)
+                    known = previous.keys() | current.keys()
+                names = [name.lower() for name in known if previous.get(name) != current.get(name)]
+                with self._lock:
+                    if self._watched[host][1] is not source:
+                        continue
+                    self._watched[host] = (directory, source, current)
+                if names and not self._stop.is_set():
+                    self._emit("canvas_textures_changed", {"base": f"https://{host}/", "names": sorted(set(names))})

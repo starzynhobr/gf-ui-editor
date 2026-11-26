@@ -17,6 +17,8 @@ import zipfile
 
 from .. import __version__, desktop, element_tree, file_list, home, new_project, publishing, release_notes, remote_manifest, storage, textures
 from ..preferences import UI_LANGUAGES, UI_MODES, MemoryStore, Preferences
+from ..standalone_document import StandaloneTextures
+from ..xml_document import DocumentError, UIDocument
 from ..project import (
     CHANGES_TTL,
     Project,
@@ -51,6 +53,8 @@ class ProjectsApi:
         self._project: Project | None = None
         self._open_path: Path | None = None
         self._loose_dir: Path | None = None
+        self._standalone_paths: dict[Path, None] = {}
+        self._standalone_lock = threading.RLock()
         self._sizes = home.SizeCache()
         self._manifest = remote_manifest.Manifest()
         # Lido uma vez ao abrir (startup); manifest_notices espera por ele.
@@ -64,6 +68,20 @@ class ProjectsApi:
     def _attach_projects(self, window: Any) -> None:
         """Fechar a janela com alterações não salvas: cancela e pede ao front para perguntar."""
         window.events.closing += self._on_closing
+
+    def _attach_xml_drop(self) -> None:
+        from webview.dom import DOMEventHandler
+
+        events = self._window.dom.document.events
+        events.dragover += DOMEventHandler(lambda _: None, prevent_default=True, debounce=500)
+        events.drop += DOMEventHandler(self._on_xml_drop, prevent_default=True)
+
+    def _on_xml_drop(self, event: dict) -> None:
+        files = event.get("dataTransfer", {}).get("files", [])
+        paths = [file.get("pywebviewFullPath") for file in files]
+        xmls = [path for path in paths if isinstance(path, str) and Path(path).suffix.lower() == ".xml"]
+        if xmls:
+            self._emit("drop_xml", xmls)
 
     def _on_closing(self) -> bool:
         if self._unsaved and not self._force_close:
@@ -126,6 +144,11 @@ class ProjectsApi:
         project = getattr(self, "_project", None)
         return project if project is not None and project.contains(path) else None
 
+    def _standalone_textures(self, path: Path) -> StandaloneTextures | None:
+        if path.resolve() in self._standalone_paths and self._project_for_path(path) is None:
+            return StandaloneTextures(path.parent, self._project, self._game_dir())
+        return None
+
     def _project_info(self) -> dict | None:
         project = self._project
         if project is None:
@@ -149,13 +172,15 @@ class ProjectsApi:
             return 0
 
     def _load_project(self, root: Path) -> None:
-        project = Project.load(root)
+        self._set_project(Project.load(root))
+
+    def _set_project(self, project: Project) -> None:
         project.changes_ttl = CHANGES_TTL  # a tela pergunta várias vezes seguidas
         self._project = project
         self._loose_dir = None
         if self._open_path is not None and not project.contains(self._open_path):
             self._open_path = None
-        self._prefs.last_project = str(root)
+        self._prefs.last_project = str(project.root)
 
     def _last_file(self) -> Path | None:
         project = self._project
@@ -180,6 +205,7 @@ class ProjectsApi:
             "project": self._project_info(),
             "open_path": str(self._open_path) if self._open_path is not None else None,
             "loose_dir": str(self._loose_dir) if self._loose_dir is not None else None,
+            "standalone_paths": [str(path) for path in self._standalone_paths.copy() if self._project_for_path(path) is None],
             "pending": self._pending(),
             "publish_confirmed": self._prefs.publish_confirmed,
             "publish_on_save": self._prefs.publish_on_save,
@@ -457,13 +483,51 @@ class ProjectsApi:
         if self._project is not None and self._project.contains(path):
             self._open_xml(path)
             return
-        self._project = None
+        if self._project is not None:
+            path = path.resolve()
+            if not self._is_game_xml(path):
+                self._register_standalone(path)
+            self._open_xml(path)
+            return
         self._loose_dir = path.parent
         self._open_path = path
 
     def open_loose(self, path: str) -> dict:
         self._open_loose(Path(path))
         return self.shell_state()
+
+    def _register_standalone(self, path: Path) -> None:
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        if path not in self._standalone_paths:
+            UIDocument.load(path, xml_encoding=True)
+            self._standalone_paths[path] = None
+
+    def _is_game_xml(self, path: Path) -> bool:
+        game = self._game_dir()
+        return game is not None and path.is_relative_to((game / "UI").resolve())
+
+    def open_dropped_xmls(self, paths: list[str]) -> dict:
+        """Register all readable XMLs and select the last valid path in drop order."""
+        with self._standalone_lock:
+            errors = []
+            for value in paths:
+                path = Path(value)
+                if not path.is_absolute() or path.suffix.lower() != ".xml":
+                    continue
+                try:
+                    path = path.resolve()
+                    project = self._project_for_path(path)
+                    if project is not None:
+                        project.load_document(path)
+                    elif self._is_game_xml(path):
+                        UIDocument.load(path)
+                    else:
+                        self._register_standalone(path)
+                    self._open_xml(path)
+                except (DocumentError, OSError, ValueError) as exc:
+                    errors.append({"path": value, "message": str(exc)})
+            return {"state": self.shell_state(), "errors": errors}
 
     # ---- lista de arquivos ---------------------------------------------------------------
     def _files_directory(self) -> Path | None:
@@ -616,12 +680,17 @@ class ProjectsApi:
     def texture_names(self, xml_path: str) -> list[str]:
         """Texturas da pasta da UI do XML ("Usar outro .dds desta UI…")."""
         path = Path(xml_path)
+        standalone = self._standalone_textures(path)
+        if standalone is not None:
+            return standalone.names()
         return textures.ui_texture_names(path.parent, self._project_for_path(path))
 
     def texture_copy_info(self, xml_path: str, current: str) -> dict:
         path = Path(xml_path)
+        standalone = self._standalone_textures(path)
         return {
-            "exists": textures.find_texture(path.parent, current, self._project_for_path(path)) is not None,
+            "exists": (standalone.resolve(current) if standalone is not None
+                       else textures.find_texture(path.parent, current, self._project_for_path(path))) is not None,
             "suggestion": textures.copy_suggestion(current),
         }
 
@@ -629,7 +698,19 @@ class ProjectsApi:
         """Cópia editável de `current`. {"error": "exists"} se o nome já existe."""
         try:
             path = Path(xml_path)
-            target = textures.copy_for_edit(path.parent, current, name, self._project_for_path(path))
+            standalone = self._standalone_textures(path)
+            if standalone is None:
+                target = textures.copy_for_edit(path.parent, current, name, self._project_for_path(path))
+            else:
+                source = standalone.resolve(current)
+                if source is None:
+                    raise FileNotFoundError(current)
+                filename = textures.with_texture_suffix(name)
+                if Path(filename).name != filename or any(char in filename for char in '/\\:'):
+                    raise ValueError("Informe apenas o nome da textura.")
+                if standalone.resolve(filename) is not None:
+                    raise FileExistsError(filename)
+                target = standalone.copy_texture(source, Path(filename))
         except FileExistsError as exc:
             return {"error": "exists", "name": str(exc.args[0])}
         self._refresh_project_files()

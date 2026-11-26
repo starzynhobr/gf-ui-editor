@@ -86,6 +86,15 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - AutoAnimate (`ui/animate.ts`): projetos da tela inicial, banners, versões, Puxar, controles do oficial, escolher textura. Listas virtualizadas (Arquivos, Texturas, resultados de Textos) ficam sem.
 - Engrenagem: Configurações…, Novidades, Verificar atualizações, Sobre (abre o cartão da pílula). Idioma/tema/interface ficam em Configurações e na paleta.
 
+## XML avulso
+
+- `ShellState.standalone_paths` contém caminhos absolutos em ordem de abertura. A sessão deduplica pelo caminho e mantém a lista até a importação de cada arquivo ou o fechamento da janela. `open_path` identifica o documento ativo. Um drop múltiplo ativa o último XML válido. Trocar de documento segue a confirmação Salvar / Descartar / Cancelar.
+- `StandaloneBar` fica acima do canvas e aparece quando `open_path` está na lista. Usa `saveDocument()` para confirmar o diff e salvar no lugar, e `importStandaloneFile(path)` e `compareStandaloneFile(path)` de `doc/standaloneActions.ts`. `StandaloneFiles({ filter })` fica na página de XMLs, recebe o filtro em minúsculas e chama `openXml(path)` ao ativar uma linha.
+- O drop do WebView2 chega ao callback Python do pywebview com `dataTransfer.files[].pywebviewFullPath`. A ponte emite `drop_xml` com a lista de caminhos. O front usa `open_dropped_xmls(paths)` e recebe `{ state, errors }`. O fluxo `open_external` de “Abrir com” usa essa mesma abertura para XMLs.
+- `standalone_compare(path, source)` aceita `project` ou `official`. Devolve o diff unificado, `''` quando os textos são iguais ou `null` se a referência estiver indisponível.
+- `standalone_pick_project()` escolhe uma pasta quando não há projeto aberto. `standalone_import(path, name, replace, bring_textures, root)` grava o conteúdo atual do editor e devolve `{ conflict, name, path }`. No sucesso inclui `{ state, doc, textures, backup }`. `doc/store.ts` promove o documento ativo para o caminho do projeto. A faixa some e os demais avulsos continuam na lista.
+- `asset_base(path)` continua servindo canvas e atlas. Para avulsos, a ordem é a pasta do XML, o projeto aberto, a base oficial pelo CRC e `UI/` do jogo. A importação considera as texturas já disponíveis no projeto e na base oficial.
+
 ## Próximos blocos
 
 3. Atlas, textos (busca, edição, importar/exportar), puxar, limpar, versões, UI oficial, erro do jogo, histórico.
