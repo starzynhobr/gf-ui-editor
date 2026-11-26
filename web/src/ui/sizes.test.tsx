@@ -55,7 +55,7 @@ describe('Limpar', () => {
     act(() => void openCleanupDialog(plan))
     await screen.findByTestId('cleanup-dialog')
     expect(screen.getByTestId('cleanup-total').dataset.size).toBe('340 MB')
-    expect(screen.getByTestId('cleanup-size').dataset.size).toBe('1 KB')
+    expect(screen.getByTestId('cleanup-size').dataset.size).toBe('0 KB')
     expect(screen.getByTestId('cleanup-after').getAttribute('aria-hidden')).toBe('true')
     fireEvent.click(screen.getByText(/Apagar todos os backups/))
     await waitFor(() => expect(screen.getByTestId('cleanup-size').dataset.size).toBe('110 MB'))

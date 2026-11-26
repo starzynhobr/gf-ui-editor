@@ -1462,13 +1462,17 @@ def release_notes_flow() -> None:
         if len(versions) > 1:
             last = versions[-1]
             js("__smoke.all('[data-testid=notes-timeline] [data-version]').pop().click()")
-            time.sleep(0.9)
-            jumped = js(
-                "(() => { const box = __smoke.q('[data-testid=notes-scroll]');"
-                " const node = __smoke.all('[data-testid=notes-scroll] [data-release]').pop();"
-                " const top = node.getBoundingClientRect().top - box.getBoundingClientRect().top;"
-                " return box.scrollTop > 0 && (top < 40 || box.scrollTop + box.clientHeight >= box.scrollHeight - 2) })()"
-            )
+            jumped = False
+            for _ in range(20):  # rolagem suave: as notas da versão atual podem ser longas
+                time.sleep(0.2)
+                jumped = js(
+                    "(() => { const box = __smoke.q('[data-testid=notes-scroll]');"
+                    " const node = __smoke.all('[data-testid=notes-scroll] [data-release]').pop();"
+                    " const top = node.getBoundingClientRect().top - box.getBoundingClientRect().top;"
+                    " return box.scrollTop > 0 && (top < 40 || box.scrollTop + box.clientHeight >= box.scrollHeight - 2) })()"
+                )
+                if jumped:
+                    break
             check("linha do tempo pula até a versão", bool(jumped), version=last)
         time.sleep(0.3)
         shot("22c-novidades-todas-as-versoes")

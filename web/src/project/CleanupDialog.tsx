@@ -80,7 +80,12 @@ function Cleanup({ plan, onDone }: { plan: CleanupScan; onDone: (choice: Cleanup
         </p>
         {after !== null && (
           <p className={`text-[12px] transition-opacity duration-200 ${anything ? 'text-accent-text' : 'opacity-0'}`} aria-hidden={!anything} data-testid="cleanup-after">
-            {withNodes(t('Depois de limpar: {size}'), { size: <AnimatedSize value={after} className="font-semibold" testId="cleanup-after-size" /> })}
+            {withNodes(t('Depois de limpar, o projeto fica com {size}.'), { size: <AnimatedSize value={after} className="font-semibold" testId="cleanup-after-size" /> })}
+          </p>
+        )}
+        {choice.custom && (
+          <p className="text-[12px] text-muted" data-testid="cleanup-custom-note">
+            {t('A cópia no jogo libera mais {size}; ela fica na pasta do jogo e não entra no tamanho do projeto.', { size: humanSize(plan.custom.size) })}
           </p>
         )}
         <p className="text-muted">{t('Os XMLs e as texturas que o editor desenha ficam. O que é apagado aqui não dá para desfazer.')}</p>

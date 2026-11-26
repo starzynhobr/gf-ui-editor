@@ -1,401 +1,656 @@
 {
-  "version": "0.7.0",
-  "date": "2026-11-25",
+  "version": "0.8.0-beta.1",
+  "date": "2026-11-26",
+  "spotlight": "new_interface",
   "notes": {
     "pt_BR": {
       "new": [
         [
-          "Tela inicial completa.",
-          "Ao abrir, o editor mostra o projeto em que você parou (com Continuar), todos os seus projetos com filtro e data da última edição, avisos e novidades. A casinha volta para ela de qualquer lugar."
+          "Interface nova.",
+          "O editor agora abre numa interface nova, mais rápida, com tudo no mesmo lugar de antes. Se preferir, volte para a clássica em Configurações → Interface; dá para trocar a qualquer momento."
         ],
         [
-          "Gerenciar projetos.",
-          "Na tela inicial, o ⋯ de cada projeto tem Duplicar, Renomear e Excluir (vai para a Lixeira, com opção de apagar também a cópia no jogo). \"Gerenciar\" permite marcar vários de uma vez."
+          "Temas e fontes.",
+          "Cinco temas (Escuro, Meia-noite, Claro, Cappuccino e Rosa) e quatro fontes (Segoe UI, IBM Plex Sans, Inter e Geist), em Configurações. Cada fonte aparece escrita nela mesma para você escolher."
         ],
         [
-          "Versões do projeto.",
-          "Projeto → Salvar versão guarda o projeto como está, num .zip pequeno (só o que difere da UI oficial). Em Versões do projeto dá para restaurar (o estado atual é salvo antes), criar um projeto novo a partir de uma versão ou excluir."
+          "Busca rápida (Ctrl+K).",
+          "Abra um XML, ache um elemento, rode um comando ou volte a um projeto recente digitando o nome."
         ],
         [
-          "Puxar da pasta do jogo.",
-          "Projeto → Puxar da pasta do jogo compara a pasta UI do jogo (ou uma UI do UICustom) com o projeto e lista o que difere, dizendo de onde veio cada arquivo. Nada vem marcado; o que for substituído fica no histórico."
+          "Código do XML ao lado (Ctrl+U).",
+          "Veja e edite o código do XML ao lado do canvas. A seleção acompanha, as mudanças podem ser desfeitas com Ctrl+Z e a largura do painel fica guardada."
         ],
         [
-          "Limpar projeto.",
-          "Projeto → Limpar projeto libera espaço: mapas e ícones do jogo que você não editou, backups antigos do histórico e sobras da cópia no jogo. Os arquivos da UI ficam todos."
+          "Recarrega sozinho o XML editado fora.",
+          "Salvou o XML no Notepad++ (ou em outro programa)? O editor mostra a mudança na hora, sem Ctrl+R. Se você tiver alterações não salvas, ele pergunta: Recarregar, Manter as minhas ou Comparar."
         ],
         [
-          "Abrir no Notepad++.",
-          "Botão direito num XML da lista → Abrir no Notepad++ (ou no Bloco de Notas, se ele não estiver instalado), abrindo a cópia do projeto. Depois de salvar lá, Ctrl+R traz a mudança."
+          "Abrir um XML arrastando.",
+          "Arraste um .xml para a janela para ver só aquele arquivo, sem mexer no projeto. Depois dá para salvar no lugar (com backup), importar para o projeto ou comparar."
         ],
         [
-          "Enviar para o jogo ao salvar.",
-          "Opção no menu Projeto: cada Ctrl+S também envia para o jogo, para ver o ajuste na hora. Vem desligada."
+          "Projetos leves.",
+          "O projeto guarda só os arquivos que você mudou; o resto vem da UI oficial, guardada uma vez só. Projeto → Converter em projeto leve salva uma versão antes de converter."
         ],
         [
-          "Editar a fonte do texto.",
-          "Em Aparência, cada controle com texto mostra Cor do texto (com seletor de cor), Contorno, Alinhamento e Tamanho, só os que ele tem no XML. O texto do canvas muda na hora e Ctrl+Z desfaz."
+          "Exportar para várias resoluções.",
+          "Em Exportar, escolha as resoluções (1366, 1600, 1920…): o editor reposiciona as janelas que o jogo ancora na tela e mostra tudo lado a lado. Onde ficou errado, é só arrastar. Os ajustes entram nas Versões do projeto."
         ],
         [
-          "Seções da lista com rolagem própria.",
-          "Camadas, Alterados e Todos ficam em caixas separadas, cada uma com a sua rolagem; as camadas não empurram mais a lista. Arraste o divisor para mudar a altura, que fica guardada."
+          "Dica ao passar o mouse no canvas.",
+          "Pare o mouse sobre um controle para ver o ID, o tipo, o texto e a posição. Liga e desliga no botão (i) da barra do canvas."
         ],
         [
-          "Mudar a ordem das seções.",
-          "Arraste o título de uma seção (ex.: CAMADAS) para outro lugar, ou use o botão direito: Mover para cima, Mover para baixo e Restaurar ordem padrão. A ordem fica salva."
+          "Prévia das texturas.",
+          "Na lista de Texturas, passar o mouse mostra a textura numa janelinha flutuante."
         ],
         [
-          "Navegar entre XMLs sem sair da lista.",
-          "Clicar num XML ou usar as setas ↑↓ abre o arquivo no canvas e mantém você em Arquivos XML. Duplo clique ou Enter abrem e vão para Elementos."
+          "Novidades depois de atualizar.",
+          "As novidades abrem uma vez depois de cada atualização. Fechou sem querer? Elas ficam no botão Novidades da barra até a próxima versão."
         ],
         [
-          "Atualizar recarrega o XML editado fora.",
-          "Se o XML aberto foi alterado em outro programa (como o Notepad++), Atualizar (Ctrl+R) o recarrega mantendo o zoom. Se houver alterações não salvas no editor, ele pergunta antes."
-        ],
-        [
-          "Atalhos das seções.",
-          "Ctrl+1 Arquivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos e Ctrl+4 Textos. O atalho aparece na dica de cada ícone da barra lateral."
-        ],
-        [
-          "Voltar a 100% de zoom.",
-          "Clique na porcentagem do zoom (ou use Ctrl+0) para voltar ao tamanho real."
-        ],
-        [
-          "\"Abrir com\" no Windows.",
-          "O editor aparece em \"Abrir com\" ao clicar com o botão direito num .xml, para ver só aquele arquivo, sem projeto. Ele não vira o programa padrão dos .xml."
+          "Como usar (F1).",
+          "O guia rápido da clássica, agora também na interface nova."
         ]
       ],
       "improved": [
         [
-          "Envio e .zip só com o que difere do oficial.",
-          "Enviar para o jogo (UICustom) e Exportar .zip levam só os arquivos diferentes da UI oficial; o launcher completa o resto com a pasta UI. No STZ-UI a cópia caiu de 376 MB para 131 MB e o .zip ficou com 6,5 MB."
+          "Limpar projeto mais claro.",
+          "Mostra com quanto o projeto fica depois de limpar, e separa o que sai da cópia na pasta do jogo, que não conta no tamanho do projeto. Os tamanhos andam até o novo valor ao escolher."
         ],
         [
-          "Contador no Enviar para o jogo.",
-          "Quando há arquivos salvos que ainda não estão no jogo, o botão mostra quantos (\"Enviar para o jogo · 3\"). Ctrl+S salva só no projeto."
-        ],
-        [
-          "Proteção no envio.",
-          "Se um arquivo da pasta UI do jogo foi editado fora do editor, o envio guarda uma cópia dele no histórico antes de substituir e avisa, com um botão para ver e trazer de volta."
-        ],
-        [
-          "A roda do mouse não muda campos sem querer.",
-          "Rolando o painel de propriedades, a roda passa por cima de listas suspensas e campos numéricos sem trocar o valor; para mudar, clique no campo."
-        ],
-        [
-          "Mãozinha em mais lugares.",
-          "Botões das janelas de Versões, Puxar e Limpar e todas as listas suspensas mostram a mão ao passar o mouse."
-        ],
-        [
-          "Projetos novos menores.",
-          "A pasta map do jogo (~160 MB de mapas) não é mais copiada para projetos novos: nenhum XML a usa e o jogo já tem os oficiais. Em projetos antigos, Limpar projeto remove os mapas que você não editou."
-        ],
-        [
-          "Mensagens do envio mais claras.",
-          "O Enviar para o jogo diz quantos arquivos foram enviados, ou avisa que nada mudou quando a pasta do jogo já está igual ao projeto."
-        ],
-        [
-          "Tamanho do projeto sempre certo.",
-          "Na tela inicial, o tamanho do projeto é recalculado depois de Limpar projeto, Puxar da pasta do jogo e Salvar versão."
+          "Texto do jogo no canvas.",
+          "O texto é desenhado no tamanho real do jogo, mais fiel ao que aparece na tela."
         ]
       ]
     },
     "en_US": {
       "new": [
         [
-          "Full home screen.",
-          "On launch, the editor shows the project you were working on (with Continue), all your projects with a filter and last-edited date, notices and news. The house icon brings you back from anywhere."
+          "New interface.",
+          "The editor now opens in a new, faster interface, with everything where it used to be. If you prefer, switch back to the classic one in Settings → Interface; you can change it at any time."
         ],
         [
-          "Manage projects.",
-          "On the home screen, each project's ⋯ menu has Duplicate, Rename and Delete (goes to the Recycle Bin, optionally removing the game copy too). \"Manage\" lets you select several at once."
+          "Themes and fonts.",
+          "Five themes (Dark, Midnight, Light, Cappuccino and Pink) and four fonts (Segoe UI, IBM Plex Sans, Inter and Geist), in Settings. Each font is shown in its own typeface so you can pick."
         ],
         [
-          "Project versions.",
-          "Project → Save version keeps the project as it is in a small .zip (only what differs from the official UI). In Project versions you can restore (the current state is saved first), create a new project from a version, or delete it."
+          "Quick search (Ctrl+K).",
+          "Open an XML, find an element, run a command or go back to a recent project by typing its name."
         ],
         [
-          "Pull from the game folder.",
-          "Project → Pull from the game folder compares the game's UI folder (or a UI in UICustom) with the project and lists what differs, saying where each file came from. Nothing is checked; whatever gets replaced is kept in the history."
+          "XML code side by side (Ctrl+U).",
+          "View and edit the XML code next to the canvas. The selection follows along, changes can be undone with Ctrl+Z and the panel width is remembered."
         ],
         [
-          "Clean up project.",
-          "Project → Clean up project frees space: game maps and icons you didn't edit, old history backups and leftovers in the game copy. All UI files stay."
+          "Externally edited XML reloads by itself.",
+          "Saved the XML in Notepad++ (or another program)? The editor shows the change right away, no Ctrl+R needed. If you have unsaved changes, it asks: Reload, Keep mine or Compare."
         ],
         [
-          "Open in Notepad++.",
-          "Right-click an XML in the list → Open in Notepad++ (or Notepad if it isn't installed), opening the project's copy. After saving there, Ctrl+R brings the change in."
+          "Open an XML by dragging it.",
+          "Drag an .xml onto the window to view just that file without touching the project. Then you can save it in place (with a backup), import it into the project or compare."
         ],
         [
-          "Send to game on save.",
-          "Option in the Project menu: every Ctrl+S also sends to the game, so you see the change right away. Off by default."
+          "Lightweight projects.",
+          "The project keeps only the files you changed; the rest comes from the official UI, stored only once. Project → Convert to lightweight project saves a version before converting."
         ],
         [
-          "Edit the text font.",
-          "In Appearance, each control with text shows Text color (with a color picker), Outline, Alignment and Size, only the ones it has in the XML. The text on the canvas changes right away and Ctrl+Z undoes it."
+          "Export for several resolutions.",
+          "In Export, pick the resolutions (1366, 1600, 1920…): the editor repositions the windows the game anchors to the screen and shows them side by side. Where something is off, just drag it. The adjustments are included in the project Versions."
         ],
         [
-          "List sections with their own scroll.",
-          "Layers, Modified and All sit in separate boxes, each with its own scroll; layers no longer push the list down. Drag the divider to change the height, which is remembered."
+          "Hover tip on the canvas.",
+          "Rest the mouse on a control to see its ID, type, text and position. Toggle it with the (i) button in the canvas bar."
         ],
         [
-          "Change the order of the sections.",
-          "Drag a section's title (e.g. LAYERS) somewhere else, or right-click it: Move up, Move down and Restore default order. The order is saved."
+          "Texture preview.",
+          "In the Textures list, hovering shows the texture in a small floating window."
         ],
         [
-          "Browse XMLs without leaving the list.",
-          "Clicking an XML or using the ↑↓ arrows opens the file on the canvas and keeps you in XML Files. Double-click or Enter opens it and goes to Elements."
+          "What's new after updating.",
+          "The release notes open once after each update. Closed them by accident? They stay in the What's new button in the top bar until the next version."
         ],
         [
-          "Refresh reloads XML edited outside.",
-          "If the open XML was changed in another program (like Notepad++), Refresh (Ctrl+R) reloads it and keeps the zoom. If there are unsaved changes in the editor, it asks first."
-        ],
-        [
-          "Section shortcuts.",
-          "Ctrl+1 XML Files, Ctrl+2 Textures, Ctrl+3 Elements and Ctrl+4 Texts. The shortcut shows in each sidebar icon's tooltip."
-        ],
-        [
-          "Back to 100% zoom.",
-          "Click the zoom percentage (or use Ctrl+0) to return to actual size."
-        ],
-        [
-          "\"Open with\" in Windows.",
-          "The editor shows up in \"Open with\" when you right-click an .xml, to view just that file without a project. It does not become the default program for .xml files."
+          "How to use (F1).",
+          "The classic quick guide, now in the new interface too."
         ]
       ],
       "improved": [
         [
-          "Sending and .zip carry only what differs from official.",
-          "Send to game (UICustom) and Export .zip carry only files that differ from the official UI; the launcher fills in the rest from the UI folder. For STZ-UI the copy went from 376 MB to 131 MB and the .zip is 6.5 MB."
+          "Clearer Clean up project.",
+          "Shows how big the project will be after cleaning up, and lists separately what leaves the copy in the game folder, which is not counted in the project size. Sizes move to the new value as you choose."
         ],
         [
-          "Counter on Send to game.",
-          "When saved files aren't in the game yet, the button shows how many (\"Send to game · 3\"). Ctrl+S only saves to the project."
-        ],
-        [
-          "Protection when sending.",
-          "If a file in the game's UI folder was edited outside the editor, sending keeps a copy of it in the history before replacing it and lets you know, with a button to view and bring it back."
-        ],
-        [
-          "The mouse wheel no longer changes fields by accident.",
-          "When scrolling the properties panel, the wheel passes over dropdowns and number fields without changing their value; click the field to change it."
-        ],
-        [
-          "Hand cursor in more places.",
-          "Buttons in the Versions, Pull and Clean up windows and every dropdown show the hand on hover."
-        ],
-        [
-          "Smaller new projects.",
-          "The game's map folder (~160 MB of maps) is no longer copied into new projects: no XML uses it and the game already has the official ones. In older projects, Clean up project removes the maps you didn't edit."
-        ],
-        [
-          "Clearer messages when sending.",
-          "Send to game tells you how many files were sent, or that nothing changed when the game folder already matches the project."
-        ],
-        [
-          "Project size always up to date.",
-          "On the home screen, the project size is recalculated after Clean up project, Pull from the game folder and Save version."
+          "Game text on the canvas.",
+          "Text is drawn at the game's real size, closer to what you see on screen."
         ]
       ]
     },
     "es_ES": {
       "new": [
         [
-          "Pantalla de inicio completa.",
-          "Al abrir, el editor muestra el proyecto en el que estabas (con Continuar), todos tus proyectos con filtro y fecha de la última edición, avisos y novedades. La casita vuelve a ella desde cualquier lugar."
+          "Interfaz nueva.",
+          "El editor ahora abre en una interfaz nueva, más rápida, con todo en el mismo lugar de antes. Si lo prefieres, vuelve a la clásica en Configuración → Interfaz; puedes cambiarla en cualquier momento."
         ],
         [
-          "Gestionar proyectos.",
-          "En la pantalla de inicio, el ⋯ de cada proyecto tiene Duplicar, Renombrar y Eliminar (va a la Papelera, con opción de borrar también la copia en el juego). \"Gestionar\" permite marcar varios a la vez."
+          "Temas y fuentes.",
+          "Cinco temas (Oscuro, Medianoche, Claro, Cappuccino y Rosa) y cuatro fuentes (Segoe UI, IBM Plex Sans, Inter y Geist), en Configuración. Cada fuente aparece escrita en sí misma para que elijas."
         ],
         [
-          "Versiones del proyecto.",
-          "Proyecto → Guardar versión guarda el proyecto tal como está, en un .zip pequeño (solo lo que difiere de la UI oficial). En Versiones del proyecto se puede restaurar (el estado actual se guarda antes), crear un proyecto nuevo a partir de una versión o eliminarla."
+          "Búsqueda rápida (Ctrl+K).",
+          "Abre un XML, encuentra un elemento, ejecuta un comando o vuelve a un proyecto reciente escribiendo su nombre."
         ],
         [
-          "Traer de la carpeta del juego.",
-          "Proyecto → Traer de la carpeta del juego compara la carpeta UI del juego (o una UI de UICustom) con el proyecto y lista lo que difiere, indicando de dónde vino cada archivo. Nada viene marcado; lo que se reemplace queda en el historial."
+          "Código del XML al lado (Ctrl+U).",
+          "Mira y edita el código del XML junto al lienzo. La selección lo acompaña, los cambios se deshacen con Ctrl+Z y el ancho del panel se guarda."
         ],
         [
-          "Limpiar proyecto.",
-          "Proyecto → Limpiar proyecto libera espacio: mapas e iconos del juego que no editaste, copias antiguas del historial y sobras de la copia en el juego. Todos los archivos de la UI se quedan."
+          "El XML editado fuera se recarga solo.",
+          "¿Guardaste el XML en Notepad++ (u otro programa)? El editor muestra el cambio al instante, sin Ctrl+R. Si tienes cambios sin guardar, pregunta: Recargar, Mantener los míos o Comparar."
         ],
         [
-          "Abrir en Notepad++.",
-          "Clic derecho en un XML de la lista → Abrir en Notepad++ (o en el Bloc de notas, si no está instalado), abriendo la copia del proyecto. Después de guardar allí, Ctrl+R trae el cambio."
+          "Abrir un XML arrastrándolo.",
+          "Arrastra un .xml a la ventana para ver solo ese archivo, sin tocar el proyecto. Después puedes guardarlo en su lugar (con copia de seguridad), importarlo al proyecto o compararlo."
         ],
         [
-          "Enviar al juego al guardar.",
-          "Opción en el menú Proyecto: cada Ctrl+S también envía al juego, para ver el ajuste al instante. Viene desactivada."
+          "Proyectos ligeros.",
+          "El proyecto guarda solo los archivos que cambiaste; el resto viene de la UI oficial, guardada una sola vez. Proyecto → Convertir en proyecto ligero guarda una versión antes de convertir."
         ],
         [
-          "Editar la fuente del texto.",
-          "En Apariencia, cada control con texto muestra Color del texto (con selector de color), Contorno, Alineación y Tamaño, solo los que tiene en el XML. El texto del lienzo cambia al instante y Ctrl+Z lo deshace."
+          "Exportar para varias resoluciones.",
+          "En Exportar, elige las resoluciones (1366, 1600, 1920…): el editor recoloca las ventanas que el juego ancla a la pantalla y las muestra lado a lado. Donde quede mal, solo arrástrala. Los ajustes entran en las Versiones del proyecto."
         ],
         [
-          "Secciones de la lista con desplazamiento propio.",
-          "Capas, Modificados y Todos quedan en cajas separadas, cada una con su desplazamiento; las capas ya no empujan la lista. Arrastra el divisor para cambiar la altura, que queda guardada."
+          "Pista al pasar el ratón por el lienzo.",
+          "Deja el ratón sobre un control para ver su ID, tipo, texto y posición. Se activa y desactiva con el botón (i) de la barra del lienzo."
         ],
         [
-          "Cambiar el orden de las secciones.",
-          "Arrastra el título de una sección (p. ej., CAPAS) a otro lugar, o usa el clic derecho: Mover hacia arriba, Mover hacia abajo y Restaurar orden predeterminado. El orden queda guardado."
+          "Vista previa de texturas.",
+          "En la lista de Texturas, al pasar el ratón la textura aparece en una ventanita flotante."
         ],
         [
-          "Navegar entre XML sin salir de la lista.",
-          "Hacer clic en un XML o usar las flechas ↑↓ abre el archivo en el lienzo y te mantiene en Archivos XML. Doble clic o Enter lo abren y van a Elementos."
+          "Novedades después de actualizar.",
+          "Las novedades se abren una vez después de cada actualización. ¿Las cerraste sin querer? Quedan en el botón Novedades de la barra hasta la próxima versión."
         ],
         [
-          "Actualizar recarga el XML editado fuera.",
-          "Si el XML abierto se modificó en otro programa (como Notepad++), Actualizar (Ctrl+R) lo recarga manteniendo el zoom. Si hay cambios sin guardar en el editor, pregunta antes."
-        ],
-        [
-          "Atajos de las secciones.",
-          "Ctrl+1 Archivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos y Ctrl+4 Textos. El atajo aparece en la pista de cada icono de la barra lateral."
-        ],
-        [
-          "Volver al 100% de zoom.",
-          "Haz clic en el porcentaje del zoom (o usa Ctrl+0) para volver al tamaño real."
-        ],
-        [
-          "\"Abrir con\" en Windows.",
-          "El editor aparece en \"Abrir con\" al hacer clic derecho en un .xml, para ver solo ese archivo, sin proyecto. No se convierte en el programa predeterminado de los .xml."
+          "Cómo usar (F1).",
+          "La guía rápida de la clásica, ahora también en la interfaz nueva."
         ]
       ],
       "improved": [
         [
-          "Envío y .zip solo con lo que difiere del oficial.",
-          "Enviar al juego (UICustom) y Exportar .zip llevan solo los archivos distintos de la UI oficial; el launcher completa el resto con la carpeta UI. En STZ-UI la copia bajó de 376 MB a 131 MB y el .zip quedó en 6,5 MB."
+          "Limpiar proyecto más claro.",
+          "Muestra cuánto ocupará el proyecto después de limpiar y separa lo que sale de la copia en la carpeta del juego, que no cuenta en el tamaño del proyecto. Los tamaños avanzan hasta el nuevo valor al elegir."
         ],
         [
-          "Contador en Enviar al juego.",
-          "Cuando hay archivos guardados que aún no están en el juego, el botón muestra cuántos (\"Enviar al juego · 3\"). Ctrl+S solo guarda en el proyecto."
-        ],
-        [
-          "Protección al enviar.",
-          "Si un archivo de la carpeta UI del juego se editó fuera del editor, el envío guarda una copia en el historial antes de reemplazarlo y avisa, con un botón para verlo y traerlo de vuelta."
-        ],
-        [
-          "La rueda del ratón ya no cambia campos sin querer.",
-          "Al desplazar el panel de propiedades, la rueda pasa por encima de listas desplegables y campos numéricos sin cambiar el valor; para cambiarlo, haz clic en el campo."
-        ],
-        [
-          "Manita en más lugares.",
-          "Los botones de las ventanas de Versiones, Traer y Limpiar y todas las listas desplegables muestran la mano al pasar el ratón."
-        ],
-        [
-          "Proyectos nuevos más pequeños.",
-          "La carpeta map del juego (~160 MB de mapas) ya no se copia a los proyectos nuevos: ningún XML la usa y el juego ya tiene los oficiales. En proyectos antiguos, Limpiar proyecto quita los mapas que no editaste."
-        ],
-        [
-          "Mensajes del envío más claros.",
-          "Enviar al juego dice cuántos archivos se enviaron, o avisa de que nada cambió cuando la carpeta del juego ya es igual al proyecto."
-        ],
-        [
-          "Tamaño del proyecto siempre correcto.",
-          "En la pantalla de inicio, el tamaño del proyecto se recalcula después de Limpiar proyecto, Traer de la carpeta del juego y Guardar versión."
+          "Texto del juego en el lienzo.",
+          "El texto se dibuja al tamaño real del juego, más fiel a lo que se ve en pantalla."
         ]
       ]
     },
     "fr_FR": {
       "new": [
         [
-          "Écran d'accueil complet.",
-          "À l'ouverture, l'éditeur affiche le projet sur lequel vous étiez (avec Continuer), tous vos projets avec un filtre et la date de dernière modification, les avis et les nouveautés. La petite maison y ramène depuis n'importe où."
+          "Nouvelle interface.",
+          "L'éditeur s'ouvre désormais dans une nouvelle interface, plus rapide, avec tout à la même place qu'avant. Si vous préférez, revenez à l'interface classique dans Paramètres → Interface ; vous pouvez changer à tout moment."
         ],
         [
-          "Gérer les projets.",
-          "Sur l'écran d'accueil, le menu ⋯ de chaque projet propose Dupliquer, Renommer et Supprimer (vers la Corbeille, avec l'option de supprimer aussi la copie dans le jeu). « Gérer » permet d'en sélectionner plusieurs à la fois."
+          "Thèmes et polices.",
+          "Cinq thèmes (Sombre, Minuit, Clair, Cappuccino et Rose) et quatre polices (Segoe UI, IBM Plex Sans, Inter et Geist), dans Paramètres. Chaque police s'affiche dans son propre style pour vous aider à choisir."
         ],
         [
-          "Versions du projet.",
-          "Projet → Enregistrer une version garde le projet tel quel dans un petit .zip (seulement ce qui diffère de l'UI officielle). Dans Versions du projet, vous pouvez restaurer (l'état actuel est enregistré avant), créer un nouveau projet à partir d'une version ou la supprimer."
+          "Recherche rapide (Ctrl+K).",
+          "Ouvrez un XML, trouvez un élément, lancez une commande ou revenez à un projet récent en tapant son nom."
         ],
         [
-          "Récupérer depuis le dossier du jeu.",
-          "Projet → Récupérer depuis le dossier du jeu compare le dossier UI du jeu (ou une UI de UICustom) avec le projet et liste ce qui diffère, en indiquant d'où vient chaque fichier. Rien n'est coché ; ce qui est remplacé est gardé dans l'historique."
+          "Code XML côte à côte (Ctrl+U).",
+          "Affichez et modifiez le code XML à côté du canevas. La sélection suit, les modifications s'annulent avec Ctrl+Z et la largeur du panneau est mémorisée."
         ],
         [
-          "Nettoyer le projet.",
-          "Projet → Nettoyer le projet libère de l'espace : cartes et icônes du jeu non modifiées, anciennes sauvegardes de l'historique et restes de la copie dans le jeu. Tous les fichiers de l'UI restent."
+          "Le XML modifié ailleurs se recharge tout seul.",
+          "Vous avez enregistré le XML dans Notepad++ (ou un autre programme) ? L'éditeur affiche la modification tout de suite, sans Ctrl+R. Si vous avez des modifications non enregistrées, il demande : Recharger, Garder les miennes ou Comparer."
         ],
         [
-          "Ouvrir dans Notepad++.",
-          "Clic droit sur un XML de la liste → Ouvrir dans Notepad++ (ou le Bloc-notes s'il n'est pas installé), sur la copie du projet. Après l'avoir enregistré là-bas, Ctrl+R ramène la modification."
+          "Ouvrir un XML en le faisant glisser.",
+          "Faites glisser un .xml sur la fenêtre pour voir seulement ce fichier, sans toucher au projet. Vous pouvez ensuite l'enregistrer sur place (avec une sauvegarde), l'importer dans le projet ou comparer."
         ],
         [
-          "Envoyer au jeu à l'enregistrement.",
-          "Option du menu Projet : chaque Ctrl+S envoie aussi au jeu, pour voir le changement tout de suite. Désactivée par défaut."
+          "Projets légers.",
+          "Le projet ne garde que les fichiers que vous avez modifiés ; le reste vient de l'UI officielle, stockée une seule fois. Projet → Convertir en projet léger enregistre une version avant la conversion."
         ],
         [
-          "Modifier la police du texte.",
-          "Dans Apparence, chaque contrôle avec du texte affiche Couleur du texte (avec sélecteur de couleur), Contour, Alignement et Taille, seulement ceux qu'il a dans le XML. Le texte du canevas change tout de suite et Ctrl+Z annule."
+          "Exporter pour plusieurs résolutions.",
+          "Dans Exporter, choisissez les résolutions (1366, 1600, 1920…) : l'éditeur replace les fenêtres que le jeu ancre à l'écran et les montre côte à côte. Si quelque chose est mal placé, faites-le glisser. Les ajustements sont inclus dans les Versions du projet."
         ],
         [
-          "Sections de la liste avec défilement propre.",
-          "Calques, Modifiés et Tous sont dans des boîtes séparées, chacune avec son défilement ; les calques ne poussent plus la liste. Faites glisser le séparateur pour changer la hauteur, qui est mémorisée."
+          "Infobulle au survol du canevas.",
+          "Laissez la souris sur un contrôle pour voir son ID, son type, son texte et sa position. Activez-la ou désactivez-la avec le bouton (i) de la barre du canevas."
         ],
         [
-          "Changer l'ordre des sections.",
-          "Faites glisser le titre d'une section (ex. : CALQUES) ailleurs, ou faites un clic droit : Monter, Descendre et Rétablir l'ordre par défaut. L'ordre est enregistré."
+          "Aperçu des textures.",
+          "Dans la liste des Textures, le survol affiche la texture dans une petite fenêtre flottante."
         ],
         [
-          "Parcourir les XML sans quitter la liste.",
-          "Cliquer sur un XML ou utiliser les flèches ↑↓ ouvre le fichier sur le canevas et vous laisse dans Fichiers XML. Double-clic ou Entrée l'ouvrent et passent à Éléments."
+          "Nouveautés après la mise à jour.",
+          "Les nouveautés s'ouvrent une fois après chaque mise à jour. Fermées par erreur ? Elles restent dans le bouton Nouveautés de la barre jusqu'à la prochaine version."
         ],
         [
-          "Actualiser recharge le XML modifié ailleurs.",
-          "Si le XML ouvert a été modifié dans un autre programme (comme Notepad++), Actualiser (Ctrl+R) le recharge en gardant le zoom. S'il y a des modifications non enregistrées dans l'éditeur, il demande d'abord."
-        ],
-        [
-          "Raccourcis des sections.",
-          "Ctrl+1 Fichiers XML, Ctrl+2 Textures, Ctrl+3 Éléments et Ctrl+4 Textes. Le raccourci apparaît dans l'info-bulle de chaque icône de la barre latérale."
-        ],
-        [
-          "Revenir au zoom 100 %.",
-          "Cliquez sur le pourcentage du zoom (ou utilisez Ctrl+0) pour revenir à la taille réelle."
-        ],
-        [
-          "« Ouvrir avec » dans Windows.",
-          "L'éditeur apparaît dans « Ouvrir avec » au clic droit sur un .xml, pour voir seulement ce fichier, sans projet. Il ne devient pas le programme par défaut des .xml."
+          "Mode d'emploi (F1).",
+          "Le guide rapide de l'interface classique, maintenant aussi dans la nouvelle interface."
         ]
       ],
       "improved": [
         [
-          "Envoi et .zip avec seulement ce qui diffère de l'officiel.",
-          "Envoyer au jeu (UICustom) et Exporter .zip n'emportent que les fichiers différents de l'UI officielle ; le launcher complète le reste avec le dossier UI. Pour STZ-UI, la copie est passée de 376 Mo à 131 Mo et le .zip fait 6,5 Mo."
+          "Nettoyer le projet plus clair.",
+          "Indique la taille du projet après le nettoyage et sépare ce qui sort de la copie dans le dossier du jeu, qui ne compte pas dans la taille du projet. Les tailles défilent jusqu'à la nouvelle valeur quand vous choisissez."
         ],
         [
-          "Compteur sur Envoyer au jeu.",
-          "Quand des fichiers enregistrés ne sont pas encore dans le jeu, le bouton indique combien (« Envoyer au jeu · 3 »). Ctrl+S enregistre seulement dans le projet."
-        ],
-        [
-          "Protection à l'envoi.",
-          "Si un fichier du dossier UI du jeu a été modifié en dehors de l'éditeur, l'envoi en garde une copie dans l'historique avant de le remplacer et vous prévient, avec un bouton pour le voir et le récupérer."
-        ],
-        [
-          "La molette ne change plus les champs par accident.",
-          "En faisant défiler le panneau des propriétés, la molette passe sur les listes déroulantes et les champs numériques sans changer leur valeur ; cliquez sur le champ pour le modifier."
-        ],
-        [
-          "Curseur main à plus d'endroits.",
-          "Les boutons des fenêtres Versions, Récupérer et Nettoyer et toutes les listes déroulantes affichent la main au survol."
-        ],
-        [
-          "Nouveaux projets plus légers.",
-          "Le dossier map du jeu (~160 Mo de cartes) n'est plus copié dans les nouveaux projets : aucun XML ne l'utilise et le jeu a déjà les officielles. Dans les anciens projets, Nettoyer le projet supprime les cartes non modifiées."
-        ],
-        [
-          "Messages d'envoi plus clairs.",
-          "Envoyer au jeu indique combien de fichiers ont été envoyés, ou que rien n'a changé quand le dossier du jeu est déjà identique au projet."
-        ],
-        [
-          "Taille du projet toujours à jour.",
-          "Sur l'écran d'accueil, la taille du projet est recalculée après Nettoyer le projet, Récupérer depuis le dossier du jeu et Enregistrer une version."
+          "Texte du jeu sur le canevas.",
+          "Le texte est dessiné à la taille réelle du jeu, plus fidèle à ce qui s'affiche à l'écran."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.7.0",
+      "date": "2026-11-25",
+      "notes": {
+        "pt_BR": {
+          "new": [
+            [
+              "Tela inicial completa.",
+              "Ao abrir, o editor mostra o projeto em que você parou (com Continuar), todos os seus projetos com filtro e data da última edição, avisos e novidades. A casinha volta para ela de qualquer lugar."
+            ],
+            [
+              "Gerenciar projetos.",
+              "Na tela inicial, o ⋯ de cada projeto tem Duplicar, Renomear e Excluir (vai para a Lixeira, com opção de apagar também a cópia no jogo). \"Gerenciar\" permite marcar vários de uma vez."
+            ],
+            [
+              "Versões do projeto.",
+              "Projeto → Salvar versão guarda o projeto como está, num .zip pequeno (só o que difere da UI oficial). Em Versões do projeto dá para restaurar (o estado atual é salvo antes), criar um projeto novo a partir de uma versão ou excluir."
+            ],
+            [
+              "Puxar da pasta do jogo.",
+              "Projeto → Puxar da pasta do jogo compara a pasta UI do jogo (ou uma UI do UICustom) com o projeto e lista o que difere, dizendo de onde veio cada arquivo. Nada vem marcado; o que for substituído fica no histórico."
+            ],
+            [
+              "Limpar projeto.",
+              "Projeto → Limpar projeto libera espaço: mapas e ícones do jogo que você não editou, backups antigos do histórico e sobras da cópia no jogo. Os arquivos da UI ficam todos."
+            ],
+            [
+              "Abrir no Notepad++.",
+              "Botão direito num XML da lista → Abrir no Notepad++ (ou no Bloco de Notas, se ele não estiver instalado), abrindo a cópia do projeto. Depois de salvar lá, Ctrl+R traz a mudança."
+            ],
+            [
+              "Enviar para o jogo ao salvar.",
+              "Opção no menu Projeto: cada Ctrl+S também envia para o jogo, para ver o ajuste na hora. Vem desligada."
+            ],
+            [
+              "Editar a fonte do texto.",
+              "Em Aparência, cada controle com texto mostra Cor do texto (com seletor de cor), Contorno, Alinhamento e Tamanho, só os que ele tem no XML. O texto do canvas muda na hora e Ctrl+Z desfaz."
+            ],
+            [
+              "Seções da lista com rolagem própria.",
+              "Camadas, Alterados e Todos ficam em caixas separadas, cada uma com a sua rolagem; as camadas não empurram mais a lista. Arraste o divisor para mudar a altura, que fica guardada."
+            ],
+            [
+              "Mudar a ordem das seções.",
+              "Arraste o título de uma seção (ex.: CAMADAS) para outro lugar, ou use o botão direito: Mover para cima, Mover para baixo e Restaurar ordem padrão. A ordem fica salva."
+            ],
+            [
+              "Navegar entre XMLs sem sair da lista.",
+              "Clicar num XML ou usar as setas ↑↓ abre o arquivo no canvas e mantém você em Arquivos XML. Duplo clique ou Enter abrem e vão para Elementos."
+            ],
+            [
+              "Atualizar recarrega o XML editado fora.",
+              "Se o XML aberto foi alterado em outro programa (como o Notepad++), Atualizar (Ctrl+R) o recarrega mantendo o zoom. Se houver alterações não salvas no editor, ele pergunta antes."
+            ],
+            [
+              "Atalhos das seções.",
+              "Ctrl+1 Arquivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos e Ctrl+4 Textos. O atalho aparece na dica de cada ícone da barra lateral."
+            ],
+            [
+              "Voltar a 100% de zoom.",
+              "Clique na porcentagem do zoom (ou use Ctrl+0) para voltar ao tamanho real."
+            ],
+            [
+              "\"Abrir com\" no Windows.",
+              "O editor aparece em \"Abrir com\" ao clicar com o botão direito num .xml, para ver só aquele arquivo, sem projeto. Ele não vira o programa padrão dos .xml."
+            ]
+          ],
+          "improved": [
+            [
+              "Envio e .zip só com o que difere do oficial.",
+              "Enviar para o jogo (UICustom) e Exportar .zip levam só os arquivos diferentes da UI oficial; o launcher completa o resto com a pasta UI. No STZ-UI a cópia caiu de 376 MB para 131 MB e o .zip ficou com 6,5 MB."
+            ],
+            [
+              "Contador no Enviar para o jogo.",
+              "Quando há arquivos salvos que ainda não estão no jogo, o botão mostra quantos (\"Enviar para o jogo · 3\"). Ctrl+S salva só no projeto."
+            ],
+            [
+              "Proteção no envio.",
+              "Se um arquivo da pasta UI do jogo foi editado fora do editor, o envio guarda uma cópia dele no histórico antes de substituir e avisa, com um botão para ver e trazer de volta."
+            ],
+            [
+              "A roda do mouse não muda campos sem querer.",
+              "Rolando o painel de propriedades, a roda passa por cima de listas suspensas e campos numéricos sem trocar o valor; para mudar, clique no campo."
+            ],
+            [
+              "Mãozinha em mais lugares.",
+              "Botões das janelas de Versões, Puxar e Limpar e todas as listas suspensas mostram a mão ao passar o mouse."
+            ],
+            [
+              "Projetos novos menores.",
+              "A pasta map do jogo (~160 MB de mapas) não é mais copiada para projetos novos: nenhum XML a usa e o jogo já tem os oficiais. Em projetos antigos, Limpar projeto remove os mapas que você não editou."
+            ],
+            [
+              "Mensagens do envio mais claras.",
+              "O Enviar para o jogo diz quantos arquivos foram enviados, ou avisa que nada mudou quando a pasta do jogo já está igual ao projeto."
+            ],
+            [
+              "Tamanho do projeto sempre certo.",
+              "Na tela inicial, o tamanho do projeto é recalculado depois de Limpar projeto, Puxar da pasta do jogo e Salvar versão."
+            ]
+          ]
+        },
+        "en_US": {
+          "new": [
+            [
+              "Full home screen.",
+              "On launch, the editor shows the project you were working on (with Continue), all your projects with a filter and last-edited date, notices and news. The house icon brings you back from anywhere."
+            ],
+            [
+              "Manage projects.",
+              "On the home screen, each project's ⋯ menu has Duplicate, Rename and Delete (goes to the Recycle Bin, optionally removing the game copy too). \"Manage\" lets you select several at once."
+            ],
+            [
+              "Project versions.",
+              "Project → Save version keeps the project as it is in a small .zip (only what differs from the official UI). In Project versions you can restore (the current state is saved first), create a new project from a version, or delete it."
+            ],
+            [
+              "Pull from the game folder.",
+              "Project → Pull from the game folder compares the game's UI folder (or a UI in UICustom) with the project and lists what differs, saying where each file came from. Nothing is checked; whatever gets replaced is kept in the history."
+            ],
+            [
+              "Clean up project.",
+              "Project → Clean up project frees space: game maps and icons you didn't edit, old history backups and leftovers in the game copy. All UI files stay."
+            ],
+            [
+              "Open in Notepad++.",
+              "Right-click an XML in the list → Open in Notepad++ (or Notepad if it isn't installed), opening the project's copy. After saving there, Ctrl+R brings the change in."
+            ],
+            [
+              "Send to game on save.",
+              "Option in the Project menu: every Ctrl+S also sends to the game, so you see the change right away. Off by default."
+            ],
+            [
+              "Edit the text font.",
+              "In Appearance, each control with text shows Text color (with a color picker), Outline, Alignment and Size, only the ones it has in the XML. The text on the canvas changes right away and Ctrl+Z undoes it."
+            ],
+            [
+              "List sections with their own scroll.",
+              "Layers, Modified and All sit in separate boxes, each with its own scroll; layers no longer push the list down. Drag the divider to change the height, which is remembered."
+            ],
+            [
+              "Change the order of the sections.",
+              "Drag a section's title (e.g. LAYERS) somewhere else, or right-click it: Move up, Move down and Restore default order. The order is saved."
+            ],
+            [
+              "Browse XMLs without leaving the list.",
+              "Clicking an XML or using the ↑↓ arrows opens the file on the canvas and keeps you in XML Files. Double-click or Enter opens it and goes to Elements."
+            ],
+            [
+              "Refresh reloads XML edited outside.",
+              "If the open XML was changed in another program (like Notepad++), Refresh (Ctrl+R) reloads it and keeps the zoom. If there are unsaved changes in the editor, it asks first."
+            ],
+            [
+              "Section shortcuts.",
+              "Ctrl+1 XML Files, Ctrl+2 Textures, Ctrl+3 Elements and Ctrl+4 Texts. The shortcut shows in each sidebar icon's tooltip."
+            ],
+            [
+              "Back to 100% zoom.",
+              "Click the zoom percentage (or use Ctrl+0) to return to actual size."
+            ],
+            [
+              "\"Open with\" in Windows.",
+              "The editor shows up in \"Open with\" when you right-click an .xml, to view just that file without a project. It does not become the default program for .xml files."
+            ]
+          ],
+          "improved": [
+            [
+              "Sending and .zip carry only what differs from official.",
+              "Send to game (UICustom) and Export .zip carry only files that differ from the official UI; the launcher fills in the rest from the UI folder. For STZ-UI the copy went from 376 MB to 131 MB and the .zip is 6.5 MB."
+            ],
+            [
+              "Counter on Send to game.",
+              "When saved files aren't in the game yet, the button shows how many (\"Send to game · 3\"). Ctrl+S only saves to the project."
+            ],
+            [
+              "Protection when sending.",
+              "If a file in the game's UI folder was edited outside the editor, sending keeps a copy of it in the history before replacing it and lets you know, with a button to view and bring it back."
+            ],
+            [
+              "The mouse wheel no longer changes fields by accident.",
+              "When scrolling the properties panel, the wheel passes over dropdowns and number fields without changing their value; click the field to change it."
+            ],
+            [
+              "Hand cursor in more places.",
+              "Buttons in the Versions, Pull and Clean up windows and every dropdown show the hand on hover."
+            ],
+            [
+              "Smaller new projects.",
+              "The game's map folder (~160 MB of maps) is no longer copied into new projects: no XML uses it and the game already has the official ones. In older projects, Clean up project removes the maps you didn't edit."
+            ],
+            [
+              "Clearer messages when sending.",
+              "Send to game tells you how many files were sent, or that nothing changed when the game folder already matches the project."
+            ],
+            [
+              "Project size always up to date.",
+              "On the home screen, the project size is recalculated after Clean up project, Pull from the game folder and Save version."
+            ]
+          ]
+        },
+        "es_ES": {
+          "new": [
+            [
+              "Pantalla de inicio completa.",
+              "Al abrir, el editor muestra el proyecto en el que estabas (con Continuar), todos tus proyectos con filtro y fecha de la última edición, avisos y novedades. La casita vuelve a ella desde cualquier lugar."
+            ],
+            [
+              "Gestionar proyectos.",
+              "En la pantalla de inicio, el ⋯ de cada proyecto tiene Duplicar, Renombrar y Eliminar (va a la Papelera, con opción de borrar también la copia en el juego). \"Gestionar\" permite marcar varios a la vez."
+            ],
+            [
+              "Versiones del proyecto.",
+              "Proyecto → Guardar versión guarda el proyecto tal como está, en un .zip pequeño (solo lo que difiere de la UI oficial). En Versiones del proyecto se puede restaurar (el estado actual se guarda antes), crear un proyecto nuevo a partir de una versión o eliminarla."
+            ],
+            [
+              "Traer de la carpeta del juego.",
+              "Proyecto → Traer de la carpeta del juego compara la carpeta UI del juego (o una UI de UICustom) con el proyecto y lista lo que difiere, indicando de dónde vino cada archivo. Nada viene marcado; lo que se reemplace queda en el historial."
+            ],
+            [
+              "Limpiar proyecto.",
+              "Proyecto → Limpiar proyecto libera espacio: mapas e iconos del juego que no editaste, copias antiguas del historial y sobras de la copia en el juego. Todos los archivos de la UI se quedan."
+            ],
+            [
+              "Abrir en Notepad++.",
+              "Clic derecho en un XML de la lista → Abrir en Notepad++ (o en el Bloc de notas, si no está instalado), abriendo la copia del proyecto. Después de guardar allí, Ctrl+R trae el cambio."
+            ],
+            [
+              "Enviar al juego al guardar.",
+              "Opción en el menú Proyecto: cada Ctrl+S también envía al juego, para ver el ajuste al instante. Viene desactivada."
+            ],
+            [
+              "Editar la fuente del texto.",
+              "En Apariencia, cada control con texto muestra Color del texto (con selector de color), Contorno, Alineación y Tamaño, solo los que tiene en el XML. El texto del lienzo cambia al instante y Ctrl+Z lo deshace."
+            ],
+            [
+              "Secciones de la lista con desplazamiento propio.",
+              "Capas, Modificados y Todos quedan en cajas separadas, cada una con su desplazamiento; las capas ya no empujan la lista. Arrastra el divisor para cambiar la altura, que queda guardada."
+            ],
+            [
+              "Cambiar el orden de las secciones.",
+              "Arrastra el título de una sección (p. ej., CAPAS) a otro lugar, o usa el clic derecho: Mover hacia arriba, Mover hacia abajo y Restaurar orden predeterminado. El orden queda guardado."
+            ],
+            [
+              "Navegar entre XML sin salir de la lista.",
+              "Hacer clic en un XML o usar las flechas ↑↓ abre el archivo en el lienzo y te mantiene en Archivos XML. Doble clic o Enter lo abren y van a Elementos."
+            ],
+            [
+              "Actualizar recarga el XML editado fuera.",
+              "Si el XML abierto se modificó en otro programa (como Notepad++), Actualizar (Ctrl+R) lo recarga manteniendo el zoom. Si hay cambios sin guardar en el editor, pregunta antes."
+            ],
+            [
+              "Atajos de las secciones.",
+              "Ctrl+1 Archivos XML, Ctrl+2 Texturas, Ctrl+3 Elementos y Ctrl+4 Textos. El atajo aparece en la pista de cada icono de la barra lateral."
+            ],
+            [
+              "Volver al 100% de zoom.",
+              "Haz clic en el porcentaje del zoom (o usa Ctrl+0) para volver al tamaño real."
+            ],
+            [
+              "\"Abrir con\" en Windows.",
+              "El editor aparece en \"Abrir con\" al hacer clic derecho en un .xml, para ver solo ese archivo, sin proyecto. No se convierte en el programa predeterminado de los .xml."
+            ]
+          ],
+          "improved": [
+            [
+              "Envío y .zip solo con lo que difiere del oficial.",
+              "Enviar al juego (UICustom) y Exportar .zip llevan solo los archivos distintos de la UI oficial; el launcher completa el resto con la carpeta UI. En STZ-UI la copia bajó de 376 MB a 131 MB y el .zip quedó en 6,5 MB."
+            ],
+            [
+              "Contador en Enviar al juego.",
+              "Cuando hay archivos guardados que aún no están en el juego, el botón muestra cuántos (\"Enviar al juego · 3\"). Ctrl+S solo guarda en el proyecto."
+            ],
+            [
+              "Protección al enviar.",
+              "Si un archivo de la carpeta UI del juego se editó fuera del editor, el envío guarda una copia en el historial antes de reemplazarlo y avisa, con un botón para verlo y traerlo de vuelta."
+            ],
+            [
+              "La rueda del ratón ya no cambia campos sin querer.",
+              "Al desplazar el panel de propiedades, la rueda pasa por encima de listas desplegables y campos numéricos sin cambiar el valor; para cambiarlo, haz clic en el campo."
+            ],
+            [
+              "Manita en más lugares.",
+              "Los botones de las ventanas de Versiones, Traer y Limpiar y todas las listas desplegables muestran la mano al pasar el ratón."
+            ],
+            [
+              "Proyectos nuevos más pequeños.",
+              "La carpeta map del juego (~160 MB de mapas) ya no se copia a los proyectos nuevos: ningún XML la usa y el juego ya tiene los oficiales. En proyectos antiguos, Limpiar proyecto quita los mapas que no editaste."
+            ],
+            [
+              "Mensajes del envío más claros.",
+              "Enviar al juego dice cuántos archivos se enviaron, o avisa de que nada cambió cuando la carpeta del juego ya es igual al proyecto."
+            ],
+            [
+              "Tamaño del proyecto siempre correcto.",
+              "En la pantalla de inicio, el tamaño del proyecto se recalcula después de Limpiar proyecto, Traer de la carpeta del juego y Guardar versión."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "new": [
+            [
+              "Écran d'accueil complet.",
+              "À l'ouverture, l'éditeur affiche le projet sur lequel vous étiez (avec Continuer), tous vos projets avec un filtre et la date de dernière modification, les avis et les nouveautés. La petite maison y ramène depuis n'importe où."
+            ],
+            [
+              "Gérer les projets.",
+              "Sur l'écran d'accueil, le menu ⋯ de chaque projet propose Dupliquer, Renommer et Supprimer (vers la Corbeille, avec l'option de supprimer aussi la copie dans le jeu). « Gérer » permet d'en sélectionner plusieurs à la fois."
+            ],
+            [
+              "Versions du projet.",
+              "Projet → Enregistrer une version garde le projet tel quel dans un petit .zip (seulement ce qui diffère de l'UI officielle). Dans Versions du projet, vous pouvez restaurer (l'état actuel est enregistré avant), créer un nouveau projet à partir d'une version ou la supprimer."
+            ],
+            [
+              "Récupérer depuis le dossier du jeu.",
+              "Projet → Récupérer depuis le dossier du jeu compare le dossier UI du jeu (ou une UI de UICustom) avec le projet et liste ce qui diffère, en indiquant d'où vient chaque fichier. Rien n'est coché ; ce qui est remplacé est gardé dans l'historique."
+            ],
+            [
+              "Nettoyer le projet.",
+              "Projet → Nettoyer le projet libère de l'espace : cartes et icônes du jeu non modifiées, anciennes sauvegardes de l'historique et restes de la copie dans le jeu. Tous les fichiers de l'UI restent."
+            ],
+            [
+              "Ouvrir dans Notepad++.",
+              "Clic droit sur un XML de la liste → Ouvrir dans Notepad++ (ou le Bloc-notes s'il n'est pas installé), sur la copie du projet. Après l'avoir enregistré là-bas, Ctrl+R ramène la modification."
+            ],
+            [
+              "Envoyer au jeu à l'enregistrement.",
+              "Option du menu Projet : chaque Ctrl+S envoie aussi au jeu, pour voir le changement tout de suite. Désactivée par défaut."
+            ],
+            [
+              "Modifier la police du texte.",
+              "Dans Apparence, chaque contrôle avec du texte affiche Couleur du texte (avec sélecteur de couleur), Contour, Alignement et Taille, seulement ceux qu'il a dans le XML. Le texte du canevas change tout de suite et Ctrl+Z annule."
+            ],
+            [
+              "Sections de la liste avec défilement propre.",
+              "Calques, Modifiés et Tous sont dans des boîtes séparées, chacune avec son défilement ; les calques ne poussent plus la liste. Faites glisser le séparateur pour changer la hauteur, qui est mémorisée."
+            ],
+            [
+              "Changer l'ordre des sections.",
+              "Faites glisser le titre d'une section (ex. : CALQUES) ailleurs, ou faites un clic droit : Monter, Descendre et Rétablir l'ordre par défaut. L'ordre est enregistré."
+            ],
+            [
+              "Parcourir les XML sans quitter la liste.",
+              "Cliquer sur un XML ou utiliser les flèches ↑↓ ouvre le fichier sur le canevas et vous laisse dans Fichiers XML. Double-clic ou Entrée l'ouvrent et passent à Éléments."
+            ],
+            [
+              "Actualiser recharge le XML modifié ailleurs.",
+              "Si le XML ouvert a été modifié dans un autre programme (comme Notepad++), Actualiser (Ctrl+R) le recharge en gardant le zoom. S'il y a des modifications non enregistrées dans l'éditeur, il demande d'abord."
+            ],
+            [
+              "Raccourcis des sections.",
+              "Ctrl+1 Fichiers XML, Ctrl+2 Textures, Ctrl+3 Éléments et Ctrl+4 Textes. Le raccourci apparaît dans l'info-bulle de chaque icône de la barre latérale."
+            ],
+            [
+              "Revenir au zoom 100 %.",
+              "Cliquez sur le pourcentage du zoom (ou utilisez Ctrl+0) pour revenir à la taille réelle."
+            ],
+            [
+              "« Ouvrir avec » dans Windows.",
+              "L'éditeur apparaît dans « Ouvrir avec » au clic droit sur un .xml, pour voir seulement ce fichier, sans projet. Il ne devient pas le programme par défaut des .xml."
+            ]
+          ],
+          "improved": [
+            [
+              "Envoi et .zip avec seulement ce qui diffère de l'officiel.",
+              "Envoyer au jeu (UICustom) et Exporter .zip n'emportent que les fichiers différents de l'UI officielle ; le launcher complète le reste avec le dossier UI. Pour STZ-UI, la copie est passée de 376 Mo à 131 Mo et le .zip fait 6,5 Mo."
+            ],
+            [
+              "Compteur sur Envoyer au jeu.",
+              "Quand des fichiers enregistrés ne sont pas encore dans le jeu, le bouton indique combien (« Envoyer au jeu · 3 »). Ctrl+S enregistre seulement dans le projet."
+            ],
+            [
+              "Protection à l'envoi.",
+              "Si un fichier du dossier UI du jeu a été modifié en dehors de l'éditeur, l'envoi en garde une copie dans l'historique avant de le remplacer et vous prévient, avec un bouton pour le voir et le récupérer."
+            ],
+            [
+              "La molette ne change plus les champs par accident.",
+              "En faisant défiler le panneau des propriétés, la molette passe sur les listes déroulantes et les champs numériques sans changer leur valeur ; cliquez sur le champ pour le modifier."
+            ],
+            [
+              "Curseur main à plus d'endroits.",
+              "Les boutons des fenêtres Versions, Récupérer et Nettoyer et toutes les listes déroulantes affichent la main au survol."
+            ],
+            [
+              "Nouveaux projets plus légers.",
+              "Le dossier map du jeu (~160 Mo de cartes) n'est plus copié dans les nouveaux projets : aucun XML ne l'utilise et le jeu a déjà les officielles. Dans les anciens projets, Nettoyer le projet supprime les cartes non modifiées."
+            ],
+            [
+              "Messages d'envoi plus clairs.",
+              "Envoyer au jeu indique combien de fichiers ont été envoyés, ou que rien n'a changé quand le dossier du jeu est déjà identique au projet."
+            ],
+            [
+              "Taille du projet toujours à jour.",
+              "Sur l'écran d'accueil, la taille du projet est recalculée après Nettoyer le projet, Récupérer depuis le dossier du jeu et Enregistrer une version."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.7.0-beta.3",
       "date": "2026-11-25",

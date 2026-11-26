@@ -283,7 +283,7 @@ export default function HomeScreen() {
             <div className="section-label mb-2">{t('COMO FUNCIONA')}</div>
             <ol className="space-y-1.5 text-[12.5px] leading-snug text-text">
               <li>{t('1. O projeto é a sua cópia segura da UI.')}</li>
-              <li>{t('2. Edite aqui, clicando e arrastando, ou no Notepad++ e aperte Ctrl+R.')}</li>
+              <li>{t('2. Edite aqui, clicando e arrastando, ou no Notepad++: ao salvar lá, o editor mostra a mudança.')}</li>
               <li>{t('3. F5 envia para o jogo; é só abrir pelo launcher.')}</li>
             </ol>
             <button className="link mt-2.5 inline-flex items-center gap-1 text-[12.5px]" onClick={() => data && void api.openUrl(data.how_to_url)}>

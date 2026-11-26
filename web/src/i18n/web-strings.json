@@ -17,12 +17,12 @@
   "O arquivo mudou fora do editor": {
     "en_US": "The file changed outside the editor",
     "es_ES": "El archivo cambió fuera del editor",
-    "fr_FR": "Le fichier a été modifié en dehors de l’éditeur"
+    "fr_FR": "Le fichier a changé hors de l'éditeur"
   },
   "Manter as minhas": {
-    "en_US": "Keep my changes",
-    "es_ES": "Conservar mis cambios",
-    "fr_FR": "Conserver mes modifications"
+    "en_US": "Keep mine",
+    "es_ES": "Mantener los míos",
+    "fr_FR": "Garder les miennes"
   },
   "O arquivo mudou novamente no disco.": {
     "en_US": "The file changed again on disk.",
@@ -1064,11 +1064,6 @@
     "es_ES": "Lo que cambió fuera del editor",
     "fr_FR": "Ce qui a changé hors de l'éditeur"
   },
-  "O arquivo mudou fora do editor": {
-    "en_US": "The file changed outside the editor",
-    "es_ES": "El archivo cambió fuera del editor",
-    "fr_FR": "Le fichier a changé hors de l'éditeur"
-  },
   "O arquivo foi apagado ou renomeado fora do editor": {
     "en_US": "The file was deleted or renamed outside the editor",
     "es_ES": "El archivo se eliminó o se renombró fuera del editor",
@@ -1083,16 +1078,6 @@
     "en_US": "Another program saved {name}. Your unsaved changes are still here.",
     "es_ES": "Otro programa guardó {name}. Tus cambios sin guardar siguen aquí.",
     "fr_FR": "Un autre programme a enregistré {name}. Vos modifications non enregistrées sont toujours là."
-  },
-  "Recarregar": {
-    "en_US": "Reload",
-    "es_ES": "Recargar",
-    "fr_FR": "Recharger"
-  },
-  "Manter as minhas": {
-    "en_US": "Keep mine",
-    "es_ES": "Mantener los míos",
-    "fr_FR": "Garder les miennes"
   },
   "Importado para o projeto": {
     "en_US": "Imported into the project",
@@ -1164,11 +1149,6 @@
     "es_ES": "Cerrar {name}",
     "fr_FR": "Fermer {name}"
   },
-  "Depois de limpar: {size}": {
-    "en_US": "After cleaning: {size}",
-    "es_ES": "Después de limpiar: {size}",
-    "fr_FR": "Après le nettoyage : {size}"
-  },
   "Guarda {count} item(ns) de resolução (resolutions.json e arquivos só de uma resolução).": {
     "en_US": "Keeps {count} resolution item(s) (resolutions.json and files for a single resolution).",
     "es_ES": "Guarda {count} elemento(s) de resolución (resolutions.json y archivos de una sola resolución).",
@@ -1213,5 +1193,20 @@
     "en_US": "Standalone",
     "es_ES": "Suelto",
     "fr_FR": "Isolé"
+  },
+  "Depois de limpar, o projeto fica com {size}.": {
+    "en_US": "After cleaning up, the project takes {size}.",
+    "es_ES": "Después de limpiar, el proyecto ocupa {size}.",
+    "fr_FR": "Après le nettoyage, le projet occupe {size}."
+  },
+  "A cópia no jogo libera mais {size}; ela fica na pasta do jogo e não entra no tamanho do projeto.": {
+    "en_US": "The game copy frees another {size}; it lives in the game folder and is not counted in the project size.",
+    "es_ES": "La copia en el juego libera {size} más; está en la carpeta del juego y no cuenta en el tamaño del proyecto.",
+    "fr_FR": "La copie dans le jeu libère encore {size} ; elle se trouve dans le dossier du jeu et ne compte pas dans la taille du projet."
+  },
+  "2. Edite aqui, clicando e arrastando, ou no Notepad++: ao salvar lá, o editor mostra a mudança.": {
+    "en_US": "2. Edit here by clicking and dragging, or in Notepad++: when you save there, the editor shows the change.",
+    "es_ES": "2. Edita aquí haciendo clic y arrastrando, o en Notepad++: al guardar allí, el editor muestra el cambio.",
+    "fr_FR": "2. Modifiez ici en cliquant et en faisant glisser, ou dans Notepad++ : dès que vous enregistrez, l'éditeur affiche la modification."
   }
 }

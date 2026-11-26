@@ -107,5 +107,6 @@ export const toolsApi = {
 export function humanSize(size: number): string {
   if (size >= 1024 ** 3) return `${(size / 1024 ** 3).toFixed(1)} GB`
   if (size >= 1024 ** 2) return `${Math.round(size / 1024 ** 2)} MB`
+  if (size <= 0) return '0 KB'
   return `${Math.max(1, Math.floor(size / 1024))} KB`
 }

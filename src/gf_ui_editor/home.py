@@ -36,6 +36,8 @@ def human_size(size: int) -> str:
         return f"{size / 1024**3:.1f} GB"
     if size >= 1024**2:
         return f"{size / 1024**2:.0f} MB"
+    if size <= 0:
+        return "0 KB"
     return f"{max(1, size // 1024)} KB"
 
 

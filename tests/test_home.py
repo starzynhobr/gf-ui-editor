@@ -33,7 +33,7 @@ def test_project_disk_size_includes_nested_files(tmp_path: Path) -> None:
     assert home.project_disk_size(tmp_path / "missing") == 0
 
 
-@pytest.mark.parametrize(("size", "expected"), [(0, "1 KB"), (2049, "2 KB"), (2 * 1024**2, "2 MB"), (1024**3, "1.0 GB")])
+@pytest.mark.parametrize(("size", "expected"), [(0, "0 KB"), (2049, "2 KB"), (2 * 1024**2, "2 MB"), (1024**3, "1.0 GB")])
 def test_human_size(size: int, expected: str) -> None:
     assert home.human_size(size) == expected
 
