@@ -62,7 +62,38 @@ from gf_ui_editor import app as app_module, project as project_module, remote_ma
 assert str(OUT) in str(project_module.PROJECTS_ROOT), project_module.PROJECTS_ROOT
 assert "HKEY" not in app_module.QSettings("Local", "GF UI Editor").fileName()
 app_module.DEFAULT_UI_DIRECTORY = GAME / "UI"
-remote_manifest.fetch = lambda *args, **kwargs: None  # sem rede: o resultado não depende do manifesto
+# Sem rede de verdade: o manifesto e o GitHub respondem pelo que o roteiro puser aqui.
+MANIFEST: list = [None]
+remote_manifest.fetch = lambda *args, **kwargs: MANIFEST[0]
+NET: dict[str, bytes] = {}  # URL -> resposta simulada; URL ausente = sem conexão
+
+
+class _FakeResponse:
+    def __init__(self, data: bytes):
+        self._data, self._offset = data, 0
+        self.headers = {"Content-Length": str(len(data))}
+
+    def read(self, size: int = -1) -> bytes:
+        end = len(self._data) if size is None or size < 0 else self._offset + size
+        chunk, self._offset = self._data[self._offset:end], min(end, len(self._data))
+        return chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _fake_request(url: str):
+    if url not in NET:
+        raise OSError(f"rede desligada no smoke: {url}")
+    return _FakeResponse(NET[url])
+
+
+from gf_ui_editor import updater  # noqa: E402
+
+updater._request = _fake_request
 app_module.prefs.game_dir = str(GAME)  # o Novo projeto já abre com a cópia do jogo
 
 LOG: list[dict] = []
@@ -352,6 +383,11 @@ def scenario() -> None:
     # 10d. Polimento: pílula STZ Labs, temas, divisores dos painéis.
     polish()
 
+    # 10e. Bloco 4: Configurações, atualizador e manifesto remoto.
+    settings_flow()
+    updates_flow()
+    manifest_flow()
+
     # 11. Idioma: inglês pelas configurações.
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
     wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
@@ -373,6 +409,135 @@ def scenario() -> None:
         " document.body.dispatchEvent(m); return [e.defaultPrevented, w.defaultPrevented, m.defaultPrevented] })()"
     )
     check("Ctrl+R, Ctrl+roda e menu de contexto bloqueados", blocked == [True, True, True], blocked=blocked)
+
+
+def _open_settings() -> bool:
+    js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu da engrenagem")
+    js("__smoke.clickText('Configurações…', '[role=menu]')")
+    return bool(wait("!!__smoke.q('[data-testid=settings]')", 5, "tela de Configurações"))
+
+
+def _close_settings() -> None:
+    js("__smoke.click('[data-testid=settings-close]')")
+    wait("!__smoke.q('[data-testid=settings]')", 5, "fechar Configurações")
+
+
+def _settings_section(key: str) -> bool:
+    js(f"__smoke.click('[data-testid=settings] [data-section={key}]')")
+    return bool(wait(f"!!__smoke.q('[data-testid=settings-{key}]')", 5, f"seção {key}"))
+
+
+def _dialog_with(text: str) -> str:
+    return f"(() => {{ const d = __smoke.all('[role=dialog]').find((e) => e.innerText.includes({json.dumps(text)})); return d ? d.innerText : null }})()"
+
+
+def settings_flow() -> None:
+    check("engrenagem abre as Configurações", _open_settings())
+    time.sleep(0.5)  # animação de entrada
+    shot("16a-configuracoes-geral")
+    check("seção Geral com idioma e tema", bool(js("!!__smoke.q('select[name=language]') && !!__smoke.q('[data-setting=web_theme]')")))
+
+    check("seção Envio", _settings_section("publish"))
+    before = app_module.prefs.publish_on_save
+    js("__smoke.click('[data-setting=publish_on_save]')")
+    check("switch grava Enviar ao salvar", bool(wait(
+        f"__smoke.q('[data-setting=publish_on_save]').getAttribute('aria-checked') === '{str(not before).lower()}'", 5, "switch envio",
+    )) and app_module.prefs.publish_on_save is (not before))
+    time.sleep(0.3)
+    shot("16b-configuracoes-envio")
+    js("__smoke.click('[data-setting=publish_on_save]')")
+    wait(f"__smoke.q('[data-setting=publish_on_save]').getAttribute('aria-checked') === '{str(before).lower()}'", 5, "switch de volta")
+    time.sleep(0.2)
+    check("Enviar ao salvar volta ao que era", app_module.prefs.publish_on_save is before)
+
+    check("seção Editor", _settings_section("editor"))
+    js("__smoke.setValue('select[name=navigation_style]', 'paintnet')")
+    check("estilo de navegação salvo", bool(wait("__smoke.q('select[name=navigation_style]').value === 'paintnet'", 5, "navegação"))
+          and app_module.prefs.navigation_style == "paintnet")
+    js("__smoke.setValue('select[name=navigation_style]', 'corel')")
+    wait("__smoke.q('select[name=navigation_style]').value === 'corel'", 5, "navegação corel")
+
+    check("seção Tela", _settings_section("screen"))
+    js("__smoke.setValue('select[name=game_resolution]', '1280x720')")
+    on_canvas = wait("__smoke.q('select[aria-label=Tela]')?.value === '1280x720'", 8, "resolução 1280x720 no canvas")
+    check("resolução pelas Configurações vale no canvas", bool(on_canvas) and app_module.prefs.game_resolution == "1280x720",
+          canvas=js("__smoke.q('select[aria-label=Tela]')?.value ?? null"), saved=app_module.prefs.game_resolution)
+    shot("16c-configuracoes-tela")
+    js("__smoke.setValue('select[name=game_resolution]', 'game')")
+    wait("__smoke.q('select[aria-label=Tela]')?.value === 'game'", 8, "resolução do jogo de volta")
+    check("resolução volta a seguir o jogo", app_module.prefs.game_resolution == "game")
+    _close_settings()
+
+
+def updates_flow() -> None:
+    version = "99.0.0"
+    base = f"https://github.com/{updater.REPOSITORY}/releases/download/v{version}"
+    release = {
+        "tag_name": f"v{version}", "body": "Notas da página",
+        "html_url": f"https://github.com/{updater.REPOSITORY}/releases/tag/v{version}",
+        "assets": [
+            {"name": f"GF-UI-Editor-Setup-{version}.exe", "browser_download_url": f"{base}/GF-UI-Editor-Setup-{version}.exe",
+             "digest": "sha256:" + "0" * 64},
+            {"name": "release-notes.json", "browser_download_url": f"{base}/release-notes.json"},
+        ],
+    }
+    notes = {"version": version, "date": "2026-11-25", "notes": {
+        "pt_BR": {"new": [["Configurações na interface nova.", "Tela própria com switches."]]},
+        "en_US": {"new": [["Settings in the new interface.", "Own screen with switches."]]},
+    }}
+    NET[updater.LATEST_RELEASE_API] = json.dumps(release).encode()
+    NET[updater.RELEASES_API] = json.dumps([release]).encode()
+    NET[f"{base}/release-notes.json"] = json.dumps(notes).encode()
+
+    _open_settings()
+    _settings_section("updates")
+    js("__smoke.click('[data-testid=settings-check-updates]')")
+    dialog = wait("__smoke.text('[data-testid=update-dialog]')", 10, "janela de atualização") or ""
+    check("atualização simulada oferecida com as notas",
+          "O que chegou na 99.0.0" in dialog and "Configurações na interface nova." in dialog, dialog=dialog[:200])
+    time.sleep(0.4)
+    shot("17a-atualizacao-disponivel")
+    js("__smoke.clickText('Pular esta versão', '[data-testid=update-dialog-footer]')")
+    wait("!__smoke.q('[data-testid=update-dialog]')", 5, "fechar a oferta")
+    time.sleep(0.2)
+    check("Pular esta versão grava a versão", app_module.prefs.skipped_update_version == version)
+    _settings_section("general")
+    review = wait("__smoke.text('[data-testid=settings-general]')", 5, "seção Geral") or ""
+    check("Geral mostra a versão pulada", "99.0.0" in review, review=review[:200])
+    _close_settings()
+    NET.clear()
+
+
+def manifest_flow() -> None:
+    MANIFEST[0] = remote_manifest.parse(json.dumps({
+        "schema": 1,
+        "disabled_features": ["export_texts"],
+        "messages": [{"id": "smoke-aviso", "level": "warning", "url": "https://stzlabs.com/smoke",
+                      "text": {"pt_BR": "Aviso simulado do smoke.", "en_US": "Smoke notice."}}],
+    }).encode())
+    check("manifesto simulado válido", MANIFEST[0] is not None)
+    api._manifest_ready.clear()  # a página recarregada lê o manifesto de novo (como ao abrir)
+    js("location.reload()")
+    notice = wait(_dialog_with("Aviso simulado"), 20, "aviso do manifesto") or ""
+    check("aviso do manifesto aparece ao abrir", "Abrir link" in notice, notice=notice[:200])
+    time.sleep(0.3)
+    shot("18a-aviso-do-manifesto")
+    js("__smoke.clickText('OK', '[role=dialog]')")
+    wait(f"!{_dialog_with('Aviso simulado')}", 5, "fechar aviso")
+    time.sleep(0.2)
+    check("aviso marcado como visto", "smoke-aviso" in app_module.prefs.manifest_seen)
+    check("versão pulada não é oferecida de novo ao abrir", not js("!!__smoke.q('[data-testid=update-dialog]')"))
+
+    wait("!!__smoke.q('[data-testid=project-button]')", 10, "casca depois de recarregar")
+    js("__smoke.click('[data-testid=project-button]')")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu do projeto")
+    js("__smoke.clickText('Exportar textos', '[role=menu]')")
+    blocked = wait(_dialog_with("desativada temporariamente"), 8, "exportar textos desligado")
+    check("Exportar textos desligado pelo manifesto avisa como a clássica", bool(blocked))
+    js("__smoke.clickText('OK', '[role=dialog]')")
+    wait("!__smoke.q('[role=dialog]')", 5, "fechar aviso de função desligada")
+    MANIFEST[0] = None
 
 
 def block2(project_root: Path) -> None:

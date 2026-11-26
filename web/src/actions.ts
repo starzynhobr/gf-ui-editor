@@ -10,8 +10,8 @@ import { openNewProjectDialog } from './home/NewProjectDialog'
 import { confirmDiscard, saveBeforeProjectAction } from './shell/saving'
 
 /** Roda `work` com a barra de progresso (o Python manda os passos pelo evento "progress"). */
-export async function withProgress<T>(label: string, work: () => Promise<T>): Promise<T> {
-  useShell.setState({ progress: { label, done: 0, total: 0 } })
+export async function withProgress<T>(label: string, work: () => Promise<T>, unit?: 'bytes'): Promise<T> {
+  useShell.setState({ progress: { label, done: 0, total: 0, unit } })
   try {
     return await work()
   } finally {
@@ -105,6 +105,19 @@ export async function openLooseXml(): Promise<void> {
   }
   enterWorkspace(await api.openLoose(picked.path))
   useShell.setState({ page: 'xml' })
+}
+
+/** "Abrir com" com a janela já aberta: outro .exe mandou este arquivo (evento open_external). */
+export async function openExternalXml(path: string): Promise<void> {
+  const open = useShell.getState().shell?.open_path
+  if (open?.toLowerCase() === path.toLowerCase()) return
+  if (!(await confirmDiscard())) return
+  try {
+    enterWorkspace(await api.openLoose(path))
+    useShell.setState({ page: 'xml' })
+  } catch (error) {
+    await message('error', t('Não foi possível abrir'), errorText(error))
+  }
 }
 
 export async function openXml(path: string): Promise<void> {

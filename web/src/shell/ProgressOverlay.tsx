@@ -29,7 +29,9 @@ export default function ProgressOverlay() {
         </div>
         {progress.total > 0 && (
           <div className="mt-2 text-right font-mono text-[11px] text-muted">
-            {progress.done} / {progress.total}
+            {progress.unit === 'bytes'
+              ? `${(progress.done / 1048576).toFixed(1)} / ${(progress.total / 1048576).toFixed(1)} MB`
+              : `${progress.done} / ${progress.total}`}
           </div>
         )}
       </div>

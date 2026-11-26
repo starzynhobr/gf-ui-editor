@@ -1,0 +1,195 @@
+/* Configurações e atualizador (bloco 4). Só tokens do tema (var(--color-*)): os três temas
+   (Escuro, Meia-noite, Claro) funcionam sem regra própria aqui. */
+
+.gf-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--color-overlay);
+  backdrop-filter: blur(3px);
+}
+
+.gf-settings {
+  display: flex;
+  width: min(900px, 100%);
+  height: min(620px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  background: var(--color-panel);
+  box-shadow: 0 24px 64px -12px rgb(0 0 0 / 0.55);
+}
+
+.gf-settings-nav {
+  display: flex;
+  width: 200px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 10px;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-chrome);
+}
+
+.gf-settings-nav-item {
+  position: relative;
+  display: flex;
+  height: 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--color-icon);
+  text-align: left;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.gf-settings-nav-item:hover {
+  background: var(--color-hover);
+  color: var(--color-bright);
+}
+.gf-settings-nav-item[aria-current='page'] {
+  color: var(--color-accent-text);
+}
+.gf-settings-nav-active {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: var(--color-accent-soft);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.gf-settings-group {
+  overflow: hidden;
+  border: 1px solid var(--color-card-border);
+  border-radius: 10px;
+  background: var(--color-card);
+}
+
+.gf-settings-row {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  transition: background-color 140ms ease;
+}
+.gf-settings-row + .gf-settings-row {
+  border-top: 1px solid var(--color-card-border);
+}
+.gf-settings-row:hover {
+  background: color-mix(in srgb, var(--color-hover) 55%, transparent);
+}
+
+.gf-settings-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 12px;
+  background: linear-gradient(120deg, var(--color-accent-soft), var(--color-card) 70%);
+}
+
+/* Switch (Radix): trilho e bolinha com mola. */
+.gf-switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border-input);
+  border-radius: 999px;
+  background: var(--color-input);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.gf-switch:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+.gf-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent-border);
+}
+.gf-switch[data-state='checked'] {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent);
+}
+.gf-switch:disabled {
+  opacity: 0.45;
+}
+.gf-switch-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--color-icon);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transform: translateX(2px);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 160ms ease;
+}
+.gf-switch[data-state='checked'] .gf-switch-thumb {
+  background: var(--color-bright);
+  transform: translateX(18px);
+}
+
+/* Escolha segmentada (tema, interface): a marca desliza entre as opções. */
+.gf-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border-input);
+  border-radius: 9px;
+  background: var(--color-input);
+}
+.gf-segment {
+  position: relative;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  transition: color 140ms ease;
+}
+.gf-segment:hover,
+.gf-segment[aria-checked='true'] {
+  color: var(--color-bright);
+}
+.gf-segment-active {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 6px;
+  background: var(--color-accent-soft);
+}
+
+/* Atualização disponível. */
+.gf-version-chip {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.gf-note-entry {
+  display: flex;
+  gap: 10px;
+}
+.gf-note-dot {
+  padding-top: 5px;
+  font-size: 8px;
+  line-height: 1;
+}
+.gf-note-box {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-input);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
