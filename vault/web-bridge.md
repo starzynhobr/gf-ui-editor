@@ -78,6 +78,14 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - Preview pelas Configurações com um XML aberto passa por `applyCanvasPreference` (mesma ponte da barra do canvas) e a casca remonta o `CanvasView` (`key=canvasEpoch`). Toda mudança dispara `gf:settings-changed` ({name, value}) em `window`.
 - `main()` com `ui_mode=web`: o primeiro processo serve o pipe; o segundo manda o arquivo (`{"open": caminho}`) e sai. A clássica não mudou.
 
+## Rodada de UI (Claude 2, 26/11/2026): atlas, Ctrl+K, código XML, AutoAnimate
+
+- Atlas (`web/src/atlas/`): layout do `AtlasDialog` da clássica (textura à esquerda; lateral com nome e tamanho, Centralizar | Atlas inteiro, Editar posição, Estado do botão com `ui/Select` e miniatura, RECORTE NORMAL (NorUV), Abrir .dds, dica, Cursor, Fechar | Aplicar). Lógica do Codex intacta. A linha "Cursor" muda o texto direto no DOM: re-renderizar o diálogo no `pointermove` quebrava o arrasto. `ui/Select` abre a lista dentro do `<dialog>` modal quando está em um.
+- Ver código XML (Ctrl+U, botão `</>` ao lado de Desfazer/Refazer): `web/src/source/` (CodeMirror 6, só leitura). Ponte `doc_source()` em `web_api/source.py` → serviço `xml_source.py` (texto do `render_text()` + linha de cada `<BaseWndProperty>`).
+- Paleta Ctrl+K: `web/src/palette/` (cmdk). Busca pelo texto visível (keywords), XML e elementos só aparecem ao digitar.
+- AutoAnimate (`ui/animate.ts`): projetos da tela inicial, banners, versões, Puxar, controles do oficial, escolher textura. Listas virtualizadas (Arquivos, Texturas, resultados de Textos) ficam sem.
+- Engrenagem: Configurações…, Novidades, Verificar atualizações, Sobre (abre o cartão da pílula). Idioma/tema/interface ficam em Configurações e na paleta.
+
 ## Próximos blocos
 
 3. Atlas, textos (busca, edição, importar/exportar), puxar, limpar, versões, UI oficial, erro do jogo, histórico.
