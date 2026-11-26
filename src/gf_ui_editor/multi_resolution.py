@@ -545,14 +545,23 @@ def build_outputs(
     settings: ResolutionSettings,
     store: ResolutionStore | None = None,
 ) -> list[ResolutionOutput]:
-    plans = [(source, analyze(source, base)) for source in sources]
+    plans = [(source, plan) for source in sources if (plan := analyze(source, base)) is not None]
+    return outputs_from_plans(plans, targets, settings, store)
+
+
+def outputs_from_plans(
+    plans: Iterable[tuple[WindowSource, WindowPlan]],
+    targets: Iterable[Resolution],
+    settings: ResolutionSettings,
+    store: ResolutionStore | None = None,
+) -> list[ResolutionOutput]:
+    """O que vai no zip de cada resolução: XML gerados e, por cima, as variantes da pessoa."""
+    plans = list(plans)
     outputs = []
     for target in targets:
         windows: list[WindowResult] = []
         files: dict[str, bytes | Path] = {}
         for source, plan in plans:
-            if plan is None:
-                continue
             result = generate(source, plan, target, settings.for_file(source.relative, target))
             windows.append(result)
             if result.text is not None:
@@ -675,7 +684,7 @@ def resolution_list(values: Iterable[object]) -> list[Resolution]:
 
 __all__ = [
     "COMMON_RESOLUTIONS", "WindowSource", "WindowPlan", "Piece", "analyze", "generate", "target_rect",
-    "ResolutionStore", "ResolutionSettings", "build_outputs", "export_zips", "project_sources",
+    "ResolutionStore", "ResolutionSettings", "build_outputs", "outputs_from_plans", "export_zips", "project_sources",
     "window_summary", "resolution_key", "parse_resolution_key", "window_kind", "screen_rects",
 ]
 
