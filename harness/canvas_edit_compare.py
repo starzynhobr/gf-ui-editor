@@ -477,17 +477,25 @@ def web(out, page, project, expected):
             assert not js("canvasEdit.state().dirty")
             async_js("canvasEdit.redo()")
             assert js("canvasEdit.state().dirty")
-            js("window.confirmCalls = 0; window.confirm = () => ++window.confirmCalls > 1; true")
             data = external.read_bytes()
             external.write_bytes(data + b"\n")
-            wait("window.confirmCalls === 1", "external edit prompt")
+            token = wait("canvasEdit.state().externalChange?.token", "external edit conflict")
             assert js("canvasEdit.state().dirty")
+            async_js("canvasEdit.keepExternal(canvasEdit.state().externalChange)")
+            assert js("canvasEdit.state().dirty && !canvasEdit.state().externalChange")
             external.write_bytes(data + b"\n\n")
-            wait("window.confirmCalls === 2 && !canvasEdit.state().dirty", "external edit accepted")
+            wait(f"canvasEdit.state().externalChange?.token === {json.dumps(sha256(data + b'\n\n').hexdigest())}",
+                 "next external revision")
+            assert js("canvasEdit.state().externalChange.token") != token
+            async_js("canvasEdit.reloadExternal(canvasEdit.state().externalChange)")
+            assert js("!canvasEdit.state().dirty && !canvasEdit.state().canUndo")
+            camera = js("canvasEdit.camera()")
             changed = data.replace(b'WindowLeft="37"', b'WindowLeft="39"', 1)
             assert changed != data
             external.write_bytes(changed)
             wait(f"canvasEdit.state().doc.elements[10].geometry[0] === {x + 2}", "clean external reload")
+            assert js("canvasEdit.camera()") == camera
+            assert js("canvasEdit.state().selection") == [9, 10]
             gesture(-10, y - 10, x + 25, 20)
             wait("canvasEdit.state().selection.includes(10)", "marquee selection")
             results["external-reload-and-visibility"] = True

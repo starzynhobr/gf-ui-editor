@@ -4,7 +4,7 @@ import zlib
 
 import pytest
 
-from gf_ui_editor import desktop, file_list, game_sync, game_updates, project as project_module, textures, versions
+from gf_ui_editor import desktop, file_list, game_sync, game_updates, project as project_module, textures, versions, xml_watch
 from gf_ui_editor.document_session import DocumentSession
 from gf_ui_editor.project import Project, convert_to_light, create_from_source
 from gf_ui_editor.texture_cache import TextureCache
@@ -68,7 +68,7 @@ def test_web_document_and_external_edit_materialize_private_files(tmp_path, game
     xml = project.ui_dir / "Window.xml"
     scene = api.doc_open(str(xml))
     assert scene["elements"] and not xml.exists()
-    assert api.doc_external_change() is None
+    assert api.doc_watch(str(xml)) is None
     before = scene["elements"][0]["geometry"]
     api.doc_edit([{"field": "geometry", "index": 0, "before": before, "after": [42, *before[1:]]}])
     assert project.resolve("Window.xml") != xml and '-<Root_Node>' in api.doc_diff()
@@ -85,13 +85,19 @@ def test_web_document_and_external_edit_materialize_private_files(tmp_path, game
     other = project.ui_dir / "Other.xml"
     dds = project.ui_dir / "Main.dds"
     api.doc_open(str(other))
+    assert not other.exists() and api.doc_watch(str(other)) is None
     api.open_in_text_editor(str(other))
     assert api.open_texture_file(str(other), "main.dds") == "ok"
     assert opened == [other, dds]
-    assert api.doc_external_change() is None
     other.write_bytes(xml.read_bytes())
-    assert api.doc_external_change()
-    assert api.doc_revert()["elements"][0]["geometry"][0] == 42
+    clock = [1.0]
+    monkeypatch.setattr(xml_watch, "monotonic", lambda: clock[0])
+    assert api.doc_watch(str(other)) is None
+    clock[0] += 1.0
+    change = api.doc_watch(str(other))
+    assert change["error"] is None
+    assert api.doc_reload_external(str(other), change["token"])["elements"][0]["geometry"][0] == 42
+    assert project.base_bytes("Other.xml") == XML
     dds.write_bytes(b"external edit")
     assert project.base_path(project.base_files["Main.dds"]).read_bytes() == FILES["Main.dds"]
 

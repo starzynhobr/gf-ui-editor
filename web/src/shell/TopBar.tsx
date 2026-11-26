@@ -22,6 +22,8 @@ export default function TopBar() {
   const [recent, setRecent] = useState<HomeProject[]>([])
   const project = shell?.project ?? null
   const fileName = shell?.open_path?.split(/[\\/]/).pop() ?? null
+  const standalone = shell?.open_path != null && shell.standalone_paths?.includes(shell.open_path)
+  const titleFile = fileName && standalone ? `${fileName} (${t('Arquivo avulso')})` : fileName
   const pending = shell?.pending ?? 0
   const canPublish = Boolean(project?.game_dir)
   const dirty = useDocState((state) => state.dirty)
@@ -32,8 +34,8 @@ export default function TopBar() {
 
   useEffect(() => {
     const marker = dirty ? ' *' : ''
-    document.title = project ? `STZ GF UI [${project.name}]${fileName ? ` — ${fileName}${marker}` : ''}` : `STZ GF UI${fileName ? ` — ${fileName}${marker}` : ''}`
-  }, [project, fileName, dirty])
+    document.title = project ? `STZ GF UI [${project.name}]${titleFile ? ` — ${titleFile}${marker}` : ''}` : `STZ GF UI${titleFile ? ` — ${titleFile}${marker}` : ''}`
+  }, [project, titleFile, dirty])
 
   const loadRecent = async () => {
     const data = await api.homeData()

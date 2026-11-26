@@ -589,7 +589,8 @@ class Project:
         return destination
 
     def publish(
-        self, *, copy_to_ui: bool = True, select_in_launcher: bool = True, progress: Progress = None
+        self, *, copy_to_ui: bool = True, select_in_launcher: bool = True, progress: Progress = None,
+        on_copy: Callable[[Path, Path], None] | None = None,
     ) -> PublishResult:
         """Atualiza `UICustom/<nome>` (espelho exato) e, opcionalmente, `UI/`."""
         self.invalidate_changes()
@@ -619,7 +620,9 @@ class Project:
             source = self.resolve(relative)
             key = relative.as_posix()
             if key.lower() in wanted:
-                _copy_if_different(source, custom_dir / relative)
+                target = custom_dir / relative
+                if _copy_if_different(source, target) and on_copy is not None:
+                    on_copy(target, source)
             # A pasta UI recebe o projeto inteiro (só o que difere do que está lá): ela pode ter
             # arquivos de outra UI aplicada antes, e o jogo tem de ficar igual ao editor.
             if copy_to_ui:
@@ -633,6 +636,8 @@ class Project:
                     backups.append((key, backup))
                 if _copy_if_different(source, target):
                     copied += 1
+                    if on_copy is not None:
+                        on_copy(target, source)
                 if sent.get(key.lower()) != (crc := gamedata.file_crc(source)):
                     sent_now[key.lower()] = crc
             if progress is not None:

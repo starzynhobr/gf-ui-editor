@@ -6,9 +6,10 @@ import {
   type CanvasDocument, type CanvasElement, type CanvasPoint, type CanvasPreference, type CanvasPreferences,
   type CanvasRect, type TextEditsChanged,
 } from '../bridge'
-import { applyCanvasEdits, applyCanvasPreference, checkExternalChange, ensureDoc, refreshGameTexts, select, useDoc } from '../doc/store'
+import { applyCanvasEdits, applyCanvasPreference, ensureDoc, refreshGameTexts, select, useDoc } from '../doc/store'
+import { pollExternalChange } from '../doc/externalActions'
 import { AtlasHost } from '../atlas/AtlasHost'
-import { useShell } from '../store'
+import { showStatus, useShell } from '../store'
 import { CanvasToolbar } from './CanvasToolbar'
 import { drawDots, drawReferenceLayer, drawScene, drawScreen, drawsRootTexture, sceneRows, sceneTextRequests, type SceneOptions } from './drawScene'
 import {
@@ -34,10 +35,10 @@ const labels = {
   fr: ['Aucun XML ouvert', 'Chargement du XML…', 'Texte', 'Un texte assez long pour tester la place disponible', 'Textures indisponibles'],
 }
 const editLabels = {
-  pt: ['Mover', 'Redimensionar', 'Área invisível da janela', 'O XML mudou no disco. Recarregar e descartar as alterações não salvas?', 'O XML aberto foi removido do disco.'],
-  en: ['Move', 'Resize', 'Invisible window area', 'The XML changed on disk. Reload and discard unsaved changes?', 'The open XML was removed from disk.'],
-  es: ['Mover', 'Redimensionar', 'Área invisible de la ventana', 'El XML cambió en el disco. ¿Recargar y descartar los cambios sin guardar?', 'El XML abierto se eliminó del disco.'],
-  fr: ['Déplacer', 'Redimensionner', 'Zone invisible de la fenêtre', 'Le XML a changé sur le disque. Recharger et abandonner les modifications non enregistrées ?', 'Le XML ouvert a été supprimé du disque.'],
+  pt: ['Mover', 'Redimensionar', 'Área invisível da janela'],
+  en: ['Move', 'Resize', 'Invisible window area'],
+  es: ['Mover', 'Redimensionar', 'Zona invisible de la ventana'],
+  fr: ['Déplacer', 'Redimensionner', 'Zone invisible de la fenêtre'],
 }
 const imageKey = (name: string) => name.toLowerCase()
 type TexturesChanged = { base: string; names: string[] }
@@ -268,14 +269,10 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
     if (!path || !scene) return
     const timer = window.setInterval(() => {
       if (drag.current) return
-      void checkExternalChange(path, (missing) => {
-        if (!missing) return window.confirm(editText[3])
-        window.alert(editText[4])
-        return false
-      }).catch(() => undefined)
-    }, 1000)
+      void pollExternalChange(path).catch(() => undefined)
+    }, 250)
     return () => window.clearInterval(timer)
-  }, [path, !!scene, editText])
+  }, [path, !!scene])
 
   useEffect(() => {
     setButtonState(undefined)
@@ -318,10 +315,30 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
     if (!path || savedPositions === undefined) return
     let active = true
     const resolution = options.preview && screenWidth && screenHeight ? [screenWidth, screenHeight] : null
+    let timer: number | undefined
+    const watchLayers = async () => {
+      try {
+        const changed = await call<{ scenes: ReferenceScene[]; errors: string[] }>(
+          'canvas_watch_layers', path, resolution, savedPositions,
+        )
+        if (!active) return
+        if (changed.errors.length) showStatus(changed.errors.join(' · '), 6)
+        if (changed.scenes.length) setLayers((previous) => {
+          const updated = new Map([...previous.scenes, ...changed.scenes].map((layer) => [layer.name, layer]))
+          return { ...previous, scenes: previous.names.flatMap((name) => updated.get(name) ?? []) }
+        })
+      } finally {
+        if (active) timer = window.setTimeout(() => void watchLayers().catch(() => undefined), 250)
+      }
+    }
     void call<CanvasLayers>('canvas_layers', path, resolution, savedPositions)
-      .then((value) => { if (active) setLayers(value) })
+      .then((value) => {
+        if (!active) return
+        setLayers(value)
+        if (resolution && value.names.length) timer = window.setTimeout(() => void watchLayers().catch(() => undefined), 250)
+      })
       .catch((error) => { if (active) setPreferenceError(String(error)) })
-    return () => { active = false }
+    return () => { active = false; window.clearTimeout(timer) }
   }, [path, savedPositions, options.preview, screenWidth, screenHeight, revision, textRevision, layerRevision])
 
   useLayoutEffect(() => {

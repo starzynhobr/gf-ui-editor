@@ -31,7 +31,15 @@ export interface DocState {
   redoLabel?: string | null
   /** Texto do último erro de edição/salvar, para a casca mostrar. */
   error: string | null
+  externalChange: ExternalChange | null
 }
+
+export interface ExternalChange {
+  path: string
+  token: string
+}
+
+type ExternalRevision = { token: string; error: string | null }
 
 export const useDoc = create<DocState>(() => ({
   path: null,
@@ -46,6 +54,7 @@ export const useDoc = create<DocState>(() => ({
   undoLabel: null,
   redoLabel: null,
   error: null,
+  externalChange: null,
 }))
 
 type Batch = { edits: Edit[]; label: string } | { source: true; label: string }
@@ -94,6 +103,7 @@ function resetHistory() {
   past.length = 0
   future.length = 0
   ignoredChange = null
+  shownExternalError = null
 }
 
 function resetDocument(path: string | null, doc: CanvasDocument | null) {
@@ -101,7 +111,7 @@ function resetDocument(path: string | null, doc: CanvasDocument | null) {
   update({
     path, doc, dirty: false, canUndo: false, canRedo: false,
     undoLabel: null, redoLabel: null,
-    selection: [], hidden: [], locked: [], isolated: null,
+    selection: [], hidden: [], locked: [], isolated: null, externalChange: null,
   })
 }
 
@@ -140,7 +150,8 @@ function receiveSource(doc: CanvasDocument) {
   }
   const remap = (index: number | null) => {
     const element = index === null ? undefined : previous.doc?.elements[index]
-    if (!element?.id) return null
+    if (!element) return null
+    if (!element.id) return doc.elements[element.index]?.index ?? null
     const options = byId.get(element.id) ?? []
     if (options.length === 1) return options[0].index
     const siblings = options.filter((option) => option.parent === element.parent)
@@ -158,12 +169,25 @@ export function applySource(path: string, text: string, expected: string, label:
     if (state().path?.toLowerCase() !== path.toLowerCase()) throw new Error('O XML aberto mudou.')
     const result = await call<SourceResult>('doc_apply_source', path, text, expected)
     if ('issue' in result) return result.issue
-    if (result.changed) {
-      past.push({ source: true, label })
-      future.length = 0
-      receiveSource(result.doc)
-    }
+    recordSource(result, label)
     return null
+  })
+}
+
+function recordSource(result: Exclude<SourceResult, { issue: SourceIssue }>, label: string) {
+  if (!result.changed) return
+  past.push({ source: true, label })
+  future.length = 0
+  receiveSource(result.doc)
+}
+
+export function insertControls(ids: string[], label: string): Promise<void> {
+  const path = state().path
+  return run(async () => {
+    if (!ids.length || !path || state().path !== path) return
+    const result = await call<SourceResult>('doc_insert_controls', path, ids)
+    if ('issue' in result) throw new Error(result.issue.message)
+    recordSource(result, label)
   })
 }
 
@@ -205,7 +229,7 @@ export function importStandalone(path: string, name: string | null, replace: boo
     const result = await call<ImportResult>('standalone_import', path, name, replace, textures, root)
     if (!result.conflict) {
       resetHistory()
-      update({ path: result.path })
+      update({ path: result.path, externalChange: null })
       received(result.doc)
     }
     return result
@@ -237,12 +261,33 @@ export const redo: () => Promise<void> = () => changeHistory(future, past, false
 export const previewSave: () => Promise<string> = () =>
   run(() => state().dirty ? call<string>('doc_diff') : Promise.resolve(''))
 /** Grava o XML (com backup no histórico do projeto, como a clássica). */
-export const save: () => Promise<void> = () => run(async () => {
-  if (!state().dirty) return
-  const doc = await call<CanvasDocument>('doc_save')
-  resetHistory()
-  received(doc)
-})
+export class ExternalSaveConflict extends Error {
+  readonly path: string
+  readonly token: string
+
+  constructor(path: string, token: string) {
+    super('O arquivo mudou fora do editor.')
+    this.path = path
+    this.token = token
+  }
+}
+
+export async function save(confirmation?: ExternalChange): Promise<void> {
+  const path = state().path
+  const conflict = await run(async () => {
+    if (!path || state().path !== path || !state().dirty) return null
+    if (confirmation && confirmation.path !== path) throw new Error('O XML aberto mudou.')
+    const result = await call<{ doc: CanvasDocument } | { conflict: string }>(
+      'doc_save_checked', path, confirmation?.token ?? null,
+    )
+    if ('conflict' in result) return result.conflict
+    resetHistory()
+    update({ externalChange: null })
+    received(result.doc)
+    return null
+  })
+  if (conflict !== null) throw new ExternalSaveConflict(path!, conflict)
+}
 /** Descarta as edições e relê do disco. */
 export const revert: () => Promise<void> = () => run(async () => {
   const { path } = state()
@@ -288,33 +333,75 @@ export function applyCanvasEdits(
   })
 }
 
-export function checkExternalChange(path: string, confirm: (missing: boolean, dirty: boolean) => boolean) {
-  // Watch checks should preserve an editing or save error already shown by the shell.
-  const task = queue.then(async () => {
+type WatchResult = { reloaded: true } | { error: string } | undefined
+let watching = false
+let shownExternalError: string | null = null
+
+async function receiveExternal(change: ExternalChange) {
+  const doc = await call<CanvasDocument | null>('doc_reload_external', change.path, change.token)
+  if (!doc) return false
+  resetHistory()
+  update({ externalChange: null })
+  receiveSource(doc)
+  return true
+}
+
+export function checkExternalChange(path: string, hasDraft: () => boolean): Promise<WatchResult> {
+  if (watching) return Promise.resolve(undefined)
+  watching = true
+  const task = queue.then(async (): Promise<WatchResult> => {
     if (state().path !== path || !state().doc) return
-    const token = await call<string | null>('doc_external_change')
-    if (token === null) {
+    const revision = await call<ExternalRevision | null>('doc_watch', path)
+    if (!revision) {
       ignoredChange = null
+      shownExternalError = null
+      if (state().externalChange) update({ externalChange: null })
       return
     }
+    const { token, error } = revision
+    if (ignoredChange !== token) ignoredChange = null
+    if (error) {
+      if (state().externalChange) update({ externalChange: null })
+      if (shownExternalError !== token) {
+        shownExternalError = token
+        return { error }
+      }
+      return
+    }
+    shownExternalError = null
     if (token === ignoredChange) return
-    if ((token === 'missing' || state().dirty) && !confirm(token === 'missing', state().dirty)) {
-      ignoredChange = token
-      return
+    const change = { path, token }
+    if (state().dirty || hasDraft()) {
+      if (state().externalChange?.token !== token) update({ externalChange: change })
+    } else if (await receiveExternal(change)) {
+      return { reloaded: true }
     }
-    try {
-      resetDocument(path, await call<CanvasDocument>('doc_revert'))
-      update({ error: null })
-    } catch (error) {
-      // A malformed external revision may stay on disk until the other editor saves again.
-      ignoredChange = token
-      throw error
-    }
-  })
-  queue = task.catch((error) => {
-    update({ error: error instanceof Error ? error.message : String(error) })
-  })
+  }).finally(() => { watching = false })
+  queue = task.catch(() => undefined)
   return task
+}
+
+export function reloadExternal(change: ExternalChange) {
+  return run(async () => {
+    if (state().path !== change.path) return false
+    return receiveExternal(change)
+  })
+}
+
+export function keepExternal(change: ExternalChange) {
+  return run(async () => {
+    const current = state().externalChange
+    if (current?.path !== change.path || current.token !== change.token) return
+    ignoredChange = change.token
+    update({ externalChange: null })
+  })
+}
+
+export function compareExternal(change: ExternalChange, draft: string | null) {
+  return run(async () => {
+    if (state().path !== change.path) return null
+    return call<string | null>('doc_compare_external', change.path, change.token, draft)
+  })
 }
 
 export function refreshGameTexts(project: string) {

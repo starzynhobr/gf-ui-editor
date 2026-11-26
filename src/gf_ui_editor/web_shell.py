@@ -59,6 +59,7 @@ class WebApi(
         self._restart: Restart | None = None
         self._setup_projects(prefs, default_ui_directory, xml)
         self._setup_document()
+        self._setup_canvas()
 
     # ---- infraestrutura ---------------------------------------------------------------
     def _attach(self, window: Any) -> None:

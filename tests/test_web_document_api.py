@@ -3,7 +3,7 @@ from struct import pack
 
 import pytest
 
-from gf_ui_editor import game_layout, project
+from gf_ui_editor import game_layout, project, xml_watch
 from gf_ui_editor.preferences import Preferences
 from gf_ui_editor.web_shell import WebApi
 from gf_ui_editor.xml_document import ExternalModificationError, UIDocument
@@ -146,7 +146,7 @@ def test_save_uses_project_history_and_refreshes_changed_files(api, tmp_path):
     assert [item.read_bytes() for item in active.history(path)] == [XML]
     assert UIDocument.load(path).elements[1].geometry == (36, 31, 15, 12)
     assert active.modified_files() == {"Plain.xml"}
-    assert api.doc_external_change() is None
+    assert api.doc_watch(str(path)) is None
 
 
 def test_external_conflict_keeps_pending_edits_and_revert_refreshes(api, tmp_path):
@@ -156,15 +156,177 @@ def test_external_conflict_keeps_pending_edits_and_revert_refreshes(api, tmp_pat
     api.doc_edit([geometry(1, before, (42, 31, 15, 12))])
     external = XML.replace(b'WindowLeft="20"', b'WindowLeft="200"')
     path.write_bytes(external)
-    assert api.doc_external_change()
+    assert api.doc_save_checked(str(path))["conflict"]
     with pytest.raises(ExternalModificationError):
         api.doc_save()
     assert '"42"' in api.doc_diff()
     assert path.read_bytes() == external
     assert api.doc_revert()["elements"][1]["geometry"][0] == 200
-    assert api.doc_external_change() is None
+    assert api.doc_watch(str(path)) is None
     api.doc_open(None)
-    assert api.doc_external_change() is None
+    assert api.doc_watch(str(path)) is None
+
+
+@pytest.fixture
+def settle_xml(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(xml_watch, "monotonic", lambda: clock[0])
+
+    def settle():
+        clock[0] += 1
+
+    return settle
+
+
+def test_watch_debounces_atomic_replace_and_two_step_write(api, tmp_path, settle_xml):
+    path = write_xml(tmp_path / "Plain.xml")
+    original = api.doc_open(str(path))
+    assert api.doc_watch(str(path)) is None
+    settle_xml()
+    assert api.doc_watch(str(path)) is None
+    expected = XML.replace(b'WindowLeft="20"', b'WindowLeft="30"')
+    path.write_bytes(expected[:100])
+    assert api.doc_watch(str(path)) is None
+    staged = path.with_suffix(".tmp")
+    staged.write_bytes(expected)
+    staged.replace(path)
+    assert api.doc_watch(str(path)) is None
+    settle_xml()
+    change = api.doc_watch(str(path))
+    assert change["error"] is None
+    assert api.doc_source()["text"] == XML.decode()
+    reloaded = api.doc_reload_external(str(path), change["token"])
+    assert not reloaded["dirty"]
+    assert reloaded["preview"] == original["preview"]
+    assert reloaded["elements"][1]["geometry"][0] == 30
+    assert api.doc_watch(str(path)) is None
+    settle_xml()
+    assert api.doc_watch(str(path)) is None
+    assert api.doc_reload_external(str(path), change["token"]) is None
+
+
+def test_watch_preserves_dirty_xml_and_checks_the_confirmed_save_revision(api, tmp_path, settle_xml):
+    path = write_xml(tmp_path / "Plain.xml")
+    scene = api.doc_open(str(path))
+    api.doc_edit([geometry(1, scene["elements"][1]["geometry"], (42, 31, 15, 12))])
+    path.write_bytes(b"<unfinished>")
+    assert api.doc_watch(str(path)) is None
+    settle_xml()
+    invalid = api.doc_watch(str(path))
+    assert "XML inválido" in invalid["error"]
+    assert api.doc_reload_external(str(path), invalid["token"]) is None
+    assert 'WindowLeft="42"' in api.doc_diff()
+    outside = XML.replace(b'WindowLeft="20"', b'WindowLeft="200"')
+    path.write_bytes(outside)
+    assert api.doc_watch(str(path)) == invalid
+    settle_xml()
+    current = api.doc_watch(str(path))
+    diff = api.doc_compare_external(str(path), current["token"])
+    assert 'WindowLeft="200"' in diff and 'WindowLeft="42"' in diff
+    assert api.doc_save_checked(str(path)) == {"conflict": current["token"]}
+    later = XML.replace(b'WindowLeft="20"', b'WindowLeft="300"')
+    path.write_bytes(later)
+    assert api.doc_compare_external(str(path), current["token"]) is None
+    latest = api.doc_save_checked(str(path), current["token"])
+    assert latest["conflict"] != current["token"] and path.read_bytes() == later
+    assert not api.doc_save_checked(str(path), latest["conflict"])["doc"]["dirty"]
+    backup, = tmp_path.glob("Plain.before-gf-ui-editor-*.xml")
+    assert backup.read_bytes() == later
+    assert api.doc_watch(str(path)) is None
+    settle_xml()
+    assert api.doc_watch(str(path)) is None
+
+
+def test_checked_save_rechecks_disk_after_staging_xml(api, tmp_path, monkeypatch):
+    path = tmp_path / "Window.xml"
+    path.write_bytes(XML)
+    scene = api.doc_open(str(path))
+    before = scene["elements"][0]["geometry"]
+    api.doc_edit([{"index": 0, "field": "geometry", "before": before, "after": [42, *before[1:]]}])
+    external = XML + b"\n"
+
+    with monkeypatch.context() as patch:
+        patch.setattr("gf_ui_editor.xml_document.os.fsync", lambda _: path.write_bytes(external))
+        result = api.doc_save_checked(str(path))
+    assert result["conflict"]
+    assert path.read_bytes() == external
+    assert not list(tmp_path.glob("*.gf-ui-editor.tmp"))
+
+    saved = api.doc_save_checked(str(path), result["conflict"])
+    assert not saved["doc"]["dirty"]
+    assert b'WindowLeft="42"' in path.read_bytes()
+    backup, = tmp_path.glob("Window.before-gf-ui-editor-*.xml")
+    assert backup.read_bytes() == external
+
+
+def test_watch_ignores_publish_and_detects_later_external_write(api, tmp_path, settle_xml):
+    game = tmp_path / "game"
+    (game / "UI").mkdir(parents=True)
+    installed = write_xml(game / "UI" / "Plain.xml")
+    active = project.create_from_source("Web", game / "UI", game, projects_root=tmp_path / "projects")
+    local = active.ui_dir / installed.name
+    local.write_bytes(XML.replace(b'WindowLeft="20"', b'WindowLeft="30"'))
+    api._project = active
+    api.open_dropped_xmls([str(installed)])
+    api.doc_open(str(installed))
+    api.publish()
+    assert installed.read_bytes() == local.read_bytes()
+    assert api.doc_watch(str(installed)) is None
+    settle_xml()
+    assert api.doc_watch(str(installed)) is None
+    assert api.doc_source()["text"] == XML.decode()
+    installed.write_bytes(XML.replace(b'WindowLeft="20"', b'WindowLeft="76"'))
+    assert api.doc_watch(str(installed)) is None
+    settle_xml()
+    assert api.doc_watch(str(installed))["error"] is None
+
+
+def test_watch_reference_layers_keeps_last_good_scene(api, tmp_path, settle_xml):
+    source = tmp_path / "source"
+    source.mkdir()
+    write_xml(source / "BasicChar.xml")
+    write_xml(source / "Radar.xml")
+    active = project.create_from_source("Web", source, None, projects_root=tmp_path / "projects")
+    api._project = active
+    api.asset_base = lambda _path: "https://assets.test/"
+    path = str(active.ui_dir / "BasicChar.xml")
+    radar = active.ui_dir / "Radar.xml"
+    api.canvas_change_layers(path, "add", radar.name)
+    size = [1024, 768]
+    original = api.canvas_layers(path, size)
+    radar.write_bytes(b"<unfinished>")
+    assert not api.canvas_watch_layers(path, size, True)["errors"]
+    settle_xml()
+    invalid = api.canvas_watch_layers(path, size, True)
+    assert not invalid["scenes"] and "XML inválido" in invalid["errors"][0]
+    assert api.canvas_layers(path, size) == original
+    radar.write_bytes(XML.replace(b'WindowLeft="20"', b'WindowLeft="405"'))
+    assert not api.canvas_watch_layers(path, size, True)["scenes"]
+    settle_xml()
+    changed, = api.canvas_watch_layers(path, size, True)["scenes"]
+    assert changed["scene"]["elements"][1]["geometry"][0] == 405
+    assert not api.canvas_watch_layers(path, size, True)["scenes"]
+
+
+def test_insert_official_controls_preserves_edits_and_is_undoable(api, tmp_path, monkeypatch):
+    path = write_xml(tmp_path / "Plain.xml")
+    official = XML.replace(b'Child_Cnt="1"', b'Child_Cnt="2"').replace(
+        b'</Container_Node>', b'<BaseWndProperty WindowID="3" WindowLeft="25" /></Container_Node>',
+    )
+    monkeypatch.setattr(api, "_official_game_dir", lambda: tmp_path)
+    monkeypatch.setattr("gf_ui_editor.web_api.document.official_text_for",
+                        lambda _game, name: official.decode() if name == "plain.xml" else None)
+    scene = api.doc_open(str(path))
+    edited = api.doc_edit([geometry(1, scene["elements"][1]["geometry"], (42, 31, 15, 12))])
+    result = api.doc_insert_controls(str(path), ["3"])
+    assert result["changed"]
+    assert [item["id"] for item in result["doc"]["elements"]] == ["1", "2", "3"]
+    assert result["doc"]["elements"][1] == edited["elements"][1]
+    assert 'Child_Cnt="2"' in api.doc_diff()
+    assert api.doc_insert_controls(str(path), ["3"]) == {"changed": False}
+    assert api.doc_source_history(False) == edited
+    assert api.doc_source_history(True) == result["doc"]
+    assert path.read_bytes() == XML
 
 
 def test_canvas_translates_normal_root_and_skips_locked_children(api, tmp_path):

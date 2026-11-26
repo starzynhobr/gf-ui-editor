@@ -18,6 +18,7 @@ const initial: DocState = {
   canUndo: false,
   canRedo: false,
   error: null,
+  externalChange: null,
 }
 
 export const useDoc = create<DocState>(() => ({ ...initial }))

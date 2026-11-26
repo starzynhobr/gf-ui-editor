@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterable
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Iterable
 
 from . import text_data
 
@@ -78,9 +79,12 @@ def publish_texts(project: "Project", texts_disabled: bool, now: datetime | None
     return TextsOutcome(changed, warnings, blocked)
 
 
-def publish_project(project: "Project", texts_disabled: bool, progress: "Progress" = None) -> PublishOutcome:
+def publish_project(
+    project: "Project", texts_disabled: bool, progress: "Progress" = None, *,
+    on_copy: Callable[[Path, Path], None] | None = None,
+) -> PublishOutcome:
     """UI e textos de uma vez (a interface Qt chama as duas partes separadas, com progresso só na UI)."""
-    result = project.publish(progress=progress)
+    result = project.publish(progress=progress, on_copy=on_copy)
     return PublishOutcome(result, publish_texts(project, texts_disabled))
 
 

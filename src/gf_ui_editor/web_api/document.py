@@ -14,6 +14,7 @@ from pathlib import Path
 
 from ..about import parse_resolution
 from ..document_session import DocumentSession
+from ..game_updates import official_text_for
 from ..project import Project
 from ..xml_source import SourceError
 
@@ -31,6 +32,7 @@ class DocumentApi:
         return self._document_session.open(
             target, size, saved_positions=self._prefs.canvas_saved_positions,
             project=project, standalone=project is None and target in self._standalone_paths,
+            xml_encoding=target is not None and not self._is_game_xml(target),
         )
 
     def standalone_compare(self, path: str, source: str) -> str | None:
@@ -65,6 +67,14 @@ class DocumentApi:
     def doc_edit(self, edits: list[dict]) -> dict:
         return self._document_session.edit(edits)
 
+    def doc_insert_controls(self, path: str, ids: list[str]) -> dict:
+        target = Path(path).resolve()
+        game = self._official_game_dir()
+        official = official_text_for(game, self._official_key(target)) if game is not None else None
+        if official is None:
+            raise ValueError("Cópia oficial indisponível.")
+        return self._document_session.insert_controls(target, official, ids)
+
     def doc_canvas_edit(self, edits: list[dict], locked: list[int], preview: bool, root_background: bool) -> dict:
         return self._document_session.edit_canvas(edits, locked, preview, root_background)
 
@@ -77,8 +87,17 @@ class DocumentApi:
     def doc_revert(self) -> dict:
         return self._document_session.revert()
 
-    def doc_external_change(self) -> str | None:
-        return self._document_session.external_change()
+    def doc_watch(self, path: str) -> dict | None:
+        return self._document_session.watch(Path(path).resolve())
+
+    def doc_reload_external(self, path: str, token: str) -> dict | None:
+        return self._document_session.reload_external(Path(path).resolve(), token)
+
+    def doc_compare_external(self, path: str, token: str, draft: str | None = None) -> str | None:
+        return self._document_session.compare_external(Path(path).resolve(), token, draft)
+
+    def doc_save_checked(self, path: str, token: str | None = None) -> dict:
+        return self._document_session.save_checked(Path(path).resolve(), token)
 
     def doc_atlas_plan(self, path: str, index: int, before: dict, after: dict, resize: bool) -> list[dict]:
         return self._document_session.plan_atlas(path, index, before, after, resize)

@@ -768,6 +768,9 @@ def scenario() -> None:
     original = target.read_bytes()
     edited = original + b"\r\n"  # espaço depois da raiz: muda o arquivo e o XML continua válido
     target.write_bytes(edited)
+    check("XML do projeto recarrega após edição no disco", bool(wait(
+        "document.body.innerText.includes('Recarregado: alterado fora do editor')", 8, "recarga externa",
+    )))
     pending = wait("__smoke.text('[data-testid=publish-count]')", 12, "contador do F5")
     check("contador do F5 = 1", (pending or "").strip() == "1", pending=pending)
     check("chip de não publicados", "ainda não publicados" in (js("__smoke.text('[data-testid=statusbar]')") or ""))
@@ -873,6 +876,7 @@ def scenario() -> None:
 
     # 10g. Exportar para várias resoluções (menu Exportar): 2 resoluções, arraste e zips.
     multi_resolution_flow(project_root)
+    external_xml_flow(project_root)
 
     # 11. Idioma: inglês pela tela de Configurações (a engrenagem só tem Configurações,
     # Como usar, Novidades, Verificar atualizações e Sobre).
@@ -902,9 +906,24 @@ def scenario() -> None:
     check("Ctrl+R, Ctrl+roda e menu de contexto bloqueados", blocked == [True, True, True], blocked=blocked)
 
 
-def standalone_flow(project_root: Path) -> None:
+def drop_files(*paths: Path) -> None:
     from System import Action
 
+    position = js("(() => { const box = __smoke.q('[data-testid=center]').getBoundingClientRect();"
+                  "return { x: Math.round(box.left + 100), y: Math.round(box.top + 100) } })()")
+    data = {"items": [], "files": [str(path) for path in paths], "dragOperationsMask": 1}
+    native = window.native
+    for kind in ("dragEnter", "dragOver", "drop"):
+        pending = []
+        params = json.dumps({"type": kind, **position, "data": data})
+        native.Invoke(Action(lambda: pending.append(native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
+            "Input.dispatchDragEvent", params,
+        ))))
+        if not pending[0].Wait(5000):
+            raise TimeoutError(f"WebView2 drop: {kind}")
+
+
+def standalone_flow(project_root: Path) -> None:
     loose = OUT / "standalone"
     loose.mkdir()
     xml = loose / "SmokeStandalone.xml"
@@ -920,18 +939,7 @@ def standalone_flow(project_root: Path) -> None:
     second.write_bytes(b"<Standalone/>")
     ignored = loose / "notes.txt"
     ignored.write_bytes(b"text")
-    position = js("(() => { const box = __smoke.q('[data-testid=center]').getBoundingClientRect();"
-                  "return { x: Math.round(box.left + 100), y: Math.round(box.top + 100) } })()")
-    data = {"items": [], "files": [str(second), str(ignored), str(xml)], "dragOperationsMask": 1}
-    native = window.native
-    for kind in ("dragEnter", "dragOver", "drop"):
-        pending = []
-        params = json.dumps({"type": kind, **position, "data": data})
-        native.Invoke(Action(lambda: pending.append(native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
-            "Input.dispatchDragEvent", params,
-        ))))
-        if not pending[0].Wait(5000):
-            raise TimeoutError(f"WebView2 drop: {kind}")
+    drop_files(second, ignored, xml)
 
     bar = '[data-testid=standalone-bar]'
     check("drop nativo abre todos os XMLs e mantém o projeto", bool(wait(
@@ -971,6 +979,90 @@ def standalone_flow(project_root: Path) -> None:
     check("lista retém o outro avulso após a importação", bool(wait(
         "__smoke.all('[data-standalone-file]').length === 1"
         " && __smoke.q('[data-standalone-file]').textContent === 'SecondStandalone.xml'", 5, "lista avulsa",
+    )))
+
+
+def external_xml_flow(project_root: Path) -> None:
+    from gf_ui_editor import gamedata
+    from gf_ui_editor.xml_document import UIDocument
+
+    project = project_module.Project.load(project_root)
+    xml = GAME / "UI" / "WorldMap2.xml"
+    logical = project.ui_dir / xml.name
+    # A UI copiada pode já ter um WorldMap2 do usuário. Fixe o XML do projeto por CRC
+    # na lista da caixa de areia para reproduzir a colisão com a base em qualquer cópia.
+    listing = GAME / gamedata.FILE_LIST
+    original_listing = listing.read_bytes()
+    row = f"\nUI/{xml.name}|{logical.stat().st_size}|{gamedata.file_crc(logical)}|0|0|\n"
+    try:
+        listing.write_bytes(original_listing + row.encode("ascii"))
+        project_module.convert_to_light(project)
+    finally:
+        listing.write_bytes(original_listing)
+    assert project.light and not logical.exists() and project.read_path(logical).is_file()
+    api._load_project(project_root)
+    js("__smoke.key('1', { ctrlKey: true })")
+    drop_files(xml)
+    path = json.dumps(str(xml))
+    check("drop do WorldMap2.xml do jogo abre como avulso no projeto leve homônimo", bool(wait(
+        f"__gfDoc.state().path === {path} && !!__gfDoc.state().doc"
+        " && !!__smoke.q('[data-testid=standalone-bar]')"
+        " && __smoke.all('[data-standalone-file]').some((item) => item.textContent.trim() === 'WorldMap2.xml')"
+        " && document.title.includes('WorldMap2.xml (Arquivo avulso)')", 12, "drop do XML do jogo",
+    )) and api.shell_state()["project"]["light"])
+
+    def change_on_disk(x: int) -> None:
+        document = UIDocument.load(xml)
+        previous = document.elements[0].geometry
+        document.set_geometry(0, (x, *previous[1:]))
+        temporary = xml.with_suffix(".tmp")
+        temporary.write_bytes(document.render_text().encode(document.encoding))
+        temporary.replace(xml)
+
+    def state_at(x: int) -> str:
+        return f"__gfDoc.state().doc.elements[0].geometry[0] === {x}"
+
+    js("__smoke.key('3', { ctrlKey: true })")
+    wait("__smoke.click('[data-testid=tree-row][data-index=\"0\"]')", 5, "selecionar controle do jogo")
+    wait("!!__smoke.q('input[name=geometry-x]')", 5, "geometria do controle do jogo")
+    original_x = js("__gfDoc.state().doc.elements[0].geometry[0]")
+    change_on_disk(original_x + 11)
+    check("recarga do XML avulso mantém seleção e abre um novo histórico", bool(wait(
+        state_at(original_x + 11) + " && __gfDoc.state().selection[0] === 0 && !__gfDoc.state().canUndo",
+        8, "recarga do avulso",
+    )))
+    js(f"__smoke.setValue('input[name=geometry-x]', '{original_x + 22}');"
+       "__smoke.q('input[name=geometry-x]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))")
+    wait("__gfDoc.state().dirty", 5, "edição local do avulso")
+    bar = "[data-testid=external-change-bar]"
+    change_on_disk(original_x + 33)
+    check("mudança externa com edição local oferece as três escolhas", bool(wait(
+        f"__smoke.all('{bar} button').map((item) => item.textContent).join('|') === "
+        "'Recarregar|Manter as minhas|Comparar' && " + state_at(original_x + 22), 8, "faixa de conflito",
+    )))
+    shot("xml-alterado-fora")
+    js(f"__smoke.clickText('Comparar', '{bar}')")
+    diff = wait("__smoke.text('[data-testid=diff]')", 5, "comparar revisão externa") or ""
+    check("Comparar mostra a edição local e a versão do disco", all(
+        f'WindowLeft="{x}"' in diff for x in (original_x + 22, original_x + 33)
+    ))
+    js("__smoke.click('[data-testid=diff-confirm]')")
+    js(f"__smoke.clickText('Manter as minhas', '{bar}')")
+    check("Manter as minhas fecha a faixa e preserva a edição", bool(wait(
+        f"!__smoke.q('{bar}') && __gfDoc.state().dirty && " + state_at(original_x + 22), 5, "manter edição",
+    )))
+    js("__smoke.clickText('Salvar no lugar', '[data-testid=standalone-bar]')")
+    wait("!!__smoke.q('[data-testid=diff-confirm]')", 5, "prévia de gravação")
+    js("__smoke.click('[data-testid=diff-confirm]')")
+    check("Salvar no lugar pede autorização para sobrescrever a revisão externa", bool(wait(
+        "(__smoke.text('[role=dialog]') || '').includes('Sobrescrever o XML do disco')", 5, "confirmar gravação",
+    )))
+    js("__smoke.clickText('Cancelar', '[role=dialog]')")
+    change_on_disk(original_x + 44)
+    wait(f"!!__smoke.q('{bar}')", 8, "faixa volta após outra revisão")
+    js(f"__smoke.clickText('Recarregar', '{bar}')")
+    check("Recarregar descarta a edição e mostra a última versão do disco", bool(wait(
+        f"!__smoke.q('{bar}') && !__gfDoc.state().dirty && " + state_at(original_x + 44), 8, "recarregar conflito",
     )))
 
 

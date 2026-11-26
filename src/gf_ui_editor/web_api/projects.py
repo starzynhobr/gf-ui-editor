@@ -486,8 +486,7 @@ class ProjectsApi:
             return
         if self._project is not None:
             path = path.resolve()
-            if not self._is_game_xml(path):
-                self._register_standalone(path)
+            self._register_standalone(path)
             self._open_xml(path)
             return
         self._loose_dir = path.parent
@@ -501,7 +500,7 @@ class ProjectsApi:
         if not path.is_file():
             raise FileNotFoundError(path)
         if path not in self._standalone_paths:
-            UIDocument.load(path, xml_encoding=True)
+            UIDocument.load(path, xml_encoding=not self._is_game_xml(path))
             self._standalone_paths[path] = None
 
     def _is_game_xml(self, path: Path) -> bool:
@@ -521,8 +520,6 @@ class ProjectsApi:
                     project = self._project_for_path(path)
                     if project is not None:
                         project.load_document(path)
-                    elif self._is_game_xml(path):
-                        UIDocument.load(path)
                     else:
                         self._register_standalone(path)
                     self._open_xml(path)
@@ -617,8 +614,10 @@ class ProjectsApi:
     def publish(self) -> dict:
         """Envia a UI e os textos. Erro de disco (OSError) vira rejeição no front."""
         project = self._require_project()
+        session = getattr(self, "_document_session", None)
         outcome = publishing.publish_project(
-            project, self._manifest.is_disabled(remote_manifest.PUBLISH_TEXTS), self._progress("publish")
+            project, self._manifest.is_disabled(remote_manifest.PUBLISH_TEXTS), self._progress("publish"),
+            on_copy=session.note_published if session is not None else None,
         )
         result, texts = outcome.result, outcome.texts
         # Cópias dos arquivos da pasta UI editados fora (banner "Ver" depois do envio).
