@@ -31,6 +31,8 @@ import { startupChecks } from './settings/updates'
 import { openExternalXml } from './actions'
 import { on } from './bridge'
 import { MenuHost } from './ui/Menu'
+import SourcePanel from './source/SourcePanel'
+import CommandPalette from './palette/CommandPalette'
 
 export default function App() {
   const layout = useUi((state) => state.layout)
@@ -117,7 +119,7 @@ export default function App() {
         )}
         <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
           {view === 'workspace' && <Banners />}
-          <div className="min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
           {view === 'home' ? (
             <HomeScreen />
           ) : (
@@ -130,6 +132,7 @@ export default function App() {
               onSelect={storeReady ? undefined : (element) => selectElements(element ? [element.index] : [])}
             />
           )}
+          {view === 'workspace' && <SourcePanel />}
           </div>
         </main>
         {view === 'workspace' && shell.open_path && (
@@ -144,6 +147,7 @@ export default function App() {
       <StatusBar />
       <DocSync />
       <MenuHost />
+      <CommandPalette />
       <SettingsHost />
       <DialogHost />
       <ProgressOverlay />
