@@ -49,6 +49,20 @@ export type CanvasRect = [x: number, y: number, width: number, height: number]
 export type CanvasPoint = [x: number, y: number]
 export type CanvasTextMode = 'off' | 'game' | 'xml' | 'short' | 'long'
 
+export interface CanvasPreferences {
+  resolution: string
+  presets: CanvasPoint[]
+  background: 'builtin' | 'custom' | 'none'
+  backgroundPath: string
+  savedPositions: boolean
+  character: boolean
+  outlines: boolean
+  ids: boolean
+  text: CanvasTextMode
+}
+
+export type CanvasPreference = 'resolution' | 'background' | 'savedPositions' | 'character' | 'text' | 'outlines' | 'ids'
+
 export interface CanvasElement {
   index: number
   id: string
@@ -66,6 +80,7 @@ export interface CanvasElement {
   texts: Record<CanvasTextMode, { value: string } | { sample: 'short' | 'long' }>
   sample_text: string
   sample_icon: [string, CanvasRect] | null
+  layer_text?: string
 }
 
 export interface CanvasDocument {
@@ -74,6 +89,7 @@ export interface CanvasDocument {
   preview: {
     screen: CanvasRect
     root_on_screen: CanvasPoint
+    saved_positions?: boolean
     offsets: CanvasPoint[]
     frame: CanvasRect | null
     content: CanvasRect | null

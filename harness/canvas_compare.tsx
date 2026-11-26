@@ -7,11 +7,24 @@ import { openAtlas, previewTexture } from '../web/src/atlas'
 import CanvasView from '../web/src/canvas/CanvasView'
 import { previewSave, redo, save, select, setHidden, setIsolated, setLocked, undo, useDoc } from '../web/src/doc/store'
 import DdsProbe from './canvas_compare_dds?worker&inline'
+import '../web/src/index.css'
 
 Konva.pixelRatio = 1
 const root = createRoot(document.getElementById('root')!)
 let selected: CanvasElement | null = null
 root.render(createElement(CanvasView, { path: null }))
+
+async function setToggle(caption: string, pressed: boolean) {
+  const button = [...document.querySelectorAll<HTMLButtonElement>('.gf-canvas-toolbar button')]
+    .find((button) => button.textContent === caption)
+  if (!button) throw new Error('Missing canvas control: ' + caption)
+  const deadline = performance.now() + 5000
+  if (button.ariaPressed !== String(pressed)) button.click()
+  while (button.disabled || button.ariaPressed !== String(pressed)) {
+    if (performance.now() > deadline) throw new Error('Canvas control timed out: ' + caption)
+    await new Promise(requestAnimationFrame)
+  }
+}
 
 async function open(path: string, preview: boolean, background: boolean) {
   const doc = await openCanvasDocument(path, [1024, 768])
@@ -23,20 +36,24 @@ async function open(path: string, preview: boolean, background: boolean) {
   while ((!Konva.stages[0]?.width() || !document.querySelector('.gf-canvas-toolbar')) && performance.now() < timeout) {
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  const click = (caption: string) => {
-    const button = [...document.querySelectorAll('button')].find((button) => button.textContent === caption)
-    if (!button) throw new Error('Missing canvas control: ' + caption)
-    button.click()
-  }
-  click('Contornos')
-  if (doc.elements.some((element) => element.sample_text || element.sample_icon)) click('Personagem')
-  if (preview) {
-    click('Tela')
-    await new Promise(requestAnimationFrame)
-    if (!background) click('Fundo')
-    const select = document.querySelector<HTMLSelectElement>('select[aria-label="Texto"]')!
-    select.value = 'game'
+  const change = async (caption: string, value: string) => {
+    const select = document.querySelector<HTMLSelectElement>(`select[aria-label="${caption}"]`)!
+    if (select.value === value) return
+    select.value = value
     select.dispatchEvent(new Event('change', { bubbles: true }))
+    const deadline = performance.now() + 5000
+    while (select.value !== value || select.disabled) {
+      if (performance.now() > deadline) throw new Error('Canvas control timed out: ' + caption)
+      await new Promise(requestAnimationFrame)
+    }
+  }
+  await setToggle('Contornos', false)
+  await setToggle('IDs', false)
+  await change('Tela', preview ? 'game' : 'off')
+  await change('Fundo', background ? 'builtin' : 'none')
+  await change('Texto', preview ? 'game' : 'off')
+  if ((preview && doc.preview.drawn) || doc.elements.some((element) => element.sample_text || element.sample_icon)) {
+    await setToggle('Personagem', false)
   }
   await new Promise(requestAnimationFrame)
   const maxWait = performance.now() + 5000
@@ -94,9 +111,59 @@ async function checkControls() {
   const zoom = group.scaleX()
   if (zoom <= scale || Math.abs((x - group.x()) / zoom - beforeX) > 0.01 ||
       Math.abs((y - group.y()) / zoom - beforeY) > 0.01) throw new Error('Canvas zoom moved the anchor')
-  viewport.closest('section')!.querySelector<HTMLButtonElement>('button:last-child')!.click()
+  viewport.closest('section')!.querySelector<HTMLButtonElement>('[data-testid="canvas-fit"]')!.click()
   await commit()
   if (group.x() !== initial.x || group.y() !== initial.y || group.scaleX() !== scale) throw new Error('Canvas fit did not restore framing')
+
+  await setToggle('IDs', true)
+  await commit()
+  const context = CanvasRenderingContext2D.prototype
+  const { fillText, strokeRect } = context
+  const fonts: string[] = []
+  const strokes: number[] = []
+  context.fillText = function (text, ...args) {
+    if (text.startsWith('1 · ')) fonts.push(`${this.font} × ${this.getTransform().a}`)
+    fillText.call(this, text, ...args)
+  }
+  context.strokeRect = function (...args) {
+    strokes.push(this.lineWidth * this.getTransform().a)
+    strokeRect.call(this, ...args)
+  }
+  const stage = Konva.stages[0]
+  try {
+    group.position({ x: 20, y: 20 })
+    group.scale({ x: 1, y: 1 })
+    stage.draw()
+    group.scale({ x: .2, y: .2 })
+    stage.draw()
+  } finally {
+    context.fillText = fillText
+    context.strokeRect = strokeRect
+  }
+  if (fonts.length !== 2 || fonts.some((font) => font !== '12px Arial × 1')) {
+    throw new Error('IDs did not retain their screen font: ' + fonts.join(', '))
+  }
+  if (strokes.length !== 2 || strokes.some((width) => Math.abs(width - 2) > .001)) {
+    throw new Error('Selection outlines did not retain their screen thickness: ' + strokes.join(', '))
+  }
+  await setToggle('IDs', false)
+
+  const html = document.documentElement
+  const theme = document.createElement('style')
+  theme.textContent = 'html[data-theme="comparison"] { --color-canvas-surface: rgb(21, 43, 65); }'
+  document.head.append(theme)
+  try {
+    html.dataset.theme = 'comparison'
+    await commit()
+    const dots = stage.getLayers()[0].getCanvas()._canvas.getContext('2d')!
+    if (dots.getImageData(0, 0, 1, 1).data.join(',') !== '21,43,65,255') {
+      throw new Error('Canvas did not redraw after the theme changed')
+    }
+  } finally {
+    delete html.dataset.theme
+    theme.remove()
+    await commit()
+  }
   return true
 }
 

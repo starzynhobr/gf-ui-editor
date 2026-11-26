@@ -2,17 +2,21 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from 'react'
 import { Group, Layer, Shape, Stage } from 'react-konva/lib/ReactKonvaCore.js'
 import {
-  canvasAssetBase, canvasBackgroundBase, on,
-  type CanvasDocument, type CanvasElement, type CanvasPoint, type CanvasRect, type CanvasTextMode, type TextEditsChanged,
+  call, canvasAssetBase, canvasBackgroundBase, on,
+  type CanvasDocument, type CanvasElement, type CanvasPoint, type CanvasPreference, type CanvasPreferences,
+  type CanvasRect, type TextEditsChanged,
 } from '../bridge'
-import { applyCanvasEdits, checkExternalChange, ensureDoc, refreshGameTexts, select, useDoc } from '../doc/store'
+import { applyCanvasEdits, applyCanvasPreference, checkExternalChange, ensureDoc, refreshGameTexts, select, useDoc } from '../doc/store'
 import { AtlasHost } from '../atlas/AtlasHost'
-import { drawDots, drawScene, drawsRootTexture, sceneRows, type SceneOptions } from './drawScene'
+import { useShell } from '../store'
+import { CanvasToolbar } from './CanvasToolbar'
+import { drawDots, drawReferenceLayer, drawScene, drawScreen, drawsRootTexture, sceneRows, type SceneOptions } from './drawScene'
 import {
   between, contains, draftScene, intersects, moves, resizeHandles, resizes, visibleRows,
   type Axis, type GeometryEdit, type Handle,
 } from './geometry'
 import { TextureCache } from './dds/cache'
+import { useCanvasPalette } from './palette'
 import './canvas.css'
 
 export interface CanvasViewProps {
@@ -23,13 +27,11 @@ export interface CanvasViewProps {
 }
 
 const labels = {
-  pt: ['Nenhum XML aberto', 'Carregando XML…', 'Contornos', 'IDs', 'Tela', 'Fundo', 'Personagem', 'Texto', 'Sem texto', 'Jogo', 'XML', 'Curto', 'Longo', 'Enquadrar', 'Texto', 'Texto de exemplo bem comprido para testar o espaço', 'Texturas indisponíveis', 'Normal', 'Foco', 'Pressionado', 'Desativado'],
-  en: ['No XML open', 'Loading XML…', 'Outlines', 'IDs', 'Screen', 'Background', 'Character', 'Text', 'No text', 'Game', 'XML', 'Short', 'Long', 'Fit', 'Text', 'A rather long sample text to test the space', 'Unavailable textures', 'Normal', 'Focused', 'Pressed', 'Disabled'],
-  es: ['Ningún XML abierto', 'Cargando XML…', 'Contornos', 'IDs', 'Pantalla', 'Fondo', 'Personaje', 'Texto', 'Sin texto', 'Juego', 'XML', 'Corto', 'Largo', 'Ajustar', 'Texto', 'Texto de ejemplo bastante largo para probar el espacio', 'Texturas no disponibles', 'Normal', 'En foco', 'Pulsado', 'Desactivado'],
-  fr: ['Aucun XML ouvert', 'Chargement du XML…', 'Contours', 'ID', 'Écran', 'Fond', 'Personnage', 'Texte', 'Sans texte', 'Jeu', 'XML', 'Court', 'Long', 'Ajuster', 'Texte', 'Un texte assez long pour tester la place disponible', 'Textures indisponibles', 'Normal', 'Survol', 'Appuyé', 'Désactivé'],
+  pt: ['Nenhum XML aberto', 'Carregando XML…', 'Texto', 'Texto de exemplo bem comprido para testar o espaço', 'Texturas indisponíveis'],
+  en: ['No XML open', 'Loading XML…', 'Text', 'A rather long sample text to test the space', 'Unavailable textures'],
+  es: ['Ningún XML abierto', 'Cargando XML…', 'Texto', 'Texto de ejemplo bastante largo para probar el espacio', 'Texturas no disponibles'],
+  fr: ['Aucun XML ouvert', 'Chargement du XML…', 'Texte', 'Un texte assez long pour tester la place disponible', 'Textures indisponibles'],
 }
-const textModes: CanvasTextMode[] = ['off', 'game', 'xml', 'short', 'long']
-const buttonStates = ['FocusUV', 'DownUV', 'DisableUV']
 const editLabels = {
   pt: ['Mover', 'Redimensionar', 'Área invisível da janela', 'O XML mudou no disco. Recarregar e descartar as alterações não salvas?', 'O XML aberto foi removido do disco.'],
   en: ['Move', 'Resize', 'Invisible window area', 'The XML changed on disk. Reload and discard unsaved changes?', 'The open XML was removed from disk.'],
@@ -44,6 +46,20 @@ interface View {
   y: number
   scale: number
 }
+
+interface ReferenceScene {
+  name: string
+  base: string
+  scene: CanvasDocument
+}
+
+interface CanvasLayers {
+  names: string[]
+  scenes: ReferenceScene[]
+  inProject: boolean
+}
+
+const noLayers: CanvasLayers = { names: [], scenes: [], inProject: false }
 
 type Gesture = {
   id: number
@@ -66,6 +82,12 @@ const arrows: Record<string, CanvasPoint> = {
 function fit([x, y, width, height]: CanvasRect, size: CanvasPoint): View {
   const scale = Math.max(0.05, Math.min(16, (size[0] - 40) / width, (size[1] - 44) / height))
   return { x: Math.round((size[0] - width * scale) / 2 - x * scale), y: Math.round((size[1] - height * scale) / 2 - y * scale), scale }
+}
+
+function zoomAt(view: View, target: number, [x, y]: CanvasPoint): View {
+  const scale = Math.max(0.05, Math.min(16, target))
+  const ratio = scale / view.scale
+  return { scale, x: x - (x - view.x) * ratio, y: y - (y - view.y) * ratio }
 }
 
 function useTextureCache() {
@@ -142,6 +164,13 @@ function useTextures(
   return { images, loading: [...names].some((name) => !images.has(name)) }
 }
 
+function ReferenceLayer({ layer, cache, screen, options }: {
+  layer: ReferenceScene; cache: RefObject<TextureCache | null>; screen: CanvasRect; options: SceneOptions
+}) {
+  const { images } = useTextures(cache, layer.base, layer.scene, options.sample)
+  return <Shape sceneFunc={(context) => drawReferenceLayer(context._context, layer.scene, images, screen, options)} />
+}
+
 export default function CanvasView({ path, language, resolution, onSelect }: CanvasViewProps) {
   const locale = (language ?? document.documentElement.lang).slice(0, 2).toLowerCase()
   const t = labels[locale as keyof typeof labels] ?? labels.pt
@@ -154,10 +183,15 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 })
   const [loaded, setLoaded] = useState<{ path: string; base: string }>()
   const [error, setError] = useState<{ path: string; message: string }>()
-  const [options, setOptions] = useState<SceneOptions>(() => ({
-    outlines: true, labels: false, preview: false, sample: true, text: 'off', short: t[14], long: t[15],
-  }))
-  const [showBackground, setShowBackground] = useState(true)
+  const [buttonState, setButtonState] = useState<string>()
+  const [preferences, setPreferences] = useState<CanvasPreferences>()
+  const [preferenceError, setPreferenceError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const actionPending = useRef(false)
+  const revision = useShell((state) => state.revision)
+  const [textRevision, setTextRevision] = useState(0)
+  const [layers, setLayers] = useState<CanvasLayers>(noLayers)
+  const palette = useCanvasPalette()
   const [background, setBackground] = useState<ImageBitmap | null>()
   const [draft, setDraft] = useState<GeometryEdit[]>([])
   const [marquee, setMarquee] = useState<CanvasRect | null>(null)
@@ -166,10 +200,23 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   const [resolutionWidth, resolutionHeight] = resolution ?? []
   const current = loaded?.path === path ? loaded : undefined
   const scene = openPath === path ? doc ?? undefined : undefined
+  const options: SceneOptions = {
+    outlines: preferences?.outlines ?? true, labels: preferences?.ids ?? false,
+    preview: !!preferences && preferences.resolution !== 'off',
+    sample: preferences?.character ?? true, text: preferences?.text ?? 'off', short: t[2], long: t[3], buttonState,
+  }
+  useEffect(() => {
+    let active = true
+    void call<CanvasPreferences>('canvas_preferences')
+      .then((next) => { if (active) setPreferences(next) })
+      .catch((error) => { if (active) setPreferenceError(String(error)) })
+    return () => { active = false }
+  }, [])
   useEffect(() => on('text_edits_changed', (payload) => {
     const { project, files } = payload as TextEditsChanged
     if (files.some((file) => file.toLowerCase() === 't_textindex.ini')) {
       void refreshGameTexts(project).catch(() => undefined)
+      setTextRevision((current) => current + 1)
     }
   }), [])
   const draftSource = drag.current?.document ?? committing.current
@@ -182,6 +229,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
     [drawn, options.preview, hidden, isolated],
   )
   const frame = options.preview ? drawn?.preview.frame ?? null : null
+  const [, , screenWidth, screenHeight] = scene?.preview.screen ?? []
   const handles = useMemo(() => resizeHandles(rows, selection, locked, frame), [rows, selection, locked, frame])
   const selected = selection[0] ?? null
   const cache = useTextureCache()
@@ -220,25 +268,45 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   }, [path, !!scene, editText])
 
   useEffect(() => {
-    setOptions((old) => old.buttonState === undefined ? old : { ...old, buttonState: undefined })
+    setButtonState(undefined)
   }, [selected])
 
   useEffect(() => {
     onSelect?.(selected === null ? null : scene?.elements[selected] ?? null)
   }, [selected, scene, onSelect])
 
-  const backgroundFile = scene?.preview.background
-  const wantsBackground = options.preview && showBackground
+  const backgroundMode = preferences?.background
+  const backgroundPath = preferences?.backgroundPath
+  const backgroundFile = backgroundMode === 'custom' ? backgroundPath : scene?.preview.background
+  const wantsBackground = options.preview && backgroundMode !== 'none' && !!backgroundFile
   useEffect(() => {
     setBackground(undefined)
     if (!wantsBackground || !backgroundFile) return
     let disposed = false
-    void canvasBackgroundBase()
-      .then((base) => cache.current?.load(base, backgroundFile, false))
+    const source = backgroundMode === 'custom'
+      ? call<{ base: string; name: string } | null>('canvas_custom_background')
+      : canvasBackgroundBase().then((base) => ({ base, name: backgroundFile }))
+    void source
+      .then((asset) => asset && cache.current?.load(asset.base, asset.name, false))
       .then((image) => { if (!disposed) setBackground(image ?? null) })
       .catch(() => { if (!disposed) setBackground(null) })
     return () => { disposed = true }
-  }, [wantsBackground, backgroundFile, cache])
+  }, [wantsBackground, backgroundMode, backgroundFile, cache])
+
+  useEffect(() => {
+    setLayers(noLayers)
+  }, [path, options.preview])
+
+  const savedPositions = scene?.preview.saved_positions ?? preferences?.savedPositions
+  useEffect(() => {
+    if (!path || savedPositions === undefined) return
+    let active = true
+    const resolution = options.preview && screenWidth && screenHeight ? [screenWidth, screenHeight] : null
+    void call<CanvasLayers>('canvas_layers', path, resolution, savedPositions)
+      .then((value) => { if (active) setLayers(value) })
+      .catch((error) => { if (active) setPreferenceError(String(error)) })
+    return () => { active = false }
+  }, [path, savedPositions, options.preview, screenWidth, screenHeight, revision, textRevision])
 
   useLayoutEffect(() => {
     if (!viewport.current) return
@@ -253,7 +321,8 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   useLayoutEffect(() => {
     if (!bounds || !size[0] || !size[1]) return
     const previous = framing.current
-    if (!previous || previous.path !== path || previous.preview !== options.preview || previous.size !== size) {
+    if (!previous || previous.path !== path || previous.preview !== options.preview || previous.size !== size ||
+        (options.preview && (previous.bounds[2] !== bounds[2] || previous.bounds[3] !== bounds[3]))) {
       setView(fit(bounds, size))
     } else if (options.preview) {
       const dx = previous.bounds[0] - bounds[0]
@@ -272,15 +341,48 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
       const rect = node.getBoundingClientRect()
       const x = event.clientX - rect.left
       const y = event.clientY - rect.top
-      setView((old) => {
-        const scale = Math.max(0.05, Math.min(16, old.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15)))
-        const ratio = scale / old.scale
-        return { scale, x: x - (x - old.x) * ratio, y: y - (y - old.y) * ratio }
-      })
+      if (!drag.current) setView((old) => zoomAt(old, old.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), [x, y]))
     }
     node.addEventListener('wheel', wheel, { passive: false })
     return () => node.removeEventListener('wheel', wheel)
   }, [scene])
+
+  useEffect(() => {
+    if (!scene) return
+    const reset = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== '0' || !event.ctrlKey || event.altKey || event.shiftKey ||
+          document.querySelector('dialog[open], [role="dialog"]')) return
+      event.preventDefault()
+      if (!drag.current) setView((old) => zoomAt(old, 1, [size[0] / 2, size[1] / 2]))
+    }
+    window.addEventListener('keydown', reset)
+    return () => window.removeEventListener('keydown', reset)
+  }, [scene, size])
+
+  async function toolbarAction(action: () => Promise<void>) {
+    if (actionPending.current) return false
+    actionPending.current = true
+    setBusy(true)
+    setPreferenceError('')
+    try {
+      await action()
+      return true
+    } catch (error) {
+      setPreferenceError(String(error))
+      return false
+    } finally {
+      actionPending.current = false
+      setBusy(false)
+    }
+  }
+
+  function changePreference(key: CanvasPreference, value: string | boolean) {
+    if (!path) return Promise.resolve(false)
+    cancelGesture()
+    return toolbarAction(async () => {
+      setPreferences(await applyCanvasPreference(path, key, value, resolution))
+    })
+  }
 
   function scenePoint(event: MouseEvent<HTMLDivElement>): CanvasPoint {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -423,33 +525,34 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   }
 
   const missing = [...images].filter(([, image]) => !image).map(([name]) => name)
-  const button = selected !== null && scene?.elements[selected]?.button_uvs
-  const hasSample = scene?.elements.some((element) => element.sample_text || element.sample_icon)
-  const toggle = (key: 'outlines' | 'labels' | 'preview' | 'sample') =>
-    setOptions((old) => ({ ...old, [key]: !old[key] }))
+  const button = selected === null ? undefined : scene?.elements[selected]?.button_uvs
+  const hasSample = !!(options.preview && scene?.preview.drawn) ||
+    !!scene?.elements.some((element) => element.sample_text || element.sample_icon)
+  const zoom = (factor?: number) => {
+    if (!drag.current) setView((old) => zoomAt(old, factor === undefined ? 1 : old.scale * factor, [size[0] / 2, size[1] / 2]))
+  }
   return (
     <section className="gf-canvas"
-      aria-busy={!!path && error?.path !== path && (!scene || loading || (wantsBackground && !!backgroundFile && background === undefined))}>
-      {scene && <div className="gf-canvas-toolbar">
-        <button aria-pressed={options.outlines} onClick={() => toggle('outlines')}>{t[2]}</button>
-        <button aria-pressed={options.labels} onClick={() => toggle('labels')}>{t[3]}</button>
-        <button aria-pressed={options.preview} onClick={() => toggle('preview')}>{t[4]}</button>
-        {options.preview && backgroundFile && <button aria-pressed={showBackground} onClick={() => setShowBackground(!showBackground)}>{t[5]}</button>}
-        {hasSample && <button aria-pressed={options.sample} onClick={() => toggle('sample')}>{t[6]}</button>}
-        <select aria-label={t[7]} value={options.text}
-          onChange={(event) => setOptions({ ...options, text: event.target.value as CanvasTextMode })}>
-          {textModes.map((mode, index) => <option key={mode} value={mode}>{t[index + 8]}</option>)}
-        </select>
-        {button && buttonStates.some((state) => button[state]) &&
-          <select aria-label={t[17]} value={options.buttonState ?? ''}
-            onChange={(event) => setOptions({ ...options, buttonState: event.target.value || undefined })}>
-            <option value="">{t[17]}</option>
-            {buttonStates.map((state, index) => button[state] && <option key={state} value={state}>{t[18 + index]}</option>)}
-          </select>}
-        <button onClick={() => bounds && setView(fit(bounds, size))}>{t[13]} · {Math.round(view.scale * 100)}%</button>
-        {!!missing.length && <output title={missing.join(', ')}>{t[16]} ({missing.length})</output>}
-        {documentError && <output title={documentError}>{documentError}</output>}
-      </div>}
+      aria-busy={!!path && error?.path !== path && (!scene || busy || loading || (wantsBackground && background === undefined))}>
+      {scene && preferences && <CanvasToolbar
+        preferences={{ ...preferences, savedPositions: savedPositions ?? preferences.savedPositions }}
+        screen={scene.preview.screen} busy={busy}
+        showCharacter={hasSample} layers={layers.names} inProject={layers.inProject}
+        buttonUvs={button} buttonState={buttonState} scale={view.scale}
+        onPreference={changePreference}
+        onBackground={() => void toolbarAction(async () => {
+          setPreferences(await call<CanvasPreferences>('canvas_choose_background'))
+        })}
+        onLayers={(action) => void toolbarAction(async () => {
+          await call('canvas_change_layers', path, action)
+          useShell.setState((state) => ({ revision: state.revision + 1 }))
+        })}
+        onButtonState={setButtonState}
+        onZoom={zoom} onResetZoom={() => zoom()} onFit={() => { if (bounds) setView(fit(bounds, size)) }}>
+        {!!missing.length && <output title={missing.join(', ')}>{t[4]} ({missing.length})</output>}
+        {(preferenceError || documentError) && <output role="alert">{preferenceError || documentError}</output>}
+      </CanvasToolbar>}
+      {scene && !preferences && preferenceError && <output role="alert">{preferenceError}</output>}
       <div ref={viewport} className="gf-canvas-viewport" tabIndex={0} style={{ cursor }}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onDoubleClick={doubleClick}
         onLostPointerCapture={() => { if (drag.current) cancelGesture() }} onPointerCancel={cancelGesture}
@@ -460,13 +563,19 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
         {drawn && size[0] > 0 && size[1] > 0 ?
           <Stage width={size[0]} height={size[1]} listening={false}>
             <Layer listening={false}>
-              <Shape sceneFunc={(context) => drawDots(context._context, ...size)} />
+              <Shape sceneFunc={(context) => drawDots(context._context, ...size, palette)} />
             </Layer>
             <Layer listening={false}>
               <Group x={view.x} y={view.y} scaleX={view.scale} scaleY={view.scale}>
+                {options.preview && <>
+                  <Shape sceneFunc={(context) => drawScreen(context._context, drawn.preview.screen,
+                    wantsBackground ? background ?? null : null,
+                    context._context.getTransform().a / context.getCanvas().getPixelRatio(), palette)} />
+                  {layers.scenes.map((layer) => <ReferenceLayer key={layer.name} layer={layer}
+                    cache={cache} screen={drawn.preview.screen} options={options} />)}
+                </>}
                 <Shape sceneFunc={(context) => drawScene(context._context, drawn, rows, images,
-                  { ...options, short: t[14], long: t[15] }, wantsBackground ? background ?? null : null, view.scale,
-                  selected, selection, handles, marquee, ghost, editText[2])} />
+                  options, palette, context.getCanvas().getPixelRatio(), selected, selection, handles, marquee, ghost, editText[2])} />
               </Group>
             </Layer>
           </Stage>

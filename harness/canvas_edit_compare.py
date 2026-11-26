@@ -347,7 +347,13 @@ def web(out, page, project, expected):
             wait("document.querySelectorAll('.gf-atlas-fields input')[2].value === '69'", "resize normal crop")
             js("document.querySelector('.gf-atlas-resize input').click(); true")
             click_atlas("Foco")
-            wait("document.querySelector('[data-state=FocusUV]').ariaPressed === 'true'", "focus state active")
+            wait("""(() => {
+                const cut = document.querySelector('.gf-atlas-cut').getBoundingClientRect();
+                const view = document.querySelector('.gf-atlas-surface').getBoundingClientRect();
+                return document.querySelector('[data-state=FocusUV]').ariaPressed === 'true' &&
+                    Math.abs(cut.left + cut.width / 2 - view.left - view.width / 2) < 1 &&
+                    Math.abs(cut.top + cut.height / 2 - view.top - view.height / 2) < 1;
+            })()""", "focus state centered")
             atlas_gesture((539.2, 93.2), (598.8, 112.8))
             wait("document.querySelectorAll('.gf-atlas-fields input')[1].value === '93'", "draw focus crop")
             async_js("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))")

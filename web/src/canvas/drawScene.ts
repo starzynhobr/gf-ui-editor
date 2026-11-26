@@ -1,5 +1,6 @@
 import type { CanvasDocument, CanvasElement, CanvasRect, CanvasTextMode } from '../bridge'
 import type { Handle } from './geometry'
+import type { CanvasPalette } from './palette'
 
 export interface SceneOptions {
   outlines: boolean
@@ -14,8 +15,6 @@ export interface SceneOptions {
 
 type Images = ReadonlyMap<string, ImageBitmap | null>
 type Rows = ReturnType<typeof sceneRows>
-
-export const canvasBackground = '#0d0f13'
 
 export function sceneRows(document: CanvasDocument, preview: boolean) {
   return document.elements.map((element) => {
@@ -111,9 +110,9 @@ function drawTexture(
   ctx.drawImage(cut, x, y)
 }
 
-function drawText(ctx: CanvasRenderingContext2D, element: CanvasElement, box: CanvasRect, options: SceneOptions) {
+function drawText(ctx: CanvasRenderingContext2D, element: CanvasElement, box: CanvasRect, options: SceneOptions, fallback = '') {
   const entry = element.texts[options.text]
-  const text = (options.sample && element.sample_text) || ('value' in entry ? entry.value : options[entry.sample])
+  const text = (options.sample && element.sample_text) || ('value' in entry ? entry.value : options[entry.sample]) || fallback
   if (!text) return
   const props = element.text_props
   const outline = props.FontStyle === '1'
@@ -162,113 +161,175 @@ function drawText(ctx: CanvasRenderingContext2D, element: CanvasElement, box: Ca
   }
 }
 
-export function drawDots(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  ctx.fillStyle = canvasBackground
+export function drawDots(ctx: CanvasRenderingContext2D, width: number, height: number, palette: CanvasPalette) {
+  ctx.fillStyle = palette.surface
   ctx.fillRect(0, 0, width, height)
   // A cosmetic 1.4 px Qt point centered on integer coordinates covers four pixels.
-  ctx.fillStyle = '#181a21'
+  ctx.fillStyle = palette.grid
   for (let x = 7; x < width; x += 16) {
     for (let y = 7; y < height; y += 16) ctx.fillRect(x, y, 2, 2)
   }
 }
 
+export function drawScreen(
+  ctx: CanvasRenderingContext2D, screen: CanvasRect, background: ImageBitmap | null, scale: number,
+  palette: CanvasPalette,
+) {
+  ctx.save()
+  const [x, y, width, height] = screen
+  ctx.fillStyle = palette.surface
+  ctx.fillRect(x, y, width, height)
+  if (background) {
+    const ratio = Math.max(width / background.width, height / background.height)
+    const w = background.width * ratio
+    const h = background.height * ratio
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x, y, width, height)
+    ctx.clip()
+    ctx.imageSmoothingEnabled = true
+    ctx.drawImage(background, x + (width - w) / 2, y + (height - h) / 2, w, h)
+    ctx.restore()
+  }
+  ctx.lineWidth = 1 / scale
+  ctx.strokeStyle = palette.frame
+  ctx.strokeRect(x, y, width, height)
+  ctx.font = `${12 / scale}px Arial`
+  ctx.fillStyle = palette.frame
+  ctx.fillText(`${width} × ${height}`, x, y + height + 15 / scale)
+  ctx.restore()
+}
+
+export function drawReferenceLayer(
+  ctx: CanvasRenderingContext2D, document: CanvasDocument, images: Images, screen: CanvasRect, options: SceneOptions,
+) {
+  const rows = sceneRows(document, false).filter(({ element }) => element.visible)
+  const [x, y] = document.preview.screen
+  const layerOptions = { ...options, text: options.text === 'game' ? 'game' : 'off' } as const
+  ctx.save()
+  ctx.translate(screen[0] - x, screen[1] - y)
+  ctx.imageSmoothingEnabled = false
+  for (const { element, box } of rows) drawTexture(ctx, element, box, images, options.sample)
+  for (const { element, box } of rows) drawText(ctx, element, box, layerOptions, element.layer_text)
+  ctx.restore()
+}
+
+function drawLabels(
+  ctx: CanvasRenderingContext2D, rows: Rows, selected: number | null, pixelRatio: number, palette: CanvasPalette,
+) {
+  const camera = ctx.getTransform()
+  const project = (row: Rows[number]) => [
+    Math.round((row.box[0] * camera.a + camera.e) / pixelRatio) + 2,
+    Math.round((row.box[1] * camera.d + camera.f) / pixelRatio) + 1,
+  ]
+  const width = ctx.canvas.width / pixelRatio
+  const height = ctx.canvas.height / pixelRatio
+  ctx.save()
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+  ctx.font = '12px Arial'
+  ctx.textBaseline = 'top'
+  const occupied = new Set<number>()
+  const columns = Math.ceil(width / 16)
+  const primary = rows.find(({ element }) => element.index === selected)
+  const ordered = primary ? [primary, ...rows.filter((row) => row !== primary)] : rows
+  for (const row of ordered) {
+    const [x, y] = project(row)
+    if (x < 0 || x >= width || y < 0 || y + 16 > height) continue
+    const label = `${row.element.id} · ${row.element.ctrl_type ?? row.element.kind}`
+    const w = Math.ceil(ctx.measureText(label).width) + 6
+    if (x + w > width) continue
+    // Reserve screen-space cells so IDs on nearby elements don't overlap at small zooms.
+    const cells: number[] = []
+    for (let iy = Math.floor(y / 16); iy <= Math.floor((y + 15) / 16); iy++) {
+      for (let ix = Math.floor(x / 16); ix <= Math.floor((x + w - 1) / 16); ix++) cells.push(iy * columns + ix)
+    }
+    if (cells.some((cell) => occupied.has(cell))) continue
+    for (const cell of cells) occupied.add(cell)
+    ctx.fillStyle = palette.surface
+    ctx.fillRect(x, y, w, 16)
+    ctx.fillStyle = palette.label
+    ctx.fillText(label, x + 3, y + 2)
+  }
+  ctx.restore()
+}
+
 export function drawScene(
   ctx: CanvasRenderingContext2D, document: CanvasDocument, rows: Rows, images: Images,
-  options: SceneOptions, background: ImageBitmap | null, scale: number, selected: number | null,
-  selection = selected === null ? [] : [selected], handles: Handle[] = [],
-  marquee: CanvasRect | null = null, ghost: CanvasRect | null = null, ghostLabel = '',
+  options: SceneOptions, palette: CanvasPalette, pixelRatio: number, selected: number | null,
+  selection: number[], handles: Handle[], marquee: CanvasRect | null, ghost: CanvasRect | null, ghostLabel: string,
 ) {
   ctx.save()
   const { preview } = document
   const camera = ctx.getTransform()
+  const scale = camera.a / pixelRatio
   const left = -camera.e / camera.a
   const top = -camera.f / camera.d
   const right = left + ctx.canvas.width / camera.a
   const bottom = top + ctx.canvas.height / camera.d
   const inView = ([x, y, width, height]: CanvasRect) =>
     x <= right && x + width >= left && y <= bottom && y + height >= top
-  if (options.preview) {
-    const [x, y, width, height] = preview.screen
-    ctx.fillStyle = canvasBackground
-    ctx.fillRect(x, y, width, height)
-    if (background) {
-      const ratio = Math.max(width / background.width, height / background.height)
-      const w = background.width * ratio
-      const h = background.height * ratio
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(x, y, width, height)
-      ctx.clip()
-      ctx.imageSmoothingEnabled = true
-      ctx.drawImage(background, x + (width - w) / 2, y + (height - h) / 2, w, h)
-      ctx.restore()
-    }
-    ctx.lineWidth = 1 / scale
-    ctx.strokeStyle = '#7c8799'
-    ctx.strokeRect(x, y, width, height)
-    ctx.font = `${12 / scale}px Arial`
-    ctx.fillStyle = '#7c8799'
-    ctx.fillText(`${width} × ${height}`, x, y + height + 15 / scale)
-  }
   ctx.imageSmoothingEnabled = false
   for (const { element, textureBox, box } of rows) {
     // Like Qt, inspect all XML controls, including ones whose Visible flag starts at 0.
     if (options.outlines && inView(box)) {
-      ctx.fillStyle = 'rgba(40,150,220,0.03137)'
+      ctx.fillStyle = palette.outline
+      ctx.globalAlpha = .03137
       ctx.fillRect(...box)
-      ctx.strokeStyle = 'rgba(90,190,255,0.43137)'
+      ctx.strokeStyle = palette.outline
+      ctx.globalAlpha = .43137
       ctx.lineWidth = 1 / scale
       ctx.setLineDash([4 / scale, 2 / scale])
       ctx.strokeRect(...box)
       ctx.setLineDash([])
+      ctx.globalAlpha = 1
     }
     if (inView(textureBox)) {
       drawTexture(ctx, element, textureBox, images, options.sample, element.index === selected ? options.buttonState : undefined)
     }
-    if (options.labels) {
-      ctx.font = `${12 / scale}px Arial`
-      ctx.fillStyle = '#ffeb78'
-      ctx.fillText(`${element.id} · ${element.ctrl_type ?? element.kind}`, box[0] + 2 / scale, box[1] + 12 / scale)
-    }
   }
   if (options.preview && options.sample && preview.drawn) {
     ctx.lineWidth = 1 / scale
-    ctx.strokeStyle = '#41dcff'
+    ctx.strokeStyle = palette.character
     ctx.setLineDash([4 / scale, 2 / scale])
     ctx.strokeRect(...preview.drawn)
     ctx.setLineDash([])
   }
   for (const { element, box } of rows) drawText(ctx, element, box, options)
   if (ghost) {
-    ctx.fillStyle = 'rgba(246,142,76,0.15)'
+    ctx.fillStyle = palette.ghost
+    ctx.globalAlpha = .15
     ctx.fillRect(...ghost)
-    ctx.strokeStyle = '#f68e4c'
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = palette.ghost
     ctx.lineWidth = 1 / scale
     ctx.setLineDash([4 / scale, 2 / scale])
     ctx.strokeRect(...ghost)
     ctx.setLineDash([])
     ctx.font = `${12 / scale}px Arial`
-    ctx.fillStyle = '#f68e4c'
+    ctx.fillStyle = palette.ghost
     ctx.fillText(ghostLabel, ghost[0] + 3 / scale, ghost[1] + 13 / scale)
   }
+  if (options.labels) drawLabels(ctx, rows, selected, pixelRatio, palette)
   const marked = new Set(selection)
   for (const { element, box } of rows) {
     if (!marked.has(element.index)) continue
     ctx.lineWidth = 2 / scale
-    ctx.strokeStyle = '#ffbe1e'
+    ctx.strokeStyle = palette.selection
     ctx.strokeRect(...box)
     if (options.preview && element.index === 0 && preview.frame) ctx.strokeRect(...preview.frame)
   }
   for (const { point: [x, y] } of handles) {
-    ctx.fillStyle = '#ffbe1e'
+    ctx.fillStyle = palette.selection
     const radius = 5 / scale
     ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
   }
   if (marquee) {
-    ctx.fillStyle = 'rgba(90,190,255,0.16)'
-    ctx.strokeStyle = '#5abeff'
+    ctx.fillStyle = palette.outline
+    ctx.strokeStyle = palette.outline
     ctx.lineWidth = 1 / scale
+    ctx.globalAlpha = .16
     ctx.fillRect(...marquee)
+    ctx.globalAlpha = 1
     ctx.strokeRect(...marquee)
   }
   ctx.restore()
