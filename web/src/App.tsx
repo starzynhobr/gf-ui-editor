@@ -26,6 +26,10 @@ import StatusBar from './shell/StatusBar'
 import TopBar from './shell/TopBar'
 import { installShortcuts } from './shell/shortcuts'
 import { DialogHost } from './ui/dialogs'
+import SettingsHost, { useSettings } from './settings/SettingsScreen'
+import { startupChecks } from './settings/updates'
+import { openExternalXml } from './actions'
+import { on } from './bridge'
 import { MenuHost } from './ui/Menu'
 
 export default function App() {
@@ -38,6 +42,7 @@ export default function App() {
   const page = useShell((state) => state.page)
   const shell = useShell((state) => state.shell)
   const storeReady = useEditingAvailable()
+  const canvasEpoch = useSettings((state) => state.canvasEpoch)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -46,13 +51,18 @@ export default function App() {
       ({ view: first, ...state }) => {
         setLanguage(state.language)
         setShell(state, { view: first })
+        // Como a clássica: depois de abrir, a verificação de atualização e os avisos do manifesto.
+        window.setTimeout(() => void startupChecks(), 2500)
       },
       (reason) => setError(errorText(reason)),
     )
     const uninstall = installOfficialEvents()
     const unshortcut = installShortcuts()
     const ungameText = installGameTextEditing()
+    // Outro .exe ("Abrir com") mandou um XML para esta janela.
+    const unexternal = on('open_external', (payload) => void openExternalXml((payload as { path: string }).path))
     return () => {
+      unexternal()
       uninstall()
       unshortcut()
       ungameText()
@@ -112,6 +122,8 @@ export default function App() {
             <HomeScreen />
           ) : (
             <CanvasView
+              // Mudou o preview nas Configurações: remonta para reler as preferências do canvas.
+              key={canvasEpoch}
               path={shell.open_path}
               language={shell.language}
               // Antes do store do canvas, o clique no canvas seleciona pelo modo só leitura.
@@ -132,6 +144,7 @@ export default function App() {
       <StatusBar />
       <DocSync />
       <MenuHost />
+      <SettingsHost />
       <DialogHost />
       <ProgressOverlay />
       <TooltipHost />

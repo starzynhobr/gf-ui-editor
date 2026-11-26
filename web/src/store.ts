@@ -14,6 +14,8 @@ export interface Progress {
   label: string
   done: number
   total: number
+  /** "bytes": o rodapé mostra MB (download da atualização) em vez da contagem de arquivos. */
+  unit?: 'bytes'
 }
 
 interface Shell {

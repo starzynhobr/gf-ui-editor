@@ -104,6 +104,156 @@
     "es_ES": "Claro",
     "fr_FR": "Clair"
   },
+  "Pronto.": {
+    "en_US": "Done.",
+    "es_ES": "Listo.",
+    "fr_FR": "Terminé."
+  },
+  "Geral": {
+    "en_US": "General",
+    "es_ES": "General",
+    "fr_FR": "Général"
+  },
+  "Editor": {
+    "en_US": "Editor",
+    "es_ES": "Editor",
+    "fr_FR": "Éditeur"
+  },
+  "Envio": {
+    "en_US": "Sending",
+    "es_ES": "Envío",
+    "fr_FR": "Envoi"
+  },
+  "Aparência": {
+    "en_US": "Appearance",
+    "es_ES": "Apariencia",
+    "fr_FR": "Apparence"
+  },
+  "Rever e limpar": {
+    "en_US": "Review and clear",
+    "es_ES": "Revisar y limpiar",
+    "fr_FR": "Revoir et effacer"
+  },
+  "Versão pulada": {
+    "en_US": "Skipped version",
+    "es_ES": "Versión omitida",
+    "fr_FR": "Version ignorée"
+  },
+  "A {version} não é mais oferecida ao abrir.": {
+    "en_US": "{version} is no longer offered at startup.",
+    "es_ES": "La {version} ya no se ofrece al abrir.",
+    "fr_FR": "La {version} n’est plus proposée à l’ouverture."
+  },
+  "Nenhuma versão pulada.": {
+    "en_US": "No skipped version.",
+    "es_ES": "Ninguna versión omitida.",
+    "fr_FR": "Aucune version ignorée."
+  },
+  "Oferecer de novo": {
+    "en_US": "Offer again",
+    "es_ES": "Ofrecer de nuevo",
+    "fr_FR": "Proposer à nouveau"
+  },
+  "Avisos já vistos": {
+    "en_US": "Notices already seen",
+    "es_ES": "Avisos ya vistos",
+    "fr_FR": "Avis déjà vus"
+  },
+  "{count} aviso(s) do STZ Labs já mostrados.": {
+    "en_US": "{count} STZ Labs notice(s) already shown.",
+    "es_ES": "{count} aviso(s) de STZ Labs ya mostrados.",
+    "fr_FR": "{count} avis de STZ Labs déjà affichés."
+  },
+  "Mostrar de novo": {
+    "en_US": "Show again",
+    "es_ES": "Mostrar de nuevo",
+    "fr_FR": "Afficher à nouveau"
+  },
+  "Painéis e colunas": {
+    "en_US": "Panels and columns",
+    "es_ES": "Paneles y columnas",
+    "fr_FR": "Panneaux et colonnes"
+  },
+  "Larguras dos painéis, ordem das seções da lista e colunas da árvore.": {
+    "en_US": "Panel widths, list section order and tree columns.",
+    "es_ES": "Anchos de los paneles, orden de las secciones de la lista y columnas del árbol.",
+    "fr_FR": "Largeur des panneaux, ordre des sections de la liste et colonnes de l’arbre."
+  },
+  "Oferecer um projeto ao abrir um XML solto": {
+    "en_US": "Offer a project when opening a loose XML",
+    "es_ES": "Ofrecer un proyecto al abrir un XML suelto",
+    "fr_FR": "Proposer un projet à l’ouverture d’un XML isolé"
+  },
+  "Pergunta se você quer criar um projeto antes de editar um arquivo solto.": {
+    "en_US": "Asks whether you want to create a project before editing a loose file.",
+    "es_ES": "Pregunta si quieres crear un proyecto antes de editar un archivo suelto.",
+    "fr_FR": "Demande si vous voulez créer un projet avant de modifier un fichier isolé."
+  },
+  "Preview do jogo": {
+    "en_US": "Game preview",
+    "es_ES": "Vista previa del juego",
+    "fr_FR": "Aperçu du jeu"
+  },
+  "Captura própria": {
+    "en_US": "Own screenshot",
+    "es_ES": "Captura propia",
+    "fr_FR": "Capture personnelle"
+  },
+  "Nenhuma pasta escolhida": {
+    "en_US": "No folder chosen",
+    "es_ES": "Ninguna carpeta elegida",
+    "fr_FR": "Aucun dossier choisi"
+  },
+  "Esta pasta não parece ser a do jogo (sem client.ini ou Launcher.ini).": {
+    "en_US": "This folder does not look like the game folder (no client.ini or Launcher.ini).",
+    "es_ES": "Esta carpeta no parece ser la del juego (sin client.ini ni Launcher.ini).",
+    "fr_FR": "Ce dossier ne semble pas être celui du jeu (pas de client.ini ni de Launcher.ini)."
+  },
+  "Usada ao criar projetos novos e ao abrir XMLs soltos.": {
+    "en_US": "Used when creating new projects and opening loose XMLs.",
+    "es_ES": "Se usa al crear proyectos nuevos y al abrir XML sueltos.",
+    "fr_FR": "Utilisé pour créer de nouveaux projets et ouvrir des XML isolés."
+  },
+  "Usar a padrão": {
+    "en_US": "Use the default",
+    "es_ES": "Usar la predeterminada",
+    "fr_FR": "Utiliser celui par défaut"
+  },
+  "Escolher…": {
+    "en_US": "Choose…",
+    "es_ES": "Elegir…",
+    "fr_FR": "Choisir…"
+  },
+  "Confirmar antes do primeiro envio": {
+    "en_US": "Confirm before the first send",
+    "es_ES": "Confirmar antes del primer envío",
+    "fr_FR": "Confirmer avant le premier envoi"
+  },
+  "Mostra de novo o aviso de onde a UI vai ser gravada.": {
+    "en_US": "Shows again where the UI will be written.",
+    "es_ES": "Vuelve a mostrar dónde se grabará la UI.",
+    "fr_FR": "Affiche à nouveau l’endroit où l’UI sera écrite."
+  },
+  "Instalado": {
+    "en_US": "Installed",
+    "es_ES": "Instalado",
+    "fr_FR": "Installé"
+  },
+  "Rodando pelo código-fonte": {
+    "en_US": "Running from source",
+    "es_ES": "Ejecutando desde el código fuente",
+    "fr_FR": "Exécuté depuis le code source"
+  },
+  "Uma vez por dia, também lê os avisos do STZ Labs.": {
+    "en_US": "Once a day; also reads the STZ Labs notices.",
+    "es_ES": "Una vez al día; también lee los avisos de STZ Labs.",
+    "fr_FR": "Une fois par jour ; lit aussi les avis de STZ Labs."
+  },
+  "Configurações…": {
+    "en_US": "Settings…",
+    "es_ES": "Configuración…",
+    "fr_FR": "Paramètres…"
+  },
   "Abre a textura no programa padrão do sistema para arquivos .dds (Paint.NET, por exemplo).": {
     "en_US": "Opens the texture in the system's default program for .dds files (Paint.NET, for example).",
     "es_ES": "Abre la textura en el programa predeterminado del sistema para archivos .dds (Paint.NET, por ejemplo).",

@@ -22,16 +22,21 @@ from .web_api.canvas import CanvasApi
 from .web_api.document import DocumentApi
 from .web_api.projects import ProjectsApi
 from .web_api.maintenance import MaintenanceApi
+from .web_api.settings import SettingsApi
 from .web_api.texts import TextsApi
 from .web_api.text_updates import TextUpdatesApi
 from .web_api.ui_state import AboutApi, TextureFileApi, UiStateApi
+from .web_api.updates import UpdatesApi
 
 APP_TITLE = "STZ GF UI"
 DEV_URL = "http://localhost:5173"
 WEB_DIST = Path(__file__).resolve().parent / "web_dist"
 
 
-class WebApi(ProjectsApi, CanvasApi, DocumentApi, TextsApi, TextUpdatesApi, MaintenanceApi, UiStateApi, AboutApi, TextureFileApi):
+class WebApi(
+    ProjectsApi, CanvasApi, DocumentApi, TextsApi, TextUpdatesApi, MaintenanceApi, UiStateApi, AboutApi, SettingsApi,
+    UpdatesApi, TextureFileApi,
+):
     """Métodos chamáveis pelo front (`call("nome", ...)` em web/src/bridge.ts).
 
     Cada método público vira `window.pywebview.api.nome`. Devolvem só tipos JSON.
@@ -76,12 +81,17 @@ def _start_url(dev: bool) -> str:
 
 def run(
     language: str = "pt_BR", dev: bool = False, xml: Path | None = None, prefs: Any = None,
-    default_ui_directory: Path | None = None,
+    default_ui_directory: Path | None = None, instance: Any = None,
 ) -> int:
-    """`prefs`: as mesmas preferências da clássica (o app.py passa o objeto global)."""
+    """`prefs`: as mesmas preferências da clássica (o app.py passa o objeto global).
+
+    `instance` (single_instance.Instance): pedidos de outros .exe chegam à ponte.
+    """
     import webview
 
     api = WebApi(language, dev, prefs, default_ui_directory, xml)
+    if instance is not None:
+        instance.on_message(api._on_instance_message)
     window = webview.create_window(
         APP_TITLE, _start_url(dev), js_api=api, width=1440, height=900, min_size=(1024, 680),
         background_color="#111318",

@@ -70,6 +70,14 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - Verificado: smoke 80/80, XML idêntico byte a byte (inclusive recorte pelo atlas), harness da clássica igual.
 - Pendente: `insertControls` no store (Adicionar controles do oficial), posição na tela da raiz posicionada pelo jogo no painel, passos de smoke de Puxar/Limpar/Resolver erro.
 
+## Bloco 4 (Claude 2, 25/11/2026): configurações, atualizador, manifesto, "Abrir com"
+
+- Serviços sem Qt: `app_settings.py` (o que a tela mostra/grava/esquece, validado), `app_updates.py` (`UpdateSession`: verificar, automática de 24 h, pular, instalar; notas agrupadas como o `WhatsNewDialog`; avisos do manifesto e versão mínima), `single_instance.py` (named pipe por usuário, só JSON, autenticado).
+- Ponte: `web_api/settings.py` (`settings_state/set/reset`) e `web_api/updates.py` (`update_check/auto_check/skip/install`, `manifest_notices/mark_seen`, `_on_instance_message` → evento `open_external`). O manifesto é lido no `startup` só com "Verificar ao abrir" ligado (como a clássica) e `manifest_notices` espera por ele.
+- Front: `web/src/settings/` (tela com Geral/Editor/Tela/Envio/Atualizações, `UpdateDialog`, fluxos em `updates.ts`). Engrenagem → "Configurações…". Ao abrir, 2,5 s depois: atualização automática e avisos.
+- Preview pelas Configurações com um XML aberto passa por `applyCanvasPreference` (mesma ponte da barra do canvas) e a casca remonta o `CanvasView` (`key=canvasEpoch`). Toda mudança dispara `gf:settings-changed` ({name, value}) em `window`.
+- `main()` com `ui_mode=web`: o primeiro processo serve o pipe; o segundo manda o arquivo (`{"open": caminho}`) e sai. A clássica não mudou.
+
 ## Próximos blocos
 
 3. Atlas, textos (busca, edição, importar/exportar), puxar, limpar, versões, UI oficial, erro do jogo, histórico.

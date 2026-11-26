@@ -52,6 +52,8 @@ class ProjectsApi:
         self._loose_dir: Path | None = None
         self._sizes = home.SizeCache()
         self._manifest = remote_manifest.Manifest()
+        # Lido uma vez ao abrir (startup); manifest_notices espera por ele.
+        self._manifest_ready = threading.Event()
         # Diálogos nativos: por padrão os do pywebview; os testes trocam por respostas prontas.
         self._dialogs = dialogs
         # XML com alterações não salvas (o front avisa): fechar a janela pergunta antes.
@@ -173,7 +175,8 @@ class ProjectsApi:
 
     def startup(self) -> dict:
         """Como a clássica: o XML da linha de comando, senão o último projeto (com o último XML)."""
-        threading.Thread(target=self._fetch_manifest, name="gf-ui-manifest", daemon=True).start()
+        if not self._manifest_ready.is_set():
+            threading.Thread(target=self._fetch_manifest, name="gf-ui-manifest", daemon=True).start()
         view = "home"
         if self._startup_xml is not None and self._startup_xml.is_file():
             self._open_loose(self._startup_xml)
@@ -190,12 +193,14 @@ class ProjectsApi:
         return {"view": view, **self.shell_state()}
 
     def _fetch_manifest(self) -> None:
+        """Como a clássica: só com "Verificar ao abrir" ligado; sem internet, segue sem ele."""
         try:
-            manifest = remote_manifest.fetch()
+            manifest = remote_manifest.fetch() if self._prefs.auto_update_check else None
         except Exception:  # noqa: BLE001 - sem internet o editor segue sem o manifesto
             manifest = None
         if manifest is not None:
             self._manifest = manifest
+        self._manifest_ready.set()
 
     def set_language(self, language: str) -> dict:
         if language not in UI_LANGUAGES:

@@ -1,10 +1,12 @@
 // Barrinha da esquerda: Arquivos XML, Texturas, Elementos, Textos (Ctrl+1..4) e, embaixo,
-// a engrenagem com as configurações (idioma, interface, novidades).
+// a engrenagem: Configurações…, atalhos de idioma e tema, atualizações e novidades.
 import { THEMES, setTheme, useUi } from './uiState'
 import { api } from '../api'
 import { LANGUAGES, setLanguage, useT } from '../i18n'
 import { setShell, useShell, type SidePage } from '../store'
-import { setUiMode, showPage } from '../actions'
+import { showPage } from '../actions'
+import { openSettings } from '../settings/SettingsScreen'
+import { checkForUpdates } from '../settings/updates'
 import { openWhatsNew } from '../home/WhatsNewDialog'
 import { Icon } from '../ui/Icon'
 import { openMenu } from '../ui/Menu'
@@ -28,6 +30,8 @@ export default function SideRail() {
       x: rect.right + 6,
       y: rect.top,
       items: [
+        { label: t('Configurações…'), icon: 'settings', onClick: () => openSettings() },
+        { separator: true },
         {
           label: t('Idioma'),
           icon: 'language',
@@ -42,14 +46,6 @@ export default function SideRail() {
           })),
         },
         {
-          label: t('Interface'),
-          icon: 'layout',
-          submenu: [
-            { label: t('Clássica'), checked: shell?.ui_mode !== 'web', onClick: () => void setUiMode('classic') },
-            { label: t('Nova (beta)'), checked: shell?.ui_mode === 'web', onClick: () => void setUiMode('web') },
-          ],
-        },
-        {
           label: t('Tema'),
           icon: 'sparkles',
           submenu: THEMES.map((theme) => ({
@@ -59,7 +55,8 @@ export default function SideRail() {
           })),
         },
         { separator: true },
-        { label: t('Novidades desta versão'), icon: 'sparkles', onClick: openWhatsNew },
+        { label: t('Verificar atualizações…'), icon: 'sparkles', onClick: () => void checkForUpdates(true) },
+        { label: t('Novidades desta versão'), icon: 'info', onClick: openWhatsNew },
       ],
     })
   }

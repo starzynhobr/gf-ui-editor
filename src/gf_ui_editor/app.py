@@ -8140,13 +8140,22 @@ def main(argv: list[str] | None = None) -> int:
 
     ui_mode, web_missing = webview_runtime.resolve_ui(args.ui, prefs.ui_mode, web_available)
     if ui_mode == "web":
-        from . import web_shell
+        from . import single_instance, web_shell
 
+        xml = args.xml.resolve() if args.xml is not None else None
+        # Uma janela só: com o editor já aberto, o arquivo ("Abrir com") vai para ele.
+        instance = single_instance.acquire()
+        if instance is None and single_instance.send_open(xml):
+            return 0
         language = args.lang or prefs.language
-        return web_shell.run(
-            language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=args.xml, prefs=prefs,
-            default_ui_directory=DEFAULT_UI_DIRECTORY,
-        )
+        try:
+            return web_shell.run(
+                language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=xml, prefs=prefs,
+                default_ui_directory=DEFAULT_UI_DIRECTORY, instance=instance,
+            )
+        finally:
+            if instance is not None:
+                instance.close()
     application = QApplication(sys.argv[:1])
     application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")
