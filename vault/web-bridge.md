@@ -47,7 +47,7 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - **Claude 2 — casca e projetos:** layout geral (barra superior, lateral com Arquivos XML / Texturas / Elementos / Textos e Ctrl+1..4, barra de status), tema, i18n, tela inicial completa (continuar, projetos com filtro/tamanho/data, novo projeto, abrir, duplicar/renomear/excluir), lista de Arquivos XML e Texturas com as seções (camadas/alterados/todos, lista virtualizada), abrir um XML (passa o caminho ao `CanvasView`), F5 "Enviar para o jogo" e a escolha de interface (preferência `ui_mode` lida no `main` quando não há `--ui`; item nas configurações das duas interfaces, vale ao reiniciar).
 - **Codex — canvas só leitura:** decodificador DDS em TypeScript num Web Worker (RGB 32 bits, DXT1, ARGB4444), acesso aos arquivos pela pasta mapeada, `CanvasView` com Konva: elementos com textura e recorte (UV), zoom, pan, enquadrar, contornos, preview do jogo (posições calculadas no Python: `game_layout`, deslocamentos de preview), modos de texto (via `text_preview`), seleção visual de um elemento (sem editar ainda).
 
-## Bloco 2 (em andamento): edição
+## Bloco 2 (feito, 25/11/2026): edição
 
 **Contrato compartilhado:** `web/src/doc/store.ts` (estado do XML aberto, seleção, edições com desfazer, salvar) e `src/gf_ui_editor/web_api/document.py` (documento em memória no Python, fonte da verdade). As assinaturas do `store.ts` não mudam sem combinar; quem implementa é o canvas.
 
@@ -59,6 +59,7 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 
 - **Codex:** selecionar (clique, Ctrl, caixa), mover arrastando, alças de redimensionar, grupo, Shift mantém proporção, travar eixo, setas (1 px, Shift 10), encaixe em pixel inteiro, raiz que o jogo posiciona andando como a clássica (`window_geometry`), área fantasma, travados/escondidos/isolado respeitados no canvas, desfazer/refazer como lotes, salvar com backup e diff (`xml_document`), recarregar quando o XML muda no disco.
 - **Claude 2:** árvore de elementos como a clássica (hierarquia, filtro via `text_preview.search_text`, esconder/travar/isolar, colunas), painel de propriedades (identificação, posição/tamanho editáveis com setas/roda desligada, textura, aparência/fonte com seletor de cor, campos só quando o controle tem o atributo), barra superior Salvar habilitado com o diff antes de gravar (como a clássica), "Descartar alterações?" ao trocar de XML/projeto/fechar, Ctrl+S/Ctrl+Z/Ctrl+Y/Ctrl+Shift+Z, F5 salvando antes.
+- Verificado na junção: smoke da web 61/61 (editar, desfazer/refazer, salvar com diff, descartar), XML gravado pela web idêntico byte a byte ao da clássica (`harness/canvas_edit_compare.py`: MailList, Storage), harness da clássica igual.
 - Tudo via `doc/store.ts`: o painel edita com `applyEdits`, a árvore seleciona com `select`, o canvas reflete `useDoc`.
 
 ## Próximos blocos
