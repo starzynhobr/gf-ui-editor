@@ -23,6 +23,7 @@ from .ui_session import Restart, WebStartup, WEB_START_TIMEOUT
 from .web_api.canvas import CanvasApi
 from .web_api.document import DocumentApi
 from .web_api.projects import ProjectsApi
+from .web_api.resolutions import ResolutionsApi
 from .web_api.maintenance import MaintenanceApi
 from .web_api.settings import SettingsApi
 from .web_api.source import SourceApi
@@ -38,7 +39,7 @@ WEB_DIST = Path(__file__).resolve().parent / "web_dist"
 
 class WebApi(
     ProjectsApi, CanvasApi, DocumentApi, TextsApi, TextUpdatesApi, MaintenanceApi, UiStateApi, AboutApi, SettingsApi,
-    UpdatesApi, TextureFileApi, SourceApi, ReleaseHistoryApi,
+    UpdatesApi, TextureFileApi, SourceApi, ReleaseHistoryApi, ResolutionsApi,
 ):
     """Métodos chamáveis pelo front (`call("nome", ...)` em web/src/bridge.ts).
 

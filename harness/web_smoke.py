@@ -686,6 +686,9 @@ def scenario() -> None:
     fonts_flow()
     stz_helpers_flow()
 
+    # 10g. Exportar para várias resoluções (menu Exportar): 2 resoluções, arraste e zips.
+    multi_resolution_flow(project_root)
+
     # 11. Idioma: inglês pela tela de Configurações (a engrenagem só tem Configurações,
     # Como usar, Novidades, Verificar atualizações e Sobre).
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
@@ -783,6 +786,115 @@ def standalone_flow(project_root: Path) -> None:
         "__smoke.all('[data-standalone-file]').length === 1"
         " && __smoke.q('[data-standalone-file]').textContent === 'SecondStandalone.xml'", 5, "lista avulsa",
     )))
+
+
+def multi_resolution_flow(project_root: Path) -> None:
+    """Exportar para várias resoluções: duas resoluções, um arraste e os zips conferidos."""
+    import zipfile
+
+    from gf_ui_editor import multi_resolution as mr
+    from gf_ui_editor.xml_document import UIDocument
+
+    # O conteúdo do ElfAttack solto da janela principal (raiz 0x0 longe dele), como nas UIs
+    # do Harlem: o jogo põe a raiz no canto inferior direito e o conteúdo fica no meio.
+    xml = project_root / "ui" / "ElfAttack.xml"
+    original = xml.read_bytes()
+    document = UIDocument.load(xml)
+    document.set_geometry(0, (695, 243, 0, 0))
+    document.save(OUT / "ElfAttack.before.xml")
+    zips = OUT / "home" / "Documents" / "zips"
+    try:
+        js("__smoke.click('[data-testid=export-menu]')")
+        menu = wait("__smoke.text('[role=menu]')", 5, "menu Exportar") or ""
+        check("menu Exportar tem as duas opções", "Exportar UI (.zip)" in menu and "Exportar para várias resoluções" in menu, menu=menu)
+        js("__smoke.clickText('Exportar para várias resoluções', '[role=menu]')")
+        check("diálogo de resoluções", bool(wait("__smoke.all('[data-testid^=resolution-card-]').length === 4", 30, "4 prévias")))
+        base = mr.parse_resolution_key(js("__smoke.q('[data-testid=resolution-base]').value") or "") or mr.DEFAULT_BASE
+        chips = js("__smoke.all('[data-testid^=resolution-chip-]').filter((c) => c.getAttribute('aria-pressed') === 'true').map((c) => c.dataset.testid)") or []
+        check("as 4 resoluções comuns marcadas", len(chips) == 4, chips=chips, base=base)
+        js("__smoke.click('[data-testid=resolution-chip-1366x768]'); __smoke.click('[data-testid=resolution-chip-2560x1440]')")
+        cards = wait(
+            "(() => { const c = __smoke.all('[data-testid^=resolution-card-]').map((e) => e.dataset.testid); return c.length === 2 && c })()",
+            15, "2 prévias",
+        )
+        check("só 1600 e 1920 marcadas", cards == ["resolution-card-1600x900", "resolution-card-1920x1080"], cards=cards)
+        card = wait("(() => { const t = __smoke.text('[data-testid=resolution-card-1920x1080]'); return t && t.includes('mudam de lugar') && t })()", 15, "o que muda")
+        check("a prévia diz que janelas mudam de lugar", bool(card), card=card)
+        time.sleep(1.5)  # miniaturas e texturas
+        shot("mr-01-previas")
+
+        # Amplia 1920 e arrasta o ElfAttack 100 px para a direita e 40 para cima.
+        source = mr.WindowSource("ElfAttack.xml", UIDocument.load(xml))
+        plan = mr.analyze(source, base)
+        piece = plan.pieces[0]
+        auto = mr.target_rect(piece, base, (1920, 1080))
+        js("__smoke.click('[data-testid=resolution-card-1920x1080]')")
+        listed = wait("(() => { const t = __smoke.text('[data-testid=resolution-windows]'); return t && t.includes('ElfAttack.xml') && t })()", 10, "lista da resolução")
+        check("ampliada lista o ElfAttack com a regra", bool(listed) and "fica" in (listed or ""), listed=listed)
+        wait("!!__smoke.q('[data-testid=resolution-stage]')", 10, "prévia ampliada")
+        time.sleep(1.0)
+        shot("mr-02-ampliada")
+        dragged = js(
+            "(() => { const s = __smoke.q('[data-testid=resolution-stage]'); const r = s.getBoundingClientRect();"
+            f" const k = r.width / 1920; const x = r.left + ({auto[0]} + 10) * k, y = r.top + ({auto[1]} + 10) * k;"
+            " const ev = (type, dx, dy) => s.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: x + dx * k, clientY: y + dy * k }));"
+            " ev('pointerdown', 0, 0); ev('pointermove', 50, -20); ev('pointermove', 100, -40); ev('pointerup', 100, -40); return true })()"
+        )
+        adjusted = wait("(() => { const t = __smoke.text('[data-testid=resolution-windows]'); return t && t.includes('você ajustou') && t })()", 10, "você ajustou")
+        check("arrastar marca 'você ajustou'", bool(dragged) and bool(adjusted), listed=adjusted)
+        stored = json.loads((project_root / "resolutions.json").read_text(encoding="utf-8"))
+        point = stored.get("adjustments", {}).get("ElfAttack.xml", {}).get("1920x1080", {}).get(piece.key)
+        check("ajuste guardado só em 1920x1080", point == [auto[0] + 100, auto[1] - 40]
+              and set(stored["adjustments"]["ElfAttack.xml"]) == {"1920x1080"}, point=point, auto=auto[:2])
+        time.sleep(0.8)
+        shot("mr-03-ajustada")
+        js("__smoke.click('[data-testid=resolution-back]')")
+        wait("!!__smoke.q('[data-testid=resolution-grid]')", 5, "volta às prévias")
+        check("prévia de fora mostra o ajuste", bool(wait(
+            "(__smoke.text('[data-testid=resolution-card-1920x1080] [data-testid=adjusted-chip]') || '').includes('ajustou')", 10, "chip ajustado")))
+
+        # Exporta só o que muda: um zip por resolução.
+        js("__smoke.click('[data-testid=zip-changed]')")
+        ANSWERS.append(str(zips))
+        js("__smoke.click('[data-testid=resolutions-export]')")
+        done = wait("(() => { const t = __smoke.text('[role=dialog]'); return t && t.includes('zip(s) em') && t })()", 60, "zips gerados")
+        check("aviso dos zips gerados", bool(done) and "Smoke-Test 1920x1080.zip" in (done or ""), text=(done or "")[:300])
+        shot("mr-04-exportado")
+        js("__smoke.clickText('OK', '[role=dialog]')")
+        wait("!__smoke.q('[role=dialog]')", 5, "fecha o aviso")
+
+        from gf_ui_editor.project import Project
+
+        project = Project.load(project_root)
+        settings = mr.ResolutionStore(project_root).load()
+        planned = {
+            output.target: sorted(output.files)
+            for output in mr.build_outputs(mr.project_sources(project), base, [(1600, 900), (1920, 1080)], settings)
+        }
+        for size, expected in (((1600, 900), mr.target_rect(piece, base, (1600, 900))), ((1920, 1080), (auto[0] + 100, auto[1] - 40))):
+            name = f"Smoke-Test {mr.resolution_key(size)}"
+            archive = zips / f"{name}.zip"
+            if not archive.is_file():
+                check(f"zip {name}", False)
+                continue
+            with zipfile.ZipFile(archive) as data:
+                names = data.namelist()
+                text = data.read(f"{name}/ElfAttack.xml").decode("big5") if f"{name}/ElfAttack.xml" in names else ""
+            # Só o que muda: o ElfAttack e o que o serviço também move (o BasicChar oficial tem
+            # um pedaço no canto de baixo, que acompanha a base da tela).
+            check(f"zip {name} só com o que muda", f"{name}/ElfAttack.xml" in names
+                  and names == [f"{name}/{item}" for item in planned[size]], names=names, planned=planned[size])
+            if text:
+                generated = source.document.with_text(text)
+                rects = mr.screen_rects(source, size, generated)
+                drawn = mr._union((r[0], r[1], max(1, r[2]), max(1, r[3])) for r in (rects[i] for i in piece.indexes))
+                check(f"ElfAttack no lugar certo em {mr.resolution_key(size)}", drawn[:2] == tuple(expected[:2]),
+                      drawn=drawn[:2], expected=expected[:2], root=generated.elements[0].geometry)
+        check("nenhum zip das resoluções desmarcadas", sorted(path.name for path in zips.glob("*.zip"))
+              == ["Smoke-Test 1600x900.zip", "Smoke-Test 1920x1080.zip"])
+    finally:
+        xml.write_bytes(original)
+        (project_root / "resolutions.json").unlink(missing_ok=True)
 
 
 def _open_settings() -> bool:
