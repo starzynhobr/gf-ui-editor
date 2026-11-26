@@ -48,6 +48,7 @@ def fixtures(out, game, light=False):
     index.write_text("637|Original harness label|\n", encoding="ascii")
     projects = tuple(Project.create(name, source, game_fixture, out / "projects", include_assets=True) for name in ("qt", "web"))
     if light:
+        shutil.copytree(source, game_fixture / "UI")
         rows = []
         for path in source.iterdir():
             data = path.read_bytes()
@@ -438,7 +439,10 @@ def web(out, page, project, expected):
             js("canvasEdit.select([0]); true")
             wait("canvasEdit.state().selection[0] === 0", "root selection")
             x, y, _, _ = js("canvasEdit.state().doc.preview.frame")
-            gesture(x, y, -12, -6)
+            handle_x, handle_y = stable(f"canvasEdit.point({x}, {y})")
+            cdp("Input.dispatchMouseEvent", type="mouseMoved", x=handle_x, y=handle_y, buttons=0)
+            wait("document.querySelector('.gf-canvas-viewport').style.cursor === 'nwse-resize'", "root resize handle")
+            drag_at(handle_x, handle_y, -12, -6)
             snapshot("anchored-resize")
             gesture(62, 11, 60, 6)
             snapshot("anchored-move")

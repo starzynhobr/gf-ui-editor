@@ -24,6 +24,8 @@
 .gf-source-editor .cm-editor { height: 100%; }
 .gf-source-editor .cm-editor.cm-focused { outline: none; }
 .gf-source-marked { background-color: color-mix(in srgb, var(--color-gold) 16%, transparent); box-shadow: inset 3px 0 0 var(--color-gold); }
+.gf-source-error { text-decoration: underline wavy var(--color-danger); }
+.gf-source-error-line { box-shadow: inset 3px 0 0 var(--color-danger); }
 .gf-source-panel .cm-panel.cm-search { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; font-size: 12px; }
 .gf-source-panel .cm-panel.cm-search input.cm-textfield {
   height: 26px;

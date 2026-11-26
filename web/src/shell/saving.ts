@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { showStatus, useShell } from '../store'
 import { ask, message } from '../ui/dialogs'
 import { openDiffDialog } from '../ui/DiffDialog'
+import { confirmSourceDraft } from '../source/SourcePanel'
 import { docState, previewSave, revert, save, StoreUnavailable } from './doc'
 
 const fileName = () => docState().path?.split(/[\\/]/).pop() ?? ''
@@ -57,6 +58,7 @@ export async function saveDocument(): Promise<boolean> {
  * Salvar / Descartar / Cancelar. true = pode seguir.
  */
 export async function confirmDiscard(): Promise<boolean> {
+  if (!(await confirmSourceDraft())) return false
   if (!docState().dirty) return true
   const { choice } = await ask({
     tone: 'warning',

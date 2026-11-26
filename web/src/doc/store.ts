@@ -47,10 +47,15 @@ export const useDoc = create<DocState>(() => ({
   error: null,
 }))
 
-interface Batch {
-  edits: Edit[]
-  label: string
+type Batch = { edits: Edit[]; label: string } | { source: true; label: string }
+
+export interface SourceIssue {
+  message: string
+  line: number
+  column: number
 }
+
+type SourceResult = { issue: SourceIssue } | { changed: false } | { changed: true; doc: CanvasDocument }
 
 const past: Batch[] = []
 const future: Batch[] = []
@@ -75,8 +80,9 @@ function run<T>(work: () => Promise<T>): Promise<T> {
   return task
 }
 
-function received(doc: CanvasDocument | null) {
+function received(doc: CanvasDocument | null, flags?: Pick<DocState, 'selection' | 'hidden' | 'locked' | 'isolated'>) {
   update({
+    ...flags,
     doc, dirty: doc?.dirty === true,
     canUndo: past.length > 0, canRedo: future.length > 0,
     undoLabel: past.at(-1)?.label ?? null, redoLabel: future.at(-1)?.label ?? null,
@@ -123,17 +129,56 @@ function record(doc: CanvasDocument, edits: Edit[], label: string) {
   received(doc)
 }
 
+function receiveSource(doc: CanvasDocument) {
+  const previous = state()
+  const byId = new Map<string, CanvasDocument['elements']>()
+  for (const element of doc.elements) {
+    const siblings = byId.get(element.id) ?? []
+    siblings.push(element)
+    byId.set(element.id, siblings)
+  }
+  const remap = (index: number | null) => {
+    const element = index === null ? undefined : previous.doc?.elements[index]
+    if (!element?.id) return null
+    const options = byId.get(element.id) ?? []
+    if (options.length === 1) return options[0].index
+    const siblings = options.filter((option) => option.parent === element.parent)
+    return siblings.length === 1 ? siblings[0].index : siblings.find((option) => option.index === index)?.index ?? null
+  }
+  const indexes = (values: number[]) => [...new Set(values.map(remap).filter((index) => index !== null))]
+  received(doc, {
+    selection: indexes(previous.selection), hidden: indexes(previous.hidden), locked: indexes(previous.locked),
+    isolated: remap(previous.isolated),
+  })
+}
+
+export function applySource(path: string, text: string, expected: string, label: string): Promise<SourceIssue | null> {
+  return run(async () => {
+    if (state().path?.toLowerCase() !== path.toLowerCase()) throw new Error('O XML aberto mudou.')
+    const result = await call<SourceResult>('doc_apply_source', path, text, expected)
+    if ('issue' in result) return result.issue
+    if (result.changed) {
+      past.push({ source: true, label })
+      future.length = 0
+      receiveSource(result.doc)
+    }
+    return null
+  })
+}
+
 function changeHistory(source: Batch[], target: Batch[], inverse: boolean) {
   return run(async () => {
     const batch = source.at(-1)
     if (!batch || !state().doc) return
-    const edits = inverse ? batch.edits.toReversed().map((edit) => ({
-      ...edit, before: edit.after, after: edit.before,
-    })) : batch.edits
-    const doc = await call<CanvasDocument>('doc_edit', edits)
+    const doc = 'source' in batch
+      ? await call<CanvasDocument>('doc_source_history', !inverse)
+      : await call<CanvasDocument>('doc_edit', inverse ? batch.edits.toReversed().map((edit) => ({
+        ...edit, before: edit.after, after: edit.before,
+      })) : batch.edits)
     source.pop()
     target.push(batch)
-    received(doc)
+    if ('source' in batch) receiveSource(doc)
+    else received(doc)
   })
 }
 

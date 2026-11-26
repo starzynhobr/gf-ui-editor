@@ -436,7 +436,7 @@ class UIDocument:
         except ET.ParseError as exc:
             raise DocumentError(f"XML inválido: {exc}", code="invalid_xml", details={"error": exc}) from exc
         document = UIDocument(self.path, self.raw, text, root)
-        document._structure_changed = True
+        document._structure_changed = text != self.raw.decode(self.encoding)
         return document
 
     @property
@@ -720,10 +720,14 @@ class UIDocument:
 
     def unified_diff(self) -> str:
         """Retorna apenas a prévia textual; não grava nem cria backup."""
+        before = self.raw.decode(self.encoding)
+        after = self.render_text()
+        # Keep line endings visible when they are the only change.
+        keepends = before != after and before.splitlines() == after.splitlines()
         return "\n".join(
             difflib.unified_diff(
-                self.text.splitlines(),
-                self.render_text().splitlines(),
+                [repr(line) for line in before.splitlines(True)] if keepends else before.splitlines(),
+                [repr(line) for line in after.splitlines(True)] if keepends else after.splitlines(),
                 fromfile=self.path.name,
                 tofile=f"{self.path.name} (editado)",
                 lineterm="",

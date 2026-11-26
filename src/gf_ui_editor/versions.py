@@ -1,8 +1,8 @@
 """Versões do projeto (checkpoints): um .zip pequeno com o que difere do oficial.
 
 "Salvar versão" guarda em `<projeto>/.versions/` um .zip com:
-- `ui/…`: só os arquivos do projeto que diferem da UI oficial (CRC do GameDataFileList.txt),
-  a mesma regra do F5 e do Exportar .zip (vault/launcher.md); o STZ-UI inteiro cabe em ~6,5 MB;
+- `ui/…`: os arquivos que diferem da UI oficial (como no F5 e no Exportar .zip), além
+  dos oficiais que precisam ser arquivados porque a base compartilhada não os tem.
 - `version.json`: nome, rótulo, data, a lista completa de arquivos do projeto, camadas, modos
   da raiz e os textos editados.
 
@@ -24,7 +24,7 @@ import tempfile
 import zipfile
 
 from . import __version__, gamedata, storage, text_data
-from .project import Project, safe_name
+from .project import Project, _same_content, safe_name
 
 VERSIONS_DIR = ".versions"
 FORMAT = 1
@@ -86,28 +86,35 @@ def save_version(
             for name, records in edits.items()
         },
     }
+    archived = set(shipped)
     if project.light:
         official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
-        archived = set(shipped)
+        pins = official_files or project.base_files
         official_files = {}
         for relative in files:
             if relative in archived:
                 continue
             key = relative.as_posix()
             source = project.resolve(relative)
-            blob = project.base_files.get(key)
-            if blob is None or source != project.base_path(blob):
+            blob = pins.get(key)
+            if blob is None or (source != project.base_path(blob) and not _same_content(source, project.base_path(blob))):
                 blob = project.cache_official(source, key, official)
             if blob is None:
-                raise ValueError(f"A UI oficial mudou durante o salvamento: {key}")
-            official_files[key] = blob
+                archived.add(relative)
+            else:
+                official_files[key] = blob
+    elif official_files is not None:
+        archived.update(relative for relative in files if relative.as_posix() not in official_files)
     if official_files is not None:
         manifest.update(light=project.light, official_files=official_files, base_files=project.base_files)
+    if len(archived) != len(shipped):
+        manifest["archived"] = [relative.as_posix() for relative in files if relative in archived]
     temporary = target.with_name(f".{target.name}.tmp")
     with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=1))
-        for relative in shipped:
-            archive.write(project.resolve(relative), f"ui/{relative.as_posix()}")
+        for relative in files:
+            if relative in archived:
+                archive.write(project.resolve(relative), f"ui/{relative.as_posix()}")
     os.replace(temporary, target)
     return target
 
@@ -173,19 +180,18 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
     result = RestoreResult()
     official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
     wanted = {str(name) for name in manifest.get("files", [])}
-    shipped = {str(name) for name in manifest.get("shipped", [])}
+    archived = {str(name) for name in manifest.get("archived", manifest.get("shipped", []))}
     current = {relative.as_posix(): relative for relative in project.files(refresh=True)}
     restore_light = bool(manifest.get("light", project.light))
     pinned = dict(manifest.get("official_files") or {})
     restored_base = dict(manifest.get("base_files", project.base_files)) if restore_light else {}
-    if restore_light:
-        restored_base = {**pinned, **restored_base}
+    restored_keys = {name.lower() for name in restored_base}
     for name in wanted:
         project.resolve(name)  # Validate paths before extracting or writing anything.
     with tempfile.TemporaryDirectory() as folder, zipfile.ZipFile(version) as archive:
         for name in sorted(wanted):
             target = project.resolve(name)
-            if name in shipped:
+            if name in archived:
                 extracted = Path(archive.extract(f"ui/{name}", folder))
                 source = extracted
             elif name in pinned:
@@ -203,11 +209,11 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
                 result.unresolved.append(name)
                 continue
             if target.is_file() and target.read_bytes() == source.read_bytes():
-                if not restore_light:
+                if name.lower() not in restored_keys:
                     project.materialize(project.ui_dir / name)
                 continue
             project.write_from(name, source)
-            if name in shipped:
+            if name in archived:
                 result.written += 1
             else:
                 result.reverted += 1

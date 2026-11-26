@@ -51,11 +51,13 @@ def find_texture(folder: Path, name: str, project: Project | None = None) -> Pat
     """Arquivo da textura na pasta da UI, sem diferenciar maiúsculas (como o jogo)."""
     if not name:
         return None
-    direct = folder / name
+    direct = folder / name.replace("\\", "/")
     if direct.is_file():
         return direct
-    wanted = name.lower()
-    return next((folder / item for item in ui_texture_names(folder, project) if item.lower() == wanted), None)
+    if (project is None or not project.light) and not direct.parent.is_dir():
+        return None
+    wanted = direct.name.lower()
+    return next((direct.parent / item for item in ui_texture_names(direct.parent, project) if item.lower() == wanted), None)
 
 
 def copy_suggestion(current: str) -> str:

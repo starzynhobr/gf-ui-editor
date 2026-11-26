@@ -1,11 +1,10 @@
 // "Ver código XML" (Ctrl+U): o XML aberto como ficaria ao salvar, com as edições ainda não
-// salvas, num CodeMirror só leitura (cores no tema, números de linha, Ctrl+F, dobrar blocos).
+// salvas, num CodeMirror com números de linha, Ctrl+F e dobrar blocos.
 // Selecionar um elemento leva à linha dele; clicar numa linha com WindowID seleciona o elemento.
-// O texto vem da ponte (`doc_source`, web_api/source.py); a edição direta fica para depois.
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { create } from 'zustand'
-import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, RangeSetBuilder, StateEffect, StateField, Text, type Extension } from '@codemirror/state'
 import {
   Decoration, EditorView, drawSelection, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers,
   type DecorationSet,
@@ -13,12 +12,13 @@ import {
 import { foldGutter, foldKeymap, HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/language'
 import { xml } from '@codemirror/lang-xml'
 import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
-import { defaultKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { tags } from '@lezer/highlight'
 import { call } from '../bridge'
-import { select, useDoc } from '../doc/store'
+import { applySource, select, useDoc, type SourceIssue } from '../doc/store'
 import { t, useT } from '../i18n'
 import { Icon } from '../ui/Icon'
+import { ask } from '../ui/dialogs'
 import './source.css'
 
 export interface DocSource {
@@ -29,14 +29,58 @@ export interface DocSource {
   dirty: boolean
 }
 
-export const useSource = create<{ open: boolean }>(() => ({ open: false }))
+interface Draft {
+  source: DocSource
+  text: string
+  issue?: SourceIssue
+  error?: string
+  busy?: boolean
+}
+
+export const useSource = create<{ open: boolean; draft: Draft | null }>(() => ({ open: false, draft: null }))
+
+async function applyDraft() {
+  const draft = useSource.getState().draft
+  if (!draft || draft.busy) return !draft
+  useSource.setState({ draft: { ...draft, busy: true, issue: undefined, error: undefined } })
+  try {
+    const issue = await applySource(draft.source.path, draft.text, draft.source.text, t('Editar código XML'))
+    useSource.setState({ draft: issue ? { ...draft, issue } : null })
+    return issue === null
+  } catch (error) {
+    useSource.setState({ draft: { ...draft, error: error instanceof Error ? error.message : String(error) } })
+    return false
+  }
+}
+
+export async function confirmSourceDraft(): Promise<boolean> {
+  const draft = useSource.getState().draft
+  if (draft?.busy) return false
+  if (draft && draft.text !== draft.source.text) {
+    const { choice } = await ask({
+      tone: 'warning',
+      title: t('Aplicar alterações no código XML?'),
+      text: draft.source.path.split(/[\\/]/).pop() ?? '',
+      choices: [
+        { id: 'cancel', label: t('Cancelar') },
+        { id: 'discard', label: t('Descartar'), kind: 'danger' },
+        { id: 'apply', label: t('Aplicar'), kind: 'primary' },
+      ],
+    })
+    if (choice === 'apply') return applyDraft()
+    if (choice !== 'discard') return false
+  }
+  useSource.setState({ draft: null })
+  return true
+}
 
 export function openSource(): void {
   if (useDoc.getState().path) useSource.setState({ open: true })
 }
 
 export function closeSource(): void {
-  useSource.setState({ open: false })
+  if (!useSource.getState().draft) useSource.setState({ open: false })
+  else void confirmSourceDraft().then((ok) => { if (ok) useSource.setState({ open: false }) })
 }
 
 export function toggleSource(): void {
@@ -47,6 +91,21 @@ export function toggleSource(): void {
 // ---- CodeMirror ------------------------------------------------------------------------------
 
 const markLine = StateEffect.define<number | null>()
+const markError = StateEffect.define<{ from: number; to: number } | null>()
+const markedError = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    for (const effect of transaction.effects) {
+      if (!effect.is(markError)) continue
+      const range = effect.value
+      return range ? Decoration.set([range.from === range.to
+        ? Decoration.line({ class: 'gf-source-error-line' }).range(transaction.state.doc.lineAt(range.from).from)
+        : Decoration.mark({ class: 'gf-source-error' }).range(range.from, range.to)]) : Decoration.none
+    }
+    return transaction.docChanged ? Decoration.none : value
+  },
+  provide: (field) => EditorView.decorations.from(field),
+})
 const markedLine = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(value, transaction) {
@@ -98,7 +157,7 @@ function lineOf(lines: number[], index: number | undefined): number | null {
   return index == null ? null : (lines[index] ?? null)
 }
 
-function extensions(): Extension[] {
+function extensions(mode: Compartment, lineSeparator: Compartment): Extension[] {
   return [
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -111,7 +170,9 @@ function extensions(): Extension[] {
     search({ top: true }),
     highlightSelectionMatches(),
     markedLine,
-    EditorState.readOnly.of(true),
+    markedError,
+    mode.of(editMode(false)),
+    lineSeparator.of([]),
     EditorState.phrases.of({
       Find: t('Procurar'), next: t('próximo'), previous: t('anterior'), all: t('todos'),
       'match case': t('diferenciar maiúsculas'), regexp: t('expressão regular'), 'by word': t('palavra inteira'),
@@ -119,11 +180,23 @@ function extensions(): Extension[] {
       'Folded lines': t('Linhas recolhidas'), 'Unfolded lines': t('Linhas expandidas'),
       'Fold line': t('Recolher bloco'), 'Unfold line': t('Expandir bloco'),
     }),
-    EditorView.editable.of(false),
     // Só leitura, mas com foco (para o Ctrl+F e as setas).
     EditorView.contentAttributes.of({ tabindex: '0' }),
-    keymap.of([...searchKeymap, ...foldKeymap, ...defaultKeymap]),
+    keymap.of([...searchKeymap, ...foldKeymap, ...historyKeymap, ...defaultKeymap]),
+    EditorView.updateListener.of((update) => {
+      const draft = useSource.getState().draft
+      if (update.docChanged && draft && !update.state.readOnly) {
+        useSource.setState({ draft: { ...draft, text: update.state.sliceDoc(), issue: undefined, error: undefined } })
+      }
+    }),
     theme,
+  ]
+}
+
+function editMode(editable: boolean, busy = false): Extension {
+  return [
+    EditorState.readOnly.of(!editable || busy), EditorView.editable.of(editable),
+    ...(editable ? [history()] : []),
   ]
 }
 
@@ -137,19 +210,24 @@ function clickedLine(view: EditorView, target: EventTarget | null): number | nul
   }
 }
 
-function SourceEditor({ source }: { source: DocSource }) {
+function SourceEditor({ source, draft }: { source: DocSource; draft: Draft | null }) {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const linesRef = useRef<number[]>(source.lines)
   const selected = useDoc((state) => state.selection[0])
   const pressed = useRef<[number, number] | null>(null)
+  const mode = useRef(new Compartment()).current
+  const lineSeparator = useRef(new Compartment()).current
+  const editing = draft !== null
+  const busy = draft?.busy === true
+  const issue = draft?.issue
 
   useEffect(() => {
     const editor = new EditorView({
       parent: host.current!,
       state: EditorState.create({
         doc: '',
-        extensions: extensions(),
+        extensions: extensions(mode, lineSeparator),
       }),
     })
     view.current = editor
@@ -157,23 +235,39 @@ function SourceEditor({ source }: { source: DocSource }) {
       editor.destroy()
       view.current = null
     }
-  }, [])
+  }, [mode, lineSeparator])
+
+  useEffect(() => {
+    const editor = view.current
+    if (!editor) return
+    editor.dispatch({ effects: mode.reconfigure(editMode(editing, busy)) })
+    if (editing && !busy) editor.focus()
+  }, [mode, editing, busy])
 
   // Texto novo (edição, desfazer, salvar): troca o conteúdo mantendo a rolagem.
   useEffect(() => {
     const editor = view.current
-    if (!editor) return
+    if (!editor || editing) return
     linesRef.current = source.lines
-    if (editor.state.doc.toString() === source.text) return
+    if (editor.state.sliceDoc() === source.text) return
+    const separator = source.text.includes('\r\n') && !/\r(?!\n)|(?<!\r)\n/.test(source.text) ? '\r\n'
+      : source.text.includes('\r') && !source.text.includes('\n') ? '\r' : undefined
     const top = editor.scrollDOM.scrollTop
-    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: source.text } })
+    editor.dispatch({
+      effects: lineSeparator.reconfigure(separator ? EditorState.lineSeparator.of(separator) : []),
+      changes: { from: 0, to: editor.state.doc.length, insert: Text.of(source.text.split(/\r\n?|\n/)) },
+    })
     editor.scrollDOM.scrollTop = top
-  }, [source])
+  }, [editing, lineSeparator, source])
 
   // Elemento selecionado -> linha dele, centralizada e marcada.
   useEffect(() => {
     const editor = view.current
     if (!editor) return
+    if (editing) {
+      editor.dispatch({ effects: markLine.of(null) })
+      return
+    }
     const line = lineOf(source.lines, selected)
     if (!line || line > editor.state.doc.lines) {
       editor.dispatch({ effects: markLine.of(null) })
@@ -184,7 +278,24 @@ function SourceEditor({ source }: { source: DocSource }) {
       effects: [markLine.of(line), EditorView.scrollIntoView(position, { y: 'center' })],
       selection: editor.state.selection.main.head === position ? undefined : { anchor: position },
     })
-  }, [selected, source])
+  }, [editing, selected, source])
+
+  useEffect(() => {
+    const editor = view.current
+    if (!editor) return
+    if (!issue) {
+      editor.dispatch({ effects: markError.of(null) })
+      return
+    }
+    const line = editor.state.doc.line(Math.min(issue.line, editor.state.doc.lines))
+    const index = [...line.text].slice(0, issue.column - 1).join('').length
+    const from = line.from + index
+    const to = Math.min(line.to, from + ((line.text.codePointAt(index) ?? 0) > 0xFFFF ? 2 : 1))
+    editor.dispatch({
+      effects: [markError.of({ from, to }), EditorView.scrollIntoView(from, { y: 'center' })],
+      selection: { anchor: from },
+    })
+  }, [issue])
 
   return (
     <div
@@ -197,7 +308,7 @@ function SourceEditor({ source }: { source: DocSource }) {
         const editor = view.current
         const start = pressed.current
         pressed.current = null
-        if (!editor || event.button !== 0) return
+        if (editing || !editor || event.button !== 0) return
         if (start && Math.hypot(event.clientX - start[0], event.clientY - start[1]) > 4) return
         const line = clickedLine(editor, event.target)
         const index = line == null ? -1 : linesRef.current.indexOf(line)
@@ -218,9 +329,10 @@ function SourceEditor({ source }: { source: DocSource }) {
 export default function SourcePanel() {
   useT()
   const open = useSource((state) => state.open)
+  const draft = useSource((state) => state.draft)
   const path = useDoc((state) => state.path)
   const doc = useDoc((state) => state.doc)
-  const [source, setSource] = useState<DocSource | null>(null)
+  const [loaded, setLoaded] = useState<{ path: string; doc: typeof doc; source: DocSource } | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -234,7 +346,7 @@ export default function SourcePanel() {
     call<DocSource | null>('doc_source').then(
       (result) => {
         if (!active) return
-        setSource(result)
+        setLoaded(result ? { path, doc, source: result } : null)
         setError('')
       },
       (reason) => active && setError(reason instanceof Error ? reason.message : String(reason)),
@@ -245,6 +357,8 @@ export default function SourcePanel() {
   }, [open, path, doc])
 
   const name = path?.split(/[\\/]/).pop() ?? ''
+  const current = loaded?.path === path ? loaded : null
+  const source = draft?.source ?? current?.source
   return (
     <AnimatePresence>
       {open && path && (
@@ -263,10 +377,24 @@ export default function SourcePanel() {
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold text-bright">{t('Código XML')}</div>
               <div className="truncate text-[11px] text-muted" title={path}>
-                {name} · {t('só leitura')}
-                {source?.dirty && <span className="text-gold"> · {t('com alterações não salvas')}</span>}
+                {name}{!draft && <> · {t('só leitura')}</>}
+                {(source?.dirty || (draft && draft.text !== draft.source.text)) &&
+                  <span className="text-gold"> · {t('com alterações não salvas')}</span>}
               </div>
             </div>
+            {draft ? (
+              <>
+                <button className="btn btn-primary h-7 px-2" data-testid="source-apply" disabled={draft.busy}
+                  onClick={() => void applyDraft()}>{t('Aplicar')}</button>
+                <button className="btn h-7 px-2" disabled={draft.busy}
+                  onClick={() => useSource.setState({ draft: null })}>{t('Cancelar')}</button>
+              </>
+            ) : (
+              <button className="btn h-7 px-2" data-testid="source-edit" disabled={!current || current.doc !== doc}
+                onClick={() => current && useSource.setState({
+                  draft: { source: current.source, text: current.source.text },
+                })}>{t('Editar')}</button>
+            )}
             <button
               className="icon-button"
               title={`${t('Buscar')} (Ctrl+F)`}
@@ -283,10 +411,16 @@ export default function SourcePanel() {
               <Icon name="x" size={16} />
             </button>
           </header>
-          {error ? (
+          {draft?.issue && (
+            <p className="px-4 py-2 text-danger" role="alert">
+              {t('Linha {line}, coluna {column}', { line: draft.issue.line, column: draft.issue.column })} · {draft.issue.message}
+            </p>
+          )}
+          {draft?.error && <p className="px-4 py-2 text-danger" role="alert">{draft.error}</p>}
+          {error && !source ? (
             <p className="p-4 text-danger" role="alert">{error}</p>
           ) : source ? (
-            <SourceEditor source={source} />
+            <SourceEditor key={path} source={source} draft={draft} />
           ) : (
             <p className="p-4 text-muted">{t('Carregando…')}</p>
           )}

@@ -89,9 +89,9 @@ class TextureCache:
 
     def path_for(self, texture_name: str) -> Path | None:
         """Busca sem diferenciar maiúsculas, como o jogo; relista a pasta uma vez se faltar."""
-        if self.project is not None and self.project.light:
+        if (self.project is not None and self.project.light) or "/" in texture_name or "\\" in texture_name:
             logical = find_texture(self.ui_directory, texture_name, self.project)
-            return self.project.read_path(logical) if logical is not None else None
+            return self.project.read_path(logical) if self.project is not None and logical is not None else logical
         lowered = texture_name.lower()
         path = self._name_index().get(lowered)
         if path is None or not path.exists():

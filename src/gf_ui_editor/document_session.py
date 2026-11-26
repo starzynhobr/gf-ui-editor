@@ -11,6 +11,7 @@ from . import atlas, game_layout, window_geometry
 from .canvas_document import PreviewContext, describe_scene, project_ui_root
 from .project import Project
 from .xml_document import DocumentError, UIDocument, UVRect
+from .xml_source import SourceError, replace_source, source_view
 
 
 def _rect(value, *, dimensions: bool = True) -> window_geometry.Rect:
@@ -164,6 +165,12 @@ class DocumentSession:
         self._resolution: tuple[int, int] | None = None
         self._saved_positions = True
         self._project: Project | None = None
+        self._source_past: list[UIDocument] = []
+        self._source_future: list[UIDocument] = []
+
+    def _reset_source_history(self) -> None:
+        self._source_past.clear()
+        self._source_future.clear()
 
     def _require(self) -> tuple[UIDocument, PreviewContext]:
         if self._document is None or self._context is None:
@@ -178,6 +185,7 @@ class DocumentSession:
             if path is None:
                 self._document = self._context = self._resolution = None
                 self._project = None
+                self._reset_source_history()
                 return None
             document = project.load_document(Path(path)) if project is not None else UIDocument.load(Path(path))
             context = PreviewContext.load(document.path, resolution, saved_positions=saved_positions)
@@ -185,6 +193,7 @@ class DocumentSession:
             self._document, self._context, self._resolution = document, context, resolution
             self._saved_positions = saved_positions
             self._project = project
+            self._reset_source_history()
             return scene
 
     def configure_preview(
@@ -205,6 +214,38 @@ class DocumentSession:
             document, context = self._require()
             _apply_edits(document, edits)
             return describe_scene(document, context)
+
+    def source(self) -> dict | None:
+        with self._lock:
+            return source_view(self._document) if self._document is not None else None
+
+    def apply_source(self, path: str, text: str, expected: str) -> dict:
+        with self._lock:
+            document, context = self._require()
+            if document.path != Path(path).resolve() or document.render_text() != expected:
+                raise ValueError("O XML mudou desde o início da edição. Cancele e reabra a edição do código.")
+            if text == expected:
+                return {"changed": False}
+            try:
+                replacement = replace_source(document, text)
+            except SourceError as exc:
+                return {"issue": {"message": str(exc), "line": exc.line, "column": exc.column}}
+            scene = describe_scene(replacement, context)
+            self._source_past.append(document)
+            self._source_future.clear()
+            self._document = replacement
+            return {"changed": True, "doc": scene}
+
+    def move_source_history(self, redo: bool) -> dict:
+        with self._lock:
+            document, context = self._require()
+            source, target = (self._source_future, self._source_past) if redo else (self._source_past, self._source_future)
+            if not source:
+                raise ValueError("Sem edição de código no histórico.")
+            scene = describe_scene(source[-1], context)
+            self._document = source.pop()
+            target.append(document)
+            return scene
 
     def edit_canvas(self, edits: list[dict], locked: list[int], preview: bool, root_background: bool) -> dict:
         with self._lock:
@@ -252,6 +293,7 @@ class DocumentSession:
         with self._lock:
             document, context = self._require()
             save_document(document, project)
+            self._reset_source_history()
             return describe_scene(document, context)
 
     def revert(self) -> dict:

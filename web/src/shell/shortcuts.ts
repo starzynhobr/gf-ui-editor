@@ -26,7 +26,7 @@ export function installShortcuts(): () => void {
     const key = event.key.toLowerCase()
     const ctrl = event.ctrlKey || event.metaKey
     // Em campos de texto, Ctrl+Z/Y desfazem a digitação (o padrão do campo).
-    const typing = (event.target as HTMLElement | null)?.closest?.('input, textarea, select') != null
+    const typing = (event.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]') != null
     if (ctrl && !event.shiftKey && !event.altKey && key === 'k') {
       event.preventDefault()
       openPalette()

@@ -9,10 +9,12 @@ import { showStatus, useShell } from '../store'
 import { message } from '../ui/dialogs'
 import { docState, editingAvailable, openDocument, setIsolated, useDocState } from './doc'
 import { closeRequested } from './saving'
+import { useSource } from '../source/SourcePanel'
 
 export default function DocSync() {
   const openPath = useShell((state) => state.shell?.open_path ?? null)
   const dirty = useDocState((state) => state.dirty)
+  const draftDirty = useSource((state) => state.draft !== null && state.draft.text !== state.draft.source.text)
   const primary = useDocState((state) => state.selection[0] ?? null)
   const count = useDocState((state) => state.selection.length)
   const error = useDocState((state) => state.error)
@@ -23,8 +25,8 @@ export default function DocSync() {
   }, [openPath])
 
   useEffect(() => {
-    void api.setUnsaved(dirty)
-  }, [dirty])
+    void api.setUnsaved(dirty || draftDirty)
+  }, [dirty, draftDirty])
 
   useEffect(() => on('close_requested', () => void closeRequested()), [])
 
