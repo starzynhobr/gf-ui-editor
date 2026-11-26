@@ -13,6 +13,7 @@ const fileName = () => docState().path?.split(/[\\/]/).pop() ?? ''
 
 /** Ctrl+S: mostra o diff, grava e avisa. Devolve true se não sobrou nada por salvar. */
 export async function saveDocument(): Promise<boolean> {
+  if (!(await confirmSourceDraft())) return false
   const state = docState()
   if (!state.path) return true
   if (!state.dirty) {
@@ -41,7 +42,8 @@ export async function saveDocument(): Promise<boolean> {
     return false
   }
   const shell = await refreshShell()
-  const inProject = Boolean(shell.project && state.path.toLowerCase().startsWith(shell.project.ui_dir.toLowerCase()))
+  const inProject = Boolean(shell.project && state.path.replace(/\//g, '\\').toLowerCase()
+    .startsWith(`${shell.project.ui_dir.replace(/\//g, '\\').toLowerCase()}\\`))
   if (inProject && shell.publish_on_save && shell.project?.game_dir) {
     await publishToGame(true)
     return !docState().dirty

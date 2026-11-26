@@ -678,6 +678,7 @@ def scenario() -> None:
     settings_flow()
     updates_flow()
     manifest_flow()
+    standalone_flow(project_root)
 
     # 11. Idioma: inglês pela tela de Configurações (a engrenagem só tem Configurações,
     # Como usar, Novidades, Verificar atualizações e Sobre).
@@ -704,6 +705,78 @@ def scenario() -> None:
         " document.body.dispatchEvent(m); return [e.defaultPrevented, w.defaultPrevented, m.defaultPrevented] })()"
     )
     check("Ctrl+R, Ctrl+roda e menu de contexto bloqueados", blocked == [True, True, True], blocked=blocked)
+
+
+def standalone_flow(project_root: Path) -> None:
+    from System import Action
+
+    loose = OUT / "standalone"
+    loose.mkdir()
+    xml = loose / "SmokeStandalone.xml"
+    second = loose / "SecondStandalone.xml"
+    texture = loose / "SmokeStandalone.dds"
+    shutil.copyfile(next((GAME / "UI").glob("*.dds")), texture)
+    original = (
+        b'<Root_Node><BaseWndProperty WindowID="1" WindowLeft="10" WindowTop="20" WindowHeight="100" WindowWidth="80">'
+        b'<BackGroundMap BGmap="SmokeStandalone.dds"><NorUV NorUVLeft="1" NorUVTop="2" NorUVWidth="8" NorUVHeight="9"/>'
+        b'</BackGroundMap></BaseWndProperty></Root_Node>'
+    )
+    xml.write_bytes(original)
+    second.write_bytes(b"<Standalone/>")
+    ignored = loose / "notes.txt"
+    ignored.write_bytes(b"text")
+    position = js("(() => { const box = __smoke.q('[data-testid=center]').getBoundingClientRect();"
+                  "return { x: Math.round(box.left + 100), y: Math.round(box.top + 100) } })()")
+    data = {"items": [], "files": [str(second), str(ignored), str(xml)], "dragOperationsMask": 1}
+    native = window.native
+    for kind in ("dragEnter", "dragOver", "drop"):
+        pending = []
+        params = json.dumps({"type": kind, **position, "data": data})
+        native.Invoke(Action(lambda: pending.append(native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
+            "Input.dispatchDragEvent", params,
+        ))))
+        if not pending[0].Wait(5000):
+            raise TimeoutError(f"WebView2 drop: {kind}")
+
+    bar = '[data-testid=standalone-bar]'
+    check("drop nativo abre todos os XMLs e mantém o projeto", bool(wait(
+        f"!!__smoke.q('{bar}') && __smoke.all('[data-standalone-file]').length === 2"
+        " && __gfDoc.state().path?.endsWith('SmokeStandalone.xml')", 12, "drop XMLs avulsos",
+    )) and api.shell_state()["project"]["root"] == str(project_root))
+    js("window.dropTexture = null; pywebview.api.asset_base(__gfDoc.state().path).then("
+       "base => fetch(base + 'SmokeStandalone.dds')).then(response => response.arrayBuffer()).then("
+       "data => window.dropTexture = new TextDecoder().decode(data.slice(0, 4))); true")
+    check("WebView2 serve a textura ao canvas e ao atlas", bool(wait(
+        "window.dropTexture === 'DDS '", 8, "textura avulsa do disco",
+    )))
+    js("__smoke.key('3', { ctrlKey: true })")
+    wait("__smoke.click('[data-testid=tree-row][data-index=\"0\"]')", 5, "selecionar controle avulso")
+    wait("!!__smoke.q('input[name=geometry-x]')", 5, "geometria avulsa")
+    js("__smoke.setValue('input[name=geometry-x]', '37');"
+       "__smoke.q('input[name=geometry-x]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))")
+    wait("__gfDoc.state().dirty", 5, "XML avulso editado")
+    js(f"__smoke.clickText('Salvar no lugar', '{bar}')")
+    diff = wait("__smoke.text('[data-testid=diff]')", 5, "diff avulso") or ""
+    check("Salvar no lugar mostra o diff antes da gravação", 'WindowLeft="37"' in diff and xml.read_bytes() == original)
+    js("__smoke.click('[data-testid=diff-confirm]')")
+    wait("!__gfDoc.state().dirty", 5, "avulso salvo")
+    backup = list(loose.glob("SmokeStandalone.before-gf-ui-editor-*.xml"))
+    check("XML avulso salvo com backup exato ao lado", len(backup) == 1 and backup[0].read_bytes() == original
+          and b'WindowLeft="37"' in xml.read_bytes())
+    js(f"__smoke.clickText('Importar para o projeto', '{bar}')")
+    wait("!!__smoke.q('[role=dialog] input[type=checkbox]:checked')", 5, "importar com texturas")
+    js("__smoke.clickText('Importar', '[role=dialog]')")
+    target = project_root / "ui" / xml.name
+    check("Importar mantém o documento ativo no workspace do projeto", bool(wait(
+        f"!__smoke.q('{bar}') && __gfDoc.state().path === {json.dumps(str(target))}", 8, "documento promovido",
+    )))
+    check("Importar copia XML editado e a textura que faltava", target.read_bytes() == xml.read_bytes()
+          and (target.parent / texture.name).read_bytes() == texture.read_bytes())
+    js("__smoke.key('1', { ctrlKey: true })")
+    check("lista retém o outro avulso após a importação", bool(wait(
+        "__smoke.all('[data-standalone-file]').length === 1"
+        " && __smoke.q('[data-standalone-file]').textContent === 'SecondStandalone.xml'", 5, "lista avulsa",
+    )))
 
 
 def _open_settings() -> bool:
@@ -1299,6 +1372,9 @@ def canvas_toolbar() -> None:
     js(f"__smoke.click({ids})")
 
 
+FINISHED = threading.Event()
+
+
 def driver() -> None:
     try:
         scenario()
@@ -1307,10 +1383,13 @@ def driver() -> None:
         FAILED.append("exceção no roteiro")
     finally:
         (OUT / "log.json").write_text(json.dumps(LOG, ensure_ascii=False, indent=1), encoding="utf-8")
+        FINISHED.set()
         window.destroy()
 
 
 webview.start(driver, gui="edgechromium", private_mode=True, storage_path=str(OUT / "webview"))
+if not FINISHED.is_set():
+    FAILED.append("a janela fechou antes de o roteiro terminar")
 log("summary", failed=FAILED, checks=sum(1 for entry in LOG if entry["kind"] == "check"))
 (OUT / "log.json").write_text(json.dumps(LOG, ensure_ascii=False, indent=1), encoding="utf-8")
 sys.exit(1 if FAILED else 0)

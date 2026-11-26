@@ -1,4 +1,104 @@
 {
+  "Importar para o projeto": {
+    "en_US": "Import into project",
+    "es_ES": "Importar al proyecto",
+    "fr_FR": "Importer dans le projet"
+  },
+  "Trazer as texturas que faltam no projeto": {
+    "en_US": "Copy missing textures into the project",
+    "es_ES": "Copiar las texturas que faltan en el proyecto",
+    "fr_FR": "Copier les textures manquantes dans le projet"
+  },
+  "Importar": {
+    "en_US": "Import",
+    "es_ES": "Importar",
+    "fr_FR": "Importer"
+  },
+  "XML importado: {name}": {
+    "en_US": "XML imported: {name}",
+    "es_ES": "XML importado: {name}",
+    "fr_FR": "XML importé : {name}"
+  },
+  "O XML já existe no projeto": {
+    "en_US": "The XML already exists in the project",
+    "es_ES": "El XML ya existe en el proyecto",
+    "fr_FR": "Le XML existe déjà dans le projet"
+  },
+  "Ao substituir, a versão atual vai para o histórico do projeto.": {
+    "en_US": "Replacing saves the current version in the project history.",
+    "es_ES": "Al sustituir, la versión actual se guarda en el historial del proyecto.",
+    "fr_FR": "Le remplacement conserve la version actuelle dans l’historique du projet."
+  },
+  "Substituir": {
+    "en_US": "Replace",
+    "es_ES": "Sustituir",
+    "fr_FR": "Remplacer"
+  },
+  "Salvar como…": {
+    "en_US": "Save as…",
+    "es_ES": "Guardar como…",
+    "fr_FR": "Enregistrer sous…"
+  },
+  "Nome do XML no projeto:": {
+    "en_US": "XML name in the project:",
+    "es_ES": "Nombre del XML en el proyecto:",
+    "fr_FR": "Nom du XML dans le projet :"
+  },
+  "Comparar XML avulso": {
+    "en_US": "Compare standalone XML",
+    "es_ES": "Comparar XML independiente",
+    "fr_FR": "Comparer le XML autonome"
+  },
+  "Qual versão você quer comparar com o XML aberto?": {
+    "en_US": "Which version do you want to compare with the open XML?",
+    "es_ES": "¿Qué versión quieres comparar con el XML abierto?",
+    "fr_FR": "Quelle version voulez-vous comparer au XML ouvert ?"
+  },
+  "Mesmo nome no projeto": {
+    "en_US": "Same name in project",
+    "es_ES": "Mismo nombre en el proyecto",
+    "fr_FR": "Même nom dans le projet"
+  },
+  "XML oficial": {
+    "en_US": "Official XML",
+    "es_ES": "XML oficial",
+    "fr_FR": "XML officiel"
+  },
+  "A versão de referência não está disponível.": {
+    "en_US": "The reference version is unavailable.",
+    "es_ES": "La versión de referencia no está disponible.",
+    "fr_FR": "La version de référence est indisponible."
+  },
+  "Os XMLs são iguais.": {
+    "en_US": "The XML files are identical.",
+    "es_ES": "Los archivos XML son idénticos.",
+    "fr_FR": "Les fichiers XML sont identiques."
+  },
+  "Arquivo avulso": {
+    "en_US": "Standalone file",
+    "es_ES": "Archivo independiente",
+    "fr_FR": "Fichier autonome"
+  },
+  "Arquivo avulso: {path}": {
+    "en_US": "Standalone file: {path}",
+    "es_ES": "Archivo independiente: {path}",
+    "fr_FR": "Fichier autonome : {path}"
+  },
+  "Salvar no lugar": {
+    "en_US": "Save in place",
+    "es_ES": "Guardar en su ubicación",
+    "fr_FR": "Enregistrer sur place"
+  },
+  "Comparar": {
+    "en_US": "Compare",
+    "es_ES": "Comparar",
+    "fr_FR": "Comparer"
+  },
+  "Arquivos avulsos": {
+    "en_US": "Standalone files",
+    "es_ES": "Archivos independientes",
+    "fr_FR": "Fichiers autonomes"
+  },
   "Editar código XML": {
     "en_US": "Edit XML source",
     "es_ES": "Editar código XML",

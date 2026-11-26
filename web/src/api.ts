@@ -18,6 +18,7 @@ export interface ShellState {
   project: ProjectInfo | null
   open_path: string | null
   loose_dir: string | null
+  standalone_paths?: string[]
   pending: number
   publish_confirmed: boolean
   publish_on_save: boolean

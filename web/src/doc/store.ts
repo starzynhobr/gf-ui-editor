@@ -6,6 +6,7 @@
 // passa por applyEdits -> Python (doc_edit) e volta como documento atualizado; desfazer e
 // refazer reaplicam o lote inverso pelo mesmo caminho. Salvar grava pelo Python.
 import { create } from 'zustand'
+import type { ShellState } from '../api'
 import { call, type CanvasDocument, type CanvasPoint, type CanvasPreference, type CanvasPreferences, type CanvasRect } from '../bridge'
 
 export type Edit =
@@ -193,6 +194,23 @@ function setFlag(field: 'hidden' | 'locked', indexes: number[], enabled: boolean
 
 /** Abre (ou recarrega) o XML; null fecha. */
 export const openDoc: (path: string | null) => Promise<void> = (path) => load(path)
+
+type ImportResult = { conflict: true; name: string; path: string } | {
+  conflict: false; name: string; path: string; state: ShellState; doc: CanvasDocument; textures: string[]; backup: string | null
+}
+
+export function importStandalone(path: string, name: string | null, replace: boolean, textures: boolean, root: string | null) {
+  return run(async () => {
+    if (state().path !== path) throw new Error('O arquivo avulso ativo mudou.')
+    const result = await call<ImportResult>('standalone_import', path, name, replace, textures, root)
+    if (!result.conflict) {
+      resetHistory()
+      update({ path: result.path })
+      received(result.doc)
+    }
+    return result
+  })
+}
 /** replace: só estes; add: soma; toggle: liga/desliga cada um. */
 export const select: (indexes: number[], mode?: 'replace' | 'add' | 'toggle') => void = (indexes, mode = 'replace') => {
   const valid = validIndexes(indexes)

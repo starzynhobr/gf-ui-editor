@@ -15,12 +15,14 @@ function Diff({
   explanation,
   diff,
   confirm,
+  readOnly,
   onDone,
 }: {
   title: string
   explanation: string
   diff: string
   confirm: string
+  readOnly?: boolean
   onDone: (accepted: boolean) => void
 }) {
   useT()
@@ -31,9 +33,9 @@ function Diff({
       onClose={() => onDone(false)}
       footer={
         <>
-          <button className="btn" onClick={() => onDone(false)}>
+          {!readOnly && <button className="btn" onClick={() => onDone(false)}>
             {t('Cancelar')}
-          </button>
+          </button>}
           <button className="btn btn-primary" autoFocus onClick={() => onDone(true)} data-testid="diff-confirm">
             {confirm}
           </button>
@@ -57,7 +59,7 @@ function Diff({
   )
 }
 
-export function openDiffDialog(options: { title: string; explanation: string; diff: string; confirm: string }): Promise<boolean> {
+export function openDiffDialog(options: { title: string; explanation: string; diff: string; confirm: string; readOnly?: boolean }): Promise<boolean> {
   return new Promise((resolve) => {
     openDialog((close) => (
       <Diff
