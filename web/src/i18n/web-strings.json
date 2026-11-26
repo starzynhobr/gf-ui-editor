@@ -1,4 +1,19 @@
 {
+  "Editar código XML": {
+    "en_US": "Edit XML source",
+    "es_ES": "Editar código XML",
+    "fr_FR": "Modifier le code XML"
+  },
+  "Aplicar alterações no código XML?": {
+    "en_US": "Apply changes to the XML source?",
+    "es_ES": "¿Aplicar cambios al código XML?",
+    "fr_FR": "Appliquer les modifications au code XML ?"
+  },
+  "Linha {line}, coluna {column}": {
+    "en_US": "Line {line}, column {column}",
+    "es_ES": "Línea {line}, columna {column}",
+    "fr_FR": "Ligne {line}, colonne {column}"
+  },
   "Tela": {
     "en_US": "Screen",
     "es_ES": "Pantalla",

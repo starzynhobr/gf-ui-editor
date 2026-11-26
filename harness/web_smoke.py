@@ -821,6 +821,7 @@ def edit_and_save(xml: Path, child) -> None:
     js("__smoke.click('[data-testid=diff-confirm]')")
     check("salvar grava o X novo", bool(wait("!__smoke.q('[data-testid=dirty-marker]')", 8, "salvo")))
     check("XML no disco com o X novo", f'WindowLeft="{new_x}"'.encode() in xml.read_bytes())
+    edit_xml_source(xml, child, new_x)
 
     # Descartar ao trocar de XML.
     saved = xml.read_bytes()
@@ -890,6 +891,85 @@ def palette_and_source(xml: Path, child, new_x: int, before: bytes) -> None:
     wait(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"]').getAttribute('aria-selected') === 'true'", 3, "volta ao elemento")
     js("__smoke.key('u', { ctrlKey: true })")
     check("Ctrl+U fecha o código", bool(wait("!__smoke.q('[data-testid=source-panel]')", 3, "fecha código")))
+
+
+def edit_xml_source(xml: Path, child, old_x: int) -> None:
+    from gf_ui_editor.xml_document import START_TAG_RE
+
+    before = xml.read_bytes()
+    original = before.decode("big5")
+    tag = list(START_TAG_RE.finditer(original))[child.index]
+    new_x = old_x + 7
+    applied = original[:tag.start()] + tag[0].replace(
+        f'WindowLeft="{old_x}"', f'WindowLeft="{new_x}"',
+    ) + original[tag.end():]
+    ready = "!!__smoke.q('[data-testid=source-edit]:enabled')"
+    editable = ".gf-source-editor .cm-content[contenteditable=true]"
+
+    def paste(text: str) -> None:
+        js(f"""(() => {{
+            const content = __smoke.q('{editable}');
+            content.focus();
+            content.dispatchEvent(new KeyboardEvent('keydown', {{
+                key: 'a', code: 'KeyA', keyCode: 65, ctrlKey: true, bubbles: true, cancelable: true,
+            }}));
+            const data = new DataTransfer();
+            data.setData('text/plain', {json.dumps(text)});
+            content.dispatchEvent(new ClipboardEvent('paste', {{clipboardData: data, bubbles: true, cancelable: true}}));
+        }})()""")
+
+    def edit() -> None:
+        wait(ready, 8, "editar código disponível")
+        js("__smoke.click('[data-testid=source-edit]')")
+        wait(f"!!__smoke.q('{editable}')", 5, "CodeMirror editável")
+
+    def state_at(x: int) -> str:
+        return f"__gfDoc.state().selection[0] === {child.index} && " \
+               f"__gfDoc.state().doc.elements[{child.index}].geometry[0] === {x}"
+
+    js("__smoke.key('u', { ctrlKey: true })")
+    edit()
+    paste("<incompleto>")
+    js("__smoke.click('[data-testid=source-apply]')")
+    check("XML inválido marca o erro no CodeMirror", bool(wait(
+        "!!__smoke.q('.gf-source-error, .gf-source-error-line') && "
+        "(__smoke.text('.gf-source-panel [role=alert]') || '').includes('Linha 1, coluna')",
+        5, "erro de XML",
+    )) and xml.read_bytes() == before)
+    js("__smoke.key('1', { ctrlKey: true })")
+    js("__smoke.setValue('[data-testid=files-panel] input', 'Storage')")
+    wait("!!__smoke.q('[data-section=all] [data-file=\"Storage.xml\"]')", 5, "outro XML")
+    js("__smoke.click('[data-section=all] [data-file=\"Storage.xml\"]')")
+    check("trocar de XML pergunta o que fazer com o rascunho", bool(wait(
+        "(__smoke.text('[role=dialog]') || '').includes('Aplicar alterações no código XML?')", 5, "rascunho",
+    )))
+    js("__smoke.clickText('Cancelar', '[role=dialog]')")
+    wait("!__smoke.q('[role=dialog]')", 5, "mantém o rascunho")
+    js("__smoke.setValue('[data-testid=files-panel] input', '')")
+    js("__smoke.key('3', { ctrlKey: true })")
+    paste(applied)
+    js("__smoke.click('[data-testid=source-apply]')")
+    check("aplicar pelo painel atualiza seleção e geometria sem gravar", bool(wait(
+        f"{ready} && {state_at(new_x)}", 8, "aplica o código",
+    )) and xml.read_bytes() == before)
+    js("__smoke.key('z', { ctrlKey: true })")
+    check("Ctrl+Z desfaz o XML inteiro", bool(wait(f"{ready} && {state_at(old_x)}", 8, "desfaz o código")))
+    js("__smoke.key('y', { ctrlKey: true })")
+    check("Ctrl+Y refaz o XML inteiro", bool(wait(f"{ready} && {state_at(new_x)}", 8, "refaz o código")))
+    js("__smoke.key('z', { ctrlKey: true })")
+    wait(f"{ready} && {state_at(old_x)}", 8, "desfaz para reaplicar")
+    edit()
+    paste(applied)
+    js("__smoke.click('[data-testid=source-apply]')")
+    wait(f"{ready} && {state_at(new_x)}", 8, "reaplica o código")
+    js("__smoke.key('s', { ctrlKey: true })")
+    diff = wait("__smoke.text('[data-testid=diff]')", 8, "diff do código") or ""
+    check("salvar o código mostra o diff", f'WindowLeft="{new_x}"' in diff and xml.read_bytes() == before)
+    js("__smoke.click('[data-testid=diff-confirm]')")
+    wait("!__smoke.q('[data-testid=dirty-marker]')", 8, "código gravado")
+    check("XML gravado é idêntico ao código aplicado", xml.read_bytes() == applied.encode("big5"))
+    js("__smoke.key('u', { ctrlKey: true })")
+    wait("!__smoke.q('[data-testid=source-panel]')", 5, "fecha código após salvar")
 
 
 def _pick_text_record():

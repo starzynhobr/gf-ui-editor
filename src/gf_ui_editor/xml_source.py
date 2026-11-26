@@ -7,11 +7,47 @@ código levar à linha do elemento selecionado e selecionar o elemento ao clicar
 
 from __future__ import annotations
 
-from .xml_document import START_TAG_RE, UIDocument
+import xml.etree.ElementTree as ET
+
+from .xml_document import DocumentError, NOR_UV_TAG_RE, START_TAG_RE, UIDocument
+
+
+class SourceError(ValueError):
+    def __init__(self, message: str, line: int, column: int) -> None:
+        super().__init__(message)
+        self.line = line
+        self.column = column
+
+
+def _location(text: str, offset: int) -> tuple[int, int]:
+    prefix = text[:offset].replace("\r\n", "\n").replace("\r", "\n")
+    return prefix.count("\n") + 1, len(prefix.rsplit("\n", 1)[-1]) + 1
+
+
+def replace_source(document: UIDocument, text: str) -> UIDocument:
+    """Validate editable XML and keep the original bytes for diff and external-change checks."""
+    try:
+        text.encode(document.encoding)
+    except UnicodeEncodeError as exc:
+        codepoint = ord(text[exc.start])
+        raise SourceError(
+            f"Caractere U+{codepoint:04X} não pode ser gravado em Big5.", *_location(text, exc.start),
+        ) from exc
+    try:
+        return document.with_text(text)
+    except DocumentError as exc:
+        cause = exc.details.get("error")
+        if isinstance(cause, ET.ParseError):
+            line, column = cause.position
+            raise SourceError(str(exc), line, column + 1) from exc
+        pattern = START_TAG_RE if exc.code == "element_count" else NOR_UV_TAG_RE
+        match = pattern.search(text)
+        raise SourceError(str(exc), *_location(text, match.start() if match else 0)) from exc
 
 
 def element_lines(text: str, count: int) -> list[int]:
     """Linha de cada tag <BaseWndProperty>, na ordem dos elementos; [] se a contagem não bate."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines: list[int] = []
     line = 1
     cursor = 0
