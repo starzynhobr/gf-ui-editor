@@ -114,6 +114,21 @@
     "es_ES": "Medianoche",
     "fr_FR": "Minuit"
   },
+  "Não foi possível ler esta textura.": {
+    "en_US": "Could not read this texture.",
+    "es_ES": "No se pudo leer esta textura.",
+    "fr_FR": "Impossible de lire cette texture."
+  },
+  "Cappuccino": {
+    "en_US": "Cappuccino",
+    "es_ES": "Cappuccino",
+    "fr_FR": "Cappuccino"
+  },
+  "Rosa": {
+    "en_US": "Pink",
+    "es_ES": "Rosa",
+    "fr_FR": "Rose"
+  },
   "Claro": {
     "en_US": "Light",
     "es_ES": "Claro",

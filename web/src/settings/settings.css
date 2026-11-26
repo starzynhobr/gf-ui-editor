@@ -1,5 +1,5 @@
-/* Configurações e atualizador (bloco 4). Só tokens do tema (var(--color-*)): os três temas
-   (Escuro, Meia-noite, Claro) funcionam sem regra própria aqui. */
+/* Configurações e atualizador (bloco 4). Só tokens do tema (var(--color-*)): todos os temas
+   (Escuro, Meia-noite, Claro, Cappuccino, Rosa) funcionam sem regra própria aqui. */
 
 .gf-settings-backdrop {
   position: fixed;

@@ -196,7 +196,7 @@ def shot(name: str) -> None:
 
 def _theme(label: str) -> None:
     # Engrenagem enxuta: o tema fica em Configurações → Geral.
-    key = {"Escuro": "dark", "Meia-noite": "midnight", "Claro": "light"}[label]
+    key = {"Escuro": "dark", "Meia-noite": "midnight", "Claro": "light", "Cappuccino": "cappuccino", "Rosa": "rosa"}[label]
     _open_settings()
     wait("!!__smoke.q('[data-setting=web_theme]')", 5, "seção Geral carregada")
     js(f"__smoke.click('[data-setting=web_theme] [data-value={key}]')")
@@ -362,6 +362,153 @@ def theme_tour(key: str) -> None:
     js("(() => { __smoke.all('.is-dragging').forEach((e) => e.classList.remove('is-dragging')); return true })()")
 
 
+def _hex_rgb(value: str) -> tuple[float, ...] | None:
+    value = (value or "").strip().lstrip("#")
+    if len(value) == 3:  # o build minifica #ffffff para #fff
+        value = "".join(c * 2 for c in value)
+    if len(value) != 6:
+        return None
+    return tuple(int(value[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def _contrast(first: str, second: str) -> float:
+    def luminance(color: str) -> float:
+        rgb = _hex_rgb(color)
+        if rgb is None:
+            return -1
+        r, g, b = ((c / 12.92) if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    a, b = luminance(first), luminance(second)
+    if a < 0 or b < 0:
+        return 0.0
+    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+
+
+# Pares (texto, fundo, mínimo) conferidos nos temas novos: WCAG AA (4.5) para texto,
+# 3 para ícones, texto secundário curto e cores de estado.
+CONTRAST_PAIRS = (
+    ("text", "panel", 4.5), ("text", "window", 4.5), ("text", "card", 4.5), ("text", "menu", 4.5),
+    ("bright", "chrome", 4.5), ("muted", "panel", 3.0), ("muted", "card", 3.0), ("icon", "chrome", 3.0),
+    ("accent-text", "panel", 4.5), ("accent-text", "accent-soft", 4.5), ("on-accent", "accent", 4.5),
+    ("gold", "panel", 3.0), ("warning", "warning-bg", 4.5), ("danger", "panel", 3.0), ("success", "panel", 3.0),
+    ("text", "selected", 4.5),
+)
+
+
+def _theme_contrast(key: str) -> None:
+    names = sorted({name for pair in CONTRAST_PAIRS for name in pair[:2]})
+    values = js("(() => { const s = getComputedStyle(document.documentElement); return Object.fromEntries(%s.map((n) => [n, s.getPropertyValue('--color-' + n).trim()])) })()" % json.dumps(names)) or {}
+    low = {f"{a}/{b}": round(_contrast(values.get(a, ""), values.get(b, "")), 2) for a, b, minimum in CONTRAST_PAIRS
+           if _contrast(values.get(a, ""), values.get(b, "")) < minimum}
+    check(f"contraste legível no tema {key}", bool(values) and not low, low=low)
+
+
+def _texture_peek(key: str) -> None:
+    """Ctrl+2, mouse parado numa textura: o cartão aparece ao lado com miniatura, tamanho e formato."""
+    js("__smoke.key('2', { ctrlKey: true })")
+    wait("__smoke.all('[data-section=all] [data-file]').some((r) => r.dataset.file.toLowerCase().endsWith('.dds'))", 8, "lista de texturas")
+    hover = (
+        "(() => { const rows = __smoke.all('[data-section=all] [data-file]').filter((r) => r.dataset.file.toLowerCase().endsWith('.dds'));"
+        " const row = rows[%d]; if (!row) return null; const r = row.getBoundingClientRect();"
+        " row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + 30, clientY: r.top + 8 })); return row.dataset.file })()"
+    )
+    name = js(hover % 3)
+    time.sleep(0.15)
+    early = js("!!__smoke.q('[data-testid=texture-peek]')")
+    card = wait("(() => { const f = __smoke.text('[data-testid=texture-peek-format]'); return f && __smoke.q('[data-testid=texture-peek] canvas') && f })()", 10, "cartão da textura")
+    size = js("__smoke.text('[data-testid=texture-peek-size]')") or ""
+    check(f"prévia da textura aparece depois do atraso ({key})", bool(name) and not early and bool(card) and "px" in size,
+          file=name, format=card, size=size)
+    placed = js("(() => { const c = __smoke.q('[data-testid=texture-peek]'); if (!c) return false; const b = c.getBoundingClientRect();"
+                " const p = __smoke.q('[data-testid=files-panel]').getBoundingClientRect(); return b.left >= p.right && b.right <= innerWidth })()")
+    check(f"cartão ao lado da lista ({key})", bool(placed))
+    time.sleep(0.5)
+    shot(f"21-{key}-textura-hover")
+    # Segue a linha de baixo e some ao sair da lista.
+    other = js(hover % 4) or ""
+    short = other.replace("/", "\\").split("\\")[-1]
+    followed = wait("(__smoke.text('[data-testid=texture-peek-name]') || '') === %s" % json.dumps(short), 3, "cartão segue a linha")
+    check(f"cartão segue a linha sob o mouse ({key})", bool(followed), file=other)
+    js("(() => { const list = __smoke.q('[data-section=all] [data-file]').parentElement.parentElement;"
+       " list.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body })); return true })()")
+    check(f"cartão some ao sair da lista ({key})", bool(wait("!__smoke.q('[data-testid=texture-peek]')", 3, "cartão some")))
+    js("__smoke.key('1', { ctrlKey: true })")
+    wait("__smoke.all('[data-section=all] [data-file]').some((r) => r.dataset.file.toLowerCase().endsWith('.xml'))", 5, "volta aos XMLs")
+
+
+def new_themes_flow() -> None:
+    """Cappuccino e Rosa: contraste dos tokens e capturas da tela inicial, canvas com painel,
+    atlas, Ver código, Ctrl+K, Configurações, tooltip/toast e a prévia flutuante das texturas."""
+    for label, key in (("Cappuccino", "cappuccino"), ("Rosa", "rosa")):
+        check(f"tema {label}", _set_theme(label, key))
+        _theme_contrast(key)
+        # Canvas com o painel de propriedades (Elementos, um controle selecionado) e um tooltip.
+        js("__smoke.key('3', { ctrlKey: true })")
+        wait("!!__smoke.q('[data-testid=tree-row]')", 5, "árvore")
+        js("__smoke.click('[data-testid=tree-row][data-index=\"1\"]')")
+        time.sleep(0.6)
+        js("(() => { const b = __smoke.q('[data-testid=side-rail] button[title], [data-testid=side-rail] button[data-gf-title]');"
+           " if (b) b.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); return !!b })()")
+        tip = wait("!!__smoke.q('.gf-tooltip')", 3, "tooltip")
+        check(f"tooltip no tema {label}", bool(tip))
+        # Toast (sonner): réplica com a mesma classe para conferir as cores do tema.
+        js("(() => { const t = document.createElement('div'); t.className = 'gf-toast'; t.dataset.smokeToast = '1';"
+           " t.textContent = 'Aberto no Notepad++. Depois de salvar lá, aperte Ctrl+R aqui para ver a mudança.';"
+           " Object.assign(t.style, { position: 'fixed', right: '24px', bottom: '48px', padding: '14px 16px', borderRadius: '8px', width: '340px', fontSize: '13px', zIndex: 200 });"
+           " document.body.append(t); return true })()")
+        shot(f"20-{key}-canvas-painel")
+        js("(() => { __smoke.all('[data-smoke-toast]').forEach((e) => e.remove()); window.dispatchEvent(new PointerEvent('pointerdown')); return true })()")
+        # Ver código.
+        js("__smoke.key('u', { ctrlKey: true })")
+        if wait("!!__smoke.q('[data-testid=source-panel] .cm-content')", 5, "código"):
+            time.sleep(0.5)
+            shot(f"20-{key}-codigo")
+        js("__smoke.key('u', { ctrlKey: true })")
+        wait("!__smoke.q('[data-testid=source-panel]')", 5, "fecha código")
+        # Atlas.
+        if js("(() => { const b = __smoke.q('[data-testid=open-atlas]'); return !!b && !b.disabled })()"):
+            js("__smoke.click('[data-testid=open-atlas]')")
+            check(f"atlas abre no tema {label}", bool(wait("!!__smoke.q('[data-testid=atlas-surface]')", 10, "atlas")))
+            time.sleep(1.0)
+            shot(f"20-{key}-atlas")
+            js("__smoke.click('.gf-atlas-close')")
+            wait("!__smoke.q('[data-testid=atlas-surface]')", 5, "fecha atlas")
+        # Ctrl+K.
+        js("__smoke.key('k', { ctrlKey: true })")
+        wait("!!__smoke.q('[data-testid=command-input]')", 5, "paleta")
+        js("__smoke.setValue('[data-testid=command-input]', 'tema')")
+        listed = wait("(() => { const t = __smoke.text('[data-testid=command-palette]') || ''; return t.includes('Cappuccino') && t.includes('Rosa') })()", 5, "temas na paleta")
+        check(f"Ctrl+K lista Cappuccino e Rosa ({label})", bool(listed))
+        time.sleep(0.3)
+        shot(f"20-{key}-paleta")
+        js("__smoke.q('[data-testid=command-input]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))")
+        wait("!__smoke.q('[data-testid=command-palette]')", 5, "fecha paleta")
+        # Configurações (o seletor de tema com os cinco temas e os ícones).
+        _open_settings()
+        wait("!!__smoke.q('[data-setting=web_theme]')", 5, "seção Geral")
+        options = js("__smoke.all('[data-setting=web_theme] [data-value]').map((b) => [b.dataset.value, !!b.querySelector('svg')])") or []
+        check(f"seletor com os cinco temas e ícones ({label})",
+              [o[0] for o in options] == ["dark", "midnight", "light", "cappuccino", "rosa"] and all(o[1] for o in options), options=options)
+        fits = js("(() => { const s = __smoke.q('[data-setting=web_theme]'); const d = s.closest('[role=dialog]') || document.body;"
+                  " return s.getBoundingClientRect().right <= d.getBoundingClientRect().right + 1 })()")
+        check(f"seletor de tema cabe em Configurações ({label})", bool(fits))
+        time.sleep(0.3)
+        shot(f"20-{key}-configuracoes")
+        _close_settings()
+        # Prévia flutuante das texturas.
+        _texture_peek(key)
+        # Tela inicial (e volta pelo Continuar).
+        js("__smoke.click('[data-testid=topbar] button')")
+        wait("!!__smoke.q('[data-testid=home-project-row]')", 10, "tela inicial")
+        time.sleep(0.6)
+        shot(f"20-{key}-home")
+        js("__smoke.clickText('Continuar', '[data-testid=home]')")
+        wait("!!__smoke.q('[data-testid=breadcrumb]')", 8, "continuar")
+        time.sleep(0.5)
+    check("tema Rosa salvo nas preferências", app_module.prefs.get("web_theme") == "rosa")
+    _set_theme("Escuro", "dark")
+
+
 def scenario() -> None:
     project_root = project_module.PROJECTS_ROOT / "Smoke-Test"
 
@@ -523,6 +670,9 @@ def scenario() -> None:
 
     # 10d2. Como usar (F1), nos 3 temas.
     how_to_flow()
+
+    # 10d3. Temas Cappuccino e Rosa (capturas nas telas principais) e a prévia das texturas.
+    new_themes_flow()
 
     # 10e. Bloco 4: Configurações, atualizador e manifesto remoto.
     settings_flow()

@@ -19,7 +19,7 @@ from .about import GAME_RESOLUTIONS, parse_resolution
 from .game_layout import looks_like_game_dir, normalize_game_dir
 from .preferences import KEYS, UI_LANGUAGES, UI_MODES, Preferences
 
-THEMES = ("dark", "midnight", "light")  # os mesmos de web_api/ui_state.py
+THEMES = ("dark", "midnight", "light", "cappuccino", "rosa")  # os mesmos de web_api/ui_state.py
 NAVIGATION_STYLES = ("corel", "paintnet", "photoshop")  # os mesmos de EditorView.NAVIGATION_STYLES
 BACKGROUND_MODES = ("builtin", "custom", "none")
 

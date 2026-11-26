@@ -5,6 +5,16 @@
   --color-canvas-frame: var(--color-muted);
   --color-canvas-outline: color-mix(in srgb, var(--color-accent-border) 60%, var(--color-success));
 }
+/* Valores por tema (o resto vem dos tokens do tema). */
+:root[data-theme="cappuccino"] {
+  --color-canvas-label: #ffe2a0;
+  --color-canvas-outline: color-mix(in srgb, var(--color-accent) 70%, var(--color-success));
+}
+:root[data-theme="rosa"] {
+  --color-canvas-surface: color-mix(in srgb, var(--color-window) 70%, var(--color-pressed));
+  --color-canvas-label: #fff3a6;
+  --color-canvas-outline: color-mix(in srgb, var(--color-accent-border) 75%, var(--color-success));
+}
 
 .gf-canvas {
   position: relative;
