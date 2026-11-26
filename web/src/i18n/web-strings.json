@@ -578,5 +578,255 @@
     "en_US": "Font",
     "es_ES": "Fuente",
     "fr_FR": "Police"
+  },
+  "você ajustou": {
+    "en_US": "you adjusted",
+    "es_ES": "lo ajustaste",
+    "fr_FR": "ajusté par vous"
+  },
+  "fica onde o jogo põe": {
+    "en_US": "stays where the game puts it",
+    "es_ES": "queda donde lo pone el juego",
+    "fr_FR": "reste là où le jeu la place"
+  },
+  "fica no meio": {
+    "en_US": "stays in the middle",
+    "es_ES": "queda en el medio",
+    "fr_FR": "reste au milieu"
+  },
+  "fica no canto de cima, à esquerda": {
+    "en_US": "stays in the top-left corner",
+    "es_ES": "queda en la esquina superior izquierda",
+    "fr_FR": "reste dans le coin en haut à gauche"
+  },
+  "fica no canto de cima, à direita": {
+    "en_US": "stays in the top-right corner",
+    "es_ES": "queda en la esquina superior derecha",
+    "fr_FR": "reste dans le coin en haut à droite"
+  },
+  "fica no canto de baixo, à esquerda": {
+    "en_US": "stays in the bottom-left corner",
+    "es_ES": "queda en la esquina inferior izquierda",
+    "fr_FR": "reste dans le coin en bas à gauche"
+  },
+  "fica no canto de baixo, à direita": {
+    "en_US": "stays in the bottom-right corner",
+    "es_ES": "queda en la esquina inferior derecha",
+    "fr_FR": "reste dans le coin en bas à droite"
+  },
+  "fica em cima, no meio": {
+    "en_US": "stays at the top, in the middle",
+    "es_ES": "queda arriba, en el medio",
+    "fr_FR": "reste en haut, au milieu"
+  },
+  "fica embaixo, no meio": {
+    "en_US": "stays at the bottom, in the middle",
+    "es_ES": "queda abajo, en el medio",
+    "fr_FR": "reste en bas, au milieu"
+  },
+  "fica na esquerda, na altura do meio": {
+    "en_US": "stays on the left, halfway down",
+    "es_ES": "queda a la izquierda, a media altura",
+    "fr_FR": "reste à gauche, à mi-hauteur"
+  },
+  "fica na direita, na altura do meio": {
+    "en_US": "stays on the right, halfway down",
+    "es_ES": "queda a la derecha, a media altura",
+    "fr_FR": "reste à droite, à mi-hauteur"
+  },
+  "Clique para ampliar e arrastar o que ficou fora do lugar": {
+    "en_US": "Click to enlarge and drag whatever is out of place",
+    "es_ES": "Haz clic para ampliar y arrastrar lo que quedó fuera de lugar",
+    "fr_FR": "Cliquez pour agrandir et faire glisser ce qui n'est pas à sa place"
+  },
+  "Ampliar": {
+    "en_US": "Enlarge",
+    "es_ES": "Ampliar",
+    "fr_FR": "Agrandir"
+  },
+  "{count} janela(s) mudam de lugar": {
+    "en_US": "{count} window(s) move",
+    "es_ES": "{count} ventana(s) cambian de lugar",
+    "fr_FR": "{count} fenêtre(s) changent de place"
+  },
+  "igual à sua tela": {
+    "en_US": "same as your screen",
+    "es_ES": "igual a tu pantalla",
+    "fr_FR": "comme sur votre écran"
+  },
+  "você ajustou {count}": {
+    "en_US": "you adjusted {count}",
+    "es_ES": "ajustaste {count}",
+    "fr_FR": "{count} ajusté(s) par vous"
+  },
+  "{count} arquivo(s) só desta": {
+    "en_US": "{count} file(s) just for this one",
+    "es_ES": "{count} archivo(s) solo de esta",
+    "fr_FR": "{count} fichier(s) propre(s) à celle-ci"
+  },
+  "Todas as resoluções": {
+    "en_US": "All resolutions",
+    "es_ES": "Todas las resoluciones",
+    "fr_FR": "Toutes les résolutions"
+  },
+  "Arraste uma janela para corrigir o lugar dela só nesta resolução. As outras resoluções não mudam.": {
+    "en_US": "Drag a window to fix its place in this resolution only. The other resolutions don't change.",
+    "es_ES": "Arrastra una ventana para corregir su lugar solo en esta resolución. Las demás resoluciones no cambian.",
+    "fr_FR": "Faites glisser une fenêtre pour corriger sa place dans cette résolution seulement. Les autres résolutions ne changent pas."
+  },
+  "O que muda de lugar": {
+    "en_US": "What moves",
+    "es_ES": "Lo que cambia de lugar",
+    "fr_FR": "Ce qui change de place"
+  },
+  "Nada: tudo fica onde o jogo põe.": {
+    "en_US": "Nothing: everything stays where the game puts it.",
+    "es_ES": "Nada: todo queda donde lo pone el juego.",
+    "fr_FR": "Rien : tout reste là où le jeu le place."
+  },
+  "Desfazer o ajuste (volta para a regra do editor)": {
+    "en_US": "Undo the adjustment (back to the editor's choice)",
+    "es_ES": "Deshacer el ajuste (vuelve a la elección del editor)",
+    "fr_FR": "Annuler l'ajustement (retour au choix de l'éditeur)"
+  },
+  "Desfazer o ajuste": {
+    "en_US": "Undo the adjustment",
+    "es_ES": "Deshacer el ajuste",
+    "fr_FR": "Annuler l'ajustement"
+  },
+  "Desfazer os ajustes desta resolução": {
+    "en_US": "Undo this resolution's adjustments",
+    "es_ES": "Deshacer los ajustes de esta resolución",
+    "fr_FR": "Annuler les ajustements de cette résolution"
+  },
+  "Arquivos só desta resolução": {
+    "en_US": "Files just for this resolution",
+    "es_ES": "Archivos solo de esta resolución",
+    "fr_FR": "Fichiers propres à cette résolution"
+  },
+  "Tirar": {
+    "en_US": "Remove",
+    "es_ES": "Quitar",
+    "fr_FR": "Retirer"
+  },
+  "Usar outro arquivo nesta resolução…": {
+    "en_US": "Use another file in this resolution…",
+    "es_ES": "Usar otro archivo en esta resolución…",
+    "fr_FR": "Utiliser un autre fichier dans cette résolution…"
+  },
+  "Por exemplo, um main.dds desenhado para esta tela. Ele substitui o do projeto só neste zip.": {
+    "en_US": "For example, a main.dds drawn for this screen. It replaces the project's file in this zip only.",
+    "es_ES": "Por ejemplo, un main.dds dibujado para esta pantalla. Reemplaza el del proyecto solo en este zip.",
+    "fr_FR": "Par exemple, un main.dds dessiné pour cet écran. Il remplace celui du projet dans ce zip seulement."
+  },
+  "Outra resolução": {
+    "en_US": "Another resolution",
+    "es_ES": "Otra resolución",
+    "fr_FR": "Autre résolution"
+  },
+  "Largura x altura, por exemplo 1680x1050": {
+    "en_US": "Width x height, for example 1680x1050",
+    "es_ES": "Ancho x alto, por ejemplo 1680x1050",
+    "fr_FR": "Largeur x hauteur, par exemple 1680x1050"
+  },
+  "Não entendi \"{text}\". Escreva largura x altura, por exemplo 1680x1050.": {
+    "en_US": "I didn't understand \"{text}\". Type width x height, for example 1680x1050.",
+    "es_ES": "No entendí \"{text}\". Escribe ancho x alto, por ejemplo 1680x1050.",
+    "fr_FR": "Je n'ai pas compris « {text} ». Écrivez largeur x hauteur, par exemple 1680x1050."
+  },
+  "Gerando os zips…": {
+    "en_US": "Creating the zips…",
+    "es_ES": "Generando los zips…",
+    "fr_FR": "Création des zips…"
+  },
+  "{count} zip(s) em {folder}:": {
+    "en_US": "{count} zip(s) in {folder}:",
+    "es_ES": "{count} zip(s) en {folder}:",
+    "fr_FR": "{count} zip(s) dans {folder} :"
+  },
+  "Iguais à sua UI, sem zip: {list}.": {
+    "en_US": "Same as your UI, no zip: {list}.",
+    "es_ES": "Iguales a tu UI, sin zip: {list}.",
+    "fr_FR": "Identiques à votre UI, sans zip : {list}."
+  },
+  "{count} zip(s) exportados para {folder}.": {
+    "en_US": "{count} zip(s) exported to {folder}.",
+    "es_ES": "{count} zip(s) exportados a {folder}.",
+    "fr_FR": "{count} zip(s) exporté(s) vers {folder}."
+  },
+  "Exportar para várias resoluções": {
+    "en_US": "Export for several resolutions",
+    "es_ES": "Exportar para varias resoluciones",
+    "fr_FR": "Exporter pour plusieurs résolutions"
+  },
+  "No launcher: Adicionar UI Customizada, uma por resolução.": {
+    "en_US": "In the launcher: Add Custom UI, one per resolution.",
+    "es_ES": "En el launcher: Añadir UI personalizada, una por resolución.",
+    "fr_FR": "Dans le launcher : Ajouter une UI personnalisée, une par résolution."
+  },
+  "O que vai em cada zip": {
+    "en_US": "What goes in each zip",
+    "es_ES": "Qué va en cada zip",
+    "fr_FR": "Ce que contient chaque zip"
+  },
+  "A UI inteira": {
+    "en_US": "The whole UI",
+    "es_ES": "La UI completa",
+    "fr_FR": "L'UI entière"
+  },
+  "Só o que muda": {
+    "en_US": "Only what changes",
+    "es_ES": "Solo lo que cambia",
+    "fr_FR": "Seulement ce qui change"
+  },
+  "Mais um zip com a UI como você edita, para quem não sabe a própria resolução.": {
+    "en_US": "One more zip with the UI as you edit it, for players who don't know their resolution.",
+    "es_ES": "Un zip más con la UI tal como la editas, para quien no sabe su resolución.",
+    "fr_FR": "Un zip de plus avec l'UI telle que vous l'éditez, pour qui ne connaît pas sa résolution."
+  },
+  "Também o \"All Resolution\"": {
+    "en_US": "Also the \"All Resolution\"",
+    "es_ES": "También el \"All Resolution\"",
+    "fr_FR": "Aussi le « All Resolution »"
+  },
+  "Exportar {count} zip(s)…": {
+    "en_US": "Export {count} zip(s)…",
+    "es_ES": "Exportar {count} zip(s)…",
+    "fr_FR": "Exporter {count} zip(s)…"
+  },
+  "O jogo não aumenta a interface: numa tela maior, cada janela continua do mesmo tamanho. O editor põe cada uma no mesmo lugar em cada resolução. Confira as prévias; se algo ficou fora do lugar, clique na resolução e arraste.": {
+    "en_US": "The game doesn't scale the interface: on a bigger screen every window keeps its size. The editor puts each one in the same place at every resolution. Check the previews; if something is out of place, click the resolution and drag it.",
+    "es_ES": "El juego no agranda la interfaz: en una pantalla más grande cada ventana mantiene su tamaño. El editor pone cada una en el mismo lugar en cada resolución. Revisa las vistas previas; si algo quedó fuera de lugar, haz clic en la resolución y arrástralo.",
+    "fr_FR": "Le jeu n'agrandit pas l'interface : sur un écran plus grand, chaque fenêtre garde sa taille. L'éditeur place chacune au même endroit dans chaque résolution. Vérifiez les aperçus ; si quelque chose n'est pas à sa place, cliquez sur la résolution et faites-le glisser."
+  },
+  "Você edita em": {
+    "en_US": "You edit at",
+    "es_ES": "Editas en",
+    "fr_FR": "Vous éditez en"
+  },
+  "+ personalizada": {
+    "en_US": "+ custom",
+    "es_ES": "+ personalizada",
+    "fr_FR": "+ personnalisée"
+  },
+  "Calculando…": {
+    "en_US": "Working it out…",
+    "es_ES": "Calculando…",
+    "fr_FR": "Calcul en cours…"
+  },
+  "Marque pelo menos uma resolução.": {
+    "en_US": "Tick at least one resolution.",
+    "es_ES": "Marca al menos una resolución.",
+    "fr_FR": "Cochez au moins une résolution."
+  },
+  "Mais opções de exportar": {
+    "en_US": "More export options",
+    "es_ES": "Más opciones de exportación",
+    "fr_FR": "Plus d'options d'export"
+  },
+  "Exportar para várias resoluções…": {
+    "en_US": "Export for several resolutions…",
+    "es_ES": "Exportar para varias resoluciones…",
+    "fr_FR": "Exporter pour plusieurs résolutions…"
   }
 }

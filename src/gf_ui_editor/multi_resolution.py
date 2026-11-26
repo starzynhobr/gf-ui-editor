@@ -308,6 +308,7 @@ def target_rect(piece: Piece, base: Resolution, target: Resolution, adjusted: tu
 @dataclass
 class PiecePlacement:
     key: str
+    indexes: tuple[int, ...]
     rule: tuple[str, str]
     base_rect: Rect  # na resolução base
     rect: Rect  # na resolução alvo, depois da regra ou do ajuste
@@ -347,7 +348,7 @@ def generate(
         else:
             wanted = target_rect(piece, plan.base, target, adjusted)
         corrections[piece.key] = (wanted[0] - current[0], wanted[1] - current[1])
-        placements.append(PiecePlacement(piece.key, piece.rule, piece.rect, wanted, adjusted is not None))
+        placements.append(PiecePlacement(piece.key, piece.indexes, piece.rule, piece.rect, wanted, adjusted is not None))
 
     geometries: dict[int, Rect] = {}
     moving = {key: delta for key, delta in corrections.items() if delta != (0, 0)}
@@ -651,6 +652,7 @@ def window_summary(result: WindowResult) -> dict:
         "pieces": [
             {
                 "key": piece.key,
+                "indexes": list(piece.indexes),
                 "rule": list(piece.rule),
                 "base": list(piece.base_rect),
                 "rect": list(piece.rect),

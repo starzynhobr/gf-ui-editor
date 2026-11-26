@@ -10,6 +10,7 @@ import { redo, undo, useDocState, useEditingAvailable } from './doc'
 import { saveDocument } from './saving'
 import { toggleSource, useSource } from '../source/SourcePanel'
 import { openMenuAt, type MenuItem } from '../ui/Menu'
+import { openResolutionsDialog } from '../resolutions/ResolutionsDialog'
 import {
   convertProjectToLight, exportTexts, openOfficialCompare, openOfficialReference, resolveGameError, saveProjectVersion, showCleanup, showPull, showVersions,
 } from '../project/flows'
@@ -138,16 +139,33 @@ export default function TopBar() {
           <StzPill />
         </div>
       </div>
-      <button
-        className="btn h-8"
-        disabled={!project}
-        title={project ? undefined : t('Exportar a UI precisa de um projeto aberto.')}
-        onClick={() => void exportZip()}
-        data-testid="export-zip"
-      >
-        <Icon name="package" size={16} />
-        {t('Exportar UI (.zip)…')}
-      </button>
+      <div className="flex">
+        <button
+          className="btn h-8 rounded-r-none"
+          disabled={!project}
+          title={project ? undefined : t('Exportar a UI precisa de um projeto aberto.')}
+          onClick={() => void exportZip()}
+          data-testid="export-zip"
+        >
+          <Icon name="package" size={16} />
+          {t('Exportar UI (.zip)…')}
+        </button>
+        <button
+          className="btn h-8 w-7 rounded-l-none border-l-0 px-0"
+          disabled={!project}
+          aria-label={t('Mais opções de exportar')}
+          title={t('Mais opções de exportar')}
+          data-testid="export-menu"
+          onClick={(event) =>
+            openMenuAt(event.currentTarget, [
+              { label: t('Exportar UI (.zip)…'), icon: 'package', onClick: () => void exportZip() },
+              { label: t('Exportar para várias resoluções…'), icon: 'layout', onClick: () => void openResolutionsDialog() },
+            ], true)
+          }
+        >
+          <Icon name="chevron-down" size={14} />
+        </button>
+      </div>
       <button
         className="btn btn-primary ml-1 h-8"
         disabled={!canPublish}
