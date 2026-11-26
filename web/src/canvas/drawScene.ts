@@ -1,4 +1,5 @@
 import type { CanvasDocument, CanvasElement, CanvasRect, CanvasTextMode } from '../bridge'
+import type { Handle } from './geometry'
 
 export interface SceneOptions {
   outlines: boolean
@@ -33,6 +34,18 @@ function validUv(uv: CanvasRect | null | undefined): uv is CanvasRect {
 function drawCrop(ctx: CanvasRenderingContext2D, image: ImageBitmap, uv: CanvasRect, box: CanvasRect) {
   // Canvas clips out-of-bounds source pixels proportionally; Pillow pads them with transparency.
   ctx.drawImage(image, ...uv, ...box)
+}
+
+export function drawsRootTexture(element: CanvasElement | undefined, images: Images) {
+  if (!element?.texture || !validUv(element.uv)) return false
+  const image = images.get(element.texture.toLowerCase())
+  if (!image) return false
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 16
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+  ctx.imageSmoothingEnabled = false
+  drawCrop(ctx, image, element.uv, [0, 0, 16, 16])
+  return ctx.getImageData(0, 0, 16, 16).data.some((value, index) => index % 4 === 3 && value > 8)
 }
 
 // Keep the Qt/Pillow operation order: composite at UV size and resize to layout size
@@ -162,6 +175,8 @@ export function drawDots(ctx: CanvasRenderingContext2D, width: number, height: n
 export function drawScene(
   ctx: CanvasRenderingContext2D, document: CanvasDocument, rows: Rows, images: Images,
   options: SceneOptions, background: ImageBitmap | null, scale: number, selected: number | null,
+  selection = selected === null ? [] : [selected], handles: Handle[] = [],
+  marquee: CanvasRect | null = null, ghost: CanvasRect | null = null, ghostLabel = '',
 ) {
   ctx.save()
   const { preview } = document
@@ -224,11 +239,37 @@ export function drawScene(
     ctx.setLineDash([])
   }
   for (const { element, box } of rows) drawText(ctx, element, box, options)
-  if (selected !== null && rows[selected]) {
+  if (ghost) {
+    ctx.fillStyle = 'rgba(246,142,76,0.15)'
+    ctx.fillRect(...ghost)
+    ctx.strokeStyle = '#f68e4c'
+    ctx.lineWidth = 1 / scale
+    ctx.setLineDash([4 / scale, 2 / scale])
+    ctx.strokeRect(...ghost)
+    ctx.setLineDash([])
+    ctx.font = `${12 / scale}px Arial`
+    ctx.fillStyle = '#f68e4c'
+    ctx.fillText(ghostLabel, ghost[0] + 3 / scale, ghost[1] + 13 / scale)
+  }
+  const marked = new Set(selection)
+  for (const { element, box } of rows) {
+    if (!marked.has(element.index)) continue
     ctx.lineWidth = 2 / scale
     ctx.strokeStyle = '#ffbe1e'
-    ctx.strokeRect(...rows[selected].box)
-    if (options.preview && selected === 0 && preview.frame) ctx.strokeRect(...preview.frame)
+    ctx.strokeRect(...box)
+    if (options.preview && element.index === 0 && preview.frame) ctx.strokeRect(...preview.frame)
+  }
+  for (const { point: [x, y] } of handles) {
+    ctx.fillStyle = '#ffbe1e'
+    const radius = 5 / scale
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+  }
+  if (marquee) {
+    ctx.fillStyle = 'rgba(90,190,255,0.16)'
+    ctx.strokeStyle = '#5abeff'
+    ctx.lineWidth = 1 / scale
+    ctx.fillRect(...marquee)
+    ctx.strokeRect(...marquee)
   }
   ctx.restore()
 }

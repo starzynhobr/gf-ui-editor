@@ -18,6 +18,7 @@ existentes (o compare.py compara os logs em ordem).
 from __future__ import annotations
 
 import hashlib
+from io import BytesIO
 import json
 import os
 import shutil
@@ -61,11 +62,26 @@ from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMenu, QMessa
 app = QApplication.instance() or QApplication([])
 
 import gf_ui_editor  # noqa: E402
-from gf_ui_editor import app as app_module, text_data  # noqa: E402
+from gf_ui_editor import app as app_module, text_data, updater  # noqa: E402
 
 assert str(OUT) in str(app_module.PROJECTS_ROOT), app_module.PROJECTS_ROOT
 assert "HKEY" not in app_module.QSettings("Local", "GF UI Editor").fileName()
 app_module.DEFAULT_UI_DIRECTORY = GAME / "UI"
+
+
+def _release_response(url):
+    version = gf_ui_editor.__version__
+    asset_name = f"GF-UI-Editor-Setup-{version}.exe"
+    release = {
+        "tag_name": f"v{version}",
+        "assets": [{"name": asset_name, "browser_download_url": f"https://example.invalid/{asset_name}"}],
+    }
+    payload = [release] if url == updater.RELEASES_API else release
+    return BytesIO(json.dumps(payload).encode("utf-8"))
+
+
+# Both versions test the updater UI with the same release response, without network timing.
+updater._request = _release_response
 
 LOG: list[dict] = []
 ANSWERS: list = []  # respostas para getText/getItem/getMultiLineText/QMenu, em ordem
@@ -389,7 +405,13 @@ run("erro_do_jogo", game_error)
 
 def updates():
     window.check_for_updates(manual=True)
-    pump(8)
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        pump(0.1)
+        if LOG[-1]["kind"] in ("information", "warning"):
+            assert LOG[-1]["kind"] == "information", LOG[-1]
+            return
+    raise TimeoutError("O editor não exibiu o resultado da verificação de atualização.")
 
 
 run("verificar_atualizacoes", updates)

@@ -86,3 +86,9 @@ export const openCanvasDocument = (path: string, resolution?: CanvasPoint) =>
   call<CanvasDocument>('open_document', path, resolution ?? null)
 export const canvasAssetBase = (path: string) => call<string>('asset_base', path)
 export const canvasBackgroundBase = () => call<string>('canvas_background_base')
+
+export interface CanvasDocument {
+  dirty?: boolean
+  frame_anchor_delta?: CanvasPoint | null
+  ghost_area?: CanvasRect | null
+}

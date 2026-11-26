@@ -6,7 +6,7 @@
 // passa por applyEdits -> Python (doc_edit) e volta como documento atualizado; desfazer e
 // refazer reaplicam o lote inverso pelo mesmo caminho. Salvar grava pelo Python.
 import { create } from 'zustand'
-import type { CanvasDocument, CanvasRect } from '../bridge'
+import { call, type CanvasDocument, type CanvasPoint, type CanvasRect } from '../bridge'
 
 export type Edit =
   | { index: number; field: 'geometry'; before: CanvasRect; after: CanvasRect }
@@ -26,6 +26,8 @@ export interface DocState {
   dirty: boolean
   canUndo: boolean
   canRedo: boolean
+  undoLabel?: string | null
+  redoLabel?: string | null
   /** Texto do último erro de edição/salvar, para a casca mostrar. */
   error: string | null
 }
@@ -40,27 +42,204 @@ export const useDoc = create<DocState>(() => ({
   dirty: false,
   canUndo: false,
   canRedo: false,
+  undoLabel: null,
+  redoLabel: null,
   error: null,
 }))
 
-const todo = (name: string) => () => {
-  throw new Error(`doc/store.${name}: ainda não implementado (bloco 2, canvas)`)
+interface Batch {
+  edits: Edit[]
+  label: string
+}
+
+const past: Batch[] = []
+const future: Batch[] = []
+const state = useDoc.getState
+const update = useDoc.setState
+let queue: Promise<unknown> = Promise.resolve()
+let opening: { path: string | null; done: Promise<void> } | null = null
+let ignoredChange: string | null = null
+
+function run<T>(work: () => Promise<T>): Promise<T> {
+  const task = queue.then(async () => {
+    try {
+      const value = await work()
+      update({ error: null })
+      return value
+    } catch (error) {
+      update({ error: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+  })
+  queue = task.catch(() => undefined)
+  return task
+}
+
+function received(doc: CanvasDocument | null) {
+  update({
+    doc, dirty: doc?.dirty === true,
+    canUndo: past.length > 0, canRedo: future.length > 0,
+    undoLabel: past.at(-1)?.label ?? null, redoLabel: future.at(-1)?.label ?? null,
+  })
+}
+
+function resetHistory() {
+  past.length = 0
+  future.length = 0
+  ignoredChange = null
+}
+
+function resetDocument(path: string | null, doc: CanvasDocument | null) {
+  resetHistory()
+  update({
+    path, doc, dirty: false, canUndo: false, canRedo: false,
+    undoLabel: null, redoLabel: null,
+    selection: [], hidden: [], locked: [], isolated: null,
+  })
+}
+
+function load(path: string | null, resolution?: CanvasPoint) {
+  const done = run(async () => {
+    const doc = await call<CanvasDocument | null>('doc_open', path, resolution ?? null)
+    resetDocument(path, doc)
+  })
+  const request = { path, done }
+  opening = request
+  const settled = () => { if (opening === request) opening = null }
+  void done.then(settled, settled)
+  return done
+}
+
+function validIndexes(indexes: number[]) {
+  const length = state().doc?.elements.length ?? 0
+  return [...new Set(indexes.filter((index) => Number.isInteger(index) && index >= 0 && index < length))]
+}
+
+function record(doc: CanvasDocument, edits: Edit[], label: string) {
+  if (edits.length) {
+    past.push({ edits, label })
+    future.length = 0
+  }
+  received(doc)
+}
+
+function changeHistory(source: Batch[], target: Batch[], inverse: boolean) {
+  return run(async () => {
+    const batch = source.at(-1)
+    if (!batch || !state().doc) return
+    const edits = inverse ? batch.edits.toReversed().map((edit) => ({
+      ...edit, before: edit.after, after: edit.before,
+    })) : batch.edits
+    const doc = await call<CanvasDocument>('doc_edit', edits)
+    source.pop()
+    target.push(batch)
+    received(doc)
+  })
+}
+
+function setFlag(field: 'hidden' | 'locked', indexes: number[], enabled: boolean) {
+  const next = new Set(state()[field])
+  for (const index of validIndexes(indexes)) {
+    if (enabled) next.add(index)
+    else next.delete(index)
+  }
+  update({ [field]: [...next] })
 }
 
 /** Abre (ou recarrega) o XML; null fecha. */
-export const openDoc: (path: string | null) => Promise<void> = todo('openDoc') as never
+export const openDoc: (path: string | null) => Promise<void> = (path) => load(path)
 /** replace: só estes; add: soma; toggle: liga/desliga cada um. */
-export const select: (indexes: number[], mode?: 'replace' | 'add' | 'toggle') => void = todo('select') as never
+export const select: (indexes: number[], mode?: 'replace' | 'add' | 'toggle') => void = (indexes, mode = 'replace') => {
+  const valid = validIndexes(indexes)
+  const next = new Set(mode === 'replace' ? [] : state().selection)
+  for (const index of valid) {
+    if (mode === 'toggle' && next.has(index)) next.delete(index)
+    else next.add(index)
+  }
+  update({ selection: [...next] })
+}
 /** Aplica um lote como UM passo de desfazer (label aparece em Editar > Desfazer). */
-export const applyEdits: (edits: Edit[], label: string) => Promise<void> = todo('applyEdits') as never
-export const undo: () => Promise<void> = todo('undo') as never
-export const redo: () => Promise<void> = todo('redo') as never
+export const applyEdits: (edits: Edit[], label: string) => Promise<void> = (edits, label) => {
+  const path = state().path
+  return run(async () => {
+    const batch = edits.filter((edit) => JSON.stringify(edit.before) !== JSON.stringify(edit.after))
+    if (!batch.length || !path || state().path !== path) return
+    const doc = await call<CanvasDocument>('doc_edit', batch)
+    record(doc, batch, label)
+  })
+}
+export const undo: () => Promise<void> = () => changeHistory(past, future, true)
+export const redo: () => Promise<void> = () => changeHistory(future, past, false)
 /** Diff unificado do que será gravado (a casca mostra antes de salvar). '' se nada mudou. */
-export const previewSave: () => Promise<string> = todo('previewSave') as never
+export const previewSave: () => Promise<string> = () =>
+  run(() => state().dirty ? call<string>('doc_diff') : Promise.resolve(''))
 /** Grava o XML (com backup no histórico do projeto, como a clássica). */
-export const save: () => Promise<void> = todo('save') as never
+export const save: () => Promise<void> = () => run(async () => {
+  if (!state().dirty) return
+  const doc = await call<CanvasDocument>('doc_save')
+  resetHistory()
+  received(doc)
+})
 /** Descarta as edições e relê do disco. */
-export const revert: () => Promise<void> = todo('revert') as never
-export const setHidden: (indexes: number[], hidden: boolean) => void = todo('setHidden') as never
-export const setLocked: (indexes: number[], locked: boolean) => void = todo('setLocked') as never
-export const setIsolated: (index: number | null) => void = todo('setIsolated') as never
+export const revert: () => Promise<void> = () => run(async () => {
+  const { path } = state()
+  if (path) resetDocument(path, await call<CanvasDocument>('doc_revert'))
+})
+export const setHidden: (indexes: number[], hidden: boolean) => void = (indexes, hidden) => setFlag('hidden', indexes, hidden)
+export const setLocked: (indexes: number[], locked: boolean) => void = (indexes, locked) => setFlag('locked', indexes, locked)
+export const setIsolated: (index: number | null) => void = (index) =>
+  update({ isolated: index === null ? null : validIndexes([index])[0] ?? null })
+
+/** The canvas can mount before the shell calls openDoc. Both use the same session. */
+export function ensureDoc(path: string | null, resolution?: CanvasPoint): Promise<void> {
+  if (opening?.path === path) return opening.done
+  if (!opening && state().path === path && !resolution) return Promise.resolve()
+  return load(path, resolution)
+}
+
+type GeometryEdit = Extract<Edit, { field: 'geometry' }>
+
+export function applyCanvasEdits(
+  makeEdits: (doc: CanvasDocument) => GeometryEdit[], label: string, preview: boolean, rootBackground: boolean,
+) {
+  const path = state().path
+  return run(async () => {
+    const { doc, locked } = state()
+    if (!doc || !path || state().path !== path) return
+    const edits = makeEdits(doc)
+    if (!edits.length) return
+    const result = await call<{ doc: CanvasDocument; edits: GeometryEdit[] }>(
+      'doc_canvas_edit', edits, locked, preview, rootBackground,
+    )
+    record(result.doc, result.edits, label)
+  })
+}
+
+export function checkExternalChange(path: string, confirm: (missing: boolean, dirty: boolean) => boolean) {
+  // Watch checks should preserve an editing or save error already shown by the shell.
+  const task = queue.then(async () => {
+    if (state().path !== path || !state().doc) return
+    const token = await call<string | null>('doc_external_change')
+    if (token === null) {
+      ignoredChange = null
+      return
+    }
+    if (token === ignoredChange) return
+    if ((token === 'missing' || state().dirty) && !confirm(token === 'missing', state().dirty)) {
+      ignoredChange = token
+      return
+    }
+    try {
+      resetDocument(path, await call<CanvasDocument>('doc_revert'))
+      update({ error: null })
+    } catch (error) {
+      // A malformed external revision may stay on disk until the other editor saves again.
+      ignoredChange = token
+      throw error
+    }
+  })
+  queue = task.catch((error) => {
+    update({ error: error instanceof Error ? error.message : String(error) })
+  })
+  return task
+}

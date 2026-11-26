@@ -4,6 +4,7 @@ import { flushSync } from '../web/node_modules/react-dom/index.js'
 import { createElement } from '../web/node_modules/react/index.js'
 import { openCanvasDocument, type CanvasElement } from '../web/src/bridge'
 import CanvasView from '../web/src/canvas/CanvasView'
+import { previewSave, redo, save, select, setHidden, setIsolated, setLocked, undo, useDoc } from '../web/src/doc/store'
 import DdsProbe from './canvas_compare_dds?worker&inline'
 
 Konva.pixelRatio = 1
@@ -67,8 +68,8 @@ async function checkControls() {
   const y = Math.round(group.y() + 8 * group.scaleY())
   // Synthetic PointerEvents have no native pointer to capture.
   viewport.setPointerCapture = () => {}
-  const pointer = (type: string, dx = 0, dy = 0) => viewport.dispatchEvent(new PointerEvent(type, {
-    clientX: rect.left + x + dx, clientY: rect.top + y + dy, pointerId: 1, bubbles: true,
+  const pointer = (type: string, dx = 0, dy = 0, button = 0) => viewport.dispatchEvent(new PointerEvent(type, {
+    clientX: rect.left + x + dx, clientY: rect.top + y + dy, pointerId: 1, bubbles: true, button,
   }))
   const commit = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   pointer('pointerdown')
@@ -77,9 +78,9 @@ async function checkControls() {
   if (selected?.id !== '1') throw new Error('Canvas selection did not report the element')
   const initial = group.position()
   const scale = group.scaleX()
-  pointer('pointerdown')
-  pointer('pointermove', 20, 12)
-  pointer('pointerup', 20, 12)
+  pointer('pointerdown', 0, 0, 1)
+  pointer('pointermove', 20, 12, 1)
+  pointer('pointerup', 20, 12, 1)
   await commit()
   if (group.x() !== initial.x + 20 || group.y() !== initial.y + 12) throw new Error('Canvas pan did not follow the pointer')
   const beforeX = (x - group.x()) / scale
@@ -97,7 +98,30 @@ async function checkControls() {
   return true
 }
 
+async function editOpen(path: string, preview: boolean) {
+  await open(path, preview, false)
+  const doc = useDoc.getState().doc!
+  const [, , width, height] = preview ? doc.preview.screen : doc.bounds
+  const viewport = document.querySelector<HTMLDivElement>('.gf-canvas-viewport')!
+  Object.assign(viewport.style, { flex: 'none', width: `${width + 40}px`, height: `${height + 44}px` })
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await new Promise(requestAnimationFrame)
+    if (Konva.stages[0].findOne('Group')!.scaleX() === 1) return true
+  }
+  throw new Error('Editing fixture did not reach 1:1 zoom')
+}
+
 Object.assign(window, {
+  canvasEdit: {
+    open: editOpen,
+    state: useDoc.getState,
+    select, setHidden, setLocked, setIsolated, undo, redo, save, previewSave,
+    point(x: number, y: number) {
+      const group = Konva.stages[0].findOne('Group')!
+      const rect = document.querySelector('.gf-canvas-viewport')!.getBoundingClientRect()
+      return [rect.left + group.x() + x, rect.top + group.y() + y]
+    },
+  },
   canvasCompare: {
     open,
     checkControls,

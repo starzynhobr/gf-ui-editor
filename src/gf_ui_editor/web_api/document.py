@@ -10,6 +10,32 @@ doc_save(), doc_revert().
 
 from __future__ import annotations
 
+from ..document_session import DocumentSession
+
 
 class DocumentApi:
     """Métodos públicos viram window.pywebview.api.<nome>. Só tipos JSON."""
+
+    def _setup_document(self) -> None:
+        self._document_session = DocumentSession()
+
+    def doc_open(self, path: str | None, resolution: list[int] | None = None) -> dict | None:
+        return self._document_session.open(path, tuple(resolution) if resolution is not None else None)
+
+    def doc_edit(self, edits: list[dict]) -> dict:
+        return self._document_session.edit(edits)
+
+    def doc_canvas_edit(self, edits: list[dict], locked: list[int], preview: bool, root_background: bool) -> dict:
+        return self._document_session.edit_canvas(edits, locked, preview, root_background)
+
+    def doc_diff(self) -> str:
+        return self._document_session.diff()
+
+    def doc_save(self) -> dict:
+        return self._document_session.save(getattr(self, "_project", None))
+
+    def doc_revert(self) -> dict:
+        return self._document_session.revert()
+
+    def doc_external_change(self) -> str | None:
+        return self._document_session.external_change()

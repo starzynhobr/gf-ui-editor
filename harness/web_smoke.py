@@ -167,6 +167,11 @@ def scenario() -> None:
 
     # 1. Tela inicial sem projetos.
     check("home aparece", bool(wait("!!__smoke.q('[data-testid=home]')", 30, "tela inicial")))
+    wait(
+        "(__smoke.text('[data-testid=home-projects]') || '').includes('Nenhum projeto ainda')"
+        " || !!__smoke.q('[data-testid=home-project-row]')",
+        20, "carregamento dos projetos",
+    )
     text = js("__smoke.text('[data-testid=home]')") or ""
     check("home sem projeto convida a começar", "Comece um projeto de UI" in text, text=text[:200])
     check("home sem projetos", "Nenhum projeto ainda" in text)
