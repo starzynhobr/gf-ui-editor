@@ -1,6 +1,6 @@
 // Barrinha da esquerda: Arquivos XML, Texturas, Elementos, Textos (Ctrl+1..4) e, embaixo,
 // a engrenagem enxuta: Configurações… (idioma, tema e interface ficam lá), Como usar (F1), Novidades,
-// Verificar atualizações e Sobre. Idioma e tema também saem pela paleta (Ctrl+K).
+// Voltar para a clássica, Verificar atualizações e Sobre. Idioma e tema também saem pela paleta (Ctrl+K).
 import { useT } from '../i18n'
 import { useShell, type SidePage } from '../store'
 import { openAbout } from './StzPill'
@@ -8,6 +8,7 @@ import { showPage } from '../actions'
 import { openSettings } from '../settings/SettingsScreen'
 import { checkForUpdates } from '../settings/updates'
 import { openWhatsNew } from '../home/WhatsNewDialog'
+import { backToClassic } from '../settings/interfaceSwitch'
 import { openHowTo } from '../home/HowToDialog'
 import { Icon } from '../ui/Icon'
 import { openMenu } from '../ui/Menu'
@@ -33,7 +34,8 @@ export default function SideRail() {
         { label: t('Configurações…'), icon: 'settings', onClick: () => openSettings() },
         { label: t('Como usar'), icon: 'help', hint: 'F1', onClick: openHowTo },
         { separator: true },
-        { label: t('Novidades desta versão'), icon: 'info', onClick: openWhatsNew },
+        { label: t('Novidades desta versão'), icon: 'info', onClick: () => void openWhatsNew() },
+        { label: t('Voltar para a clássica'), icon: 'undo', onClick: () => void backToClassic() },
         { label: t('Verificar atualizações…'), icon: 'sparkles', onClick: () => void checkForUpdates(true) },
         { separator: true },
         { label: t('Sobre o {name}…', { name: 'STZ GF UI' }), icon: 'info', onClick: openAbout },
@@ -60,7 +62,7 @@ export default function SideRail() {
           </button>
         ))}
       <div className="flex-1" />
-      <button className="icon-button h-10 w-10" title={t('Configurações')} aria-label={t('Configurações')} onClick={(event) => settings(event.currentTarget)}>
+      <button className="icon-button h-10 w-10" data-testid="settings-button" title={t('Configurações')} aria-label={t('Configurações')} onClick={(event) => settings(event.currentTarget)}>
         <Icon name="settings" size={20} />
       </button>
     </nav>

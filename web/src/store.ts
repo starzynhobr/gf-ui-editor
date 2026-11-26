@@ -40,11 +40,30 @@ export const useShell = create<Shell>(() => ({
 let statusTimer: number | undefined
 let statusId = 0
 
+// Toasts seguros enquanto as Novidades estão abertas (não aparecem por cima delas).
+let heldToasts: [string, number][] | null = null
+
+function showToast(text: string, duration: number): void {
+  if (heldToasts) heldToasts.push([text, duration])
+  else toast(text, { duration })
+}
+
+/** Segura os toasts (true) e, ao soltar (false), mostra os que chegaram nesse meio-tempo. */
+export function holdToasts(hold: boolean): void {
+  if (hold) {
+    heldToasts ??= []
+    return
+  }
+  const queued = heldToasts ?? []
+  heldToasts = null
+  for (const [text, duration] of queued) toast(text, { duration })
+}
+
 /** Mensagem no rodapé por alguns segundos (como statusBar().showMessage da clássica). */
 export function showStatus(text: string, seconds = 10): void {
   statusId += 1
   // Avisos importantes (resultado do F5, versão salva…) também sobem como toast.
-  if (seconds >= 10) toast(text, { duration: Math.min(seconds, 12) * 1000 })
+  if (seconds >= 10) showToast(text, Math.min(seconds, 12) * 1000)
   useShell.setState({ status: { text, id: statusId } })
   window.clearTimeout(statusTimer)
   statusTimer = window.setTimeout(() => useShell.setState({ status: null }), seconds * 1000)

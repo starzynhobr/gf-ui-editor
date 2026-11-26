@@ -28,6 +28,8 @@ import { installShortcuts } from './shell/shortcuts'
 import { DialogHost } from './ui/dialogs'
 import SettingsHost, { useSettings } from './settings/SettingsScreen'
 import { startupChecks } from './settings/updates'
+import { startWhatsNew } from './home/WhatsNewDialog'
+import { useWhatsNew } from './home/whatsNew'
 import { openExternalXml, openProject } from './actions'
 import { call, on } from './bridge'
 import { MenuHost } from './ui/Menu'
@@ -48,6 +50,8 @@ export default function App() {
   const canvasEpoch = useSettings((state) => state.canvasEpoch)
   const [error, setError] = useState<string | null>(null)
   const shellMounted = shell !== null && !error
+  // Abertura automática das Novidades: os banners (UI oficial não guardada etc.) esperam.
+  const notesHold = useWhatsNew((state) => state.hold)
 
   useEffect(() => {
     if (shellMounted) void call('shell_ready').catch(() => {})
@@ -59,8 +63,9 @@ export default function App() {
       ({ view: first, ...state }) => {
         setLanguage(state.language)
         setShell(state, { view: first })
-        // Como a clássica: depois de abrir, a verificação de atualização e os avisos do manifesto.
-        window.setTimeout(() => void startupChecks(), 2500)
+        // Novidades primeiro (abrem sozinhas uma vez depois de atualizar); os outros avisos esperam
+        // elas fecharem. Depois, como a clássica: a verificação de atualização e o manifesto.
+        void startWhatsNew().then((shown) => window.setTimeout(() => void startupChecks(), shown ? 900 : 2500))
       },
       (reason) => setError(errorText(reason)),
     )
@@ -127,7 +132,7 @@ export default function App() {
           </>
         )}
         <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
-          {view === 'workspace' && <Banners />}
+          {view === 'workspace' && !notesHold && <Banners />}
           {view === 'workspace' && <StandaloneBar />}
           <div className="relative min-h-0 flex-1">
           {view === 'home' ? (

@@ -1,5 +1,6 @@
 // Barra superior: casinha, projeto ˅ / arquivo, salvar e, à direita, Exportar e Enviar · N.
 import StzPill from './StzPill'
+import WhatsNewPill from './WhatsNewPill'
 import { useEffect, useState } from 'react'
 import { api, type HomeProject } from '../api'
 import { useT } from '../i18n'
@@ -133,12 +134,13 @@ export default function TopBar() {
           <Icon name="code" size={17} />
         </button>
       )}
-      <div className="flex-1" />
+      <div className="flex-1" data-topbar-spacer />
       <div className="pointer-events-none absolute inset-y-0 left-1/2 z-40 flex -translate-x-1/2 items-center">
         <div className="pointer-events-auto">
           <StzPill />
         </div>
       </div>
+      <WhatsNewPill />
       <div className="flex">
         <button
           className="btn h-8 rounded-r-none"

@@ -928,5 +928,45 @@
     "en_US": "Export for several resolutions…",
     "es_ES": "Exportar para varias resoluciones…",
     "fr_FR": "Exporter pour plusieurs résolutions…"
+  },
+  "Voltar para a clássica": {
+    "en_US": "Switch back to classic",
+    "es_ES": "Volver a la clásica",
+    "fr_FR": "Revenir à la classique"
+  },
+  "Interface nova": {
+    "en_US": "New interface",
+    "es_ES": "Interfaz nueva",
+    "fr_FR": "Nouvelle interface"
+  },
+  "O STZ GF UI ganhou uma interface nova: mais rápida, com temas, prévias de textura, busca com Ctrl+K e o código do XML lado a lado. Tudo continua no mesmo lugar.": {
+    "en_US": "STZ GF UI has a new interface: faster, with themes, texture previews, Ctrl+K search and the XML code side by side. Everything is still in the same place.",
+    "es_ES": "STZ GF UI tiene una interfaz nueva: más rápida, con temas, vistas previas de texturas, búsqueda con Ctrl+K y el código del XML al lado. Todo sigue en el mismo lugar.",
+    "fr_FR": "STZ GF UI a une nouvelle interface : plus rapide, avec des thèmes, l’aperçu des textures, la recherche avec Ctrl+K et le code XML côte à côte. Tout reste au même endroit."
+  },
+  "Prefere a clássica? Você pode voltar por enquanto.": {
+    "en_US": "Prefer the classic interface? You can switch back for now.",
+    "es_ES": "¿Prefieres la clásica? Puedes volver por ahora.",
+    "fr_FR": "Vous préférez la classique ? Vous pouvez y revenir pour l’instant."
+  },
+  "Dá para trocar a qualquer momento em Configurações → Interface.": {
+    "en_US": "You can switch at any time in Settings → Interface.",
+    "es_ES": "Puedes cambiar cuando quieras en Configuración → Interfaz.",
+    "fr_FR": "Vous pouvez changer à tout moment dans Paramètres → Interface."
+  },
+  "Ver o que mudou nesta versão": {
+    "en_US": "See what changed in this version",
+    "es_ES": "Ver qué cambió en esta versión",
+    "fr_FR": "Voir ce qui a changé dans cette version"
+  },
+  "Tirar Novidades da barra": {
+    "en_US": "Remove What's new from the bar",
+    "es_ES": "Quitar Novedades de la barra",
+    "fr_FR": "Retirer Nouveautés de la barre"
+  },
+  "Tira da barra até a próxima versão. As Novidades continuam na engrenagem.": {
+    "en_US": "Removes it from the bar until the next version. What's new stays in the gear menu.",
+    "es_ES": "La quita de la barra hasta la próxima versión. Las Novedades siguen en el engranaje.",
+    "fr_FR": "La retire de la barre jusqu’à la prochaine version. Les Nouveautés restent dans l’engrenage."
   }
 }
