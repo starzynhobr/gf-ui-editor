@@ -120,24 +120,31 @@ export default function TopBar() {
       <button className="icon-button h-8 w-8" disabled={!canRedo} title={`${t('Refazer')} (Ctrl+Y)`} aria-label={t('Refazer')} onClick={() => void redo()}>
         <Icon name="redo" size={17} />
       </button>
-      <button
-        className={`icon-button h-8 w-8 ${sourceOpen ? 'bg-accent-soft text-accent-text' : ''}`}
-        disabled={!fileName}
-        title={`${t('Ver código XML')} (Ctrl+U)`}
-        aria-label={t('Ver código XML')}
-        aria-pressed={sourceOpen}
-        data-testid="view-source"
-        onClick={toggleSource}
-      >
-        <Icon name="code" size={17} />
-      </button>
+      {fileName && (
+        <button
+          className={`icon-button h-8 w-8 ${sourceOpen ? 'bg-accent-soft text-accent-text' : ''}`}
+          title={`${t('Ver código XML')} (Ctrl+U)`}
+          aria-label={t('Ver código XML')}
+          aria-pressed={sourceOpen}
+          data-testid="view-source"
+          onClick={toggleSource}
+        >
+          <Icon name="code" size={17} />
+        </button>
+      )}
       <div className="flex-1" />
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[70] flex -translate-x-1/2 items-center">
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-40 flex -translate-x-1/2 items-center">
         <div className="pointer-events-auto">
           <StzPill />
         </div>
       </div>
-      <button className="btn h-8" disabled={!project} onClick={() => void exportZip()} data-testid="export-zip">
+      <button
+        className="btn h-8"
+        disabled={!project}
+        title={project ? undefined : t('Exportar a UI precisa de um projeto aberto.')}
+        onClick={() => void exportZip()}
+        data-testid="export-zip"
+      >
         <Icon name="package" size={16} />
         {t('Exportar UI (.zip)…')}
       </button>

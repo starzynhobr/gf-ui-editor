@@ -232,9 +232,10 @@ export default function PropertiesPanel() {
         <Field label={t('Recorte DDS')}>
           <span className="font-mono text-[12px] text-text">{uv ? `X ${uv[0]} · Y ${uv[1]} · ${uv[2]} × ${uv[3]}` : '—'}</span>
         </Field>
+        {element.texture != null && (<>
         <button
           className="btn h-7 w-full"
-          disabled={disabled || element.texture == null}
+          disabled={disabled}
           title={t('Usa outro .dds neste controle: um da UI, uma cópia para editar ou um de outra pasta')}
           onClick={(event) => void changeTexture(event.currentTarget, element)}
         >
@@ -243,13 +244,13 @@ export default function PropertiesPanel() {
         </button>
         <button
           className="btn mt-1.5 h-7 w-full"
-          disabled={element.texture == null}
           data-testid="open-atlas"
           onClick={() => void atlasModule().then((atlas) => atlas?.openAtlas(element.index))}
         >
           <Icon name="layout" size={15} />
           {t('Abrir atlas DDS…')}
         </button>
+        </>)}
       </Card>
 
       <Card title={t('IDENTIFICAÇÃO')}>

@@ -237,16 +237,18 @@ export default function HomeScreen() {
                 <span className="flex-1 text-muted">
                   {selected.size ? t('{count} selecionado(s)', { count: selected.size }) : t('Marque os projetos que quer excluir.')}
                 </span>
-                <button
-                  className="btn btn-danger h-7"
-                  disabled={!selected.size}
-                  onClick={async () => {
-                    if (await deleteProjects([...selected])) setManaging(false)
-                  }}
-                >
-                  <Icon name="trash" size={14} />
-                  {t('Excluir selecionados…')}
-                </button>
+                {selected.size > 0 && (
+                  <button
+                    className="btn btn-danger h-7"
+                    data-testid="delete-selected"
+                    onClick={async () => {
+                      if (await deleteProjects([...selected])) setManaging(false)
+                    }}
+                  >
+                    <Icon name="trash" size={14} />
+                    {t('Excluir selecionados…')}
+                  </button>
+                )}
               </div>
             )}
           </section>

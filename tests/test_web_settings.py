@@ -61,10 +61,21 @@ def test_snapshot_reads_the_shared_preferences(tmp_path: Path) -> None:
 
 
 def test_snapshot_falls_back_on_unknown_values() -> None:
-    prefs = _prefs(language="xx", ui_mode="??", navigation_style="vim", game_resolution="lixo", web_theme="neon")
+    prefs = _prefs(language="xx", ui_mode="??", navigation_style="vim", game_resolution="lixo", web_theme="neon", web_font="papyrus")
     values = app_settings.snapshot(prefs)["values"]
     assert (values["language"], values["ui_mode"], values["navigation_style"]) == ("pt_BR", "classic", "corel")
-    assert values["game_resolution"] == "game" and values["web_theme"] == "dark"
+    assert values["game_resolution"] == "game" and values["web_theme"] == "dark" and values["web_font"] == "system"
+
+
+def test_font_choice_is_validated() -> None:
+    prefs = _prefs()
+    assert app_settings.apply(prefs, "web_font", "plex") == "plex" and prefs.get("web_font") == "plex"
+    try:
+        app_settings.apply(prefs, "web_font", "papyrus")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("fonte desconhecida deveria ser recusada")
 
 
 def test_beta_follows_the_installed_version_until_chosen(monkeypatch) -> None:

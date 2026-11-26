@@ -15,7 +15,7 @@ import { openHowTo } from '../home/HowToDialog'
 import { atlasAvailable, atlasModule } from '../shell/atlas'
 import { redo, undo } from '../shell/doc'
 import { saveDocument } from '../shell/saving'
-import { THEMES, setTheme, useUi } from '../shell/uiState'
+import { FONTS, FONT_LABELS, THEMES, setFont, setTheme, useUi } from '../shell/uiState'
 import { openSource } from '../source/SourcePanel'
 import { setShell, useShell } from '../store'
 import { Icon } from '../ui/Icon'
@@ -35,18 +35,17 @@ function joinPath(directory: string, relative: string): string {
   return `${directory.replace(/[\\/]+$/, '')}\\${relative.replace(/\//g, '\\')}`
 }
 
-function Item({ value, keywords, icon, hint, detail, disabled, onSelect, children }: {
+function Item({ value, keywords, icon, hint, detail, onSelect, children }: {
   value: string
   keywords?: string[]
   icon: string
   hint?: string
   detail?: string
-  disabled?: boolean
   onSelect: () => void
   children: ReactNode
 }) {
   return (
-    <Command.Item value={value} keywords={keywords} disabled={disabled} onSelect={onSelect} className="gf-palette-item">
+    <Command.Item value={value} keywords={keywords} onSelect={onSelect} className="gf-palette-item">
       <Icon name={icon} size={15} className="shrink-0 text-icon" />
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {detail && <span className="gf-palette-detail">{detail}</span>}
@@ -65,6 +64,7 @@ function Palette() {
   const canUndo = useDoc((state) => state.canUndo)
   const canRedo = useDoc((state) => state.canRedo)
   const theme = useUi((state) => state.theme)
+  const font = useUi((state) => state.font)
   const [query, setQuery] = useState('')
   const [files, setFiles] = useState<{ name: string; path: string }[]>([])
   const [recent, setRecent] = useState<HomeProject[]>([])
@@ -151,32 +151,41 @@ function Palette() {
             <Command.Empty className="gf-palette-empty">{t('Nenhum resultado.')}</Command.Empty>
 
             <Command.Group heading={t('Comandos')}>
-              <Item value="cmd:publish" keywords={[t('Enviar para o jogo'), 'F5']} icon="send" hint="F5"
-                disabled={!project?.game_dir} onSelect={() => run(() => publishToGame())}>
-                {t('Enviar para o jogo')}
-              </Item>
-              <Item value="cmd:save" keywords={[t('Salvar')]} icon="save" hint="Ctrl+S" disabled={!dirty}
-                onSelect={() => run(() => saveDocument())}>
-                {t('Salvar')}
-              </Item>
-              <Item value="cmd:undo" keywords={[t('Desfazer')]} icon="undo" hint="Ctrl+Z" disabled={!canUndo}
-                onSelect={() => run(() => undo())}>
-                {t('Desfazer')}
-              </Item>
-              <Item value="cmd:redo" keywords={[t('Refazer')]} icon="redo" hint="Ctrl+Y" disabled={!canRedo}
-                onSelect={() => run(() => redo())}>
-                {t('Refazer')}
-              </Item>
-              <Item value="cmd:source" keywords={[t('Ver código XML'), 'xml', 'source']} icon="code" hint="Ctrl+U"
-                disabled={!openPath || view !== 'workspace'} onSelect={() => run(() => openSource())}>
-                {t('Ver código XML')}
-              </Item>
-              <Item value="cmd:atlas" keywords={[t('Abrir atlas do elemento'), 'atlas', 'dds']} icon="image"
-                detail={selected?.id}
-                disabled={!selected?.texture || !atlasAvailable()}
-                onSelect={() => run(() => selected && atlasModule().then((atlas) => atlas?.openAtlas(selected.index)))}>
-                {t('Abrir atlas do elemento')}
-              </Item>
+              {/* Só o que dá para fazer agora: um comando que não roda não aparece (em vez de apagado). */}
+              {project?.game_dir && (
+                <Item value="cmd:publish" keywords={[t('Enviar para o jogo'), 'F5']} icon="send" hint="F5"
+                  onSelect={() => run(() => publishToGame())}>
+                  {t('Enviar para o jogo')}
+                </Item>
+              )}
+              {dirty && (
+                <Item value="cmd:save" keywords={[t('Salvar')]} icon="save" hint="Ctrl+S" onSelect={() => run(() => saveDocument())}>
+                  {t('Salvar')}
+                </Item>
+              )}
+              {canUndo && (
+                <Item value="cmd:undo" keywords={[t('Desfazer')]} icon="undo" hint="Ctrl+Z" onSelect={() => run(() => undo())}>
+                  {t('Desfazer')}
+                </Item>
+              )}
+              {canRedo && (
+                <Item value="cmd:redo" keywords={[t('Refazer')]} icon="redo" hint="Ctrl+Y" onSelect={() => run(() => redo())}>
+                  {t('Refazer')}
+                </Item>
+              )}
+              {openPath && view === 'workspace' && (
+                <Item value="cmd:source" keywords={[t('Ver código XML'), 'xml', 'source']} icon="code" hint="Ctrl+U"
+                  onSelect={() => run(() => openSource())}>
+                  {t('Ver código XML')}
+                </Item>
+              )}
+              {selected?.texture && atlasAvailable() && (
+                <Item value="cmd:atlas" keywords={[t('Abrir atlas do elemento'), 'atlas', 'dds']} icon="image"
+                  detail={selected.id}
+                  onSelect={() => run(() => atlasModule().then((atlas) => atlas?.openAtlas(selected.index)))}>
+                  {t('Abrir atlas do elemento')}
+                </Item>
+              )}
               <Item value="cmd:home" keywords={[t('Tela inicial')]} icon="home" onSelect={() => run(() => goHome())}>
                 {t('Tela inicial')}
               </Item>
@@ -190,6 +199,12 @@ function Palette() {
                 <Item key={name} value={`cmd:theme:${name}`} keywords={[t('Tema'), themeNames[name]]} icon="sparkles"
                   detail={theme === name ? '✓' : undefined} onSelect={() => run(() => setTheme(name))}>
                   {t('Tema')}: {themeNames[name]}
+                </Item>
+              ))}
+              {FONTS.map((name) => (
+                <Item key={name} value={`cmd:font:${name}`} keywords={[t('Fonte'), FONT_LABELS[name]]} icon="type"
+                  detail={font === name ? '✓' : undefined} onSelect={() => run(() => setFont(name))}>
+                  {t('Fonte')}: {FONT_LABELS[name]}
                 </Item>
               ))}
               {LANGUAGES.map(([code, label]) => (

@@ -165,9 +165,9 @@ export default function TextsPage() {
           <input type="checkbox" name="texts-edited-only" checked={editedOnly} onChange={(event) => setEditedOnly(event.target.checked)} />
           {t('Só editados')}
         </label>
+        {canImport && (
         <button
           className="btn h-7 px-2.5 text-[12.5px]"
-          disabled={!canImport}
           title={t(
             'Traz alterações de arquivos T_*.ini que você já tinha editado. Compara ID por ID com o jogo:\nsó o que mudou vira edição do projeto, e IDs novos de atualizações continuam com o texto oficial.',
           )}
@@ -175,6 +175,7 @@ export default function TextsPage() {
         >
           {t('Importar textos…')}
         </button>
+        )}
       </div>
       {available && (
         <div className="px-3 pb-2 text-[12px] leading-snug text-muted" data-testid="texts-summary">

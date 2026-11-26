@@ -443,5 +443,140 @@
     "en_US": "Open one from the XML Files list (Ctrl+1).",
     "es_ES": "Abre uno en la lista de Archivos XML (Ctrl+1).",
     "fr_FR": "Ouvrez-en un dans la liste Fichiers XML (Ctrl+1)."
+  },
+  "{count} versões": {
+    "en_US": "{count} versions",
+    "es_ES": "{count} versiones",
+    "fr_FR": "{count} versions"
+  },
+  "Só esta versão": {
+    "en_US": "Only this version",
+    "es_ES": "Solo esta versión",
+    "fr_FR": "Cette version seulement"
+  },
+  "Ver todas as versões": {
+    "en_US": "See all versions",
+    "es_ES": "Ver todas las versiones",
+    "fr_FR": "Voir toutes les versions"
+  },
+  "Novo": {
+    "en_US": "New",
+    "es_ES": "Nuevo",
+    "fr_FR": "Nouveau"
+  },
+  "Melhorado": {
+    "en_US": "Improved",
+    "es_ES": "Mejorado",
+    "fr_FR": "Amélioré"
+  },
+  "Corrigido": {
+    "en_US": "Fixed",
+    "es_ES": "Corregido",
+    "fr_FR": "Corrigé"
+  },
+  "Tudo": {
+    "en_US": "All",
+    "es_ES": "Todo",
+    "fr_FR": "Tout"
+  },
+  "Filtrar por categoria": {
+    "en_US": "Filter by category",
+    "es_ES": "Filtrar por categoría",
+    "fr_FR": "Filtrer par catégorie"
+  },
+  "Recolher tudo": {
+    "en_US": "Collapse all",
+    "es_ES": "Contraer todo",
+    "fr_FR": "Tout replier"
+  },
+  "Expandir tudo": {
+    "en_US": "Expand all",
+    "es_ES": "Expandir todo",
+    "fr_FR": "Tout déplier"
+  },
+  "Versões": {
+    "en_US": "Versions",
+    "es_ES": "Versiones",
+    "fr_FR": "Versions"
+  },
+  "Nada nesta categoria.": {
+    "en_US": "Nothing in this category.",
+    "es_ES": "Nada en esta categoría.",
+    "fr_FR": "Rien dans cette catégorie."
+  },
+  "Padrão do Windows": {
+    "en_US": "Windows default",
+    "es_ES": "Predeterminada de Windows",
+    "fr_FR": "Par défaut de Windows"
+  },
+  "A mesma da interface clássica": {
+    "en_US": "Same as the classic interface",
+    "es_ES": "La misma de la interfaz clásica",
+    "fr_FR": "La même que l'interface classique"
+  },
+  "Compacta, feita para telas": {
+    "en_US": "Compact, made for screens",
+    "es_ES": "Compacta, hecha para pantallas",
+    "fr_FR": "Compacte, conçue pour l'écran"
+  },
+  "Moderna, com mono própria": {
+    "en_US": "Modern, with its own mono",
+    "es_ES": "Moderna, con mono propia",
+    "fr_FR": "Moderne, avec sa propre mono"
+  },
+  "Vale para toda a interface. O texto do jogo no canvas continua o do jogo.": {
+    "en_US": "Applies to the whole interface. Game text on the canvas stays the game's own.",
+    "es_ES": "Vale para toda la interfaz. El texto del juego en el lienzo sigue siendo el del juego.",
+    "fr_FR": "S'applique à toute l'interface. Le texte du jeu dans le canevas reste celui du jeu."
+  },
+  "Nenhum aviso do STZ Labs mostrado ainda.": {
+    "en_US": "No STZ Labs notices shown yet.",
+    "es_ES": "Aún no se mostró ningún aviso de STZ Labs.",
+    "fr_FR": "Aucun avis de STZ Labs affiché pour l'instant."
+  },
+  "Painéis e colunas no arranjo padrão.": {
+    "en_US": "Panels and columns in the default layout.",
+    "es_ES": "Paneles y columnas en la disposición predeterminada.",
+    "fr_FR": "Panneaux et colonnes dans la disposition par défaut."
+  },
+  "Exportar a UI precisa de um projeto aberto.": {
+    "en_US": "Exporting the UI needs an open project.",
+    "es_ES": "Exportar la UI necesita un proyecto abierto.",
+    "fr_FR": "L'export de l'UI nécessite un projet ouvert."
+  },
+  "{count} pessoas ajudaram": {
+    "en_US": "{count} people helped",
+    "es_ES": "{count} personas ayudaron",
+    "fr_FR": "{count} personnes ont aidé"
+  },
+  "{count} contribuições": {
+    "en_US": "{count} contributions",
+    "es_ES": "{count} contribuciones",
+    "fr_FR": "{count} contributions"
+  },
+  "1 contribuição": {
+    "en_US": "1 contribution",
+    "es_ES": "1 contribución",
+    "fr_FR": "1 contribution"
+  },
+  "Pessoas": {
+    "en_US": "People",
+    "es_ES": "Personas",
+    "fr_FR": "Personnes"
+  },
+  "Por versão": {
+    "en_US": "By version",
+    "es_ES": "Por versión",
+    "fr_FR": "Par version"
+  },
+  "Versões anteriores": {
+    "en_US": "Earlier versions",
+    "es_ES": "Versiones anteriores",
+    "fr_FR": "Versions précédentes"
+  },
+  "Fonte": {
+    "en_US": "Font",
+    "es_ES": "Fuente",
+    "fr_FR": "Police"
   }
 }

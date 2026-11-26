@@ -41,6 +41,7 @@ const baseState: SettingsState = {
     language: 'pt_BR',
     ui_mode: 'web',
     web_theme: 'dark',
+    web_font: 'system',
     navigation_style: 'corel',
     auto_update_check: true,
     beta_updates: false,
@@ -186,14 +187,43 @@ describe('tela de Configurações', () => {
     expect(canvas.applyCanvasPreference).not.toHaveBeenCalled()
   })
 
-  it('rever e limpar: versão pulada, avisos vistos', async () => {
+  it('rever e limpar: o botão some quando não há mais o que limpar', async () => {
     renderSettings()
     await waitFor(() => expect(screen.getByText('Oferecer de novo')).toBeTruthy())
     fireEvent.click(screen.getByText('Oferecer de novo'))
     await waitFor(() => expect(fake.reset).toHaveBeenCalledWith('skipped_update'))
-    await waitFor(() => expect((screen.getByText('Oferecer de novo') as HTMLButtonElement).disabled).toBe(true))
+    await waitFor(() => expect(screen.queryByText('Oferecer de novo')).toBeNull())
+    expect(screen.getByText('Nenhuma versão pulada.')).toBeTruthy()
     fireEvent.click(screen.getByText('Mostrar de novo'))
     await waitFor(() => expect(fake.reset).toHaveBeenCalledWith('manifest_seen'))
+    await waitFor(() => expect(screen.queryByText('Mostrar de novo')).toBeNull())
+    expect(screen.getByText('Nenhum aviso do STZ Labs mostrado ainda.')).toBeTruthy()
+    fireEvent.click(screen.getByText('Restaurar'))
+    await waitFor(() => expect(screen.queryByText('Restaurar')).toBeNull())
+  })
+
+  it('sem nada para rever, nenhum botão apagado aparece', async () => {
+    current = { ...current, review: { skipped_update: '', manifest_seen: 0, layout: false } }
+    renderSettings()
+    await waitFor(() => expect(screen.getByTestId('settings-general')).toBeTruthy())
+    expect(document.querySelectorAll('[data-testid=settings-general] button:disabled')).toHaveLength(0)
+    for (const id of ['settings-review-skipped', 'settings-review-notices', 'settings-review-layout'])
+      expect(screen.getByTestId(id).querySelector('button')).toBeNull()
+  })
+
+  it('fonte: cada opção escrita na sua fonte, troca na hora e grava web_font', async () => {
+    const { call } = await import('../bridge')
+    renderSettings()
+    await waitFor(() => expect(document.querySelector('[data-setting=web_font]')).toBeTruthy())
+    const options = Array.from(document.querySelectorAll('[data-setting=web_font] [role=radio]')) as HTMLElement[]
+    expect(options.map((option) => option.dataset.value)).toEqual(['system', 'plex', 'inter', 'geist'])
+    expect(options[2].querySelector('.gf-font-preview-inter')).toBeTruthy()
+    fireEvent.click(options[3])
+    expect(document.documentElement.dataset.font).toBe('geist')
+    expect(call).toHaveBeenCalledWith('ui_set_font', 'geist')
+    await waitFor(() => expect(options[3].getAttribute('aria-checked')).toBe('true'))
+    fireEvent.click(options[0])
+    expect(document.documentElement.dataset.font).toBeUndefined() // Sistema: os valores padrão de @theme
   })
 
   it('pasta do jogo: escolher e voltar à padrão', async () => {
