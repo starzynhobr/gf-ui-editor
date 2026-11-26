@@ -119,8 +119,48 @@ def answer(kind, directory, file_types, save_name):
     return value
 
 
+# ---- Novidades depois de atualizar --------------------------------------------------------
+# A ponte whats_new_state/closed/pill_dismissed é do Codex (em paralelo). O smoke força a
+# abertura automática uma vez e registra as chamadas; com a ponte real presente, repassa a ela.
+# O cartão "Interface nova" vem da nota (spotlight); as notas embutidas ainda não são as da
+# 0.8.0, então o smoke o liga no whats_new.
+WN_BRIDGE: dict = {"auto": True, "pill": False, "calls": []}
+# Um aviso do manifesto ao abrir: prova que ele espera as Novidades fecharem.
+MANIFEST[0] = remote_manifest.parse(json.dumps({
+    "schema": 1,
+    "messages": [{"id": "smoke-ordem", "level": "info", "text": {"pt_BR": "Aviso da ordem de abertura.", "en_US": "Startup order notice."}}],
+}).encode())
+
+
+class SmokeApi(web_shell.WebApi):
+    def whats_new(self) -> dict:
+        return {**super().whats_new(), "spotlight": "new_interface"}
+
+    def whats_new_state(self) -> dict:
+        real = getattr(super(), "whats_new_state", None)
+        state = dict(real()) if real else {"version": "", "auto_open": False, "pill": False}
+        state.update(auto_open=WN_BRIDGE["auto"], pill=WN_BRIDGE["pill"])
+        WN_BRIDGE["auto"] = False
+        WN_BRIDGE["calls"].append("state")
+        return state
+
+    def whats_new_closed(self) -> None:
+        WN_BRIDGE["calls"].append("closed")
+        WN_BRIDGE["pill"] = True
+        real = getattr(super(), "whats_new_closed", None)
+        if real:
+            real()
+
+    def whats_new_pill_dismissed(self) -> None:
+        WN_BRIDGE["calls"].append("dismissed")
+        WN_BRIDGE["pill"] = False
+        real = getattr(super(), "whats_new_pill_dismissed", None)
+        if real:
+            real()
+
+
 # ---- janela -----------------------------------------------------------------------------
-api = web_shell.WebApi("pt_BR", False, app_module.prefs, app_module.DEFAULT_UI_DIRECTORY, None)
+api = SmokeApi("pt_BR", False, app_module.prefs, app_module.DEFAULT_UI_DIRECTORY, None)
 api._dialogs = answer
 import webview  # noqa: E402
 
@@ -181,6 +221,14 @@ def _hwnd() -> int:
         return int(window.native.Handle.ToInt64())
     except Exception:  # noqa: BLE001
         return ctypes.windll.user32.FindWindowW(None, web_shell.APP_TITLE)
+
+
+def shot_now(name: str) -> None:
+    """Captura sem esperar (meio de uma animação)."""
+    path = OUT / "shots" / f"{name}.png"
+    if not capture_window(_hwnd(), path):
+        FAILED.append(f"captura {name}")
+    log("shot", name=name, path=str(path))
 
 
 def shot(name: str) -> None:
@@ -509,8 +557,144 @@ def new_themes_flow() -> None:
     _set_theme("Escuro", "dark")
 
 
+WN_DIALOG = "(__smoke.all('[role=dialog]').find((d) => d.querySelector('[data-testid=whats-new]')) || null)"
+WN_PILL_SHOWN = ("(() => { const p = __smoke.q('[data-testid=whats-new-pill]');"
+                 " return !!p && !p.dataset.covered && getComputedStyle(p).opacity === '1' })()")
+WN_LAYOUT = """(() => { const r = (s) => { const e = __smoke.q(s); return e ? e.getBoundingClientRect() : null };
+  const pill = r('[data-testid=whats-new-pill]'), exp = r('[data-testid=export-zip]'), stz = r('[data-testid=stz-pill]');
+  const spacer = r('[data-topbar-spacer]'); const bar = __smoke.q('[data-testid=topbar]');
+  return { pill: pill && [pill.left, pill.right], export: exp && [exp.left, exp.right], stz: stz && [stz.left, stz.right],
+    left: spacer && spacer.left, overflow: bar.scrollWidth > bar.clientWidth + 1, width: innerWidth } })()"""
+
+
+def _pill_layout_ok(layout) -> bool:
+    """A pílula (se estiver na barra) fica inteira entre o conteúdo da esquerda / a pílula STZ e o Exportar."""
+    if not layout or layout.get("overflow"):
+        return False
+    pill = layout.get("pill")
+    if not pill:
+        return True
+    return pill[1] <= layout["export"][0] and pill[0] >= max(layout["left"], layout["stz"][1])
+
+
+def _set_font(key: str) -> None:
+    _open_settings()
+    wait("!!__smoke.q('[data-setting=web_font]')", 5, "seletor de fonte")
+    js(f"__smoke.click('[data-setting=web_font] [data-value={key}]')")
+    if key != "system":
+        wait(_font_loaded(FONT_FAMILIES[key]), 8, f"fonte {key}")
+    _close_settings()
+    time.sleep(0.4)
+
+
+def whats_new_flow() -> None:
+    """Novidades abertas sozinhas depois de atualizar → pílula "Novidades ×" → reabrir → dispensar."""
+    opened = wait(f"!!{WN_DIALOG} && __smoke.q('[data-testid=whats-new]').dataset.mode === 'auto'", 30, "Novidades sozinhas")
+    check("Novidades abrem sozinhas ao abrir depois de atualizar", bool(opened), calls=WN_BRIDGE["calls"])
+    wait("!!__smoke.q('[data-testid=notes-spotlight]')", 5, "cartão Interface nova")
+    card = js("__smoke.text('[data-testid=notes-spotlight]')") or ""
+    above = js("(() => { const s = __smoke.q('[data-testid=notes-spotlight]'), h = __smoke.q('[data-testid=notes-highlights]');"
+               " return !!s && (!h || !!(s.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING)) })()")
+    check("cartão Interface nova no topo, com Voltar para a clássica", "Interface nova" in card and "Voltar para a clássica" in card
+          and "Configurações → Interface" in card and bool(above), card=card[:200])
+    time.sleep(0.8)
+    shot("00a-novidades-sozinhas")
+    # Os outros avisos (o manifesto) esperam: mesmo depois do tempo da verificação ao abrir, só as Novidades.
+    time.sleep(4.0)
+    dialogs = js("__smoke.all('[role=dialog]').length")
+    check("outros avisos esperam as Novidades", dialogs == 1 and not js(_dialog_with("Aviso da ordem")), dialogs=dialogs)
+    # Clicar fora não fecha.
+    js("(() => { const o = " + WN_DIALOG + ".parentElement; for (const t of ['mousedown', 'mouseup', 'click'])"
+       " o.dispatchEvent(new MouseEvent(t, { bubbles: true, clientX: 5, clientY: 300 })) })()")
+    time.sleep(0.5)
+    check("clicar fora não fecha as Novidades", bool(js(f"!!{WN_DIALOG}")) and "closed" not in WN_BRIDGE["calls"])
+
+    # Fechar: o diálogo voa até a barra e vira a pílula.
+    js("__smoke.click('[data-testid=whats-new-close]')")
+    time.sleep(0.16)
+    shot_now("00b-meio-da-animacao")
+    mid = js("(() => { const d = " + WN_DIALOG + "; return d ? getComputedStyle(d).transform : null })()")
+    check("fechar anima (encolhe em direção à barra)", bool(mid) and mid != "none", transform=mid)
+    landed = wait(f"!{WN_DIALOG} && {WN_PILL_SHOWN}", 5, "pílula na barra")
+    check("fechar mostra a pílula Novidades na barra", bool(landed))
+    check("fechar chama whats_new_closed", WN_BRIDGE["calls"].count("closed") == 1, calls=WN_BRIDGE["calls"])
+    layout = js(WN_LAYOUT)
+    check("pílula no espaço livre à esquerda do Exportar", _pill_layout_ok(layout) and bool(layout and layout.get("pill")), layout=layout)
+    time.sleep(0.4)
+    shot("00c-pilula-na-barra")
+    notice = wait(_dialog_with("Aviso da ordem"), 15, "aviso do manifesto depois das Novidades") or ""
+    check("aviso do manifesto aparece depois que as Novidades fecham", bool(notice))
+    js("__smoke.clickText('OK', '[role=dialog]')")
+    wait(f"!{_dialog_with('Aviso da ordem')}", 5, "fecha aviso da ordem")
+    MANIFEST[0] = None
+    api.settings_reset("manifest_seen")  # o aviso da ordem não conta para os fluxos de Configurações
+
+    # A pílula reabre (o diálogo cresce a partir dela) e, ao fechar, volta para ela.
+    js("__smoke.click('[data-testid=whats-new-pill-open]')")
+    time.sleep(0.14)
+    shot_now("00d-reabrindo-da-pilula")
+    reopened = wait(f"!!{WN_DIALOG} && __smoke.q('[data-testid=whats-new]').dataset.mode === 'pill'", 5, "reaberta pela pílula")
+    check("Novidades reabrem pela pílula", bool(reopened))
+    time.sleep(0.8)
+    shot("00e-reaberta")
+    js("__smoke.key('Escape')")
+    check("Esc fecha e a pílula volta", bool(wait(f"!{WN_DIALOG} && {WN_PILL_SHOWN}", 5, "pílula de volta"))
+          and WN_BRIDGE["calls"].count("closed") == 2, calls=WN_BRIDGE["calls"])
+
+    # Larguras: Inter e Geist, janela larga e estreita. A pílula nunca empurra o Exportar nem quebra a barra.
+    for key in ("inter", "geist"):
+        _set_font(key)
+        for width in (1440, 1024):
+            window.resize(width, 900 if width == 1440 else 760)
+            time.sleep(0.8)
+            layout = js(WN_LAYOUT)
+            problems = _width_problems()
+            check(f"barra com a pílula ok ({FONT_FAMILIES[key]}, {width}px)", _pill_layout_ok(layout) and problems == [],
+                  layout=layout, problems=problems)
+            if width == 1024:
+                shot(f"00f-barra-estreita-{key}")
+        window.resize(1440, 900)
+        time.sleep(0.5)
+    _set_font("system")
+    # Estreita: sem espaço a pílula some, e as Novidades continuam na engrenagem.
+    window.resize(1024, 760)
+    time.sleep(0.8)
+    hidden = not js("!!__smoke.q('[data-testid=whats-new-pill]')")
+    js("__smoke.click('[data-testid=settings-button]')")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu da engrenagem")
+    gear = js("__smoke.all('[role=menu] [role=menuitem]').map((b) => b.innerText.trim())") or []
+    check("Novidades e Voltar para a clássica na engrenagem", any(item.startswith("Novidades") for item in gear)
+          and any(item.startswith("Voltar para a clássica") for item in gear), pill_hidden=hidden, items=gear)
+    js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
+    wait("!__smoke.q('[role=menu]')", 3, "fecha engrenagem")
+    window.resize(1440, 900)
+    time.sleep(0.8)
+
+    # Ctrl+K: Novidades e Voltar para a clássica.
+    js("__smoke.key('k', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-testid=command-input]')", 5, "paleta")
+    js("__smoke.setValue('[data-testid=command-input]', 'clássica')")
+    found = wait("__smoke.all('[cmdk-item]').some((e) => e.innerText.includes('Voltar para a clássica'))", 5, "Voltar na paleta")
+    js("__smoke.setValue('[data-testid=command-input]', 'novidades')")
+    found_notes = wait("__smoke.all('[cmdk-item]').some((e) => e.innerText.includes('Novidades desta versão'))", 5, "Novidades na paleta")
+    check("Ctrl+K tem Novidades e Voltar para a clássica", bool(found) and bool(found_notes))
+    js("__smoke.q('[data-testid=command-input]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))")
+    wait("!__smoke.q('[data-testid=command-palette]')", 5, "fecha paleta")
+
+    # × tira a pílula até a próxima versão.
+    js("__smoke.click('[data-testid=whats-new-pill-dismiss]')")
+    gone = wait("!__smoke.q('[data-testid=whats-new-pill]')", 5, "pílula dispensada")
+    check("× tira a pílula e chama whats_new_pill_dismissed", bool(gone) and WN_BRIDGE["calls"].count("dismissed") == 1,
+          calls=WN_BRIDGE["calls"])
+    time.sleep(0.3)
+    shot("00g-pilula-dispensada")
+
+
 def scenario() -> None:
     project_root = project_module.PROJECTS_ROOT / "Smoke-Test"
+
+    # 0. Novidades depois de atualizar (antes de qualquer outro aviso).
+    whats_new_flow()
 
     # 1. Tela inicial sem projetos.
     check("home aparece", bool(wait("!!__smoke.q('[data-testid=home]')", 30, "tela inicial")))
@@ -694,7 +878,8 @@ def scenario() -> None:
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
     wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
     gear = js("__smoke.all('[role=menu] [role=menuitem]').map((b) => b.innerText.trim())") or []
-    check("engrenagem enxuta", len(gear) == 5 and gear[0] == "Configurações…" and gear[1].startswith("Como usar")
+    check("engrenagem enxuta", len(gear) == 6 and gear[0] == "Configurações…" and gear[1].startswith("Como usar")
+          and gear[2].startswith("Novidades") and gear[3].startswith("Voltar para a clássica")
           and not any("Idioma" in item or "Tema" in item for item in gear), items=gear)
     js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
     wait("!__smoke.q('[role=menu]')", 3, "fecha engrenagem")
@@ -1120,7 +1305,7 @@ def stz_helpers_flow() -> None:
     people = js("__smoke.all('[data-testid=stz-card] [data-person]').length") or 0
     # NumberFlow desenha os dígitos no shadow DOM: o número final fica em data-value.
     counts = js("['stz-people-count', 'stz-items-count'].map((id) => __smoke.q(`[data-testid=${id}]`)?.dataset.value ?? null)") or []
-    items = js("__smoke.all('[data-testid=stz-card] [data-person]').reduce((n, c) => n + Number((c.innerText.match(/(\d+) contribuiç/) || [0, 0])[1]), 0)")
+    items = js(r"__smoke.all('[data-testid=stz-card] [data-person]').reduce((n, c) => n + Number((c.innerText.match(/(\d+) contribuiç/) || [0, 0])[1]), 0)")
     check("cabeçalho com avatares e N pessoas ajudaram", people > 0 and "pessoas ajudaram" in helpers
           and js("__smoke.all('.gf-stz-stack .gf-stz-avatar').length") == people
           and counts == [str(people), str(items)], counts=counts, people=people, items=items, text=helpers[:120])
