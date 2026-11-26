@@ -1,5 +1,7 @@
 // Fluxos da casca (os mesmos da clássica, com os mesmos textos e a mesma ordem de perguntas).
 import { api, errorText, type ShellState } from './api'
+import { useOfficial } from './project/official'
+import { checkTextUpdates } from './project/textUpdates'
 import { call } from './bridge'
 import { t } from './i18n'
 import { setShell, showStatus, useShell, type SidePage } from './store'
@@ -204,6 +206,18 @@ export async function publishToGame(quiet = false): Promise<void> {
   try {
     if (!quiet && !(await saveBeforeProjectAction())) return
     const info = await api.publishInfo()
+    const pendingControls = info.new_controls ?? []
+    if (pendingControls.length && !quiet) {
+      const files = pendingControls.slice(0, 8).join(', ') + (pendingControls.length > 8 ? '…' : '')
+      const yes = await confirm(
+        t('Controles novos do jogo'),
+        t(
+          'Estes arquivos não têm controles que a atualização do jogo trouxe, e o jogo pode mostrar "Child control can not found":\n\n{files}\n\nEnviar mesmo assim?',
+          { files },
+        ),
+      )
+      if (!yes) return
+    }
     if (!info.confirmed) {
       const yes = await confirm(
         t('Enviar para o jogo'),
@@ -229,6 +243,7 @@ export async function publishToGame(quiet = false): Promise<void> {
       return
     }
     await refreshShell()
+    void checkTextUpdates()
     let text = result.copied
       ? t('Publicado: {count} arquivo(s) enviados para a pasta UI. Abra o jogo pelo launcher ou direto.', { count: result.copied })
       : t('Nada mudou: a pasta UI do jogo já está igual ao projeto.')
@@ -238,6 +253,7 @@ export async function publishToGame(quiet = false): Promise<void> {
     }
     if (result.texts_blocked)
       text += ' ' + t('Os textos não foram enviados: função desativada temporariamente por um problema conhecido.')
+    if (result.game_backups) useOfficial.setState({ gameBackups: result.game_backups })
     if (result.game_backups)
       text +=
         ' ' +

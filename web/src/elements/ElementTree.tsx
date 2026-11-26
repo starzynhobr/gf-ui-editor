@@ -10,6 +10,7 @@ import { selectElements, setHidden, setIsolated, setLocked, useDocState } from '
 import { Icon } from '../ui/Icon'
 import { openMenu } from '../ui/Menu'
 import { kindLabel } from './kinds'
+import { editGameText } from '../shell/gameText'
 
 interface Node {
   element: CanvasElement
@@ -247,6 +248,9 @@ export default function ElementTree() {
                   } ${hidden.includes(element.index) ? 'opacity-55' : ''}`}
                   style={{ gridTemplateColumns: columns }}
                   onClick={(event) => click(element.index, event)}
+                  onDoubleClick={(event) =>
+                    void editGameText({ index: element.index, windowId: element.id, x: event.clientX, y: event.clientY })
+                  }
                 >
                   <span className="flex items-center gap-0.5">
                     {stateButton(element.index, 'hidden')}

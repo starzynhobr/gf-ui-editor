@@ -14,6 +14,8 @@ import HomeScreen from './home/HomeScreen'
 import TextsPage from './texts/TextsPage'
 import Banners from './project/Banners'
 import { installOfficialEvents, startOfficialScan } from './project/official'
+import { installGameTextEditing } from './shell/gameText'
+import { checkTextUpdates } from './project/textUpdates'
 import ProgressOverlay from './shell/ProgressOverlay'
 import SideRail from './shell/SideRail'
 import StatusBar from './shell/StatusBar'
@@ -40,14 +42,19 @@ export default function App() {
     )
     const uninstall = installOfficialEvents()
     const unshortcut = installShortcuts()
+    const ungameText = installGameTextEditing()
     return () => {
       uninstall()
       unshortcut()
+      ungameText()
     }
   }, [])
 
   const projectRoot = shell?.project?.root ?? null
-  useEffect(() => startOfficialScan(projectRoot), [projectRoot])
+  useEffect(() => {
+    startOfficialScan(projectRoot)
+    if (projectRoot) void checkTextUpdates()
+  }, [projectRoot])
 
   // O contador do F5 e a lista mudam quando o XML é salvo fora (Notepad++): relê ao voltar
   // para a janela e, com um projeto aberto, a cada poucos segundos.

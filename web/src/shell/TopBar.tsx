@@ -8,6 +8,9 @@ import { Icon } from '../ui/Icon'
 import { redo, undo, useDocState, useEditingAvailable } from './doc'
 import { saveDocument } from './saving'
 import { openMenuAt, type MenuItem } from '../ui/Menu'
+import {
+  exportTexts, openOfficialCompare, openOfficialReference, resolveGameError, saveProjectVersion, showCleanup, showPull, showVersions,
+} from '../project/flows'
 
 export default function TopBar() {
   const t = useT()
@@ -47,6 +50,16 @@ export default function TopBar() {
       { separator: true },
       { label: t('Tela inicial'), icon: 'home', onClick: () => void goHome() },
       { label: t('Abrir pasta do projeto'), icon: 'file', disabled: !project, onClick: () => project && void api.openFolder(project.root) },
+      { separator: true },
+      { label: t('Salvar versão…'), icon: 'save', disabled: !project, onClick: () => project && void saveProjectVersion(project.root) },
+      { label: t('Versões do projeto…'), icon: 'layers', disabled: !project, onClick: () => project && void showVersions(project.root, project.name) },
+      { label: t('Puxar da pasta do jogo…'), icon: 'file-import', disabled: !project?.game_dir, onClick: () => project && void showPull(project.root, project.name) },
+      { label: t('Limpar projeto…'), icon: 'sparkles', disabled: !project, onClick: () => project && void showCleanup(project.root) },
+      { separator: true },
+      { label: t('UI oficial de referência…'), icon: 'package', disabled: !project?.game_dir, onClick: () => void openOfficialReference() },
+      { label: t('Comparar com a UI oficial…'), icon: 'search', disabled: !project?.game_dir, onClick: () => void openOfficialCompare() },
+      { label: t('Resolver erro do jogo…'), icon: 'alert', onClick: () => void resolveGameError() },
+      { label: t('Exportar textos (.zip)…'), icon: 'type', disabled: !project?.game_dir, onClick: () => void exportTexts() },
     ]
     openMenuAt(element, items)
   }

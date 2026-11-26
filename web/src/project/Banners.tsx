@@ -6,6 +6,8 @@ import { useShell } from '../store'
 import { Icon } from '../ui/Icon'
 import { dismissOfficialBanner, openOfficialCompare, openOfficialReference, showGameBackups } from './flows'
 import { officialKey, useOfficial } from './official'
+import { acknowledgeTextUpdates, useTextUpdates } from './textUpdates'
+import { publishToGame } from '../actions'
 
 function Banner({ children, action, onAction, onDismiss, testId }: { children: ReactNode; action: string; onAction: () => void; onDismiss: () => void; testId: string }) {
   const t = useT()
@@ -31,8 +33,34 @@ export default function Banners() {
   const diff = key ? diffs[key] : undefined
   const showOfficial = Boolean(diff?.new_ids.length) && key != null && !dismissed.includes(key)
   const showReference = Boolean(status?.has_list && !status.ready && !referenceDismissed)
+  const { report, dismissed: textsDismissed } = useTextUpdates()
+  const textUpdate = report?.update
+  const reverted = report?.reverted.length ?? 0
+  const showTexts = Boolean(report && !textsDismissed && (textUpdate || reverted))
+  const textParts = [
+    textUpdate
+      ? t('O jogo atualizou os textos: {new} ID(s) novo(s) e {changed} texto(s) oficial(is) alterado(s).', {
+          new: textUpdate.new_ids,
+          changed: textUpdate.changed_texts,
+        })
+      : '',
+    reverted ? t('{count} edição(ões) de texto deste projeto foram desfeitas pela atualização: envie de novo (F5).', { count: reverted }) : '',
+    report?.official_changed.length
+      ? t('{count} texto(s) editado(s) mudaram no jogo por baixo da edição: confira antes de enviar.', { count: report.official_changed.length })
+      : '',
+  ].filter(Boolean)
   return (
     <>
+      {showTexts && (
+        <Banner
+          testId="text-updates-banner"
+          action={reverted ? t('Reenviar edições') : t('Entendi')}
+          onAction={() => void (reverted ? publishToGame().then(() => acknowledgeTextUpdates()) : acknowledgeTextUpdates())}
+          onDismiss={() => void acknowledgeTextUpdates()}
+        >
+          {textParts.join(' ')}
+        </Banner>
+      )}
       {showOfficial && diff && (
         <Banner testId="official-banner" action={t('Ver e adicionar')} onAction={() => void openOfficialCompare()} onDismiss={dismissOfficialBanner}>
           {t('A atualização do jogo trouxe {count} controle(s) que este arquivo não tem ({ids}).', {

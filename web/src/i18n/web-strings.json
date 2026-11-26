@@ -43,5 +43,30 @@
     "en_US": "Yes",
     "es_ES": "Sí",
     "fr_FR": "Oui"
+  },
+  "O jogo atualizou os textos: {new} ID(s) novo(s) e {changed} texto(s) oficial(is) alterado(s).": {
+    "en_US": "The game updated its texts: {new} new ID(s) and {changed} official text(s) changed.",
+    "es_ES": "El juego actualizó sus textos: {new} ID(s) nuevo(s) y {changed} texto(s) oficial(es) cambiado(s).",
+    "fr_FR": "Le jeu a mis à jour ses textes : {new} nouvel(s) ID et {changed} texte(s) officiel(s) modifié(s)."
+  },
+  "{count} edição(ões) de texto deste projeto foram desfeitas pela atualização: envie de novo (F5).": {
+    "en_US": "{count} text edit(s) from this project were undone by the update: send again (F5).",
+    "es_ES": "{count} edición(es) de texto de este proyecto se deshicieron con la actualización: envía de nuevo (F5).",
+    "fr_FR": "{count} modification(s) de texte de ce projet ont été annulées par la mise à jour : renvoyez (F5)."
+  },
+  "{count} texto(s) editado(s) mudaram no jogo por baixo da edição: confira antes de enviar.": {
+    "en_US": "{count} edited text(s) changed in the game underneath your edit: check before sending.",
+    "es_ES": "{count} texto(s) editado(s) cambiaron en el juego por debajo de la edición: revisa antes de enviar.",
+    "fr_FR": "{count} texte(s) modifié(s) ont changé dans le jeu sous votre modification : vérifiez avant d'envoyer."
+  },
+  "Reenviar edições": {
+    "en_US": "Send edits again",
+    "es_ES": "Reenviar ediciones",
+    "fr_FR": "Renvoyer les modifications"
+  },
+  "Entendi": {
+    "en_US": "Got it",
+    "es_ES": "Entendido",
+    "fr_FR": "Compris"
   }
 }

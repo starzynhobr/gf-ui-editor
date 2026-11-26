@@ -171,7 +171,7 @@ export const api = {
   restorePreview: (path: string, source: string, currentLabel: string, restoredLabel: string) =>
     call<string>('restore_preview', path, source, currentLabel, restoredLabel),
   restoreFile: (path: string, source: string) => call<void>('restore_file', path, source),
-  publishInfo: () => call<{ confirmed: boolean; custom_dir: string; custom_name: string }>('publish_info'),
+  publishInfo: () => call<{ confirmed: boolean; custom_dir: string; custom_name: string; new_controls: string[] }>('publish_info'),
   confirmPublish: () => call<void>('confirm_publish'),
   publish: () => call<PublishResult>('publish'),
   pickExportTarget: () => call<string | null>('pick_export_target'),

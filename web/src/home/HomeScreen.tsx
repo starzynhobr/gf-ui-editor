@@ -18,6 +18,7 @@ import {
 import { Icon } from '../ui/Icon'
 import { openMenuAt } from '../ui/Menu'
 import { openWhatsNew } from './WhatsNewDialog'
+import { saveProjectVersion, showCleanup, showPull, showVersions } from '../project/flows'
 
 const ROW = 'grid grid-cols-[minmax(0,1fr)_70px_74px_92px_28px] items-center gap-2.5'
 
@@ -71,6 +72,11 @@ export default function HomeScreen() {
         { label: t('Duplicar…'), icon: 'copy', onClick: () => void duplicateProject(project.root, project.title) },
         { label: t('Renomear…'), icon: 'type', onClick: () => void renameProject(project.root, project.title) },
         { separator: true },
+        { label: t('Salvar versão…'), icon: 'save', onClick: () => void saveProjectVersion(project.root) },
+        { label: t('Versões do projeto…'), icon: 'layers', onClick: () => void showVersions(project.root, project.title) },
+        { label: t('Puxar da pasta do jogo…'), icon: 'file-import', onClick: () => void showPull(project.root, project.title) },
+        { label: t('Limpar projeto…'), icon: 'sparkles', onClick: () => void showCleanup(project.root) },
+        { separator: true },
         { label: t('Excluir…'), icon: 'trash', danger: true, onClick: () => void deleteProjects([project.root]) },
       ],
       true,
@@ -113,6 +119,17 @@ export default function HomeScreen() {
                 <button className="btn h-7" title={card.ui_dir} onClick={() => void api.openFolder(card.ui_dir)}>
                   <Icon name="folder-open" size={15} />
                   {t('Abrir pasta do projeto')}
+                </button>
+                <button className="btn h-7" data-testid="home-save-version" onClick={() => void saveProjectVersion(card.root)}>
+                  <Icon name="save" size={15} />
+                  {t('Salvar versão')}
+                </button>
+                <button className="btn h-7" data-testid="home-versions" onClick={() => void showVersions(card.root, card.name)}>
+                  {t('Versões…')}
+                </button>
+                <button className="btn h-7" data-testid="home-pull" onClick={() => void showPull(card.root, card.name)}>
+                  <Icon name="file-import" size={15} />
+                  {t('Puxar do jogo')}
                 </button>
               </div>
             </section>

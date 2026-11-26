@@ -278,14 +278,38 @@ def scenario() -> None:
     js("__smoke.click('[data-testid=home-project-row] button[aria-label]')")
     menu = wait("__smoke.text('[role=menu]')", 5, "menu da linha") or ""
     check("menu ⋯ tem Duplicar, Renomear e Excluir", all(word in menu for word in ("Duplicar", "Renomear", "Excluir")), menu=menu)
+    check("menu ⋯ tem Versões, Puxar e Limpar", all(word in menu for word in ("Versões do projeto", "Puxar da pasta do jogo", "Limpar projeto")), menu=menu)
     shot("09-menu-projeto")
     js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))")
     js("window.dispatchEvent(new MouseEvent('mousedown'))")
+
+    # 9b. Bloco 3: Salvar versão pelo cartão Continuar e lista de versões.
+    check("cartão tem Salvar versão, Versões e Puxar", all(
+        js(f"!!__smoke.q('[data-testid={name}]')") for name in ("home-save-version", "home-versions", "home-pull")
+    ))
+    versions_before = len(list((project_root / ".versions").glob("*.zip")))
+    js("__smoke.click('[data-testid=home-save-version]')")
+    if wait("!!__smoke.q('[role=dialog] input')", 5, "nome da versão"):
+        js("__smoke.setValue('[role=dialog] input', 'smoke')")
+        js("__smoke.clickText('OK', '[role=dialog]')")
+    saved = wait(
+        f"(() => {{ const s = __smoke.text('[data-testid=status-message]'); return s && s.includes('Versão salva') && s }})()",
+        20, "versão salva",
+    )
+    versions_after = len(list((project_root / ".versions").glob("*.zip")))
+    check("Salvar versão grava o .zip", bool(saved) and versions_after == versions_before + 1, before=versions_before, after=versions_after)
+    js("__smoke.click('[data-testid=home-versions]')")
+    listed = wait("(() => { const d = __smoke.text('[role=dialog]'); return d && d.includes('smoke') && d })()", 8, "lista de versões")
+    check("Versões lista a versão salva", bool(listed), dialog=(listed or "")[:200])
+    shot("09b-versoes")
+    js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))")
+    wait("!__smoke.q('[role=dialog]')", 5, "fecha versões")
 
     # 10. Continuar reabre o último XML.
     js("__smoke.clickText('Continuar', '[data-testid=home]')")
     crumb = wait("__smoke.text('[data-testid=breadcrumb]')", 8, "continuar")
     check("Continuar reabre o último XML", crumb is not None and "BasicChar.xml" in crumb)
+    check("chip da UI oficial no rodapé", bool(wait("!!__smoke.q('[data-testid=official-chip]')", 8, "chip UI oficial")))
 
     # 10b. Bloco 2: árvore, painel, menu de arquivos, salvar e descartar.
     block2(project_root)
