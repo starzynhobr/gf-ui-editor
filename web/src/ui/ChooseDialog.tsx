@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import { t, useT } from '../i18n'
 import { Modal, openDialog } from './dialogs'
+import { useListAnimation } from './animate'
 
 function Choose({
   title,
@@ -17,6 +18,7 @@ function Choose({
   onDone: (value: string | null) => void
 }) {
   useT()
+  const animate = useListAnimation()
   const [filter, setFilter] = useState('')
   const [value, setValue] = useState(items.includes(current) ? current : items[0])
   const shown = useMemo(() => items.filter((item) => item.toLowerCase().includes(filter.trim().toLowerCase())), [items, filter])
@@ -38,7 +40,7 @@ function Choose({
       <div className="space-y-2">
         <div className="text-muted">{label}</div>
         <input autoFocus className="field w-full" placeholder={t('Filtrar texturas…')} value={filter} onChange={(event) => setFilter(event.target.value)} />
-        <div className="max-h-[320px] overflow-y-auto rounded-md border border-border bg-input py-1" role="listbox">
+        <div ref={animate} className="max-h-[320px] overflow-y-auto rounded-md border border-border bg-input py-1" role="listbox">
           {shown.map((item) => (
             <div
               key={item}

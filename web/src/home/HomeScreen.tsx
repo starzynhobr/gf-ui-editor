@@ -19,11 +19,13 @@ import { Icon } from '../ui/Icon'
 import { openMenuAt } from '../ui/Menu'
 import { openWhatsNew } from './WhatsNewDialog'
 import { saveProjectVersion, showCleanup, showPull, showVersions } from '../project/flows'
+import { useListAnimation } from '../ui/animate'
 
 const ROW = 'grid grid-cols-[minmax(0,1fr)_70px_74px_92px_28px] items-center gap-2.5'
 
 export default function HomeScreen() {
   const t = useT()
+  const animateProjects = useListAnimation()
   const revision = useShell((state) => state.revision)
   const [data, setData] = useState<HomeData | null>(null)
   const [sizes, setSizes] = useState<Record<string, string>>({})
@@ -184,7 +186,7 @@ export default function HomeScreen() {
               <span>{t('Editado')}</span>
               <span />
             </div>
-            <div>
+            <div ref={animateProjects}>
               {visible.map((project) => (
                 <div
                   key={project.root}

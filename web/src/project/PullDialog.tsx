@@ -7,6 +7,7 @@ import { t, useT } from '../i18n'
 import { Modal, openDialog } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
 import { toolsApi, type PullCandidate } from './toolsApi'
+import { useListAnimation } from '../ui/animate'
 
 export function originText(item: PullCandidate): string {
   const texts: Record<string, string> = {
@@ -32,6 +33,7 @@ interface Props {
 
 function Pull({ root, name, sources, fixed, intro, onPull, onClose }: Props) {
   useT()
+  const animate = useListAnimation()
   const [source, setSource] = useState(sources?.[0]?.path ?? '')
   const [candidates, setCandidates] = useState<PullCandidate[] | null>(fixed ?? null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -117,7 +119,7 @@ function Pull({ root, name, sources, fixed, intro, onPull, onClose }: Props) {
             {t('Nenhuma diferença: o projeto já tem estes arquivos iguais.')}
           </div>
         ) : (
-          <div className="max-h-[340px] overflow-y-auto rounded-md border border-border bg-input">
+          <div ref={animate} className="max-h-[340px] overflow-y-auto rounded-md border border-border bg-input">
             <div className="section-label sticky top-0 grid grid-cols-[22px_minmax(0,1fr)_minmax(0,1fr)] gap-2 bg-input px-3 py-1.5">
               <span />
               <span>{t('Arquivo')}</span>
