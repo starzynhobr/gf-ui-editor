@@ -190,6 +190,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   const actionPending = useRef(false)
   const revision = useShell((state) => state.revision)
   const [textRevision, setTextRevision] = useState(0)
+  const [layerRevision, setLayerRevision] = useState(0)
   const [layers, setLayers] = useState<CanvasLayers>(noLayers)
   const palette = useCanvasPalette()
   const [background, setBackground] = useState<ImageBitmap | null>()
@@ -297,6 +298,12 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
     setLayers(noLayers)
   }, [path, options.preview])
 
+  useEffect(() => {
+    const refresh = () => setLayerRevision((current) => current + 1)
+    window.addEventListener('gf:layers-changed', refresh)
+    return () => window.removeEventListener('gf:layers-changed', refresh)
+  }, [])
+
   const savedPositions = scene?.preview.saved_positions ?? preferences?.savedPositions
   useEffect(() => {
     if (!path || savedPositions === undefined) return
@@ -306,7 +313,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
       .then((value) => { if (active) setLayers(value) })
       .catch((error) => { if (active) setPreferenceError(String(error)) })
     return () => { active = false }
-  }, [path, savedPositions, options.preview, screenWidth, screenHeight, revision, textRevision])
+  }, [path, savedPositions, options.preview, screenWidth, screenHeight, revision, textRevision, layerRevision])
 
   useLayoutEffect(() => {
     if (!viewport.current) return
@@ -546,6 +553,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
         onLayers={(action) => void toolbarAction(async () => {
           await call('canvas_change_layers', path, action)
           useShell.setState((state) => ({ revision: state.revision + 1 }))
+          window.dispatchEvent(new CustomEvent('gf:layers-changed'))
         })}
         onButtonState={setButtonState}
         onZoom={zoom} onResetZoom={() => zoom()} onFit={() => { if (bounds) setView(fit(bounds, size)) }}>

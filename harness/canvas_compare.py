@@ -110,6 +110,12 @@ def classic(out: Path, game: Path) -> list[dict]:
                 shot = view.viewport().grab()
                 if not shot.copy(0, 0, width, height).save(str(out / f"{key}-qt.png")):
                     raise RuntimeError(f"Qt screenshot failed: {key}")
+                if preview:
+                    window.set_text_mode("off")
+                    app.processEvents()
+                    shot = view.viewport().grab()
+                    if not shot.copy(0, 0, width, height).save(str(out / f"{key}-qt-no-text.png")):
+                        raise RuntimeError(f"Qt screenshot without text failed: {key}")
                 cases.append({
                     "key": key, "path": str(path), "preview": preview, "background": background,
                     "frame": (round(origin.x()), round(origin.y()), width, height),
@@ -183,6 +189,10 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
                 url = window.evaluate_js(f"canvasCompare.capture(...{json.dumps(case['frame'])})")
                 encoded = url.split(",", 1)[1]
                 (out / f"{case['key']}-web.png").write_bytes(base64.b64decode(encoded))
+                if case["preview"]:
+                    wait_for_js("canvasCompare.textOff()", "disable game text")
+                    url = window.evaluate_js(f"canvasCompare.capture(...{json.dumps(case['frame'])})")
+                    (out / f"{case['key']}-web-no-text.png").write_bytes(base64.b64decode(url.split(",", 1)[1]))
             bases = {folder: api.asset_base(str(folder / "fixture.xml")) for folder in {file.parent for file in samples}}
             files = [(bases[file.parent], file.name) for file in samples]
             hashes.extend(wait_for_js(f"canvasCompare.ddsHashes({json.dumps(files)})", "DDS decoder"))
@@ -197,7 +207,8 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
             fixture.mkdir()
             xml = fixture / "Fixture.xml"
             xml.write_text(
-                '<Root_Node><BaseWndProperty WindowID="1" WindowHeight="96" WindowWidth="96">'
+                '<Root_Node><BaseWndProperty WindowID="1" WindowHeight="96" WindowWidth="96" WindowText="Auto Awake">'
+                '<TextNode FontStyle="1" TextAlign="1"/>'
                 '<BackGroundMap BGmap="Sample.dds"><NorUV NorUVLeft="0" NorUVTop="0" '
                 'NorUVWidth="16" NorUVHeight="16"/></BackGroundMap></BaseWndProperty></Root_Node>',
                 encoding="ascii",
@@ -206,6 +217,7 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
             Image.new("RGBA", (16, 16), "red").save(dds)
             wait_for_js(f"canvasCompare.open({json.dumps(str(xml))}, false, false)", "texture fixture")
             checks["controls"] = wait_for_js("canvasCompare.checkControls()", "canvas controls")
+            checks["game_text_zoom"] = wait_for_js("canvasCompare.checkGameTextZoom()", "game text at 3× zoom")
             before = window.evaluate_js("canvasCompare.pixel(4, 4)")
             if before != [255, 0, 0, 255]:
                 raise RuntimeError(f"Texture fixture did not load: {before}")
@@ -231,15 +243,30 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
     return hashes, checks
 
 
+def max_rgb(image: Image.Image) -> Image.Image:
+    red, green, blue = image.split()
+    return ImageChops.lighter(ImageChops.lighter(red, green), blue)
+
+
+def fraction_over_tolerance(image: Image.Image) -> float:
+    return sum(image.histogram()[PIXEL_TOLERANCE + 1:]) / (image.width * image.height)
+
+
+def text_difference(qt: Image.Image, web: Image.Image, qt_off: Image.Image, web_off: Image.Image) -> float:
+    """Compare each renderer's text contribution on the exact same frame."""
+    qt_light, qt_dark = ImageChops.subtract(qt, qt_off), ImageChops.subtract(qt_off, qt)
+    web_light, web_dark = ImageChops.subtract(web, web_off), ImageChops.subtract(web_off, web)
+    delta = ImageChops.lighter(ImageChops.difference(qt_light, web_light), ImageChops.difference(qt_dark, web_dark))
+    return fraction_over_tolerance(max_rgb(delta))
+
+
 def compare(out: Path, case: dict) -> bool:
     key = case["key"]
     qt = Image.open(out / f"{key}-qt.png").convert("RGB")
     web_image = Image.open(out / f"{key}-web.png").convert("RGB")
     assert qt.size == web_image.size, key
     delta = ImageChops.difference(qt, web_image)
-    red, green, blue = delta.split()
-    maximum = ImageChops.lighter(ImageChops.lighter(red, green), blue)
-    fraction = sum(maximum.histogram()[PIXEL_TOLERANCE + 1:]) / (qt.width * qt.height)
+    fraction = fraction_over_tolerance(max_rgb(delta))
     combined = Image.new("RGB", (qt.width * 3, qt.height))
     combined.paste(qt, (0, 0))
     combined.paste(web_image, (qt.width, 0))
@@ -248,7 +275,13 @@ def compare(out: Path, case: dict) -> bool:
     threshold = MAX_PREVIEW_DIFFERENCE if case["preview"] else MAX_TEXTURE_DIFFERENCE
     ok = fraction <= threshold and set(case["missing_web"]) == set(case["missing_qt"])
     case.update(fraction=fraction, threshold=threshold, passed=ok)
-    print(f"{key}: {'PASS' if ok else 'FAIL'} ({fraction:.3%}, limit {threshold:.1%})", flush=True)
+    text_result = ""
+    if case["preview"]:
+        qt_off = Image.open(out / f"{key}-qt-no-text.png").convert("RGB")
+        web_off = Image.open(out / f"{key}-web-no-text.png").convert("RGB")
+        case["text_fraction"] = text_difference(qt, web_image, qt_off, web_off)
+        text_result = f", text only {case['text_fraction']:.3%}"
+    print(f"{key}: {'PASS' if ok else 'FAIL'} ({fraction:.3%}, limit {threshold:.1%}{text_result})", flush=True)
     return ok
 
 

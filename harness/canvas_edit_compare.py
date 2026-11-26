@@ -325,6 +325,19 @@ def web(out, page, project, expected):
             assert js("canvasEdit.state().doc.elements[10].geometry") == expected["nudge"][10]
             results["live-text-preserves-dirty-xml"] = True
 
+            # Simula a casca: o evento vem depois que o manifesto foi atualizado.
+            layer_select = "document.querySelector('select[aria-label=Camadas]')"
+            assert js(f"{layer_select}.dataset.active") == "false"
+            layer_path = json.dumps(str(paths[0]))
+            layer_name = json.dumps(paths[1].name)
+            for action, active in (("add", "true"), ("remove", "false")):
+                assert async_js(f"pywebview.api.canvas_change_layers({layer_path}, '{action}', {layer_name})") is None
+                js("window.dispatchEvent(new CustomEvent('gf:layers-changed')); true")
+                wait(f"{layer_select}.dataset.active === '{active}'", f"external layer {action}")
+                assert js("canvasEdit.state().dirty && canvasEdit.state().canUndo")
+                assert js("canvasEdit.state().doc.elements[10].geometry") == expected["nudge"][10]
+            results["layer-event-preserves-dirty-xml"] = True
+
             js(f"canvasEdit.openAtlas({ATLAS_INDEX}); true")
             wait("document.querySelectorAll('.gf-atlas-thumb canvas').length === 4 && !!document.querySelector('.gf-atlas-cut')", "atlas states")
             click_atlas("Editar posição")
