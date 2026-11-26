@@ -249,13 +249,29 @@ def web(out, page, project, expected):
         cdp("Input.dispatchMouseEvent", type="mouseReleased", x=x + dx, y=y + dy,
             button=button, buttons=0, clickCount=clicks, modifiers=modifiers)
 
+    def stable(expression, frames=3):
+        """The atlas can still be fitting or painting when a pointer event returns."""
+        return async_js(f"""new Promise((resolve, reject) => {{
+            let last = null, same = 0, count = 0
+            const tick = () => {{
+                const value = JSON.stringify({expression})
+                same = value === last ? same + 1 : 0
+                last = value
+                if (same >= {frames}) return resolve(JSON.parse(value))
+                if (++count > 600) return reject(new Error('still moving: ' + value))
+                requestAnimationFrame(tick)
+            }}
+            requestAnimationFrame(tick)
+        }})""")
+
     def gesture(x, y, dx=0, dy=0, *, modifiers=0, clicks=1):
         x, y = js(f"canvasEdit.point({x},{y})")
         drag_at(x, y, dx, dy, modifiers=modifiers, clicks=clicks)
 
     def atlas_gesture(start, end):
-        x, y = js(f"canvasEdit.atlasPoint({start[0]}, {start[1]})")
-        end_x, end_y = js(f"canvasEdit.atlasPoint({end[0]}, {end[1]})")
+        (x, y), (end_x, end_y) = stable(
+            f"[canvasEdit.atlasPoint({start[0]}, {start[1]}), canvasEdit.atlasPoint({end[0]}, {end[1]})]"
+        )
         drag_at(x, y, end_x - x, end_y - y)
 
     def click_atlas(caption):
@@ -291,10 +307,11 @@ def web(out, page, project, expected):
             js(f"canvasEdit.previewTexture({json.dumps(str(project.ui_dir / 'main.dds'))}); true")
             wait("!!document.querySelector('.gf-atlas-surface > canvas[style]') && document.querySelector('.gf-atlas-surface > canvas').offsetTop > 0", "texture preview without XML")
             assert not js("!!document.querySelector('[data-testid=atlas-edit], .gf-atlas-fields')")
-            x, y = js("canvasEdit.atlasPoint(512, 512)")
+            x, y = stable("canvasEdit.atlasPoint(512, 512)")
             drag_at(x, y, 22, 17, button="middle")
-            pan_x, pan_y = js("canvasEdit.atlasPoint(512, 512)")
-            assert (round(pan_x - x), round(pan_y - y)) == (22, 17)
+            wait(f"JSON.stringify(canvasEdit.atlasPoint(512, 512)) !== JSON.stringify({json.dumps([x, y])})", "atlas pan")
+            pan_x, pan_y = stable("canvasEdit.atlasPoint(512, 512)")
+            assert (round(pan_x - x), round(pan_y - y)) == (22, 17), (x, y, pan_x, pan_y)
             scale = js("canvasEdit.atlasPoint(513, 512)[0] - canvasEdit.atlasPoint(512, 512)[0]")
             cdp("Input.dispatchMouseEvent", type="mouseWheel", x=pan_x, y=pan_y, deltaX=0, deltaY=-120)
             wait(f"canvasEdit.atlasPoint(513, 512)[0] - canvasEdit.atlasPoint(512, 512)[0] > {scale}", "atlas zoom")
@@ -355,6 +372,7 @@ def web(out, page, project, expected):
             js(f"canvasEdit.openAtlas({ATLAS_INDEX}); true")
             wait("document.querySelectorAll('[data-testid=atlas-state-card] select option:not([disabled])').length === 4 && !!document.querySelector('.gf-atlas-cut')", "atlas states")
             click_atlas("Editar posição")
+            wait("document.querySelector('.gf-atlas-surface').dataset.editing === 'true'", "atlas edit mode")
             atlas_gesture((550, 87), (553, 89))
             wait("document.querySelector('.gf-atlas-fields input').value === '539'", "move normal crop")
             previous_x = js("canvasEdit.atlasPoint(603, 99)[0]")
