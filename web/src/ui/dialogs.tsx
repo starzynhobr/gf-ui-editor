@@ -53,6 +53,11 @@ function remove(id: number): void {
   useDialogs.setState((state) => ({ stack: state.stack.filter((item) => item.id !== id) }))
 }
 
+/** Fecha tudo sem responder (testes). */
+export function resetDialogs(): void {
+  useDialogs.setState({ stack: [] })
+}
+
 /** Pergunta com botões (e uma caixa de seleção opcional). `choice` null = fechou/cancelou. */
 export function ask(options: Omit<AskSpec, 'type' | 'resolve' | 'tone'> & { tone?: Tone }) {
   return new Promise<{ choice: string | null; checked: boolean }>((resolve) =>

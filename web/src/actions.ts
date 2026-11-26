@@ -1,5 +1,6 @@
 // Fluxos da casca (os mesmos da clássica, com os mesmos textos e a mesma ordem de perguntas).
 import { api, errorText, type ShellState } from './api'
+import { call } from './bridge'
 import { t } from './i18n'
 import { setShell, showStatus, useShell, type SidePage } from './store'
 import { ask, confirm, message, prompt } from './ui/dialogs'
@@ -231,8 +232,10 @@ export async function publishToGame(quiet = false): Promise<void> {
     let text = result.copied
       ? t('Publicado: {count} arquivo(s) enviados para a pasta UI. Abra o jogo pelo launcher ou direto.', { count: result.copied })
       : t('Nada mudou: a pasta UI do jogo já está igual ao projeto.')
-    if (result.texts_changed)
+    if (result.texts_changed) {
       text += ' ' + t('Textos: {count} arquivo(s) de data/Translate atualizados.', { count: result.texts_changed })
+      void call('texts_reload') // os arquivos do jogo mudaram: a tela de Textos relê (como texts_panel.reload)
+    }
     if (result.texts_blocked)
       text += ' ' + t('Os textos não foram enviados: função desativada temporariamente por um problema conhecido.')
     if (result.game_backups)
