@@ -8,7 +8,8 @@ kanban-plugin: board
 - [x] 0.7.0-beta.3 publicada (Fase 3, 25/11/2026) [[roadmap]] [[release]]
 - [x] `map` fora dos projetos novos + Limpar mapas + textos do F5/criação (validado) [[roadmap]]
 - [x] 0.7.0 estável publicada (25/11/2026, direto, sem beta.4) [[release]]
-- [ ] Projetos leves (UI base como fonte da verdade) → 0.8.0-beta.1 [[roadmap]]
+- [x] 0.8.0-beta.1 publicada (26/11/2026): interface nova como padrão, projetos leves, várias resoluções, recarga do XML editado fora [[release]] [[migracao-web]]
+- [ ] Validar a 0.8.0-beta.1 e lançar a 0.8.0 estável (com "spotlight": "new_interface" nas notas) [[release]]
 - [x] Versões do projeto (validado) [[roadmap]]
 
 
