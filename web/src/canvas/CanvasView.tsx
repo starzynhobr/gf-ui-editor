@@ -10,11 +10,12 @@ import { applyCanvasEdits, applyCanvasPreference, checkExternalChange, ensureDoc
 import { AtlasHost } from '../atlas/AtlasHost'
 import { useShell } from '../store'
 import { CanvasToolbar } from './CanvasToolbar'
-import { drawDots, drawReferenceLayer, drawScene, drawScreen, drawsRootTexture, sceneRows, type SceneOptions } from './drawScene'
+import { drawDots, drawReferenceLayer, drawScene, drawScreen, drawsRootTexture, sceneRows, sceneTextRequests, type SceneOptions } from './drawScene'
 import {
   between, contains, draftScene, intersects, moves, resizeHandles, resizes, visibleRows,
   type Axis, type GeometryEdit, type Handle,
 } from './geometry'
+import { useGameTextMasks } from './gameText'
 import { TextureCache } from './dds/cache'
 import { useCanvasPalette } from './palette'
 import './canvas.css'
@@ -201,11 +202,10 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   const [resolutionWidth, resolutionHeight] = resolution ?? []
   const current = loaded?.path === path ? loaded : undefined
   const scene = openPath === path ? doc ?? undefined : undefined
-  const options: SceneOptions = {
-    outlines: preferences?.outlines ?? true, labels: preferences?.ids ?? false,
-    preview: !!preferences && preferences.resolution !== 'off',
-    sample: preferences?.character ?? true, text: preferences?.text ?? 'off', short: t[2], long: t[3], buttonState,
-  }
+  const preview = !!preferences && preferences.resolution !== 'off'
+  const sample = preferences?.character ?? true
+  const text = preferences?.text ?? 'off'
+  const short = t[2], long = t[3]
   useEffect(() => {
     let active = true
     void call<CanvasPreferences>('canvas_preferences')
@@ -222,13 +222,22 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   }), [])
   const draftSource = drag.current?.document ?? committing.current
   const drawn = useMemo(
-    () => scene && (draft.length && scene === draftSource ? draftScene(scene, draft, options.preview) : scene),
-    [scene, draft, draftSource, options.preview],
+    () => scene && (draft.length && scene === draftSource ? draftScene(scene, draft, preview) : scene),
+    [scene, draft, draftSource, preview],
   )
   const rows = useMemo(
-    () => drawn ? visibleRows(sceneRows(drawn, options.preview), hidden, isolated) : [],
-    [drawn, options.preview, hidden, isolated],
+    () => drawn ? visibleRows(sceneRows(drawn, preview), hidden, isolated) : [],
+    [drawn, preview, hidden, isolated],
   )
+  const textRequests = useMemo(
+    () => sceneTextRequests(rows, { sample, text, short, long }, preview ? layers.scenes.map(({ scene }) => scene) : []),
+    [rows, sample, text, short, long, preview, layers.scenes],
+  )
+  const gameText = useGameTextMasks(textRequests)
+  const options: SceneOptions = {
+    outlines: preferences?.outlines ?? true, labels: preferences?.ids ?? false,
+    preview, sample, text, short, long, buttonState, textMasks: gameText.masks,
+  }
   const frame = options.preview ? drawn?.preview.frame ?? null : null
   const [, , screenWidth, screenHeight] = scene?.preview.screen ?? []
   const handles = useMemo(() => resizeHandles(rows, selection, locked, frame), [rows, selection, locked, frame])
@@ -540,7 +549,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   }
   return (
     <section className="gf-canvas"
-      aria-busy={!!path && error?.path !== path && (!scene || busy || loading || (wantsBackground && background === undefined))}>
+      aria-busy={!!path && error?.path !== path && (!scene || busy || loading || gameText.loading || (wantsBackground && background === undefined))}>
       {scene && preferences && <CanvasToolbar
         preferences={{ ...preferences, savedPositions: savedPositions ?? preferences.savedPositions }}
         screen={scene.preview.screen} busy={busy}
@@ -558,7 +567,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
         onButtonState={setButtonState}
         onZoom={zoom} onResetZoom={() => zoom()} onFit={() => { if (bounds) setView(fit(bounds, size)) }}>
         {!!missing.length && <output title={missing.join(', ')}>{t[4]} ({missing.length})</output>}
-        {(preferenceError || documentError) && <output role="alert">{preferenceError || documentError}</output>}
+        {(preferenceError || documentError || gameText.error) && <output role="alert">{preferenceError || documentError || gameText.error}</output>}
       </CanvasToolbar>}
       {scene && !preferences && preferenceError && <output role="alert">{preferenceError}</output>}
       <div ref={viewport} className="gf-canvas-viewport" tabIndex={0} style={{ cursor }}

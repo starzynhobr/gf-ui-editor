@@ -1,11 +1,11 @@
-"""Interface nova (web): janela pywebview + ponte para os serviços sem Qt.
+"""Interface nova (web): janela pywebview + ponte para os serviços Python.
 
 `python -m gf_ui_editor --ui web` abre a interface nova; `--dev` usa o servidor do Vite
 (http://localhost:5173, com hot reload) em vez do build em `web_dist/`.
 
 Regras (vault/migracao-web.md, vault/web-bridge.md):
-- Pela ponte só vão comandos e dados pequenos (JSON). Imagens nunca: o front lê os .dds
-  direto do disco.
+- Pela ponte vão comandos e dados pequenos (JSON), incluindo máscaras dos textos
+  do jogo. O front lê as texturas .dds direto do disco.
 - O build abre por file:// (o servidor HTTP embutido do pywebview trava a janela no Windows).
 - Python -> front: `emit(evento, dados)` chama window.__gf.emit no JavaScript.
 """
