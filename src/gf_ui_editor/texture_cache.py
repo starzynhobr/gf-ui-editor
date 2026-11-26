@@ -97,6 +97,8 @@ class TextureCache:
         if path is None or not path.exists():
             self._index = None
             path = self._name_index().get(lowered)
+        if path is not None and self.project is not None:
+            return self.project.read_path(path)
         return path
 
     def invalidate(self, texture_path: Path | None = None) -> None:

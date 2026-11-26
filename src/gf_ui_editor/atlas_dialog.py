@@ -871,10 +871,14 @@ class AtlasDialog(QDialog):
 class TexturePreviewDialog(QDialog):
     """Olhar uma textura antes de abrir no editor de imagem: só zoom e arrastar, sem recorte."""
 
-    def __init__(self, texture_path: Path, users: int, parent=None, *, project=None):
+    def __init__(
+        self, texture_path: Path, users: int, parent=None, *, project=None,
+        on_materialized: Callable[[], None] | None = None,
+    ):
         super().__init__(parent)
         self.texture_path = texture_path
         self._project = project
+        self._on_materialized = on_materialized
         self.setWindowTitle(self.tr("Textura — {name}").format(name=texture_path.name))
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.view = AtlasView()
@@ -946,6 +950,8 @@ class TexturePreviewDialog(QDialog):
                 QMessageBox.warning(self, self.tr("Abrir .dds"), str(exc))
                 return
             self.reload()  # Register the local file before the external editor can save it.
+            if self._on_materialized is not None:
+                self._on_materialized()
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.texture_path.resolve()))):
             QMessageBox.warning(
                 self,

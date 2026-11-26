@@ -6694,7 +6694,7 @@ class EditorWindow(QMainWindow):
         if focus is not None:
             if not project.contains(focus):
                 focus = project.import_target(focus)
-            if focus.is_file():
+            if project.read_path(focus).is_file():
                 self.document = None
                 self.open_document(focus)
         self.statusBar().showMessage(
@@ -7124,7 +7124,7 @@ class EditorWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Não foi possível importar"), str(exc))
         if reopen:
-            self.document.raw = open_path.read_bytes()  # evita o aviso de alteração externa ao reabrir
+            self.document.raw = self._read_ui_path(open_path).read_bytes()  # evita o aviso de alteração externa ao reabrir
             self.open_document(open_path)
         self.reload_all_textures()
         self.statusBar().showMessage(
@@ -7596,8 +7596,10 @@ class EditorWindow(QMainWindow):
         path = Path(data)
         if path.suffix.lower() in TEXTURE_SUFFIXES:
             # Primeiro uma prévia dentro do editor; o botão "Abrir .dds" leva ao editor de imagem.
-            TexturePreviewDialog(path, len(self._xml_using_texture(path.name)), self, project=self.project).exec()
-            self._watch_texture_files()
+            TexturePreviewDialog(
+                path, len(self._xml_using_texture(path.name)), self,
+                project=self.project, on_materialized=self._watch_texture_files,
+            ).exec()
             return
         if not self._is_open_document(path):
             if not self._confirm_discard_changes():
@@ -7859,7 +7861,7 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
             return
         if is_open:
-            self.document.raw = path.read_bytes()  # evita o aviso de alteração externa ao reabrir
+            self.document.raw = self._read_ui_path(path).read_bytes()  # evita o aviso de alteração externa ao reabrir
             self.open_document(path)
         self._refresh_files()
         self.statusBar().showMessage(self.tr("{name} restaurado.").format(name=path.name), 6000)
