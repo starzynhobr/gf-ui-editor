@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from gf_ui_editor import project as project_module, text_data
+from gf_ui_editor import multi_resolution, project as project_module, text_data
 from gf_ui_editor.preferences import MemoryStore, Preferences
 from gf_ui_editor.project import Project
 from gf_ui_editor.web_api.maintenance import MaintenanceApi
@@ -92,6 +92,25 @@ def test_versions_save_restore_branch_and_delete(api: Api) -> None:
     api.version_delete(version["path"])
     assert [item["label"] for item in api.versions_list(root)] == ["antes de restaurar"]
     assert Path(api.versions_folder(root)).is_dir()
+
+
+def test_versions_api_includes_resolutions_count_and_restores(api: Api, tmp_path: Path) -> None:
+    root = _root(api)
+    store = multi_resolution.ResolutionStore(Path(root))
+    store.set_adjustment("Menu.xml", (1920, 1080), "id:1", (11, 22))
+    dds = tmp_path / "variant.dds"
+    dds.write_bytes(b"DDS-WEB")
+    store.add_variant((1920, 1080), "main.dds", dds)
+
+    api.version_save(root, "com res")
+    [version] = api.versions_list(root)
+    assert version["resolutions"] == 2 and version["files"] == 2
+
+    store.set_adjustment("Menu.xml", (1920, 1080), "id:1", (99, 99))
+    store.remove_variant((1920, 1080), "main.dds")
+    api.version_restore(root, version["path"])
+    assert store.load().adjustments == {"Menu.xml": {"1920x1080": {"id:1": (11, 22)}}}
+    assert (Path(root) / "resolutions" / "1920x1080" / "main.dds").read_bytes() == b"DDS-WEB"
 
 
 def test_pull_lists_origins_and_brings_files(api: Api, game: Path) -> None:

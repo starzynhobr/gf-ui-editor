@@ -33,6 +33,7 @@ def _version(version: versions.Version) -> dict:
         "created": version.created.isoformat(timespec="seconds"),
         "files": version.files,
         "size": home.human_size(version.size),
+        "resolutions": version.resolutions,
     }
 
 
@@ -60,6 +61,8 @@ class MaintenanceApi:
         """Arquivos do projeto mudaram (puxar, limpar, restaurar): listas e tamanho relidos."""
         project.files(refresh=True)
         project.invalidate_changes()
+        if hasattr(self, "_mr_cache"):
+            self._mr_cache = None
         sizes = getattr(self, "_sizes", None)
         if sizes is not None:
             sizes.forget(project.root)
