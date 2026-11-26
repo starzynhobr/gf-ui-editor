@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Children, isValidElement } from 'react'
+import { Select, type SelectOption } from '../ui/Select'
 import type { ReactNode } from 'react'
 import type { CanvasPreference, CanvasPreferences, CanvasRect } from '../bridge'
 import { useT } from '../i18n'
@@ -27,13 +29,16 @@ function NativeSelect({ label, caption, active, value, disabled, onChange, child
   label: string; caption?: string; active?: boolean; value: string; disabled?: boolean
   onChange: (value: string) => void; children: ReactNode
 }) {
-  return <label className="gf-canvas-select" data-caption={caption !== undefined}>
+  // Lista no tema do app (ui/Select, Radix): as <option> filhas viram as opções.
+  const options: SelectOption[] = Children.toArray(children).flatMap((child) => {
+    if (!isValidElement<{ value?: string; children?: ReactNode; disabled?: boolean }>(child)) return []
+    const text = Children.toArray(child.props.children).join('')
+    return [{ value: String(child.props.value ?? text), label: text, disabled: child.props.disabled }]
+  })
+  return <div className="gf-canvas-select gf-canvas-select-themed" data-caption={caption !== undefined}>
     {caption !== undefined && <span aria-hidden="true">{caption}</span>}
-    <select aria-label={label} value={value} disabled={disabled} data-active={active}
-      onChange={(event) => onChange(event.target.value)}>
-      {children}
-    </select>
-  </label>
+    <Select size="sm" label={label} value={value} disabled={disabled} active={active} options={options} onChange={onChange} />
+  </div>
 }
 
 export function AtlasResizeCheckbox({ label, checked, disabled, onChange }: {

@@ -28,6 +28,8 @@ export function Select({
   className = '',
   size = 'md',
   testId,
+  label,
+  active,
 }: {
   value: string
   options: SelectOption[]
@@ -38,6 +40,10 @@ export function Select({
   className?: string
   size?: 'sm' | 'md'
   testId?: string
+  /** Nome acessível (também no <select> escondido, que scripts procuram por aria-label). */
+  label?: string
+  /** Destaque de "ligado" (barra do canvas). */
+  active?: boolean
 }) {
   const current = options.find((option) => option.value === value)
   return (
@@ -46,7 +52,8 @@ export function Select({
         <RadixSelect.Trigger
           className={`gf-select-trigger field flex w-full items-center justify-between gap-2 text-left ${size === 'sm' ? 'h-7' : 'h-8'}`}
           data-testid={testId}
-          aria-label={title}
+          data-active={active}
+          aria-label={label ?? title}
         >
           <span className="min-w-0 truncate">
             <RadixSelect.Value placeholder="—">{current?.label ?? value}</RadixSelect.Value>
@@ -78,6 +85,8 @@ export function Select({
       </RadixSelect.Root>
       <select
         aria-hidden
+        aria-label={label}
+        data-active={active}
         tabIndex={-1}
         name={name}
         className="gf-select-native"

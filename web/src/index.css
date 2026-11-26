@@ -567,3 +567,20 @@ body:has(.gf-resize.is-dragging) {
   color: var(--color-text) !important;
   box-shadow: 0 14px 40px rgb(0 0 0 / 0.35) !important;
 }
+
+/* Select dentro da barra do canvas: compacto e com o destaque de "ligado". */
+.gf-canvas-select-themed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.gf-canvas-select-themed .gf-select-trigger {
+  height: 28px;
+  min-width: 110px;
+  background: var(--color-panel);
+}
+.gf-canvas-select-themed .gf-select-trigger[data-active="true"] {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
