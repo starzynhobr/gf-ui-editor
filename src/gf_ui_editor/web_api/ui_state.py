@@ -58,3 +58,22 @@ class AboutApi:
             "discord": "https://discord.com/invite/cTsJhtMzSe",
             "contributors": people,
         }
+
+
+class TextureFileApi:
+    """Abrir o .dds no programa padrão do sistema (Paint.NET etc.), como o "Abrir .dds" da clássica."""
+
+    def open_texture_file(self, xml_path: str, texture: str) -> str:
+        """Devolve "ok", "missing" (arquivo não existe) ou "failed" (sem programa associado)."""
+        from pathlib import Path
+
+        from .. import desktop
+
+        path = (Path(xml_path).parent / texture).resolve()
+        if path.suffix.lower() not in (".dds", ".tga") or not path.is_file():
+            return "missing"
+        try:
+            desktop.open_path(path)
+        except OSError:
+            return "failed"
+        return "ok"

@@ -1,6 +1,8 @@
 // Painel de propriedades (direita), como o PropertyPanel da clássica: posição e tamanho,
 // textura, identificação e aparência/fonte (só os campos que o controle tem no XML).
 // Toda edição vai por applyEdits (um passo de desfazer).
+import { openTextureFile } from '../shell/textureFile'
+import { ColorPicker } from '../ui/ColorPicker'
 import { Select } from '../ui/Select'
 import { atlasModule } from '../shell/atlas'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -95,24 +97,6 @@ function NumberField({
       />
     </label>
   )
-}
-
-/** Seletor de cor nativo: grava só quando o usuário confirma (evento change), não a cada movimento. */
-function ColorInput({ value, disabled, onCommit }: { value: string; disabled?: boolean; onCommit: (hex: string) => void }) {
-  const ref = useRef<HTMLInputElement>(null)
-  const commit = useRef(onCommit)
-  commit.current = onCommit
-  useEffect(() => {
-    const input = ref.current
-    if (!input) return
-    const listener = () => commit.current(input.value)
-    input.addEventListener('change', listener)
-    return () => input.removeEventListener('change', listener)
-  }, [])
-  useEffect(() => {
-    if (ref.current) ref.current.value = value
-  }, [value])
-  return <input ref={ref} type="color" name="font-color" className="sr-only" disabled={disabled} defaultValue={value} />
 }
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
@@ -267,6 +251,16 @@ export default function PropertiesPanel() {
           <Icon name="layout" size={15} />
           {t('Abrir atlas DDS…')}
         </button>
+        <button
+          className="btn mt-1.5 h-7 w-full"
+          disabled={element.texture == null || !path}
+          data-testid="open-dds"
+          title={t('Abre a textura no programa padrão do sistema para arquivos .dds (Paint.NET, por exemplo).')}
+          onClick={() => path && element.texture && void openTextureFile(path, element.texture)}
+        >
+          <Icon name="external-link" size={15} />
+          {t('Abrir .dds')}
+        </button>
       </Card>
 
       <Card title={t('IDENTIFICAÇÃO')}>
@@ -298,14 +292,13 @@ export default function PropertiesPanel() {
         )}
         {font.FontColor !== undefined && (
           <Field label={t('Cor do texto')}>
-            <label
-              className={`field flex h-7 items-center gap-2 font-mono text-[12px] ${disabled ? 'opacity-50' : 'cursor-pointer'}`}
+            <ColorPicker
+              name="font-color"
+              disabled={disabled}
               title={t('FontColor no XML. Clique para escolher a cor.')}
-            >
-              <span className="h-3.5 w-3.5 rounded-sm border border-border-strong" style={{ background: gameColorToHex(font.FontColor) }} />
-              {gameColorToHex(font.FontColor).toUpperCase()}
-              <ColorInput disabled={disabled} value={gameColorToHex(font.FontColor)} onCommit={(hex) => setFont('FontColor', hexToGameColor(hex))} />
-            </label>
+              value={gameColorToHex(font.FontColor)}
+              onCommit={(hex) => setFont('FontColor', hexToGameColor(hex))}
+            />
           </Field>
         )}
         {font.FontStyle !== undefined && (

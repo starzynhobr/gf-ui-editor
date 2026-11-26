@@ -1,5 +1,7 @@
 // Lista de Arquivos XML / Texturas: seções Camadas, Alterados e Todos (ordem e alturas
 // salvas, como a clássica), filtro e lista virtualizada (com ícones são ~18 mil arquivos).
+import { call } from '../bridge'
+import { useOfficial } from '../project/official'
 import { atlasModule } from '../shell/atlas'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -59,6 +61,28 @@ export default function FilesPanel() {
 
   const openPath = shell?.open_path ? norm(shell.open_path) : null
   const modified = useMemo(() => new Set(data?.modified ?? []), [data])
+  const layerSet = useMemo(() => new Set(data?.layers ?? []), [data])
+  useEffect(() => {
+    // A barra do canvas também muda as camadas: a lista relê.
+    const reload = () => useShell.setState((state) => ({ revision: state.revision + 1 }))
+    window.addEventListener('gf:layers-changed', reload)
+    return () => window.removeEventListener('gf:layers-changed', reload)
+  }, [])
+  const officialDiffs = useOfficial((state) => state.diffs)
+  const toggleLayer = useCallback(
+    async (index: number, on: boolean) => {
+      if (!data?.directory) return
+      const path = joinPath(data.directory, data.files[index])
+      try {
+        await call('canvas_change_layers', path, on ? 'add' : 'remove', data.files[index])
+      } catch (error) {
+        showStatus(error instanceof Error ? error.message : String(error), 6)
+        return
+      }
+      window.dispatchEvent(new CustomEvent('gf:layers-changed'))
+    },
+    [data],
+  )
   const needle = filter.trim().toLowerCase()
   const sections = useMemo(() => {
     if (!data) return []
@@ -262,6 +286,10 @@ export default function FilesPanel() {
                   onOpen={activate}
                   onMenu={fileMenu}
                   modifiedTitle={t('alterado')}
+                  layers={layerSet}
+                  canLayer={Boolean(data.in_project)}
+                  onLayer={toggleLayer}
+                  diffs={officialDiffs}
                 />
                 {!isAll && (
                   <div
@@ -295,6 +323,10 @@ function FileRows({
   onOpen,
   onMenu,
   modifiedTitle,
+  layers,
+  canLayer,
+  onLayer,
+  diffs,
 }: {
   files: string[]
   items: number[]
@@ -307,7 +339,12 @@ function FileRows({
   onOpen: (index: number) => void
   onMenu: (index: number, x: number, y: number) => void
   modifiedTitle: string
+  layers: Set<number>
+  canLayer: boolean
+  onLayer: (index: number, on: boolean) => void
+  diffs: Record<string, { new_ids: string[]; other_ids: string[] }>
 }) {
+  const t = useT()
   const parent = useRef<HTMLDivElement>(null)
   const timer = useRef<number | undefined>(undefined)
   const virtualizer = useVirtualizer({
@@ -367,17 +404,44 @@ function FileRows({
               }}
               title={relative}
             >
+              {canLayer && mode === 'xml' && (
+                <input
+                  type="checkbox"
+                  data-testid="layer-check"
+                  checked={layers.has(index)}
+                  title={t('Marque para ver esta janela junto, onde o jogo a desenha (Preview do jogo)')}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => onLayer(index, event.target.checked)}
+                />
+              )}
               <Icon
                 name={mode === 'textures' ? 'image' : 'file'}
                 size={14}
                 className={isModified ? 'text-accent-text' : 'text-disabled'}
               />
               <span className="min-w-0 flex-1 truncate text-[12.5px]">{relative}</span>
-              {isModified && (
-                <span className="text-[10px] text-gold" title={modifiedTitle}>
-                  ●
-                </span>
-              )}
+              {(() => {
+                const diff = diffs[relative.replace(/\\/g, '/').toLowerCase()]
+                if (diff?.new_ids.length)
+                  return (
+                    <span className="font-mono text-[10.5px] text-warning" title={t('A atualização do jogo trouxe {count} controle(s) que este arquivo não tem', { count: diff.new_ids.length })}>
+                      +{diff.new_ids.length}
+                    </span>
+                  )
+                if (diff?.other_ids.length)
+                  return (
+                    <span className="font-mono text-[10.5px] text-disabled" title={t('A UI oficial tem {count} controle(s) que este arquivo não tem (podem ter sido removidos de propósito)', { count: diff.other_ids.length })}>
+                      {isModified ? <span className="mr-1 text-gold">●</span> : null}
+                      {diff.other_ids.length}
+                    </span>
+                  )
+                return isModified ? (
+                  <span className="text-[10px] text-gold" title={modifiedTitle}>
+                    ●
+                  </span>
+                ) : null
+              })()}
             </div>
           )
         })}

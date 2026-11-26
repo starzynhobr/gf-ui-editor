@@ -103,5 +103,10 @@
     "en_US": "Light",
     "es_ES": "Claro",
     "fr_FR": "Clair"
+  },
+  "Abre a textura no programa padrão do sistema para arquivos .dds (Paint.NET, por exemplo).": {
+    "en_US": "Opens the texture in the system's default program for .dds files (Paint.NET, for example).",
+    "es_ES": "Abre la textura en el programa predeterminado del sistema para archivos .dds (Paint.NET, por ejemplo).",
+    "fr_FR": "Ouvre la texture dans le programme par défaut du système pour les fichiers .dds (Paint.NET, par exemple)."
   }
 }

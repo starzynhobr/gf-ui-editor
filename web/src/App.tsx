@@ -1,5 +1,6 @@
 // Casca da interface nova: barra superior, lateral, centro (tela inicial ou canvas) e status.
 // O canvas é do bloco do canvas: a casca só monta <CanvasView path=... />.
+import { TooltipHost } from './ui/TooltipHost'
 import { Toaster } from 'sonner'
 import { ResizeHandle } from './ui/ResizeHandle'
 import { loadUiState, panelWidth, useUi } from './shell/uiState'
@@ -133,6 +134,7 @@ export default function App() {
       <MenuHost />
       <DialogHost />
       <ProgressOverlay />
+      <TooltipHost />
       <Toaster theme={theme === 'light' ? 'light' : 'dark'} position="bottom-right" offset={40} toastOptions={{ className: "gf-toast" }} />
     </div>
   )

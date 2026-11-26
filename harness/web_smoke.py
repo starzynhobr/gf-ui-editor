@@ -176,6 +176,22 @@ def _theme(label: str) -> None:
 
 def polish() -> None:
     check("divisores dos painéis", bool(js("!!__smoke.q('[data-testid=resize-left]')")))
+    js("__smoke.key('1', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-section=all] [data-testid=layer-check]')", 8, "checkbox de camada")
+    layer_file = js(
+        "(() => { const on = new Set(__smoke.all('[data-section=layers] [data-file]').map((r) => r.dataset.file));"
+        " const row = __smoke.all('[data-section=all] [data-file]').find((r) => !on.has(r.dataset.file) && r.dataset.file.endsWith('.xml'));"
+        " return row ? row.dataset.file : null })()"
+    )
+    toggle = (
+        "(() => { const row = __smoke.all('[data-section=all] [data-file]').find((r) => r.dataset.file === %s);"
+        " if (row) row.querySelector('[data-testid=layer-check]').click(); return !!row })()" % json.dumps(layer_file)
+    )
+    js(toggle)
+    in_layers = "__smoke.all('[data-section=layers] [data-file]').some((r) => r.dataset.file === %s)" % json.dumps(layer_file)
+    check("marcar camada pela lista", bool(layer_file) and bool(wait(in_layers, 8, "camada marcada")), file=layer_file)
+    js(toggle)
+    check("desmarcar camada pela lista", bool(wait("!" + in_layers, 8, "camada desmarcada")))
     js("__smoke.click('[data-testid=stz-pill]')")
     card = wait("__smoke.text('[data-testid=stz-card]')", 5, "cartão STZ") or ""
     time.sleep(0.6)  # animação de entrada
