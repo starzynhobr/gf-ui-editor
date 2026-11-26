@@ -66,7 +66,14 @@ def text_editor_command() -> tuple[str, str]:
     return "notepad.exe", "Bloco de Notas"
 
 
-def load_contributors() -> list[dict]:
+def load_contributors(prefs=None) -> list[dict]:
+    """Quem ajudou: a última lista baixada do repositório (contributors.py) ou a do programa."""
+    if prefs is not None:
+        from . import contributors
+
+        people = contributors.cached(prefs)
+        if people is not None:
+            return people
     try:
         return json.loads(CONTRIBUTORS_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):

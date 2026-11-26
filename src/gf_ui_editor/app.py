@@ -165,6 +165,7 @@ from . import preferences
 from . import text_preview
 from .canvas_document import GAME_DRAWN_AREAS, element_preview_offset
 from . import window_geometry
+from . import contributors as contributors_list
 from .about import GAME_RESOLUTIONS, contributor_items, load_contributors, parse_resolution, text_editor_command as _text_editor_command
 
 
@@ -346,7 +347,7 @@ class StzLabsPopup(QFrame):
         header_layout.addSpacing(6)
         header_layout.addLayout(buttons)
 
-        contributors = load_contributors()
+        contributors = load_contributors(prefs)
         body = QVBoxLayout()
         body.setContentsMargins(18, 14, 18, 16)
         body.setSpacing(8)
@@ -402,8 +403,9 @@ class StzLabsPopup(QFrame):
     def _contributor_card(self, person: dict, language: str, tag_labels: dict[str, str]) -> QFrame:
         card = QFrame()
         card.setObjectName("stzCard")
-        name = str(person.get("name", ""))
-        avatar = QLabel(name[:1].upper())
+        anonymous = bool(person.get("anonymous"))
+        name = self.tr("Anônimo") if anonymous else str(person.get("name", ""))
+        avatar = QLabel("?" if anonymous else name[:1].upper())
         avatar.setFixedSize(32, 32)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet(
@@ -2866,17 +2868,30 @@ class EditorWindow(QMainWindow):
         if not prefs.auto_update_check:
             return
         results: SimpleQueue = SimpleQueue()
-        Thread(target=lambda: results.put(remote_manifest.fetch()), name="gf-ui-manifest", daemon=True).start()
+        cached_rev = prefs.get("contributors_rev")
+
+        def load() -> None:
+            manifest = remote_manifest.fetch()
+            # Quem ajudou: baixa a lista só quando o número do manifesto muda (guardada no poll).
+            people = None
+            rev = manifest.contributors_rev if manifest is not None else None
+            if rev is not None and str(rev) != cached_rev:
+                people = contributors_list.fetch()
+            results.put((manifest, rev, people))
+
+        Thread(target=load, name="gf-ui-manifest", daemon=True).start()
         timer = QTimer(self)
         timer.setInterval(200)
 
         def poll() -> None:
             try:
-                manifest = results.get_nowait()
+                manifest, rev, people = results.get_nowait()
             except Empty:
                 return
             timer.stop()
             timer.deleteLater()
+            if people is not None and rev is not None:
+                contributors_list.store(prefs, rev, people)
             if manifest is not None:
                 self.apply_remote_manifest(manifest)
 

@@ -16,6 +16,7 @@ Formato (versão 1):
       "schema": 1,
       "min_version": "0.5.0",
       "disabled_features": ["export_texts"],
+      "contributors_rev": 3,                    (a partir da 0.8: muda → baixa o contributors.json)
       "messages": [
         {
           "id": "2026-11-jogo-atualizou",
@@ -105,6 +106,7 @@ class Manifest:
     min_version: str | None = None
     messages: tuple[Message, ...] = ()
     disabled_features: frozenset[str] = field(default_factory=frozenset)
+    contributors_rev: int | None = None  # muda quando o contributors.json do repositório muda
 
     def needs_update(self, version: str = __version__) -> bool:
         return self.min_version is not None and parse_version(version) < parse_version(self.min_version)
@@ -195,6 +197,7 @@ def parse(payload: bytes) -> Manifest | None:
         return None
     messages = data.get("messages")
     disabled = data.get("disabled_features")
+    rev = data.get("contributors_rev")
     return Manifest(
         min_version=_text(data.get("min_version")),
         messages=tuple(
@@ -203,6 +206,7 @@ def parse(payload: bytes) -> Manifest | None:
         disabled_features=frozenset(
             item for item in (disabled if isinstance(disabled, list) else []) if isinstance(item, str)
         ),
+        contributors_rev=rev if isinstance(rev, int) and not isinstance(rev, bool) and rev >= 0 else None,
     )
 
 

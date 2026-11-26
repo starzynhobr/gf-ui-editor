@@ -104,6 +104,8 @@ KEYS: dict[str, Key] = {
     "notes_seen_version": Key("str", ""),
     "notes_pill_version": Key("str", ""),
     "manifest_seen": Key("json", []),
+    "contributors_cache": Key("str", ""),  # quem ajudou: última lista baixada do repositório (JSON)
+    "contributors_rev": Key("str", ""),  # número do manifesto (contributors_rev) dessa lista
 }
 
 # Chaves com sufixo: "last_file/<pasta do projeto>", "root_mode/<arquivo>".

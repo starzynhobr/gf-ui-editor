@@ -241,6 +241,13 @@ class ProjectsApi:
         if manifest is not None:
             self._manifest = manifest
         self._manifest_ready.set()
+        if manifest is not None:
+            try:
+                from .. import contributors
+
+                contributors.refresh(self._prefs, manifest.contributors_rev)
+            except Exception:  # noqa: BLE001 - a lista do programa continua valendo
+                pass
 
     def set_language(self, language: str) -> dict:
         if language not in UI_LANGUAGES:

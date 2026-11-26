@@ -1958,7 +1958,7 @@ def test_stz_popup_collapses_long_contribution_lists_and_scrolls(monkeypatch) ->
          "items": [{"version": f"0.{k}.0", "text": {"pt_BR": f"Ideia {k}"}} for k in range(1, 7)]}
         for n in range(8)
     ]
-    monkeypatch.setattr(app_module, "load_contributors", lambda: many)
+    monkeypatch.setattr(app_module, "load_contributors", lambda *_args: many)
     popup = app_module.StzLabsPopup("pt_BR")
     # Nada do popup pode virar janela solta (o "+N" sem dono abria uma janelinha no Windows).
     assert [w for w in QApplication.topLevelWidgets() if isinstance(w, QToolButton) and w.isVisible()] == []

@@ -75,11 +75,12 @@ class AboutApi:
 
         language = getattr(self, "_language", "pt_BR")
         people = []
-        for person in about.load_contributors():
+        for person in about.load_contributors(getattr(self, "_prefs", None)):
             entries = about.contributor_items(person, language)
             versions = [version for _text, version in entries if version]
             people.append({
-                "name": str(person.get("name", "")),
+                "name": "" if person.get("anonymous") else str(person.get("name", "")),
+                "anonymous": bool(person.get("anonymous")),
                 "color": str(person.get("color", "#3F3F46")),
                 "tags": [str(tag) for tag in person.get("tags", []) if isinstance(tag, str)],
                 "items": [{"text": text, "version": version} for text, version in entries],

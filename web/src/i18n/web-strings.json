@@ -1208,5 +1208,10 @@
     "en_US": "2. Edit here by clicking and dragging, or in Notepad++: when you save there, the editor shows the change.",
     "es_ES": "2. Edita aquí haciendo clic y arrastrando, o en Notepad++: al guardar allí, el editor muestra el cambio.",
     "fr_FR": "2. Modifiez ici en cliquant et en faisant glisser, ou dans Notepad++ : dès que vous enregistrez, l'éditeur affiche la modification."
+  },
+  "Anônimo": {
+    "en_US": "Anonymous",
+    "es_ES": "Anónimo",
+    "fr_FR": "Anonyme"
   }
 }

@@ -135,3 +135,18 @@ Funções desligáveis:
 - Sem internet ao abrir, o manifesto não chega e tudo fica ligado (falha aberta).
 
 Regras: no máximo 3 avisos por abertura; JSON inválido, sem internet ou `schema` diferente de 1 = nada acontece. Campo novo exige versão nova do app; versões antigas o ignoram. Mudança incompatível no formato → `"schema": 2` (as versões antigas passam a ignorar o arquivo inteiro).
+
+## Quem ajudou a construir (sem lançar versão)
+
+A partir da 0.8.0, a lista do cartão STZ Labs pode mudar pelo repositório. Código: `src/gf_ui_editor/contributors.py`.
+
+1. Editar `contributors.json` na raiz do repositório. O formato é o de `src/gf_ui_editor/assets/contributors.json`, a cópia que vai no programa e serve de reserva.
+2. Subir `"contributors_rev"` no `app-manifest.json` (um número inteiro; basta somar 1).
+3. Commit e push no `main`.
+
+Ao abrir, o editor lê o manifesto. Ele só baixa o `contributors.json` (uma vez) se o número mudou, guarda a lista nas preferências e a usa nas próximas aberturas. Sem internet, ou com o arquivo inválido, continua com a última lista boa ou com a do programa.
+
+- **Tirar o nome de alguém:** `"anonymous": true` na pessoa. Ela aparece como "Anônimo", com avatar "?", e as contribuições e as contagens continuam. Na versão seguinte, troque também na cópia de `assets/`.
+- **Validação:** cor `#RRGGBB`, etiquetas `ideas`/`qa`/`navigation`, até 50 pessoas, nome com até 40 caracteres e textos com até 200. O que vier fora disso é descartado. Tudo é mostrado como texto puro.
+- **Versões antigas:** a 0.7.0 e anteriores ignoram isso e mostram a lista que veio nelas.
+- O teste `test_repository_copy_is_valid` acusa um `contributors.json` quebrado antes do push.

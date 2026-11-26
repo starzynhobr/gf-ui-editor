@@ -13,6 +13,8 @@ import { Icon } from '../ui/Icon'
 
 interface Contributor {
   name: string
+  /** Pediu para sair: aparece "Anônimo", as contribuições continuam. */
+  anonymous?: boolean
   color: string
   tags: string[]
   items: { text: string; version: string | null }[]
@@ -48,7 +50,7 @@ export default function StzPill() {
 
   useEffect(() => {
     if (!open) return
-    if (!info) void call<AboutInfo>('about_info').then(setInfo)
+    if (!info) void call<AboutInfo>('about_info').then((about) => setInfo(withAnonymous(about)))
     const close = (event: MouseEvent) => {
       const target = event.target
       if (box.current && !(target instanceof Node && box.current.contains(target))) setOpen(false)
@@ -117,6 +119,11 @@ export default function StzPill() {
   )
 }
 
+/** Quem pediu para sair vira "Anônimo" (nome traduzido aqui, no idioma da interface). */
+function withAnonymous(about: AboutInfo): AboutInfo {
+  return { ...about, contributors: about.contributors.map((person) => (person.anonymous ? { ...person, name: t('Anônimo') } : person)) }
+}
+
 /** Tags por tipo de ajuda; cada tipo com a sua cor do tema (index.css, .gf-stz-tag[data-tag]). */
 function tagLabel(tag: string): string {
   return ({ ideas: t('Ideias'), qa: t('Testes / QA'), navigation: t('Navegação') } as Record<string, string>)[tag] ?? tag
@@ -129,7 +136,7 @@ function Avatar({ person, size = 32 }: { person: Contributor; size?: number }) {
       style={{ '--person': person.color, width: size, height: size, fontSize: Math.round(size * 0.42) } as CSSProperties}
       title={person.name}
     >
-      {person.name.slice(0, 1).toUpperCase()}
+      {person.anonymous ? '?' : person.name.slice(0, 1).toUpperCase()}
     </span>
   )
 }
@@ -160,8 +167,8 @@ function Helpers({ info }: { info: AboutInfo | null }) {
       <div className="section-label mb-2">{t('QUEM AJUDOU A CONSTRUIR')}</div>
       <div className="mb-3 flex items-center gap-3">
         <div className="gf-stz-stack" aria-hidden="true">
-          {people.map((person) => (
-            <Avatar key={person.name} person={person} size={28} />
+          {people.map((person, index) => (
+            <Avatar key={index} person={person} size={28} />
           ))}
         </div>
         <div className="min-w-0 flex-1 leading-tight">
@@ -208,17 +215,17 @@ function Helpers({ info }: { info: AboutInfo | null }) {
 }
 
 function PeopleView({ people }: { people: Contributor[] }) {
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<number | null>(null)
   return (
     <LayoutGroup>
       <div className="space-y-2">
         {people.map((person, index) => (
           <PersonCard
-            key={person.name}
+            key={index}
             person={person}
             index={index}
-            expanded={open === person.name}
-            onToggle={() => setOpen(open === person.name ? null : person.name)}
+            expanded={open === index}
+            onToggle={() => setOpen(open === index ? null : index)}
           />
         ))}
       </div>
