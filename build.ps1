@@ -23,6 +23,8 @@ $originalPath = $env:PATH
 try {
     # Evita que DLLs de outras ferramentas no PATH entrem no pacote Qt.
     $env:PATH = "$(Split-Path -Parent $python);$env:SystemRoot\System32;$env:SystemRoot"
+    # Worktrees reuse the main venv, whose editable install points at another checkout: this one wins.
+    $env:PYTHONPATH = Join-Path $projectRoot "src"
     $appVersion = & $python -c "from gf_ui_editor import __version__; print(__version__)"
     if ($LASTEXITCODE -ne 0 -or -not $appVersion) { throw "Falha ao ler a versão do aplicativo." }
     & (Join-Path $projectRoot "translations.ps1")
