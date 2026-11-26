@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 import { PANEL_LIMITS, panelWidth, setPanelWidth, useUi, type PanelSide } from '../shell/uiState'
 
-export function ResizeHandle({ side }: { side: PanelSide }) {
+export function ResizeHandle({ side, className = '' }: { side: PanelSide; className?: string }) {
   const layout = useUi((state) => state.layout)
   const [dragging, setDragging] = useState(false)
   const start = useRef<{ x: number; width: number } | null>(null)
@@ -28,9 +28,9 @@ export function ResizeHandle({ side }: { side: PanelSide }) {
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label={side === 'left' ? 'Largura do painel esquerdo' : 'Largura do painel direito'}
+      aria-label={side === 'left' ? 'Largura do painel esquerdo' : side === 'code' ? 'Largura do painel de código' : 'Largura do painel direito'}
       data-testid={`resize-${side}`}
-      className={`gf-resize ${dragging ? 'is-dragging' : ''}`}
+      className={`gf-resize ${className} ${dragging ? 'is-dragging' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

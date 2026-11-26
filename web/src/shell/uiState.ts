@@ -11,6 +11,8 @@ export const isLightTheme = (theme: ThemeName) => theme === 'light' || theme ===
 export const PANEL_LIMITS = {
   left: { min: 240, max: 560, initial: 310 },
   right: { min: 260, max: 520, initial: 320 },
+  /** Painel "Ver código XML" (cresce para a esquerda). */
+  code: { min: 320, max: 1600, initial: 560 },
 } as const
 export type PanelSide = keyof typeof PANEL_LIMITS
 

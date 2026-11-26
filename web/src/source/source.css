@@ -5,7 +5,8 @@
   right: 0;
   bottom: 0;
   z-index: 20;
-  width: min(560px, 62%);
+  width: 560px;
+  max-width: calc(100% - 120px);
   display: flex;
   flex-direction: column;
   background: var(--color-window);
@@ -49,3 +50,12 @@
 .gf-source-panel .cm-panel.cm-search button:hover { background: var(--color-hover); }
 .gf-source-panel .cm-panel.cm-search label { display: inline-flex; align-items: center; gap: 4px; color: var(--color-muted); }
 .gf-source-panel .cm-panel.cm-search button[name="close"] { border: 0; background: transparent; font-size: 16px; padding: 0 6px; }
+
+/* Divisor na borda esquerda do painel de código (arrastar muda a largura; duplo clique volta ao padrão). */
+.gf-resize.gf-source-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  z-index: 2;
+}

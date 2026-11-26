@@ -1,6 +1,8 @@
 // "Ver código XML" (Ctrl+U): o XML aberto como ficaria ao salvar, com as edições ainda não
 // salvas, num CodeMirror com números de linha, Ctrl+F e dobrar blocos.
 // Selecionar um elemento leva à linha dele; clicar numa linha com WindowID seleciona o elemento.
+import { ResizeHandle } from '../ui/ResizeHandle'
+import { panelWidth, useUi } from '../shell/uiState'
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { create } from 'zustand'
@@ -359,6 +361,7 @@ export default function SourcePanel() {
   const name = path?.split(/[\\/]/).pop() ?? ''
   const current = loaded?.path === path ? loaded : null
   const source = draft?.source ?? current?.source
+  const codeWidth = panelWidth('code', useUi((state) => state.layout))
   return (
     <AnimatePresence>
       {open && path && (
@@ -371,7 +374,9 @@ export default function SourcePanel() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 24 }}
           transition={{ duration: 0.16, ease: 'easeOut' }}
+          style={{ width: codeWidth }}
         >
+          <ResizeHandle side="code" className="gf-source-resize" />
           <header className="gf-source-header">
             <Icon name="code" size={16} className="text-accent-text" />
             <div className="min-w-0 flex-1">
