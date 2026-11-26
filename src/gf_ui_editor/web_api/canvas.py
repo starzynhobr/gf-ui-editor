@@ -8,6 +8,7 @@ from ..about import GAME_RESOLUTIONS, parse_resolution
 from ..backgrounds import BACKGROUNDS_DIRECTORY
 from ..canvas_document import TEXT_MODES, PreviewContext, describe_document, describe_scene
 from ..game_layout import DEFAULT_HUD
+from ..game_text_raster import prepare_web_rasterizer, web_text_mask
 from ..text_preview import layer_text
 from ..web_assets import WebAssets
 from ..xml_document import DocumentError, UIDocument
@@ -22,8 +23,13 @@ class CanvasApi:
     def _attach_canvas_assets(self) -> None:
         if getattr(self, "_canvas_assets", None) is not None:
             return
+        prepare_web_rasterizer()
         self._canvas_assets = WebAssets(self._window, self._emit)
         self._window.events.closed += self._canvas_assets.close
+
+    def canvas_text_masks(self, requests: list[list]) -> list[tuple[int, int, str]]:
+        """Rasterize the batch in input order so the browser can reuse each mask by style and size."""
+        return [web_text_mask(*request) for request in requests]
 
     def asset_base(self, xml_path: str) -> str:
         return self._canvas_assets.base(Path(xml_path).parent, watch=True)

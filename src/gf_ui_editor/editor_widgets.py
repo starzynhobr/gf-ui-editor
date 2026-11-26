@@ -2,14 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
-import os
-from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QPointF, QRectF, QSizeF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
-    QFontDatabase,
     QFontMetricsF,
     QImage,
     QKeyEvent,
@@ -32,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .game_text_raster import game_color, game_font, paint_text, text_flags
 from .theme import qcolor
 from .i18n import kind_label
 from .xml_document import UIElement
@@ -121,42 +119,9 @@ class WindowFrameItem(QGraphicsRectItem):
         self.owner.mouseReleaseEvent(event)
 
 
-# Fonte da UI no cliente em português/inglês (Font.ini: DefMainFont=Arial, DefMainFontSize=8).
-# O FontFace do XML (細明體) só vale no cliente chinês.
-GAME_FONT_FAMILY = "Arial"
-GAME_FONT_PIXELS = 11
-TEXT_OUTLINE = 1  # FontStyle="1": contorno preto em volta das letras
-
-
-_game_font_family: str | None = None
-
-
-def game_font_family() -> str:
-    """Carrega a Arial do Windows uma vez: sem ela o Qt troca por outra fonte e as medidas mudam."""
-    global _game_font_family
-    if _game_font_family is None:
-        _game_font_family = GAME_FONT_FAMILY
-        windows_font = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / "arial.ttf"
-        if windows_font.is_file():
-            font_id = QFontDatabase.addApplicationFont(str(windows_font))
-            families = QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
-            if families:
-                _game_font_family = families[0]
-    return _game_font_family
-
-
 def bgr_value(color: QColor) -> str:
     """Cor para o FontColor do XML (inteiro BGR: vermelho no byte baixo)."""
     return str(color.red() | (color.green() << 8) | (color.blue() << 16))
-
-
-def game_color(value: str) -> QColor:
-    """FontColor vem como inteiro BGR do Windows (65535 = amarelo)."""
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        number = 0xFFFFFF
-    return QColor(number & 0xFF, (number >> 8) & 0xFF, (number >> 16) & 0xFF)
 
 
 class GameTextItem(QGraphicsItem):
@@ -185,13 +150,7 @@ class GameTextItem(QGraphicsItem):
         # Botões o jogo centraliza sempre; os demais seguem o TextAlign.
         self.align = "1" if is_button else props.get("TextAlign", "0")
         self.multiline = props.get("MultiLine") == "1"
-        self.font = QFont(game_font_family())
-        self.font.setPixelSize(GAME_FONT_PIXELS)
-        self.font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
-        if self.outline:
-            # Medido no jogo: texto com contorno sai com 1 px a mais entre as letras
-            # ("Ranque da Guilda" 99 px em vez de 84).
-            self.font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
+        self.font = game_font(self.outline)
 
     def apply_props(self, props: dict[str, str], is_button: bool) -> None:
         """Fonte editada no painel: redesenha com a cor, o contorno e o alinhamento novos."""
@@ -202,15 +161,7 @@ class GameTextItem(QGraphicsItem):
         return self.owner.rect()
 
     def _flags(self) -> int:
-        horizontal = {"1": Qt.AlignmentFlag.AlignHCenter, "2": Qt.AlignmentFlag.AlignRight}.get(
-            self.align, Qt.AlignmentFlag.AlignLeft
-        )
-        vertical = Qt.AlignmentFlag.AlignTop if self.multiline else Qt.AlignmentFlag.AlignVCenter
-        # Caixas minúsculas (1-2 px) são comuns: o jogo escreve o texto mesmo assim, para fora.
-        flags = int(horizontal | vertical) | int(Qt.TextFlag.TextDontClip)
-        if self.multiline:
-            flags |= int(Qt.TextFlag.TextWordWrap)
-        return flags
+        return text_flags(self.align, self.multiline)
 
     def set_text(self, text: str) -> None:
         self.prepareGeometryChange()
@@ -232,38 +183,9 @@ class GameTextItem(QGraphicsItem):
         self._image = None
         if not self.text:
             return
-        margin = TEXT_OUTLINE + 1
-        area = box.united(needed).adjusted(-margin, -margin, margin, margin)
-        left, top = math.floor(area.left()), math.floor(area.top())
-        image = QImage(
-            math.ceil(area.right()) - left, math.ceil(area.bottom()) - top,
-            QImage.Format.Format_ARGB32_Premultiplied,
+        self._image, left, top = paint_text(
+            self.text, box, box.united(needed), self.font, self._flags(), self.color, self.outline,
         )
-        image.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(image)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
-        painter.setFont(self.font)
-        flags = self._flags()
-        target = box.translated(-left, -top)
-        if self.outline:
-            # Uma máscara do texto, carimbada em preto nos 8 vizinhos: contorno sem falhas.
-            mask = QImage(image.size(), QImage.Format.Format_ARGB32_Premultiplied)
-            mask.fill(Qt.GlobalColor.transparent)
-            mask_painter = QPainter(mask)
-            mask_painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
-            mask_painter.setFont(self.font)
-            mask_painter.setPen(QColor(0, 0, 0))
-            mask_painter.drawText(target, flags, self.text)
-            mask_painter.end()
-            for dx in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
-                for dy in (-TEXT_OUTLINE, 0, TEXT_OUTLINE):
-                    if dx or dy:
-                        painter.drawImage(dx, dy, mask)
-        painter.setPen(self.color)
-        painter.drawText(target, flags, self.text)
-        painter.end()
-        self._image = image
         self._image_origin = QPointF(left, top)
 
     def boundingRect(self) -> QRectF:  # noqa: N802

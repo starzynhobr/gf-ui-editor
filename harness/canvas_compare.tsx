@@ -4,6 +4,8 @@ import { flushSync } from '../web/node_modules/react-dom/index.js'
 import { createElement } from '../web/node_modules/react/index.js'
 import { openCanvasDocument, type CanvasElement } from '../web/src/bridge'
 import { openAtlas, previewTexture } from '../web/src/atlas'
+import { drawText, sceneRows, sceneTextRequests } from '../web/src/canvas/drawScene'
+import { loadTextMasks } from '../web/src/canvas/gameText'
 import CanvasView from '../web/src/canvas/CanvasView'
 import { previewSave, redo, save, select, setHidden, setIsolated, setLocked, undo, useDoc } from '../web/src/doc/store'
 import DdsProbe from './canvas_compare_dds?worker&inline'
@@ -38,10 +40,13 @@ async function change(caption: string, value: string) {
   }
 }
 
-async function open(path: string, preview: boolean, background: boolean) {
+let openCount = 0
+
+async function open(path: string, preview: boolean, background: boolean, textMode = preview ? 'game' : 'off') {
+  const start = performance.now()
   const doc = await openCanvasDocument(path, [1024, 768])
   flushSync(() => root.render(createElement(CanvasView, {
-    key: `${path}:${preview}:${background}`, path, resolution: [1024, 768],
+    key: ++openCount, path, resolution: [1024, 768],
     onSelect: (element) => { selected = element },
   })))
   const timeout = performance.now() + 10000
@@ -52,7 +57,7 @@ async function open(path: string, preview: boolean, background: boolean) {
   await setToggle('Mostrar identificadores', false)
   await change('Tela', preview ? 'game' : 'off')
   await change('Fundo', background ? 'builtin' : 'none')
-  await change('Texto', preview ? 'game' : 'off')
+  await change('Texto', textMode)
   if ((preview && doc.preview.drawn) || doc.elements.some((element) => element.sample_text || element.sample_icon)) {
     await setToggle('Personagem', false)
   }
@@ -66,6 +71,7 @@ async function open(path: string, preview: boolean, background: boolean) {
   const missing = document.querySelector<HTMLOutputElement>('.gf-canvas-toolbar output')?.title.split(', ') ?? []
   return {
     missing,
+    open_ms: performance.now() - start,
     elements: doc.elements.length,
     textures: new Set(doc.elements.flatMap((element) => element.texture?.toLowerCase() ?? [])).size,
   }
@@ -170,6 +176,11 @@ async function checkControls() {
 
 async function checkGameTextZoom() {
   await change('Texto', 'xml')
+  const deadline = performance.now() + 5000
+  while (document.querySelector('.gf-canvas[aria-busy="true"]')) {
+    if (performance.now() > deadline) throw new Error('Canvas text timed out')
+    await new Promise(requestAnimationFrame)
+  }
   const stage = positionStage(0, 0)
   const group = stage.findOne('Group')!
   const size = 96
@@ -237,6 +248,28 @@ Object.assign(window, {
   },
   canvasCompare: {
     open,
+    async textMasks(path: string, probes: { index: number; frame: [number, number, number, number] }[]) {
+      const doc = await openCanvasDocument(path, [1024, 768])
+      const rows = sceneRows(doc, true)
+      const options = { outlines: false, labels: false, preview: true, sample: true, text: 'game', short: '', long: '' } as const
+      const masks = await loadTextMasks(sceneTextRequests(probes.map(({ index }) => rows[index]), options))
+      return probes.map(({ index, frame: [x, y, width, height] }) => {
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.translate(-x, -y)
+        const { element, box } = rows[index]
+        drawText(ctx, element, box, options, masks)
+        return canvas.toDataURL()
+      })
+    },
+    async benchmark(path: string) {
+      const first = await open(path, false, false, 'game')
+      const samples = [first.open_ms]
+      for (let i = 0; i < 6; i++) samples.push((await open(path, false, false, 'game')).open_ms)
+      return { ...first, samples }
+    },
     textOff: async () => { await change('Texto', 'off'); return true },
     checkControls,
     checkGameTextZoom,

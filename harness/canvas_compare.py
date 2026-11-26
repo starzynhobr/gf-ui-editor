@@ -10,10 +10,12 @@ from __future__ import annotations
 import argparse
 import base64
 from hashlib import sha256
+from io import BytesIO
 import json
 import sys
 import os
 from pathlib import Path
+from statistics import median
 import subprocess
 import struct
 import tempfile
@@ -24,18 +26,19 @@ from PIL import Image, ImageChops
 
 
 FILES = ("BasicChar", "Storage", "MailList", "Menu")
+TEXT_FILES = ("AuctionBuy", "AchievementMonsterInfo", "BasicChar")
 PREVIEW_SIZE = (1024, 768)
 PIXEL_TOLERANCE = 12
 MAX_TEXTURE_DIFFERENCE = 0.01
 MAX_PREVIEW_DIFFERENCE = 0.025
 
 
-def isolate(out: Path) -> None:
+def isolate(out: Path, *, qt_platform: str = "offscreen") -> None:
     home = out / "home"
     (home / "Documents").mkdir(parents=True)
     os.environ.update(
         HOME=str(home), USERPROFILE=str(home), APPDATA=str(home / "AppData"),
-        LOCALAPPDATA=str(home / "LocalAppData"), QT_QPA_PLATFORM="offscreen", QT_SCALE_FACTOR="1",
+        LOCALAPPDATA=str(home / "LocalAppData"), QT_QPA_PLATFORM=qt_platform, QT_SCALE_FACTOR="1",
     )
     import PySide6.QtCore as QtCore
 
@@ -52,8 +55,8 @@ def isolate(out: Path) -> None:
     assert "HKEY" not in IsolatedQSettings("Local", "GF UI Editor").fileName()
 
 
-def classic(out: Path, game: Path) -> list[dict]:
-    from PySide6.QtCore import QPoint, QRectF, Qt
+def classic(out: Path, game: Path, *, text_only: bool) -> tuple[list[dict], list[dict]]:
+    from PySide6.QtCore import QBuffer, QIODevice, QPoint, QRectF, Qt
     from PySide6.QtWidgets import QApplication, QMessageBox
     from gf_ui_editor import app as editor
     from gf_ui_editor.canvas_document import describe_document
@@ -68,6 +71,7 @@ def classic(out: Path, game: Path) -> list[dict]:
     QMessageBox.critical = staticmethod(fail_dialog)
     window = editor.EditorWindow()
     window.resize(1540, 1060)
+    window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     window.show()
     window.set_background_mode("none")
     window.game_drawn_action.setChecked(False)
@@ -80,7 +84,7 @@ def classic(out: Path, game: Path) -> list[dict]:
 
     cases = []
     try:
-        for name in FILES:
+        for name in (() if text_only else FILES):
             path = game / "UI" / f"{name}.xml"
             window.open_document(path)
             until = monotonic() + 20
@@ -121,9 +125,43 @@ def classic(out: Path, game: Path) -> list[dict]:
                     "frame": (round(origin.x()), round(origin.y()), width, height),
                     "missing_qt": sorted(name.lower() for name in window.texture_cache.missing),
                 })
+        text_cases = []
+        window.game_drawn_action.setChecked(True)
+        window.set_text_mode("game")
+        window.set_game_resolution(PREVIEW_SIZE)
+        for name in TEXT_FILES:
+            path = game / "UI" / f"{name}.xml"
+            window.open_document(path)
+            probes = []
+            for index, item in window.items.items():
+                label = item.text_item
+                if label is None or label._image is None or not label.isVisible():
+                    continue
+                image = label._image
+                origin = label.scenePos() + label._image_origin
+                buffer = QBuffer()
+                buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+                if not image.save(buffer, "PNG"):
+                    raise RuntimeError(f"Qt mask encoding failed: {name} #{index}")
+                glyph = Image.open(BytesIO(bytes(buffer.data()))).convert("RGBA")
+                ink = glyph.getbbox(alpha_only=True)
+                if not ink:
+                    continue
+                left, top, right, bottom = ink
+                margin = 12
+                frame = (round(origin.x()) + left - margin, round(origin.y()) + top - margin,
+                         right - left + 2 * margin, bottom - top + 2 * margin)
+                crop = Image.new("RGBA", frame[2:])
+                crop.paste(glyph.crop(ink), (margin, margin))
+                crop.save(out / f"{name}-text-{index}-qt.png")
+                probes.append({"index": index, "id": window.document.elements[index].window_id,
+                               "text": label.text, "frame": frame})
+            if not probes:
+                raise RuntimeError(f"No text in {path.name}")
+            text_cases.append({"name": name, "path": str(path), "probes": probes})
     finally:
         window.close()
-    return cases
+    return cases, text_cases
 
 
 def dds_samples(directory: Path) -> list[Path]:
@@ -145,11 +183,25 @@ def dds_samples(directory: Path) -> list[Path]:
     return files
 
 
-def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml: Path) -> tuple[list[str], dict]:
+def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml: Path, text_cases: list[dict], *, text_only: bool) -> tuple[list[str], dict]:
     import webview
     from gf_ui_editor.web_shell import WebApi
 
-    api = WebApi("pt_BR", False)
+    class CompareApi(WebApi):
+        def __init__(self):
+            super().__init__("pt_BR", False)
+            self._text_batches = []
+
+        def canvas_text_masks(self, requests):
+            start = monotonic()
+            masks = super().canvas_text_masks(requests)
+            self._text_batches.append({
+                "requests": len(requests), "base64_bytes": sum(len(data) for _, _, data in masks),
+                "raster_ms": round((monotonic() - start) * 1000, 2),
+            })
+            return masks
+
+    api = CompareApi()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from offscreen import window_options
 
@@ -193,13 +245,25 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
                     wait_for_js("canvasCompare.textOff()", "disable game text")
                     url = window.evaluate_js(f"canvasCompare.capture(...{json.dumps(case['frame'])})")
                     (out / f"{case['key']}-web-no-text.png").write_bytes(base64.b64decode(url.split(",", 1)[1]))
+            for case in text_cases:
+                args = json.dumps([case["path"], case["probes"]])
+                urls = wait_for_js(f"canvasCompare.textMasks(...{args})", case["name"])
+                for probe, url in zip(case["probes"], urls, strict=True):
+                    (out / f"{case['name']}-text-{probe['index']}-web.png").write_bytes(
+                        base64.b64decode(url.split(",", 1)[1]))
+            api._text_batches.clear()
+            timing = wait_for_js(f"canvasCompare.benchmark({json.dumps(str(large_xml))})", "opening with text")
+            checks["large_xml_text"] = {
+                **timing, "reopen_median_ms": median(timing["samples"][1:]), "batches": api._text_batches.copy(),
+            }
+            if text_only:
+                return
             bases = {folder: api.asset_base(str(folder / "fixture.xml")) for folder in {file.parent for file in samples}}
             files = [(bases[file.parent], file.name) for file in samples]
             hashes.extend(wait_for_js(f"canvasCompare.ddsHashes({json.dumps(files)})", "DDS decoder"))
-            start = monotonic()
             large = wait_for_js(f"canvasCompare.open({json.dumps(str(large_xml))}, false, false)", large_xml.name)
             checks["large_xml"] = dict(
-                file=large_xml.name, **large, open_ms=round((monotonic() - start) * 1000),
+                file=large_xml.name, **large,
                 pan_draw_p95_ms=window.evaluate_js("canvasCompare.panDrawTime()"),
             )
 
@@ -285,32 +349,81 @@ def compare(out: Path, case: dict) -> bool:
     return ok
 
 
+def compare_masks(out: Path, case: dict) -> bool:
+    """Count changed ink pixels (including outline), independent of scene backgrounds."""
+    name = case["name"]
+    pairs = []
+    for probe in case["probes"]:
+        stem = out / f"{name}-text-{probe['index']}"
+        qt = Image.open(f"{stem}-qt.png").convert("RGBA")
+        web_image = Image.open(f"{stem}-web.png").convert("RGBA")
+        assert qt.size == web_image.size, probe
+        delta = ImageChops.difference(qt, web_image)
+        # The transparent pixels are zero in both renderers. Compare all channels,
+        # so an outline pixel painted as fill is also counted.
+        combined_delta = ImageChops.lighter(max_rgb(delta.convert("RGB")), delta.getchannel("A"))
+        changed = sum(combined_delta.histogram()[1:])
+        ink = sum(ImageChops.lighter(qt.getchannel("A"), web_image.getchannel("A")).histogram()[1:])
+        probe.update(changed=changed, ink=ink)
+        pairs.append((qt, web_image))
+    column = max(qt.width for qt, _ in pairs)
+    height = sum(qt.height for qt, _ in pairs)
+    sheet = Image.new("RGB", (column * 2 + 4, height), "#3b3b3b")
+    y = 0
+    for qt, web_image in pairs:
+        sheet.paste(qt, (0, y), qt)
+        sheet.paste(web_image, (column + 4, y), web_image)
+        y += qt.height
+    sheet.resize((sheet.width * 4, sheet.height * 4), Image.Resampling.NEAREST).save(out / f"{name}-text-4x.png")
+    total = sum(probe["changed"] for probe in case["probes"])
+    ink = sum(probe["ink"] for probe in case["probes"])
+    worst = max(probe["changed"] for probe in case["probes"])
+    case.update(changed=total, ink=ink, worst=worst)
+    print(f"{name} text masks: {total}/{ink} changed pixels ({len(pairs)} labels, max {worst})", flush=True)
+    return worst <= 3
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "gf-ui-harness-codex")
-    work = parser.parse_args().work.resolve()
+    parser.add_argument("--text-only", action="store_true", help="Measure only text masks and opening with text")
+    parser.add_argument("--baseline-page", type=Path, help="Compare a previously built legacy harness page")
+    args = parser.parse_args()
+    work = args.work.resolve()
     game = work / "pristine"
-    if not all((game / "UI" / f"{name}.xml").is_file() for name in FILES):
+    large_xml = game / "UI" / "ItemMallHot.xml"
+    needed = TEXT_FILES if args.text_only else (*FILES, *TEXT_FILES)
+    if not large_xml.is_file() or not all((game / "UI" / f"{name}.xml").is_file() for name in needed):
         parser.error("Run harness/run.ps1 to create the pristine game copy first.")
     out = Path(tempfile.mkdtemp(prefix="canvas-compare-", dir=work))
     print(out, flush=True)
-    isolate(out)
+    # Use the actual Windows font engine but keep the classic widget unmapped.
+    isolate(out, qt_platform="windows" if sys.platform == "win32" else "offscreen")
     source = Path(__file__).resolve().parent
     build = out / "build"
-    subprocess.run(["node", str(source / "canvas_compare.mjs"), str(build)], check=True)
-    cases = classic(out, game)
+    if args.baseline_page is None:
+        subprocess.run(["node", str(source / "canvas_compare.mjs"), str(build)], check=True)
+    page = args.baseline_page.resolve(strict=True) if args.baseline_page else build / "harness" / "canvas_compare.html"
+    cases, text_cases = classic(out, game, text_only=args.text_only)
     from gf_ui_editor.texture_cache import open_dds_rgba
-    samples = dds_samples(game / "UI")
-    large_xml = max((game / "UI").glob("*.xml"), key=lambda path: path.stat().st_size)
-    hashes, checks = web(out, build / "harness" / "canvas_compare.html", cases, samples, large_xml)
+    samples = [] if args.text_only else dds_samples(game / "UI")
+    hashes, checks = web(out, page, cases, samples, large_xml,
+                         text_cases, text_only=args.text_only)
     differing = [str(path.relative_to(game / "UI"))
                  for path, decoded in zip(samples, hashes, strict=True)
                  if sha256(open_dds_rgba(path).tobytes()).hexdigest() != decoded]
     print(f"DDS: {len(samples) - len(differing)}/{len(samples)} match Pillow RGBA", flush=True)
     results = [compare(out, case) for case in cases]
-    report = {"dds": {"files": len(samples), "differing": differing}, "comparisons": cases, "checks": checks}
+    text_results = [compare_masks(out, case) for case in text_cases]
+    report = {"dds": {"files": len(samples), "differing": differing}, "comparisons": cases,
+              "text_masks": text_cases, "checks": checks}
     (out / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return 0 if all(results) and not differing else 1
+    batches = checks["large_xml_text"]["batches"]
+    batch_ok = len(batches) == 1 and batches[0]["requests"] > 1
+    timing = checks["large_xml_text"]
+    print(f"ItemMallHot with text: {timing['open_ms']:.1f} ms first open, "
+          f"{timing['reopen_median_ms']:.1f} ms median reopening; batches: {batches}", flush=True)
+    return 0 if all(results) and not differing and (args.baseline_page or (all(text_results) and batch_ok)) else 1
 
 
 if __name__ == "__main__":

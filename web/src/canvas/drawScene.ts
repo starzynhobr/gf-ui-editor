@@ -1,17 +1,21 @@
 import type { CanvasDocument, CanvasElement, CanvasRect, CanvasTextMode } from '../bridge'
-import { kindLabel, gameColorToHex } from '../elements/kinds'
-import { drawGameText } from './gameText'
+import { kindLabel } from '../elements/kinds'
+import { drawGameText, type TextMasks, type TextRequest } from './gameText'
 import type { Handle } from './geometry'
 import type { CanvasPalette } from './palette'
 
-export interface SceneOptions {
-  outlines: boolean
-  labels: boolean
-  preview: boolean
+export interface TextOptions {
   sample: boolean
   text: CanvasTextMode
   short: string
   long: string
+}
+
+export interface SceneOptions extends TextOptions {
+  outlines: boolean
+  labels: boolean
+  preview: boolean
+  textMasks: TextMasks
   buttonState?: string
 }
 
@@ -112,13 +116,41 @@ function drawTexture(
   ctx.drawImage(cut, x, y)
 }
 
-function drawText(ctx: CanvasRenderingContext2D, element: CanvasElement, box: CanvasRect, options: SceneOptions, fallback = '') {
+function textRequest(element: CanvasElement, box: CanvasRect, options: TextOptions, fallback = ''): TextRequest | undefined {
   const entry = element.texts[options.text]
   const text = (options.sample && element.sample_text) || ('value' in entry ? entry.value : options[entry.sample]) || fallback
   if (!text) return
   const props = element.text_props
-  drawGameText(ctx, text, gameColorToHex(props.FontColor), props.FontStyle === '1', props.MultiLine === '1',
-    element.button ? '1' : props.TextAlign ?? '0', ...box)
+  return [text, props.FontColor ?? '16777215', props.FontStyle === '1', props.MultiLine === '1',
+    element.button ? '1' : props.TextAlign ?? '0', box[2], box[3]]
+}
+
+function referenceRows(document: CanvasDocument) {
+  return sceneRows(document, false).filter(({ element }) => element.visible)
+}
+
+function layerTextOptions(options: TextOptions): TextOptions {
+  return { ...options, text: options.text === 'game' ? 'game' : 'off' }
+}
+
+export function sceneTextRequests(rows: Rows, options: TextOptions, layers: CanvasDocument[] = []) {
+  const requests = new Map<string, TextRequest>()
+  const add = (rows: Rows, style: TextOptions, reference: boolean) => {
+    for (const { element, box } of rows) {
+      const request = textRequest(element, box, style, reference ? element.layer_text : '')
+      if (request) requests.set(JSON.stringify(request), request)
+    }
+  }
+  add(rows, options, false)
+  const referenceOptions = layerTextOptions(options)
+  for (const layer of layers) add(referenceRows(layer), referenceOptions, true)
+  return requests
+}
+
+export function drawText(ctx: CanvasRenderingContext2D, element: CanvasElement, box: CanvasRect,
+  options: TextOptions, masks: TextMasks, fallback = '') {
+  const request = textRequest(element, box, options, fallback)
+  if (request) drawGameText(ctx, masks, request, box[0], box[1])
 }
 
 export function drawDots(ctx: CanvasRenderingContext2D, width: number, height: number, palette: CanvasPalette) {
@@ -163,14 +195,14 @@ export function drawScreen(
 export function drawReferenceLayer(
   ctx: CanvasRenderingContext2D, document: CanvasDocument, images: Images, screen: CanvasRect, options: SceneOptions,
 ) {
-  const rows = sceneRows(document, false).filter(({ element }) => element.visible)
+  const rows = referenceRows(document)
   const [x, y] = document.preview.screen
-  const layerOptions = { ...options, text: options.text === 'game' ? 'game' : 'off' } as const
+  const layerOptions = layerTextOptions(options)
   ctx.save()
   ctx.translate(screen[0] - x, screen[1] - y)
   ctx.imageSmoothingEnabled = false
   for (const { element, box } of rows) drawTexture(ctx, element, box, images, options.sample)
-  for (const { element, box } of rows) drawText(ctx, element, box, layerOptions, element.layer_text)
+  for (const { element, box } of rows) drawText(ctx, element, box, layerOptions, options.textMasks, element.layer_text)
   ctx.restore()
 }
 
@@ -261,7 +293,7 @@ export function drawScene(
     ctx.strokeRect(...preview.drawn)
     ctx.setLineDash([])
   }
-  for (const { element, box } of rows) drawText(ctx, element, box, options)
+  for (const { element, box } of rows) drawText(ctx, element, box, options, options.textMasks)
   if (ghost) {
     ctx.fillStyle = palette.ghost
     ctx.globalAlpha = .15
