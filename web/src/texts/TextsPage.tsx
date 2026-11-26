@@ -3,13 +3,12 @@
 // com os marcadores ● (editado), ⚠ (mudou no jogo depois da edição) e ◐ (mudado no jogo).
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { refreshShell } from '../actions'
 import { on } from '../bridge'
 import { t, useT } from '../i18n'
 import { useShell } from '../store'
 import { ask, message } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
-import { openTextEditor } from './TextEditor'
+import { editTextRecord, textsChanged } from './editRecord'
 import { oneLine, textsApi, type TextResults, type TextRow } from './textsApi'
 
 const ROW_HEIGHT = 26
@@ -57,12 +56,6 @@ export function rowTooltip(row: TextRow): string {
   return row.fields.join('\n')
 }
 
-/** Edições de texto mudaram: o rodapé, a árvore (rótulos) e quem ouvir o evento atualizam. */
-async function textsChanged(): Promise<void> {
-  await refreshShell() // contador do F5 e revisão (a árvore relê os rótulos do jogo)
-  window.dispatchEvent(new CustomEvent('gf:text-edits-changed'))
-}
-
 export default function TextsPage() {
   useT()
   const project = useShell((state) => state.shell?.project ?? null)
@@ -105,13 +98,7 @@ export default function TextsPage() {
 
   const open = async (row: TextRow, at: { x: number; y: number } | null) => {
     setSelected(`${row.name}/${row.id}`)
-    const record = await textsApi.open(row.name, row.id)
-    if (!record) return
-    const result = await openTextEditor(record, at)
-    if (result) {
-      await refresh()
-      await textsChanged()
-    }
+    if (await editTextRecord(row.name, row.id, at)) await refresh()
   }
 
   const importTexts = async () => {

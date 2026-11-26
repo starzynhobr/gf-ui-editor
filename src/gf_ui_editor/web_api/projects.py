@@ -514,10 +514,13 @@ class ProjectsApi:
         project = self._require_project()
         if project.game_dir is None:
             raise ValueError("Projeto sem pasta do jogo.")
+        diffs = getattr(self, "_official_diffs", {}) if getattr(self, "_official_root", None) == project.root else {}
         return {
             "confirmed": self._prefs.publish_confirmed,
             "custom_dir": str(project.game_dir / "UICustom" / project.custom_name),
             "custom_name": project.custom_name,
+            # Arquivos sem os controles que a atualização do jogo trouxe (aviso antes do F5).
+            "new_controls": publishing.pending_new_controls(diffs.values()),
         }
 
     def confirm_publish(self) -> None:
@@ -530,6 +533,8 @@ class ProjectsApi:
             project, self._manifest.is_disabled(remote_manifest.PUBLISH_TEXTS), self._progress("publish")
         )
         result, texts = outcome.result, outcome.texts
+        # Cópias dos arquivos da pasta UI editados fora (banner "Ver" depois do envio).
+        self._game_backups = [(relative, backup) for relative, backup in result.game_backups]
         return {
             "copied": result.copied_to_ui,
             "texts_changed": texts.changed,
