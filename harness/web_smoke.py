@@ -125,7 +125,7 @@ def answer(kind, directory, file_types, save_name):
 # abertura automática uma vez e registra as chamadas; com a ponte real presente, repassa a ela.
 # O cartão "Interface nova" vem da nota (spotlight); as notas embutidas ainda não são as da
 # 0.8.0, então o smoke o liga no whats_new.
-WN_BRIDGE: dict = {"auto": True, "pill": False, "calls": []}
+WN_BRIDGE: dict = {"auto": True, "pill": False, "calls": [], "real": False}
 # Um aviso do manifesto ao abrir: prova que ele espera as Novidades fecharem.
 MANIFEST[0] = remote_manifest.parse(json.dumps({
     "schema": 1,
@@ -139,6 +139,8 @@ class SmokeApi(web_shell.WebApi):
 
     def whats_new_state(self) -> dict:
         real = getattr(super(), "whats_new_state", None)
+        if WN_BRIDGE["real"] and real:
+            return real()
         state = dict(real()) if real else {"version": "", "auto_open": False, "pill": False}
         state.update(auto_open=WN_BRIDGE["auto"], pill=WN_BRIDGE["pill"])
         WN_BRIDGE["auto"] = False
@@ -800,7 +802,7 @@ def scenario() -> None:
     # 8. Tela inicial com o projeto (continuar, tamanho calculado em segundo plano).
     js("__smoke.click('[data-testid=topbar] button')")
     wait("!!__smoke.q('[data-testid=home-project-row]')", 10, "linha do projeto")
-    size = wait("(() => { const r = __smoke.q('[data-testid=home-project-row]'); return r && /\\d+ (KB|MB|GB)/.test(r.innerText) && r.innerText })()", 30, "tamanho do projeto")
+    size = wait("(() => { const r = __smoke.q('[data-testid=home-project-row] [data-size]'); return r && /\\d+ (KB|MB|GB)/.test(r.dataset.size) && r.dataset.size })()", 30, "tamanho do projeto")
     check("tamanho do projeto aparece", bool(size), row=size)
     home_text = js("__smoke.text('[data-testid=home]')") or ""
     check("cartão Continuar", "CONTINUAR DE ONDE PAROU" in home_text.upper() and "Smoke Test" in home_text)
@@ -924,20 +926,73 @@ def standalone_flow(project_root: Path) -> None:
                   "return { x: Math.round(box.left + 100), y: Math.round(box.top + 100) } })()")
     data = {"items": [], "files": [str(second), str(ignored), str(xml)], "dragOperationsMask": 1}
     native = window.native
-    for kind in ("dragEnter", "dragOver", "drop"):
+
+    def dispatch(kind: str, payload: dict = data) -> None:
         pending = []
-        params = json.dumps({"type": kind, **position, "data": data})
+        params = json.dumps({"type": kind, **position, "data": payload})
         native.Invoke(Action(lambda: pending.append(native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
             "Input.dispatchDragEvent", params,
         ))))
         if not pending[0].Wait(5000):
             raise TimeoutError(f"WebView2 drop: {kind}")
 
+    # Camada "Solte para abrir": os dragover continuam chegando enquanto a captura é feita.
+    holding = threading.Event()
+
+    def hold(payload: dict) -> None:
+        while not holding.is_set():
+            dispatch("dragOver", payload)
+            time.sleep(0.06)
+
+    def overlay(payload: dict, name: str) -> str:
+        holding.clear()
+        dispatch("dragEnter", payload)
+        worker = threading.Thread(target=hold, args=(payload,), daemon=True)
+        worker.start()
+        text = wait("__smoke.text('[data-testid=drop-overlay]')", 5, f"camada de soltar {name}") or ""
+        time.sleep(0.3)
+        shot_now(name)
+        holding.set()
+        worker.join(2)
+        return text
+
+    only_text = {"items": [], "files": [str(ignored)], "dragOperationsMask": 1}
+    rejected = overlay(only_text, "30a-soltar-so-xml")
+    check("camada recusa o que não é .xml", "Só arquivos .xml" in rejected, text=rejected)
+    dispatch("dragCancel", only_text)
+    check("camada some ao sair", bool(wait("!__smoke.q('[data-testid=drop-overlay]')", 3, "camada some")))
+    text = overlay(data, "30b-soltar-para-abrir")
+    check("camada 'Solte para abrir' com a contagem e o aviso do projeto",
+          "Solte para abrir" in text and "XML" in text and "sem mexer no projeto" in text, text=text)
+    dispatch("drop")
+
     bar = '[data-testid=standalone-bar]'
     check("drop nativo abre todos os XMLs e mantém o projeto", bool(wait(
         f"!!__smoke.q('{bar}') && __smoke.all('[data-standalone-file]').length === 2"
         " && __gfDoc.state().path?.endsWith('SmokeStandalone.xml')", 12, "drop XMLs avulsos",
     )) and api.shell_state()["project"]["root"] == str(project_root))
+    check("camada some ao soltar", bool(wait("!__smoke.q('[data-testid=drop-overlay]')", 3, "camada some no drop")))
+    marks = js("""(() => ({
+      badge: __smoke.text('[data-testid=standalone-badge]'),
+      badgeTip: __smoke.q('[data-testid=standalone-badge]')?.title,
+      status: __smoke.text('[data-testid=standalone-status]'),
+      section: __smoke.text('[data-testid=standalone-files]'),
+      coach: !!__smoke.q('[data-testid=standalone-coach]'),
+      card: __smoke.text('[data-testid=standalone-bar]'),
+    }))()""") or {}
+    status = marks.get("status") or ""
+    check("selo Avulso com o caminho no tooltip", marks.get("badge") == "Avulso" and str(xml) in (marks.get("badgeTip") or ""), marks=marks)
+    check("barra de status 'Avulso — C:\\…\\arquivo'",
+          status.startswith("Avulso — ") and status.endswith("SmokeStandalone.xml") and "…" in status, marks=marks)
+    check("seção 'Arquivos avulsos' no painel com a pasta de origem", "ARQUIVOS AVULSOS · 2" in (marks.get("section") or "").upper()
+          and "standalone" in (marks.get("section") or ""), marks=marks)
+    check("cartão explica e mostra o destaque da primeira vez", "fora do projeto" in (marks.get("card") or "")
+          and bool(marks.get("coach")), marks=marks)
+    shot("31a-avulso-selo-secao-cartao")
+    for label, key in (("Claro", "light"), ("Meia-noite", "midnight"), ("Cappuccino", "cappuccino"), ("Rosa", "rosa")):
+        if _set_theme(label, key):
+            shot(f"31b-avulso-cartao-{key}")
+    _set_theme("Escuro", "dark")
     js("window.dropTexture = null; pywebview.api.asset_base(__gfDoc.state().path).then("
        "base => fetch(base + 'SmokeStandalone.dds')).then(response => response.arrayBuffer()).then("
        "data => window.dropTexture = new TextDecoder().decode(data.slice(0, 4))); true")
@@ -958,9 +1013,26 @@ def standalone_flow(project_root: Path) -> None:
     backup = list(loose.glob("SmokeStandalone.before-gf-ui-editor-*.xml"))
     check("XML avulso salvo com backup exato ao lado", len(backup) == 1 and backup[0].read_bytes() == original
           and b'WindowLeft="37"' in xml.read_bytes())
+    check("o destaque da primeira vez não volta", (app_module.prefs.get("web_flags") or {}).get("standalone_coach_seen") is True
+          and bool(wait("!__smoke.q('[data-testid=standalone-coach]')", 3, "destaque some")))
+    # Faixa "O arquivo mudou fora do editor" (stub até o contrato do Codex).
+    api._emit("doc_changed_outside", {"path": str(xml)})
+    band = wait("__smoke.text('[data-testid=external-change-band]')", 5, "faixa mudou fora") or ""
+    check("faixa 'mudou fora' com Recarregar / Manter as minhas / Comparar",
+          all(word in band for word in ("mudou fora do editor", "Recarregar", "Manter as minhas", "Comparar")), band=band)
+    shot("32-faixa-mudou-fora")
+    js("__smoke.click('[data-testid=external-keep]')")
+    wait("!__smoke.q('[data-testid=external-change-band]')", 3, "faixa some")
     js(f"__smoke.clickText('Importar para o projeto', '{bar}')")
     wait("!!__smoke.q('[role=dialog] input[type=checkbox]:checked')", 5, "importar com texturas")
-    js("__smoke.clickText('Importar', '[role=dialog]')")
+    js("__smoke.key('1', { ctrlKey: true }); __smoke.clickText('Importar', '[role=dialog]')")
+    flight = wait("!!__smoke.q('[data-testid=import-flight]') || !!__smoke.q('.gf-row-imported')", 5, "voo da importação")
+    time.sleep(0.12)
+    shot_now("33a-importar-voo")
+    check("importar anima o arquivo até a lista do projeto", bool(flight))
+    toast = wait("__smoke.all('[data-sonner-toast]').map(t => t.innerText).join(' | ')", 5, "toast da importação") or ""
+    check("toast 'Importado para o projeto · 1 textura copiada'", "Importado para o projeto · 1 textura copiada" in toast, toast=toast)
+    shot("33b-importado-toast")
     target = project_root / "ui" / xml.name
     check("Importar mantém o documento ativo no workspace do projeto", bool(wait(
         f"!__smoke.q('{bar}') && __gfDoc.state().path === {json.dumps(str(target))}", 8, "documento promovido",
@@ -970,8 +1042,99 @@ def standalone_flow(project_root: Path) -> None:
     js("__smoke.key('1', { ctrlKey: true })")
     check("lista retém o outro avulso após a importação", bool(wait(
         "__smoke.all('[data-standalone-file]').length === 1"
-        " && __smoke.q('[data-standalone-file]').textContent === 'SecondStandalone.xml'", 5, "lista avulsa",
+        " && __smoke.q('[data-standalone-file]').textContent.startsWith('SecondStandalone.xml')", 5, "lista avulsa",
     )))
+    js("__smoke.click('[data-testid=standalone-close]')")
+    check("o × fecha o avulso (sai da lista, o arquivo fica)", bool(wait(
+        "!__smoke.q('[data-testid=standalone-files]')", 5, "fecha avulso",
+    )) and second.is_file() and api.shell_state()["standalone_paths"] == [])
+    round_ui_flow()
+
+
+HOVER_STEP = """(() => {
+  const v = __smoke.q('.gf-canvas-viewport'); if (!v) return null;
+  const r = v.getBoundingClientRect();
+  const move = (p) => v.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: p[0], clientY: p[1], pointerId: 1 }));
+  if (__smoke.q('[data-testid=canvas-hover-tip]')) return {
+    tip: __smoke.text('[data-testid=canvas-hover-tip]'), outline: !!__smoke.q('[data-testid=canvas-hover-outline]') };
+  if (__smoke.q('[data-testid=canvas-hover-outline]')) return null;
+  const i = window.__hoverStep = (window.__hoverStep || 0) + 1;
+  const p = [r.left + r.width * (0.15 + 0.7 * ((i * 7) % 11) / 11), r.top + r.height * (0.15 + 0.7 * ((i * 3) % 7) / 7)];
+  window.__hoverPoint = p;
+  move(p);
+  return null;
+})()"""
+
+
+def _open_xml_on_canvas() -> bool:
+    js("__smoke.key('1', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-section=all] [data-file]')", 5, "lista do projeto")
+    js("(() => { const rows = __smoke.all('[data-section=all] [data-file]');"
+       " const row = rows.find(r => r.dataset.file === 'BasicChar.xml') || rows.find(r => /\\.xml$/i.test(r.dataset.file)); row?.click() })()")
+    return bool(wait("__gfDoc.state().doc?.elements?.length > 2 && !!__smoke.q('.gf-canvas-viewport canvas')", 8, "XML no canvas"))
+
+
+def _hover_canvas() -> dict | None:
+    """Passa o mouse pela grade do canvas até achar um controle e espera a dica (mouse parado)."""
+    js("window.__hoverStep = 0")
+    return wait(HOVER_STEP, 12, "dica do canvas")
+
+
+def round_ui_flow() -> None:
+    """Dica do canvas (5 temas, desligar na barra) e os números animados do Limpar."""
+    check("XML do projeto no canvas", _open_xml_on_canvas())
+    hover = _hover_canvas() or {}
+    tip = hover.get("tip") or ""
+    check("dica do canvas com WindowID, tipo e X/Y/L×A, contorno destacado",
+          bool(hover.get("outline")) and "X " in tip and "Y " in tip and "×" in tip, tip=tip)
+    shot("34a-canvas-dica")
+    js("(() => { const v = __smoke.q('.gf-canvas-viewport'), p = window.__hoverPoint;"
+       " v.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: p[0], clientY: p[1], pointerId: 1 }));"
+       " v.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: p[0], clientY: p[1], pointerId: 1 })) })()")
+    check("a dica some ao clicar/arrastar", bool(wait("!__smoke.q('[data-testid=canvas-hover-tip]')", 3, "dica some")))
+    for label, key in (("Claro", "light"), ("Meia-noite", "midnight"), ("Cappuccino", "cappuccino"), ("Rosa", "rosa")):
+        if _set_theme(label, key) and _hover_canvas():
+            shot(f"34b-canvas-dica-{key}")
+    _set_theme("Escuro", "dark")
+    js("__smoke.click('[data-testid=canvas-hover-toggle]')")
+    check("desligar a dica na barra flutuante grava a preferência", bool(wait(
+        "__smoke.q('[data-testid=canvas-hover-toggle]').getAttribute('aria-pressed') === 'false'", 3, "dica desligada",
+    )) and (app_module.prefs.get("web_flags") or {}).get("canvas_hover_tip") is False)
+    for _ in range(10):
+        js("(() => { const v = __smoke.q('.gf-canvas-viewport'), p = window.__hoverPoint;"
+           " v.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: p[0], clientY: p[1], pointerId: 1 })) })()")
+        time.sleep(0.1)
+    time.sleep(0.6)
+    check("desligada, a dica não aparece",
+          not js("!!__smoke.q('[data-testid=canvas-hover-tip]') || !!__smoke.q('[data-testid=canvas-hover-outline]')"))
+    js("__smoke.click('[data-testid=canvas-hover-toggle]')")
+    js("__smoke.q('.gf-canvas-viewport').dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }))")
+
+    # Limpar: o total sobe até o valor e o botão/"Depois de limpar" andam ao escolher.
+    js("__smoke.click('[data-testid=project-button]')")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu do projeto")
+    js("__smoke.clickText('Limpar projeto', '[role=menu]')")
+    check("diálogo Limpar com o total", bool(wait("!!__smoke.q('[data-testid=cleanup-total]')", 30, "Limpar")))
+    check("a dica do canvas não fica por cima do diálogo", not js("!!__smoke.q('[data-testid=canvas-hover-tip]')"))
+    time.sleep(0.1)
+    shot_now("35a-limpar-total-subindo")
+    before = js("__smoke.q('[data-testid=cleanup-size]')?.dataset.size")
+    picked = js("""(() => {
+      const box = __smoke.q('[data-testid=cleanup-dialog]');
+      const inputs = Array.from(box.querySelectorAll('input[type=radio], input[type=checkbox]')).filter(i => !i.disabled && !i.checked);
+      const chosen = inputs.find(i => i.type === 'radio') || inputs[0];
+      if (!chosen) return false; chosen.click(); return true })()""")
+    after = wait("(() => { const v = __smoke.q('[data-testid=cleanup-size]')?.dataset.size; return v !== %s ? v : null })()"
+                 % json.dumps(before), 3, "tamanho muda")
+    time.sleep(0.15)
+    shot_now("35b-limpar-numero-andando")
+    time.sleep(0.6)
+    shot("35c-limpar-escolhido")
+    check("Limpar: o botão e o 'Depois de limpar' mudam ao escolher", bool(picked) and bool(after)
+          and bool(js("__smoke.q('[data-testid=cleanup-after]')?.getAttribute('aria-hidden') === 'false'")),
+          before=before, after=after)
+    js("__smoke.clickText('Fechar', '[role=dialog]')")
+    wait("!__smoke.q('[data-testid=cleanup-dialog]')", 5, "fecha Limpar")
 
 
 def multi_resolution_flow(project_root: Path) -> None:
@@ -1876,6 +2039,7 @@ def driver() -> None:
         scenario()
         app_module.prefs.remove("notes_seen_version")
         app_module.prefs.remove("notes_pill_version")
+        WN_BRIDGE["real"] = True  # o stub do smoke cede à ponte real do Python
         js("""(async () => {
             const api = window.pywebview.api;
             const first = await api.whats_new_state();
