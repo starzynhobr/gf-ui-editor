@@ -180,20 +180,43 @@ export default function FilesPanel() {
       })
   }
 
-  const startResize = (kind: SectionKind, event: React.MouseEvent) => {
+  // Alça entre duas seções vizinhas (como o QSplitter da clássica): só a fronteira entre elas
+  // anda; uma cresce e a outra encolhe. "Todos" ocupa o resto, então nunca sai da tela.
+  const listBox = useRef<HTMLDivElement>(null)
+  const startResize = (upper: SectionKind, lower: SectionKind, event: React.MouseEvent) => {
     event.preventDefault()
+    const box = listBox.current
+    const measure = (kind: SectionKind) =>
+      box?.querySelector<HTMLElement>(`[data-section="${kind}"]`)?.getBoundingClientRect().height ?? 0
+    const minimum = HEADER_HEIGHT + ROW_HEIGHT
+    const allMinimum = HEADER_HEIGHT + ROW_HEIGHT * 2
     const startY = event.clientY
-    const start = heights[kind] ?? defaultHeight(sections.find((section) => section.kind === kind)?.items.length ?? 1)
-    let latest = start
+    const upperStart = measure(upper)
+    const lowerStart = measure(lower)
+    let latest: Partial<Record<SectionKind, number>> = {}
     const move = (moveEvent: MouseEvent) => {
-      latest = Math.max(HEADER_HEIGHT + ROW_HEIGHT, Math.min(800, start + moveEvent.clientY - startY))
-      setHeights((current) => ({ ...current, [kind]: latest }))
+      const delta = moveEvent.clientY - startY
+      if (upper === 'all') {
+        // Todos em cima: a de baixo encolhe/cresce; Todos fica com o resto.
+        const max = lowerStart + (upperStart - allMinimum)
+        latest = { [lower]: Math.round(Math.max(minimum, Math.min(max, lowerStart - delta))) }
+      } else if (lower === 'all') {
+        const max = upperStart + (lowerStart - allMinimum)
+        latest = { [upper]: Math.round(Math.max(minimum, Math.min(max, upperStart + delta))) }
+      } else {
+        const total = upperStart + lowerStart
+        const next = Math.round(Math.max(minimum, Math.min(total - minimum, upperStart + delta)))
+        latest = { [upper]: next, [lower]: total - next }
+      }
+      setHeights((current) => ({ ...current, ...latest }))
     }
     const up = () => {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
-      void api.setSectionHeights({ [kind]: Math.round(latest) })
+      document.body.classList.remove('is-row-resizing')
+      if (Object.keys(latest).length) void api.setSectionHeights(latest)
     }
+    document.body.classList.add('is-row-resizing')
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
   }
@@ -239,17 +262,18 @@ export default function FilesPanel() {
       )}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={visible.map((section) => section.kind)} strategy={verticalListSortingStrategy}>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={listBox} className="flex min-h-0 flex-1 flex-col">
         {data &&
-          visible.map((section) => {
+          visible.map((section, position) => {
+            const next = visible[position + 1]
             const isAll = section.kind === 'all'
             const height = heights[section.kind] ?? defaultHeight(section.items.length)
             return (
               <SortableSection
                 key={section.kind}
                 id={section.kind}
-                className={`flex min-h-0 flex-col ${isAll ? 'flex-1' : 'shrink-0'}`}
-                style={isAll ? undefined : { height }}
+                className="flex min-h-0 flex-col"
+                style={isAll ? { flex: '1 1 0', minHeight: HEADER_HEIGHT + ROW_HEIGHT * 2 } : { flex: `0 1 ${height}px`, minHeight: HEADER_HEIGHT + ROW_HEIGHT }}
                 header={(handle) => (
                 <div
                   {...handle}
@@ -291,10 +315,11 @@ export default function FilesPanel() {
                   onLayer={toggleLayer}
                   diffs={officialDiffs}
                 />
-                {!isAll && (
+                {next && (
                   <div
-                    className="h-1 shrink-0 cursor-row-resize hover:bg-accent/40"
-                    onMouseDown={(event) => startResize(section.kind, event)}
+                    className="gf-row-resize"
+                    data-testid={`resize-${section.kind}-${next.kind}`}
+                    onMouseDown={(event) => startResize(section.kind, next.kind, event)}
                   />
                 )}
               </SortableSection>

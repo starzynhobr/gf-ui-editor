@@ -1,7 +1,6 @@
 // Painel de propriedades (direita), como o PropertyPanel da clássica: posição e tamanho,
 // textura, identificação e aparência/fonte (só os campos que o controle tem no XML).
 // Toda edição vai por applyEdits (um passo de desfazer).
-import { openTextureFile } from '../shell/textureFile'
 import { ColorPicker } from '../ui/ColorPicker'
 import { Select } from '../ui/Select'
 import { atlasModule } from '../shell/atlas'
@@ -251,16 +250,6 @@ export default function PropertiesPanel() {
           <Icon name="layout" size={15} />
           {t('Abrir atlas DDS…')}
         </button>
-        <button
-          className="btn mt-1.5 h-7 w-full"
-          disabled={element.texture == null || !path}
-          data-testid="open-dds"
-          title={t('Abre a textura no programa padrão do sistema para arquivos .dds (Paint.NET, por exemplo).')}
-          onClick={() => path && element.texture && void openTextureFile(path, element.texture)}
-        >
-          <Icon name="external-link" size={15} />
-          {t('Abrir .dds')}
-        </button>
       </Card>
 
       <Card title={t('IDENTIFICAÇÃO')}>
@@ -283,7 +272,12 @@ export default function PropertiesPanel() {
           <input type="checkbox" checked={element.visible} disabled readOnly />
         </Field>
         <Field label={t('Texto')}>
-          <input readOnly className="field h-7 w-full" value={row?.text ?? ''} />
+          <span
+            className={`selectable block truncate text-[12.5px] ${row?.text ? 'text-text' : 'text-disabled'}`}
+            title={t('WindowText do XML (só leitura). Nos controles de texto o jogo pode trocar pelo texto do T_TextIndex; edite pela tela Textos ou com duplo clique no elemento.')}
+          >
+            {row?.text || '—'}
+          </span>
         </Field>
         {Object.keys(font).length === 0 && (
           <Field label={t('Fonte')}>
@@ -298,6 +292,7 @@ export default function PropertiesPanel() {
               title={t('FontColor no XML. Clique para escolher a cor.')}
               value={gameColorToHex(font.FontColor)}
               onCommit={(hex) => setFont('FontColor', hexToGameColor(hex))}
+              swatchesLabel={t('Cores usadas pelo jogo')}
             />
           </Field>
         )}

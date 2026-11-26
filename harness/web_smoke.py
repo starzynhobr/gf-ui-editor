@@ -192,6 +192,20 @@ def polish() -> None:
     check("marcar camada pela lista", bool(layer_file) and bool(wait(in_layers, 8, "camada marcada")), file=layer_file)
     js(toggle)
     check("desmarcar camada pela lista", bool(wait("!" + in_layers, 8, "camada desmarcada")))
+    # Alça entre seções: arrastar muito para baixo não tira nada da tela e só mexe nas duas vizinhas.
+    js("(() => { const row = __smoke.all('[data-section=all] [data-file]').find((r) => r.dataset.file.endsWith('.xml')); row.querySelector('[data-testid=layer-check]').click() })()")
+    wait("!!__smoke.q('[data-testid^=resize-]')", 8, "alça entre seções")
+    result = js(
+        "(() => { const h = __smoke.q('[data-testid^=resize-]'); const box = h.closest('[data-testid=files-panel]').getBoundingClientRect();"
+        " const r = h.getBoundingClientRect(); const y = r.top + 2;"
+        " h.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientY: y }));"
+        " window.dispatchEvent(new MouseEvent('mousemove', { clientY: y + 2000 }));"
+        " window.dispatchEvent(new MouseEvent('mouseup', { clientY: y + 2000 }));"
+        " const secs = __smoke.all('[data-section]').map((s) => s.getBoundingClientRect());"
+        " return secs.every((s) => s.bottom <= box.bottom + 1 && s.height >= 40) })()"
+    )
+    time.sleep(0.3)
+    check("alça entre seções não tira seção da tela", bool(result))
     js("__smoke.click('[data-testid=stz-pill]')")
     card = wait("__smoke.text('[data-testid=stz-card]')", 5, "cartão STZ") or ""
     time.sleep(0.6)  # animação de entrada

@@ -6,7 +6,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 
-const SWATCHES = ['#ffffff', '#000000', '#ffff00', '#ff0000', '#00ff00', '#00ffff', '#ff9900', '#c0c0c0']
+// Cores mais usadas nos XMLs oficiais (FontColor em BGR convertido), das mais comuns para as raras.
+const SWATCHES = ['#ffffff', '#000000', '#ecdcd8', '#ffff00', '#ff6a00', '#c0c0c0', '#ff0000', '#ffff80', '#ffcc00', '#00ff00', '#0000ff', '#00ffff']
 
 export function ColorPicker({
   value,
@@ -14,12 +15,14 @@ export function ColorPicker({
   title,
   name,
   onCommit,
+  swatchesLabel,
 }: {
   value: string
   disabled?: boolean
   title?: string
   name?: string
   onCommit: (hex: string) => void
+  swatchesLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -89,7 +92,8 @@ export function ColorPicker({
             transition={{ type: 'spring', stiffness: 460, damping: 32 }}
           >
             <HexColorPicker color={draft} onChange={setDraft} />
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <div className="mt-2.5 text-[11px] text-muted">{swatchesLabel}</div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
               {SWATCHES.map((swatch) => (
                 <button
                   key={swatch}

@@ -108,5 +108,15 @@
     "en_US": "Opens the texture in the system's default program for .dds files (Paint.NET, for example).",
     "es_ES": "Abre la textura en el programa predeterminado del sistema para archivos .dds (Paint.NET, por ejemplo).",
     "fr_FR": "Ouvre la texture dans le programme par défaut du système pour les fichiers .dds (Paint.NET, par exemple)."
+  },
+  "WindowText do XML (só leitura). Nos controles de texto o jogo pode trocar pelo texto do T_TextIndex; edite pela tela Textos ou com duplo clique no elemento.": {
+    "en_US": "WindowText from the XML (read-only). On text controls the game may replace it with the T_TextIndex text; edit it in the Texts page or by double-clicking the element.",
+    "es_ES": "WindowText del XML (solo lectura). En los controles de texto el juego puede cambiarlo por el texto de T_TextIndex; edítalo en la pantalla Textos o con doble clic en el elemento.",
+    "fr_FR": "WindowText du XML (lecture seule). Sur les contrôles de texte, le jeu peut le remplacer par le texte de T_TextIndex ; modifiez-le dans l'écran Textes ou par double-clic sur l'élément."
+  },
+  "Cores usadas pelo jogo": {
+    "en_US": "Colors used by the game",
+    "es_ES": "Colores usados por el juego",
+    "fr_FR": "Couleurs utilisées par le jeu"
   }
 }
