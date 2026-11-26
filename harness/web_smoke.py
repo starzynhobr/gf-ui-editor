@@ -373,6 +373,13 @@ def block2(project_root: Path) -> None:
     check("linha selecionada na árvore", js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"]').getAttribute('aria-selected')") == "true")
     panel = js("__smoke.text('[data-testid=properties-panel]')") or ""
     check("painel tem identificação, textura e aparência", all(word in panel for word in ("IDENTIFICAÇÃO", "TEXTURA", "APARÊNCIA", child.window_id)))
+    if js("(() => { const b = __smoke.q('[data-testid=open-atlas]'); return !!b && !b.disabled })()"):
+        js("__smoke.click('[data-testid=open-atlas]')")
+        check("Abrir atlas DDS pelo painel", bool(wait("!!__smoke.q('[data-testid=atlas-surface]')", 10, "atlas")))
+        time.sleep(1.0)
+        shot("11b-atlas")
+        js("__smoke.click('.gf-atlas-close')")  # <dialog> nativo: Esc sintético não fecha
+        check("atlas fecha pelo ×", bool(wait("!__smoke.q('[data-testid=atlas-surface]')", 5, "fecha atlas")))
     js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")
     check("travar desliga os campos do painel", bool(wait("__smoke.q('input[name=geometry-x]').disabled", 3, "travado")))
     js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")

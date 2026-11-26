@@ -1,6 +1,7 @@
 // Painel de propriedades (direita), como o PropertyPanel da clássica: posição e tamanho,
 // textura, identificação e aparência/fonte (só os campos que o controle tem no XML).
 // Toda edição vai por applyEdits (um passo de desfazer).
+import { atlasModule } from '../shell/atlas'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, type TreeRow } from '../api'
 import type { CanvasElement, CanvasRect } from '../bridge'
@@ -260,6 +261,15 @@ export default function PropertiesPanel() {
         >
           <Icon name="image" size={15} />
           {t('Trocar .dds…')}
+        </button>
+        <button
+          className="btn mt-1.5 h-7 w-full"
+          disabled={element.texture == null}
+          data-testid="open-atlas"
+          onClick={() => void atlasModule().then((atlas) => atlas?.openAtlas(element.index))}
+        >
+          <Icon name="layout" size={15} />
+          {t('Abrir atlas DDS…')}
         </button>
       </Card>
 

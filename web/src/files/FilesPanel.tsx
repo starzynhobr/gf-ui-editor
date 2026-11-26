@@ -1,5 +1,6 @@
 // Lista de Arquivos XML / Texturas: seções Camadas, Alterados e Todos (ordem e alturas
 // salvas, como a clássica), filtro e lista virtualizada (com ícones são ~18 mil arquivos).
+import { atlasModule } from '../shell/atlas'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type FileListData, type SectionKind } from '../api'
@@ -72,7 +73,8 @@ export default function FilesPanel() {
       if (!data?.directory) return
       const relative = data.files[index]
       if (data.mode === 'textures') {
-        showStatus(t('Prévia de texturas: chega junto com o canvas da interface nova.'), 6)
+        const path = joinPath(data.directory, relative)
+        void atlasModule().then((atlas) => atlas?.previewTexture(path))
         return
       }
       void openXml(joinPath(data.directory, relative))

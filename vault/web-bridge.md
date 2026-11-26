@@ -62,6 +62,14 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - Verificado na junção: smoke da web 61/61 (editar, desfazer/refazer, salvar com diff, descartar), XML gravado pela web idêntico byte a byte ao da clássica (`harness/canvas_edit_compare.py`: MailList, Storage), harness da clássica igual.
 - Tudo via `doc/store.ts`: o painel edita com `applyEdits`, a árvore seleciona com `select`, o canvas reflete `useDoc`.
 
+## Bloco 3 (feito, 25/11/2026): atlas, textos e ferramentas do projeto
+
+- Codex: atlas DDS (`web/src/atlas/`, `openAtlas`/`previewTexture`), canvas relendo os textos do jogo após editar, duplo clique `gf:element-dblclick`.
+- Claude 2: tela de Textos (`texts_session.py`, a clássica usa o mesmo serviço), ponte de manutenção (`web_api/maintenance.py`: versões, puxar, limpar, UI oficial, erro do jogo, exportar textos, cópias do F5) e diálogos/banners. Parou no limite de uso antes de ligar os pontos de entrada.
+- Principal: ligação dos pontos de entrada (cartão Continuar, menu ⋯, menu do projeto, chip da UI oficial, aviso de controles novos no F5, banner das cópias, duplo clique na árvore e no canvas, botão do atlas, prévia de textura), aviso de atualização dos textos do jogo (`game_text_updates.py` + `web_api/text_updates.py` + banner).
+- Verificado: smoke 80/80, XML idêntico byte a byte (inclusive recorte pelo atlas), harness da clássica igual.
+- Pendente: `insertControls` no store (Adicionar controles do oficial), posição na tela da raiz posicionada pelo jogo no painel, passos de smoke de Puxar/Limpar/Resolver erro.
+
 ## Próximos blocos
 
 3. Atlas, textos (busca, edição, importar/exportar), puxar, limpar, versões, UI oficial, erro do jogo, histórico.
