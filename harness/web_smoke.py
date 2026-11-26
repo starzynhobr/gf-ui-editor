@@ -252,6 +252,116 @@ def polish() -> None:
     _theme("Escuro")
     wait("document.documentElement.dataset.theme === 'dark'", 5, "tema escuro")
 
+THEMES = (("Escuro", "dark"), ("Claro", "light"), ("Meia-noite", "midnight"))
+
+
+def _set_theme(label: str, key: str) -> bool:
+    _theme(label)
+    changed = wait(f"document.documentElement.dataset.theme === '{key}'", 5, f"tema {key}")
+    time.sleep(0.4)  # a troca de tema anima as cores
+    return bool(changed)
+
+
+def _close_how_to() -> bool:
+    js("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+    return bool(wait("!__smoke.q('[data-testid=how-to]')", 5, "fecha Como usar"))
+
+
+def how_to_flow() -> None:
+    """F1 abre o "Como usar" (show_how_to da clássica); também pela engrenagem e pelo Ctrl+K. Captura nos 3 temas."""
+    prevented = js("(() => { const e = new KeyboardEvent('keydown', { key: 'F1', bubbles: true, cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented })()")
+    text = wait("__smoke.text('[data-testid=how-to]')", 5, "Como usar pelo F1") or ""
+    check("F1 abre o Como usar", bool(text) and bool(prevented), prevented=prevented)
+    steps = js("__smoke.all('[data-testid=how-to-step]').length")
+    check("Como usar com os cinco passos da clássica", steps == 5 and "Do projeto ao jogo em cinco passos" in text
+          and all(step in text for step in ("Crie um projeto", "Edite e salve", "Envie para o jogo com F5", "Entenda o preview", "Compartilhe")),
+          steps=steps)
+    shortcuts = js("__smoke.text('[data-testid=how-to-shortcuts]')") or ""
+    check("Como usar com o vídeo e os atalhos", bool(wait("!!__smoke.q('[data-testid=how-to-video]')", 5, "link do vídeo"))
+          and all(key in shortcuts for key in ("Ctrl+Shift+N", "Ctrl+Shift+O", "F5")), shortcuts=shortcuts)
+    entered = js("getComputedStyle(__smoke.q('[role=dialog]')).animationName")
+    check("Como usar com animação de entrada", entered == "dialog-in", animation=entered)
+    time.sleep(0.6)  # passos entram em sequência
+    shot("19a-como-usar-dark")
+    check("Esc fecha o Como usar", _close_how_to())
+
+    # Engrenagem: logo depois de Configurações…
+    js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu da engrenagem")
+    items = js("__smoke.all('[role=menu] [role=menuitem]').map((b) => b.innerText.trim())") or []
+    check("engrenagem tem Como usar depois de Configurações…", len(items) > 1 and items[1].startswith("Como usar"), items=items)
+    js("__smoke.clickText('Como usar', '[role=menu]')")
+    check("Como usar pela engrenagem", bool(wait("!!__smoke.q('[data-testid=how-to]')", 5, "Como usar pela engrenagem")))
+    _close_how_to()
+
+    # Ctrl+K.
+    js("__smoke.key('k', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-testid=command-input]')", 5, "paleta")
+    js("__smoke.setValue('[data-testid=command-input]', 'como usar')")
+    wait("((__smoke.q('[cmdk-item][data-selected=true]') || {}).innerText || '').includes('Como usar')", 5, "comando Como usar")
+    js("__smoke.q('[data-testid=command-input]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))")
+    check("Como usar pelo Ctrl+K", bool(wait("!__smoke.q('[data-testid=command-palette]') && !!__smoke.q('[data-testid=how-to]')", 5, "Como usar pela paleta")))
+    _close_how_to()
+
+    for label, key in THEMES[1:]:
+        _set_theme(label, key)
+        js("__smoke.key('F1')")
+        wait("!!__smoke.q('[data-testid=how-to]')", 5, f"Como usar no tema {key}")
+        time.sleep(0.7)
+        colors = js("(() => { const d = __smoke.q('[role=dialog]'); const h = d.querySelector('h2'); return [getComputedStyle(d).backgroundColor, getComputedStyle(h).color] })()") or []
+        check(f"Como usar no tema {label} segue o tema", len(colors) == 2 and colors[0] != colors[1], colors=colors)
+        shot(f"19b-como-usar-{key}")
+        _close_how_to()
+        if os.environ.get("GF_SMOKE_TOUR"):
+            theme_tour(key)
+    _set_theme("Escuro", "dark")
+
+
+def theme_tour(key: str) -> None:
+    """Só com GF_SMOKE_TOUR=1: capturas das telas novas no tema (conferência visual, sem verificações)."""
+    js("__smoke.key('k', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-testid=command-input]')", 5, "paleta")
+    time.sleep(0.4)
+    shot(f"tour-{key}-paleta")
+    js("__smoke.q('[data-testid=command-input]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))")
+    wait("!__smoke.q('[data-testid=command-palette]')", 5, "fecha paleta")
+    _open_settings()
+    time.sleep(0.4)
+    shot(f"tour-{key}-configuracoes")
+    _settings_section("updates")
+    time.sleep(0.3)
+    shot(f"tour-{key}-configuracoes-atualizacoes")
+    _close_settings()
+    js("__smoke.key('3', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-testid=tree-row]')", 5, "árvore")
+    js("__smoke.click('[data-testid=tree-row][data-index=\"1\"]')")
+    time.sleep(0.3)
+    js("__smoke.key('u', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-testid=source-panel] .cm-content')", 5, "código")
+    time.sleep(0.5)
+    shot(f"tour-{key}-codigo")
+    js("__smoke.key('u', { ctrlKey: true })")
+    wait("!__smoke.q('[data-testid=source-panel]')", 5, "fecha código")
+    if js("(() => { const b = __smoke.q('[data-testid=open-atlas]'); return !!b && !b.disabled })()"):
+        js("__smoke.click('[data-testid=open-atlas]')")
+        wait("!!__smoke.q('[data-testid=atlas-surface]')", 10, "atlas")
+        time.sleep(1.0)
+        shot(f"tour-{key}-atlas")
+        js("__smoke.click('.gf-atlas-close')")
+        wait("!__smoke.q('[data-testid=atlas-surface]')", 5, "fecha atlas")
+    js("__smoke.key('4', { ctrlKey: true })")
+    time.sleep(0.5)
+    shot(f"tour-{key}-textos")
+    js("__smoke.key('1', { ctrlKey: true })")
+    time.sleep(0.3)
+    # Divisor dos painéis e alça entre seções com o destaque de "arrastando".
+    js("(() => { __smoke.q('[data-testid=resize-left]').classList.add('is-dragging');"
+       " const r = __smoke.q('.gf-row-resize'); if (r) r.classList.add('is-dragging'); return true })()")
+    time.sleep(0.3)
+    shot(f"tour-{key}-divisores")
+    js("(() => { __smoke.all('.is-dragging').forEach((e) => e.classList.remove('is-dragging')); return true })()")
+
+
 def scenario() -> None:
     project_root = project_module.PROJECTS_ROOT / "Smoke-Test"
 
@@ -411,17 +521,20 @@ def scenario() -> None:
     # 10d. Polimento: pílula STZ Labs, temas, divisores dos painéis.
     polish()
 
+    # 10d2. Como usar (F1), nos 3 temas.
+    how_to_flow()
+
     # 10e. Bloco 4: Configurações, atualizador e manifesto remoto.
     settings_flow()
     updates_flow()
     manifest_flow()
 
     # 11. Idioma: inglês pela tela de Configurações (a engrenagem só tem Configurações,
-    # Novidades, Verificar atualizações e Sobre).
+    # Como usar, Novidades, Verificar atualizações e Sobre).
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
     wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
     gear = js("__smoke.all('[role=menu] [role=menuitem]').map((b) => b.innerText.trim())") or []
-    check("engrenagem enxuta", len(gear) == 4 and gear[0] == "Configurações…"
+    check("engrenagem enxuta", len(gear) == 5 and gear[0] == "Configurações…" and gear[1].startswith("Como usar")
           and not any("Idioma" in item or "Tema" in item for item in gear), items=gear)
     js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
     wait("!__smoke.q('[role=menu]')", 3, "fecha engrenagem")
