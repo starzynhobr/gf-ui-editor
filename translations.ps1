@@ -16,17 +16,14 @@ $sources = @(
     (Join-Path $root "src\gf_ui_editor\update_dialog.py")
 )
 
-$languages = & $python -c "import sys; sys.path.insert(0, sys.argv[1]); from gf_ui_editor.i18n import LANGUAGES; print(' '.join(LANGUAGES))" "$root\src"
+$languages = & $python -c "import sys; sys.path.insert(0, sys.argv[1]); from gf_ui_editor.i18n import LANGUAGES; print(' '.join(language for language in LANGUAGES if language != 'pt_BR'))" "$root\src"
 if ($LASTEXITCODE -ne 0) { throw "Falha ao ler os idiomas do aplicativo." }
 foreach ($language in $languages.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)) {
     $catalog = Join-Path $translations "gf_ui_editor_$language.ts"
     $compiled = Join-Path $translations "gf_ui_editor_$language.qm"
     if (-not (Test-Path -LiteralPath $catalog)) { throw "Catálogo ausente: $catalog" }
-    # Português é o texto-fonte do Qt. Seu catálogo registra apenas os textos da faixa.
-    if ($language -ne "pt_BR") {
-        & (Join-Path $scripts "pyside6-lupdate.exe") -no-obsolete @sources -ts $catalog
-        if ($LASTEXITCODE -ne 0) { throw "Falha ao atualizar $catalog." }
-    }
+    & (Join-Path $scripts "pyside6-lupdate.exe") -no-obsolete @sources -ts $catalog
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao atualizar $catalog." }
     $catalogXml = [xml](Get-Content -LiteralPath $catalog -Raw)
     if (($catalogXml.SelectNodes('//message[translation[@type="unfinished"] or not(translation) or normalize-space(translation)=""]')).Count -gt 0) {
         throw "Complete as traduções pendentes em $catalog antes de gerar o aplicativo."

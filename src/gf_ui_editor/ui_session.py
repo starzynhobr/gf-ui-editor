@@ -14,7 +14,7 @@ WEB_START_TIMEOUT = 20.0
 
 
 def migrate_ui_default(prefs: Preferences, version: str) -> None:
-    if prefs.get("ui_default_migrated") or parse_version(version) < parse_version("0.8.0"):
+    if prefs.get("ui_default_migrated") or parse_version(version) < parse_version("0.8.0-beta.1"):
         return
     if prefs.get("ui_mode", None) is None:
         prefs.ui_mode = "web"
