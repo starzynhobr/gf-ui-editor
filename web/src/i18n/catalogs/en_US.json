@@ -159,6 +159,8 @@
  "Controles da UI oficial": "Official UI controls",
  "Controles do oficial que {file} não tem": "Official controls that {file} does not have",
  "Controles novos do jogo": "New game controls",
+ "Converter em projeto leve…": "Convert to lightweight project…",
+ "Convertendo em projeto leve…": "Converting to a lightweight project…",
  "Copia a UI do jogo para um projeto com estes XML por cima; depois é só usar Enviar para o jogo.": "Copies the game UI into a project with these XML files on top; then just use Send to game.",
  "Copia controles da UI oficial que este arquivo não tem": "Copies controls from the official UI that this file does not have",
  "Copiando a UI para o projeto (para o jogo só vai o que você alterar)…": "Copying the UI into the project (only what you change goes to the game)…",

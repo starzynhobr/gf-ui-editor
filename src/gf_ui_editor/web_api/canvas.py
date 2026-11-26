@@ -11,7 +11,7 @@ from ..game_layout import DEFAULT_HUD
 from ..game_text_raster import prepare_web_rasterizer, web_text_mask
 from ..text_preview import layer_text
 from ..web_assets import WebAssets
-from ..xml_document import DocumentError, UIDocument
+from ..xml_document import DocumentError
 
 
 BACKGROUND_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp"}
@@ -32,7 +32,11 @@ class CanvasApi:
         return [web_text_mask(*request) for request in requests]
 
     def asset_base(self, xml_path: str) -> str:
-        return self._canvas_assets.base(Path(xml_path).parent, watch=True)
+        path = Path(xml_path)
+        project = getattr(self, "_project", None)
+        if project is not None and project.contains(path):
+            return self._canvas_assets.base(path.parent, watch=True, project=project)
+        return self._canvas_assets.base(path.parent, watch=True)
 
     def canvas_background_base(self) -> str:
         return self._canvas_assets.base(BACKGROUNDS_DIRECTORY)
@@ -118,7 +122,7 @@ class CanvasApi:
                 if source == current or not project.contains(source) or source.suffix.lower() != ".xml":
                     continue
                 try:
-                    document = UIDocument.load(source)
+                    document = project.load_document(source)
                     context = PreviewContext.load(source, tuple(resolution), saved_positions=saved_positions)
                 except (DocumentError, OSError, ValueError):
                     continue
@@ -144,7 +148,7 @@ class CanvasApi:
             layers = []
         elif action in ("add", "remove") and name:
             candidate = (project.ui_dir / name).resolve()
-            if not project.contains(candidate) or candidate.suffix.lower() != ".xml" or not candidate.is_file():
+            if not project.contains(candidate) or candidate.suffix.lower() != ".xml" or not project.read_path(candidate).is_file():
                 raise ValueError("Camada inválida.")
             relative = project.relative_key(candidate)
             layers = [layer for layer in project.reference_layers if layer.lower() != relative.lower()]
@@ -162,4 +166,9 @@ class CanvasApi:
 
     def open_document(self, path: str, resolution: list[int] | None = None, saved_positions: bool = True) -> dict:
         size = tuple(resolution) if resolution is not None else None
-        return describe_document(Path(path), size, saved_positions=saved_positions)
+        project = getattr(self, "_project", None)
+        target = Path(path)
+        return describe_document(
+            target, size, saved_positions=saved_positions,
+            source=project.read_path(target) if project is not None else None,
+        )

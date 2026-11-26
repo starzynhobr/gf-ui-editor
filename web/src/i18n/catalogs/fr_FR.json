@@ -159,6 +159,8 @@
  "Controles da UI oficial": "Contrôles de l'UI officielle",
  "Controles do oficial que {file} não tem": "Contrôles officiels absents de {file}",
  "Controles novos do jogo": "Nouveaux contrôles du jeu",
+ "Converter em projeto leve…": "Convertir en projet léger…",
+ "Convertendo em projeto leve…": "Conversion en projet léger…",
  "Copia a UI do jogo para um projeto com estes XML por cima; depois é só usar Enviar para o jogo.": "Copie l'UI du jeu dans un projet avec ces XML par-dessus ; il suffit ensuite d'utiliser Envoyer au jeu.",
  "Copia controles da UI oficial que este arquivo não tem": "Copie les contrôles de l'UI officielle que ce fichier n'a pas",
  "Copiando a UI para o projeto (para o jogo só vai o que você alterar)…": "Copie de l'UI dans le projet (seul ce que vous modifiez part vers le jeu)…",

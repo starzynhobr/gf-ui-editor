@@ -111,8 +111,10 @@ class PreviewContext:
         return [element_preview_offset(self.name, root_y, element, self.mode == "auto") for element in document.elements]
 
 
-def describe_document(path: Path, resolution: tuple[int, int] | None = None, *, saved_positions: bool = True) -> dict:
-    document = UIDocument.load(path)
+def describe_document(
+    path: Path, resolution: tuple[int, int] | None = None, *, saved_positions: bool = True, source: Path | None = None,
+) -> dict:
+    document = UIDocument.load(path, source=source)
     return describe_scene(document, PreviewContext.load(document.path, resolution, saved_positions=saved_positions))
 
 

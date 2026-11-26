@@ -67,13 +67,22 @@ class TextureFileApi:
         """Devolve "ok", "missing" (arquivo não existe) ou "failed" (sem programa associado)."""
         from pathlib import Path
 
-        from .. import desktop
+        from .. import desktop, textures
 
-        path = (Path(xml_path).parent / texture).resolve()
-        if path.suffix.lower() not in (".dds", ".tga") or not path.is_file():
+        xml = Path(xml_path)
+        project = getattr(self, "_project", None)
+        if project is not None and not project.contains(xml):
+            project = None
+        name = Path(texture)
+        if name.name != texture or name.suffix.lower() not in (".dds", ".tga"):
+            return "missing"
+        path = textures.find_texture(xml.parent, texture, project)
+        if path is None:
             return "missing"
         try:
-            desktop.open_path(path)
+            if project is not None:
+                project.materialize(path)
+            desktop.open_path(path.resolve())
         except OSError:
             return "failed"
         return "ok"

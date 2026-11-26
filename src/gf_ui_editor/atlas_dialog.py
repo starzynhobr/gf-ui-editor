@@ -448,10 +448,12 @@ class AtlasDialog(QDialog):
         texture_path: Path | None = None,
         button_uvs: dict[str, UVRect] | None = None,
         apply_button_uvs: Callable[[dict[str, UVRect], bool], None] | None = None,
+        materialize_texture: Callable[[], Path] | None = None,
     ):
         super().__init__(parent)
         self.texture_name = texture_name
         self.texture_path = texture_path
+        self._materialize_texture = materialize_texture
         self._apply_callback = apply_callback
         self._button_apply_callback = apply_button_uvs if button_uvs is not None else None
         self._button_uvs = {"NorUV": uv, **button_uvs} if button_uvs is not None else None
@@ -705,6 +707,12 @@ class AtlasDialog(QDialog):
         path = self.texture_path
         if path is None:
             return
+        if self._materialize_texture is not None:
+            try:
+                path = self._materialize_texture()
+            except OSError as exc:
+                QMessageBox.warning(self, self.tr("Abrir .dds"), str(exc))
+                return
         if not path.is_file():
             QMessageBox.warning(
                 self,
@@ -863,9 +871,10 @@ class AtlasDialog(QDialog):
 class TexturePreviewDialog(QDialog):
     """Olhar uma textura antes de abrir no editor de imagem: só zoom e arrastar, sem recorte."""
 
-    def __init__(self, texture_path: Path, users: int, parent=None):
+    def __init__(self, texture_path: Path, users: int, parent=None, *, project=None):
         super().__init__(parent)
         self.texture_path = texture_path
+        self._project = project
         self.setWindowTitle(self.tr("Textura — {name}").format(name=texture_path.name))
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.view = AtlasView()
@@ -908,7 +917,7 @@ class TexturePreviewDialog(QDialog):
         layout.addWidget(self.view, 1)
         layout.addWidget(panel)
         self.resize(1100, 720)
-        self._watcher = QFileSystemWatcher([str(texture_path)], self)
+        self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(lambda _path: QTimer.singleShot(300, self.reload))
         self.reload()
         QTimer.singleShot(0, self.view.fit_texture)
@@ -917,7 +926,8 @@ class TexturePreviewDialog(QDialog):
         from .texture_cache import open_dds_rgba
 
         try:
-            image = open_dds_rgba(self.texture_path)
+            source = self._project.read_path(self.texture_path) if self._project is not None else self.texture_path
+            image = open_dds_rgba(source)
         except Exception:  # noqa: BLE001 - arquivo sendo gravado ou formato estranho
             self.size_label.setText(self.tr("Não foi possível ler a imagem."))
             return
@@ -929,6 +939,13 @@ class TexturePreviewDialog(QDialog):
             self._watcher.addPath(str(self.texture_path))  # editores salvam trocando o arquivo
 
     def _open_dds(self) -> None:
+        if self._project is not None:
+            try:
+                self._project.materialize(self.texture_path)
+            except OSError as exc:
+                QMessageBox.warning(self, self.tr("Abrir .dds"), str(exc))
+                return
+            self.reload()  # Register the local file before the external editor can save it.
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.texture_path.resolve()))):
             QMessageBox.warning(
                 self,

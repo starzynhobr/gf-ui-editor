@@ -22,7 +22,9 @@ class DocumentApi:
 
     def doc_open(self, path: str | None, resolution: list[int] | None = None) -> dict | None:
         size = tuple(resolution) if resolution is not None else parse_resolution(self._prefs.game_resolution)
-        return self._document_session.open(path, size, saved_positions=self._prefs.canvas_saved_positions)
+        return self._document_session.open(
+            path, size, saved_positions=self._prefs.canvas_saved_positions, project=getattr(self, "_project", None),
+        )
 
     def doc_edit(self, edits: list[dict]) -> dict:
         return self._document_session.edit(edits)
