@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { openTextureFile } from '../shell/textureFile'
+import { t as shellT } from '../i18n'
 import { createPortal } from 'react-dom'
 import { call, type AtlasCuts, type AtlasElement, type CanvasRect } from '../bridge'
 import { applyEdits, useDoc, type Edit } from '../doc/store'
@@ -108,6 +110,15 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
       <header>
         <h2 id="gf-atlas-title">{t.title}{name && <> <span>{name}</span></>}</h2>
         {bitmap && <span>{bitmap.width} × {bitmap.height} px</span>}
+        {name && (
+          <button type="button" className="gf-atlas-open-dds" data-testid="atlas-open-dds"
+            onClick={() => {
+              // Edição: a textura fica ao lado do XML; prévia: o caminho já é o da textura.
+              const cut = Math.max(request.path.lastIndexOf('/'), request.path.lastIndexOf(String.fromCharCode(92)))
+              const base = request.kind === 'edit' ? request.path : request.path.slice(0, cut + 1) + '_'
+              void openTextureFile(base, name)
+            }}>{shellT('Abrir .dds')}</button>
+        )}
         <button type="button" className="gf-atlas-close" aria-label={t.close} disabled={busy} onClick={closeAtlas}>×</button>
       </header>
       <div className="gf-atlas-layout">
