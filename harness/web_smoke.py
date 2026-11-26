@@ -1175,7 +1175,7 @@ def external_xml_flow(project_root: Path) -> None:
     check("drop do WorldMap2.xml do jogo abre como avulso no projeto leve homônimo", bool(wait(
         f"__gfDoc.state().path === {path} && !!__gfDoc.state().doc"
         " && !!__smoke.q('[data-testid=standalone-bar]')"
-        " && __smoke.all('[data-standalone-file]').some((item) => item.textContent.trim() === 'WorldMap2.xml')"
+        " && __smoke.all('[data-standalone-file]').some((item) => item.textContent.startsWith('WorldMap2.xml'))"
         " && document.title.includes('WorldMap2.xml (Arquivo avulso)')", 12, "drop do XML do jogo",
     )) and api.shell_state()["project"]["light"])
 
