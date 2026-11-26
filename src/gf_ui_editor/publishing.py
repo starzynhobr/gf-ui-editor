@@ -36,6 +36,23 @@ def pending_new_controls(official_diffs: Iterable["FileDiff"]) -> list[str]:
     return sorted(diff.relative for diff in official_diffs if diff.new_ids)
 
 
+def _snapshot_official_texts(game_dir, edits: dict) -> None:
+    """Antes de gravar as edições, guarda o retrato dos arquivos que ainda são os oficiais.
+
+    Depois do envio o arquivo do jogo tem as edições e não serve mais de referência para o
+    aviso de atualização dos textos (game_text_updates). Falhar aqui não impede o envio.
+    """
+    try:
+        from . import game_text_updates
+        from . import project as project_module
+
+        crcs = game_text_updates.official_crcs(game_dir)
+        wanted = {name: crc for name, crc in crcs.items() if name in edits}
+        game_text_updates.TextSnapshots(project_module.PROJECTS_ROOT).capture(game_dir, wanted)
+    except Exception:  # noqa: BLE001 - o retrato é só para o aviso; o envio segue
+        pass
+
+
 def publish_texts(project: "Project", texts_disabled: bool, now: datetime | None = None) -> TextsOutcome:
     """Grava os textos editados do projeto no jogo, com cópia do anterior no histórico.
 
@@ -46,6 +63,8 @@ def publish_texts(project: "Project", texts_disabled: bool, now: datetime | None
     if blocked:
         edits = {}  # textos desligados pelo manifesto: a UI segue sendo enviada
     stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
+    if edits:
+        _snapshot_official_texts(project.game_dir, edits)
     changed, warnings = text_data.publish_edits(
         project.game_dir, edits, project.history_dir / "data" / stamp
     ) if edits else (0, [])

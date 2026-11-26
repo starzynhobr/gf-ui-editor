@@ -22,13 +22,14 @@ from .web_api.canvas import CanvasApi
 from .web_api.document import DocumentApi
 from .web_api.projects import ProjectsApi
 from .web_api.texts import TextsApi
+from .web_api.text_updates import TextUpdatesApi
 
 APP_TITLE = "STZ GF UI"
 DEV_URL = "http://localhost:5173"
 WEB_DIST = Path(__file__).resolve().parent / "web_dist"
 
 
-class WebApi(ProjectsApi, CanvasApi, DocumentApi, TextsApi):
+class WebApi(ProjectsApi, CanvasApi, DocumentApi, TextsApi, TextUpdatesApi):
     """Métodos chamáveis pelo front (`call("nome", ...)` em web/src/bridge.ts).
 
     Cada método público vira `window.pywebview.api.nome`. Devolvem só tipos JSON.
