@@ -63,3 +63,42 @@ Root: HKCU; Subkey: "Software\Classes\Applications\{#AppExeName}\shell\open\comm
 ; Sem "skipifsilent": na atualização automática (instalação /SILENT) o editor
 ; é reaberto ao terminar; na instalação normal vira a caixa "Executar".
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall
+
+[Code]
+// Interface nova (beta): usa o Edge WebView2 Runtime, que já vem no Windows 10/11.
+// Em Windows "lite" (Tiny11, AtlasOS…) ele pode faltar: baixa o instalador oficial da
+// Microsoft (~2 MB) e instala para este usuário. Se falhar (sem internet), segue: a
+// interface clássica não precisa dele e o editor avisa ao escolher a nova.
+const
+  WebView2Client = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+  WebView2Bootstrapper = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703';
+
+function WebView2Installed: Boolean;
+var
+  Version: String;
+begin
+  Result :=
+    (RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\' + WebView2Client, 'pv', Version) and (Version <> '') and (Version <> '0.0.0.0')) or
+    (RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\' + WebView2Client, 'pv', Version) and (Version <> '') and (Version <> '0.0.0.0')) or
+    (RegQueryStringValue(HKCU, 'Software\Microsoft\EdgeUpdate\Clients\' + WebView2Client, 'pv', Version) and (Version <> '') and (Version <> '0.0.0.0'));
+end;
+
+procedure InstallWebView2;
+var
+  ResultCode: Integer;
+begin
+  if WebView2Installed then
+    Exit;
+  try
+    DownloadTemporaryFile(WebView2Bootstrapper, 'MicrosoftEdgeWebview2Setup.exe', '', nil);
+    Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'), '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  except
+    Log('WebView2 não instalado: ' + GetExceptionMessage);
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    InstallWebView2;
+end;

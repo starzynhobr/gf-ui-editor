@@ -10,10 +10,14 @@ $stzMark = Join-Path $projectRoot "src\gf_ui_editor\assets\stz-mark.svg"
 $fonts = Join-Path $projectRoot "src\gf_ui_editor\assets\fonts"
 $backgrounds = Join-Path $projectRoot "src\gf_ui_editor\assets\backgrounds"
 $iconIco =Join-Path $projectRoot "packaging\app-icon.ico"
+$webDir = Join-Path $projectRoot "web"
+$webDist = Join-Path $projectRoot "src\gf_ui_editor\web_dist"
 if (-not (Test-Path -LiteralPath $python)) {
     throw "Crie o ambiente virtual antes: py -m venv .venv"
 }
 
+$npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+if (-not $npm) { throw "Node.js/npm não encontrado: necessário para compilar a interface nova (web\)." }
 Push-Location $projectRoot
 $originalPath = $env:PATH
 try {
@@ -22,7 +26,22 @@ try {
     $appVersion = & $python -c "from gf_ui_editor import __version__; print(__version__)"
     if ($LASTEXITCODE -ne 0 -or -not $appVersion) { throw "Falha ao ler a versão do aplicativo." }
     & (Join-Path $projectRoot "translations.ps1")
-    & $python -m PyInstaller --noconfirm --clean --onedir --windowed --name GF-UI-Editor --icon $iconIco --add-data "$iconPng;gf_ui_editor\assets" --add-data "$releaseNotes;gf_ui_editor\assets" --add-data "$contributors;gf_ui_editor\assets" --add-data "$stzLogo;gf_ui_editor\assets" --add-data "$stzMark;gf_ui_editor\assets" --add-data "$translations;gf_ui_editor\translations" --add-data "$fonts;gf_ui_editor\assets\fonts" --add-data "$backgrounds;gf_ui_editor\assets\backgrounds" --distpath dist --workpath build --specpath build packaging\launcher.py
+    # Interface nova: o build do front vai dentro do pacote (src\gf_ui_editor\web_dist).
+    Push-Location $webDir
+    try {
+        $env:PATH = "$(Split-Path -Parent $npm.Source);$env:PATH"
+        if (-not (Test-Path -LiteralPath (Join-Path $webDir "node_modules"))) {
+            & $npm.Source ci
+            if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar as dependências da interface nova (npm ci)." }
+        }
+        & $npm.Source run build
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar a interface nova (npm run build)." }
+    } finally {
+        Pop-Location
+        $env:PATH = "$(Split-Path -Parent $python);$env:SystemRoot\System32;$env:SystemRoot"
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $webDist "index.html"))) { throw "Build da interface nova não encontrado em $webDist." }
+    & $python -m PyInstaller --noconfirm --clean --onedir --windowed --name GF-UI-Editor --icon $iconIco --add-data "$iconPng;gf_ui_editor\assets" --add-data "$iconIco;gf_ui_editor\assets" --add-data "$releaseNotes;gf_ui_editor\assets" --add-data "$contributors;gf_ui_editor\assets" --add-data "$stzLogo;gf_ui_editor\assets" --add-data "$stzMark;gf_ui_editor\assets" --add-data "$translations;gf_ui_editor\translations" --add-data "$fonts;gf_ui_editor\assets\fonts" --add-data "$backgrounds;gf_ui_editor\assets\backgrounds" --add-data "$webDist;gf_ui_editor\web_dist" --collect-all webview --collect-all clr_loader --collect-all pythonnet --hidden-import clr --distpath dist --workpath build --specpath build packaging\launcher.py
     if ($LASTEXITCODE -ne 0) { throw "Falha ao empacotar o aplicativo." }
 
     $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"

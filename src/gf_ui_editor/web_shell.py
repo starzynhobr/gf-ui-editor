@@ -81,8 +81,37 @@ def run(
         background_color="#111318",
     )
     api._attach(window)
+    window.events.shown += lambda: apply_window_chrome(window)
     webview.start(debug=dev, gui="edgechromium" if sys.platform == "win32" else None)
     return 0
+
+
+def apply_window_chrome(window: Any) -> None:
+    """Barra de título escura (DWM) e ícone do app na janela nativa do Windows."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        hwnd = int(window.native.Handle.ToInt64())
+        dark = ctypes.c_int(1)
+        # DWMWA_USE_IMMERSIVE_DARK_MODE: 20 (Windows 10 20H1+ e 11); 19 nas versões anteriores.
+        for attribute in (20, 19):
+            if ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(dark), ctypes.sizeof(dark)) == 0:
+                break
+        icon = Path(__file__).resolve().parent / "assets" / "app-icon.ico"
+        if icon.is_file():
+            from System.Drawing import Icon  # type: ignore[import-not-found]
+
+            def set_icon() -> None:
+                window.native.Icon = Icon(str(icon))
+
+            if getattr(window.native, "InvokeRequired", False):
+                window.native.Invoke(set_icon)
+            else:
+                set_icon()
+    except Exception:  # noqa: BLE001 - só aparência; a janela segue sem isso
+        pass
 
 
 __all__ = ["WebApi", "run"]
