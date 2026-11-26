@@ -617,7 +617,7 @@ def block2(project_root: Path) -> None:
             try {
                 html.dataset.theme = 'smoke';
                 return getComputedStyle(__smoke.q('.gf-atlas-dialog')).backgroundColor === 'rgb(21, 43, 65)' &&
-                    getComputedStyle(__smoke.q('.gf-atlas-tools button')).cursor === 'pointer';
+                    getComputedStyle(__smoke.q('.gf-atlas-side .btn')).cursor === 'pointer';
             } finally {
                 if (previous === null) html.removeAttribute('data-theme');
                 else html.setAttribute('data-theme', previous);

@@ -18,13 +18,15 @@ function zoom(view: View, [x, y]: CanvasPoint, factor: number): View {
   return { x: x - (x - view.x) * ratio, y: y - (y - view.y) * ratio, scale }
 }
 
-export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop }: {
+export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop, onCursor }: {
   bitmap: ImageBitmap | null | undefined
   label: string
   cut?: CanvasRect
   editing: boolean
   frame: Frame
   onCrop: (crop: CanvasRect) => void
+  /** Pixel da textura sob o mouse (null ao sair da vista), para a linha "Cursor". */
+  onCursor?: (point: CanvasPoint | null) => void
 }) {
   const viewport = useRef<HTMLDivElement>(null)
   const image = useRef<HTMLCanvasElement>(null)
@@ -97,6 +99,10 @@ export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop }: {
   }
 
   function move(event: PointerEvent<HTMLDivElement>) {
+    if (onCursor && bitmap) {
+      const [x, y] = point(event)
+      onCursor([clamp(Math.floor(x), 0, Math.max(0, width - 1)), clamp(Math.floor(y), 0, Math.max(0, height - 1))])
+    }
     const active = gesture.current
     if (!active || active.id !== event.pointerId) return
     const [dx, dy] = [event.clientX - active.start[0], event.clientY - active.start[1]]
@@ -130,6 +136,7 @@ export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop }: {
       data-editing={editing} onPointerDown={start} onPointerMove={move}
       onPointerUp={(event) => finish(event, true)}
       onPointerCancel={(event) => finish(event, false)} onLostPointerCapture={(event) => finish(event, false)}
+      onPointerLeave={() => onCursor?.(null)}
       onContextMenu={(event) => event.preventDefault()}>
       {bitmap ? <>
         <canvas ref={image} width={width} height={height}

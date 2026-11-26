@@ -5,6 +5,7 @@
 // leitor de tela continuam enxergando um select de verdade, e mudar o valor dele por script
 // (evento "change") também troca a escolha aqui.
 import * as RadixSelect from '@radix-ui/react-select'
+import { useRef, useState } from 'react'
 import { Icon } from './Icon'
 
 export interface SelectOption {
@@ -49,9 +50,13 @@ export function Select({
   display?: string
 }) {
   const current = options.find((option) => option.value === value)
+  const wrapper = useRef<HTMLDivElement>(null)
+  // Dentro de um <dialog> modal (camada do topo), a lista abre dentro dele; no body ficaria atrás.
+  const [host, setHost] = useState<HTMLElement | null>(null)
   return (
-    <div className={`relative min-w-0 ${className}`} title={title}>
-      <RadixSelect.Root value={toRadix(value)} onValueChange={(next) => onChange(fromRadix(next))} disabled={disabled}>
+    <div ref={wrapper} className={`relative min-w-0 ${className}`} title={title}>
+      <RadixSelect.Root value={toRadix(value)} onValueChange={(next) => onChange(fromRadix(next))} disabled={disabled}
+        onOpenChange={(open) => { if (open) setHost(wrapper.current?.closest('dialog') ?? null) }}>
         <RadixSelect.Trigger
           className={`gf-select-trigger field flex w-full items-center justify-between gap-2 text-left ${size === 'sm' ? 'h-7' : 'h-8'}`}
           data-testid={testId}
@@ -65,7 +70,7 @@ export function Select({
             <Icon name="chevron-down" size={14} />
           </RadixSelect.Icon>
         </RadixSelect.Trigger>
-        <RadixSelect.Portal>
+        <RadixSelect.Portal container={host ?? undefined}>
           <RadixSelect.Content className="gf-select-content" position="popper" sideOffset={4} collisionPadding={8}>
             <RadixSelect.ScrollUpButton className="gf-select-scroll">
               <Icon name="chevron-down" size={13} className="rotate-180" />

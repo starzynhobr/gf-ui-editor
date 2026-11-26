@@ -10,6 +10,8 @@ import { AtlasSurface, type Frame } from './AtlasSurface'
 import { clamp } from './geometry'
 import { atlasStrings } from './strings'
 import { useAtlasTexture } from './texture'
+import { Icon } from '../ui/Icon'
+import { Select } from '../ui/Select'
 import './atlas.css'
 
 type Request = NonNullable<ReturnType<typeof useAtlasRequest>>
@@ -18,7 +20,7 @@ const emptyCuts: AtlasCuts = {}
 const normal = 'NorUV'
 
 function thumbnailSize([, , width, height]: CanvasRect): [number, number] {
-  const ratio = Math.min(52 / width, 42 / height)
+  const ratio = Math.min(56 / width, 56 / height)
   return [Math.max(1, Math.round(width * ratio)), Math.max(1, Math.round(height * ratio))]
 }
 
@@ -38,11 +40,11 @@ function Thumbnail({ bitmap, cut }: { bitmap: ImageBitmap | null | undefined; cu
   </span>
 }
 
-function Coordinate({ label, value, min, max, disabled, onChange }: {
-  label: string; value: number; min: number; max: number; disabled: boolean; onChange: (value: number) => void
+function Coordinate({ label, tip, value, min, max, disabled, onChange }: {
+  label: string; tip: string; value: number; min: number; max: number; disabled: boolean; onChange: (value: number) => void
 }) {
   const [draft, setDraft] = useState<string>()
-  return <label>{label}<input type="number" value={draft ?? value} min={min} max={max}
+  return <label title={tip}><span>{label}</span><input type="number" value={draft ?? value} min={min} max={max}
     disabled={disabled} onWheel={(event) => event.currentTarget.blur()}
     onBlur={() => setDraft(undefined)}
     onChange={(event) => {
@@ -64,6 +66,7 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
   const [resize, setResize] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [cursor, setCursor] = useState<[number, number] | null>(null)
   const locked = useDoc((doc) => request.kind === 'edit' && doc.locked.includes(request.index))
   const editable = Boolean(element?.texture && cuts[normal])
   const name = request.kind === 'preview' ? request.path.split(/[/\\]/).at(-1)! : element?.texture ?? ''
@@ -104,66 +107,125 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
     }
   }
 
+  const preview = request.kind === 'preview'
+  const button = Boolean(element?.button || cuts.ThumbUV)
+  const stateLabel = (option: State) => ({
+    NorUV: shellT('Normal'), FocusUV: shellT('Mouse sobre (hover)'), DownUV: shellT('Pressionado'),
+    DisableUV: shellT('Desativado'), ThumbUV: shellT('Cursor do slider'),
+  })[option]
+  const heading = state === normal ? shellT('RECORTE NORMAL (NorUV)') : `${stateLabel(state)} (${state})`
+  const hint = preview
+    ? shellT('Arraste para mover · roda = zoom · a imagem se atualiza ao salvar no editor')
+    : enabled
+      ? shellT('Arraste para marcar · arraste por dentro para mover · cantos e bordas ajustam · botão do meio navega · roda = zoom')
+      : shellT('Arraste para mover a vista · roda = zoom · Editar posição libera o recorte')
+  const openDds = () => {
+    // Edição: a textura fica ao lado do XML; prévia: o caminho já é o da textura.
+    const slash = Math.max(request.path.lastIndexOf('/'), request.path.lastIndexOf(String.fromCharCode(92)))
+    const base = request.kind === 'edit' ? request.path : request.path.slice(0, slash + 1) + '_'
+    void openTextureFile(base, name)
+  }
+
+  // Mesma organização do AtlasDialog da clássica: textura à esquerda e, na lateral, nome e
+  // tamanho, Centralizar | Atlas inteiro, Editar posição, estado do botão, recorte, Abrir .dds,
+  // dica, cursor e, no rodapé, Fechar e Aplicar.
   return (
     <dialog ref={dialog} role="dialog" className="gf-atlas-dialog" aria-labelledby="gf-atlas-title"
       onCancel={(event) => { event.preventDefault(); if (!busy) closeAtlas() }}>
-      <header>
-        <h2 id="gf-atlas-title">{t.title}{name && <> <span>{name}</span></>}</h2>
-        {bitmap && <span>{bitmap.width} × {bitmap.height} px</span>}
-        {name && (
-          <button type="button" className="gf-atlas-open-dds" data-testid="atlas-open-dds"
-            onClick={() => {
-              // Edição: a textura fica ao lado do XML; prévia: o caminho já é o da textura.
-              const cut = Math.max(request.path.lastIndexOf('/'), request.path.lastIndexOf(String.fromCharCode(92)))
-              const base = request.kind === 'edit' ? request.path : request.path.slice(0, cut + 1) + '_'
-              void openTextureFile(base, name)
-            }}>{shellT('Abrir .dds')}</button>
-        )}
-        <button type="button" className="gf-atlas-close" aria-label={t.close} disabled={busy} onClick={closeAtlas}>×</button>
-      </header>
       <div className="gf-atlas-layout">
-        <div className="gf-atlas-view">
-          <div className="gf-atlas-tools">
-            <button type="button" disabled={!bitmap} onClick={() => setFrame({ mode: 'fit' })}>{t.fit}</button>
-            {cut && <button type="button" disabled={!bitmap} onClick={() => setFrame({ mode: 'crop', crop: cut })}>{t.center}</button>}
-            <button type="button" aria-label={t.zoomOut} disabled={!bitmap} onClick={() => setFrame({ mode: 'zoom', factor: 1 / 1.2 })}>−</button>
-            <button type="button" aria-label={t.zoomIn} disabled={!bitmap} onClick={() => setFrame({ mode: 'zoom', factor: 1.2 })}>+</button>
+        <AtlasSurface bitmap={bitmap} label={!name ? t.unavailable : bitmap === null ? t.error : t.loading}
+          cut={preview ? undefined : cut} editing={enabled} frame={frame} onCrop={setCrop}
+          onCursor={(point) => { if (point) setCursor(point) }} />
+        <aside className="gf-atlas-side" data-testid="atlas-side">
+          <div className="gf-atlas-heading">
+            <h2 id="gf-atlas-title" title={preview ? shellT('Textura — {name}', { name }) : shellT('Atlas DDS — {name}', { name })}>
+              {name || t.title}
+            </h2>
+            <p data-testid="atlas-size">
+              {bitmap ? `${bitmap.width} × ${bitmap.height} px` : bitmap === null ? shellT('Não foi possível ler a imagem.') : ' '}
+            </p>
           </div>
-          <AtlasSurface bitmap={bitmap} label={!name ? t.unavailable : bitmap === null ? t.error : t.loading}
-            cut={cut} editing={enabled} frame={frame} onCrop={setCrop} />
-          <p className="gf-atlas-hint">{enabled ? t.drag : t.pan}</p>
-        </div>
-        {editable && <aside className="gf-atlas-controls">
-          <button type="button" aria-pressed={editing} disabled={!bitmap || locked || busy}
-            onClick={() => setEditing(!editing)}>{t.edit}</button>
-          <div className="gf-atlas-states">
-            {(element?.button || cuts.ThumbUV ? buttonStates : [normal] as State[]).map((name) =>
-              <button key={name} type="button" data-state={name} aria-pressed={state === name} disabled={!cuts[name] || busy} onClick={() => {
-                setState(name)
-                setFrame({ mode: 'crop', crop: cuts[name] })
-              }}>
-                <Thumbnail bitmap={bitmap} cut={cuts[name]} />{t.states[name]}
-              </button>,
+          <div className={preview ? 'gf-atlas-row gf-atlas-row-single' : 'gf-atlas-row'}>
+            {!preview && (
+              <button type="button" className="btn" disabled={!bitmap || !cut}
+                title={shellT('Aproxima e enquadra o recorte NorUV selecionado atualmente.')}
+                onClick={() => setFrame({ mode: 'crop', crop: cut })}>
+                <Icon name="focus" size={16} />{shellT('Centralizar')}
+              </button>
             )}
+            <button type="button" className="btn" disabled={!bitmap} onClick={() => setFrame({ mode: 'fit' })}>
+              <Icon name="frame" size={16} />{shellT('Atlas inteiro')}
+            </button>
           </div>
-          {cut && <fieldset className="gf-atlas-fields">
-            <legend>{t.crop} ({state})</legend>
-            {['X', 'Y', t.width, t.height].map((label, index) => (
-              <Coordinate key={`${state}:${index}`} label={label} value={cut[index]}
-                min={index < 2 ? -100000 : (element?.button || cuts.ThumbUV ? 0 : 1)}
-                max={(index % 2 === 0 ? bitmap?.width ?? 1 : bitmap?.height ?? 1) - (index < 2 ? 1 : 0)}
-                disabled={!enabled} onChange={(value) => {
-                  const next: CanvasRect = [...cut]
-                  next[index] = value
-                  setCrop(next)
+          {!preview && (
+            <button type="button" className="btn btn-primary gf-atlas-edit" aria-pressed={editing} data-testid="atlas-edit"
+              disabled={!editable || !bitmap || locked || busy}
+              title={shellT('Libera o recorte para ser marcado ou ajustado. Sem isto, arrastar só move a vista.')}
+              onClick={() => setEditing(!editing)}>
+              <Icon name="frame" size={16} />{editing ? shellT('Editando posição') : shellT('Editar posição')}
+            </button>
+          )}
+          {!preview && editable && button && (
+            <section className="gf-atlas-card" data-testid="atlas-state-card">
+              <span className="gf-atlas-card-title">{shellT('Estado do botão')}</span>
+              <Select size="sm" label={shellT('Estado do botão')} value={state} testId="atlas-state" disabled={busy}
+                options={(cuts.ThumbUV ? [normal, 'ThumbUV'] as State[] : buttonStates).map((option) => ({
+                  value: option,
+                  label: cuts[option] ? stateLabel(option) : shellT('{state} — não definido', { state: stateLabel(option) }),
+                  disabled: !cuts[option],
+                }))}
+                onChange={(value) => {
+                  const next = value as State
+                  setState(next)
+                  setFrame({ mode: 'crop', crop: cuts[next] })
                 }} />
-            ))}
-          </fieldset>}
-          <AtlasResizeCheckbox label={t.resize} checked={resize} disabled={!enabled || state !== normal} onChange={setResize} />
+              <Thumbnail bitmap={bitmap} cut={cut} />
+            </section>
+          )}
+          {!preview && editable && cut && (
+            <section className="gf-atlas-card" data-testid="atlas-uv-card">
+              <span className="gf-atlas-card-title gf-atlas-legend">{heading}</span>
+              <div className="gf-atlas-fields">
+                {['X', 'Y', shellT('L   ').trim(), shellT('A   ').trim()].map((label, index) => (
+                  <Coordinate key={`${state}:${index}`} label={label} value={cut[index]}
+                    tip={state + ['Left', 'Top', 'Width', 'Height'][index]}
+                    min={index < 2 ? -100000 : (button ? 0 : 1)}
+                    max={(index % 2 === 0 ? bitmap?.width ?? 1 : bitmap?.height ?? 1) - (index < 2 ? 1 : 0)}
+                    disabled={!enabled} onChange={(value) => {
+                      const next: CanvasRect = [...cut]
+                      next[index] = value
+                      setCrop(next)
+                    }} />
+                ))}
+              </div>
+              <AtlasResizeCheckbox label={shellT('Elemento com o tamanho do recorte')} checked={resize}
+                disabled={!enabled || state !== normal} onChange={setResize} />
+            </section>
+          )}
+          <button type="button" className="btn gf-atlas-open-dds" data-testid="atlas-open-dds" disabled={!name}
+            title={preview
+              ? shellT('Abre no programa padrão do Windows para .dds (Paint.NET, por exemplo)')
+              : shellT('Abre esta textura no aplicativo padrão do sistema.')}
+            onClick={openDds}>
+            <Icon name="image" size={16} />{shellT('Abrir .dds')}
+          </button>
+          <div className="gf-atlas-spacer" />
+          {!preview && !editable && name && <p role="status">{t.unavailable}</p>}
           {locked && <p role="status">{t.locked}</p>}
           {error && <p role="alert">{error}</p>}
-          <button className="gf-atlas-apply" type="button" disabled={!enabled} onClick={() => void apply()}>{t.apply}</button>
-        </aside>}
+          <p className="gf-atlas-hint">{hint}</p>
+          <p className="gf-atlas-cursor" data-testid="atlas-cursor">
+            {cursor ? shellT('Cursor: X {x} · Y {y}', { x: cursor[0], y: cursor[1] }) : shellT('Cursor: —')}
+          </p>
+          <footer className="gf-atlas-footer">
+            <button type="button" className="btn gf-atlas-close" disabled={busy} onClick={closeAtlas}>{shellT('Fechar')}</button>
+            {!preview && (
+              <button type="button" className="btn btn-primary gf-atlas-apply" disabled={!enabled} onClick={() => void apply()}>
+                {shellT('Aplicar')}
+              </button>
+            )}
+          </footer>
+        </aside>
       </div>
     </dialog>
   )

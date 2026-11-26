@@ -246,7 +246,7 @@ def web(out, page, project, expected):
 
     def click_atlas(caption):
         assert js(f"""[...document.querySelectorAll('.gf-atlas-dialog button')].some(button => {{
-            if (button.textContent !== {json.dumps(caption)} || button.disabled) return false
+            if (button.textContent.trim() !== {json.dumps(caption)} || button.disabled) return false
             button.click()
             return true
         }})"""), caption
@@ -276,7 +276,7 @@ def web(out, page, project, expected):
             wait("!!window.canvasEdit", "harness ready")
             js(f"canvasEdit.previewTexture({json.dumps(str(project.ui_dir / 'main.dds'))}); true")
             wait("!!document.querySelector('.gf-atlas-surface > canvas[style]') && document.querySelector('.gf-atlas-surface > canvas').offsetTop > 0", "texture preview without XML")
-            assert not js("!!document.querySelector('.gf-atlas-controls')")
+            assert not js("!!document.querySelector('[data-testid=atlas-edit], .gf-atlas-fields')")
             x, y = js("canvasEdit.atlasPoint(512, 512)")
             drag_at(x, y, 22, 17, button="middle")
             pan_x, pan_y = js("canvasEdit.atlasPoint(512, 512)")
@@ -339,14 +339,18 @@ def web(out, page, project, expected):
             results["layer-event-preserves-dirty-xml"] = True
 
             js(f"canvasEdit.openAtlas({ATLAS_INDEX}); true")
-            wait("document.querySelectorAll('.gf-atlas-thumb canvas').length === 4 && !!document.querySelector('.gf-atlas-cut')", "atlas states")
+            wait("document.querySelectorAll('[data-testid=atlas-state-card] select option:not([disabled])').length === 4 && !!document.querySelector('.gf-atlas-cut')", "atlas states")
             click_atlas("Editar posição")
             atlas_gesture((550, 87), (553, 89))
             wait("document.querySelector('.gf-atlas-fields input').value === '539'", "move normal crop")
             previous_x = js("canvasEdit.atlasPoint(603, 99)[0]")
-            click_atlas("Centralizar recorte")
+            click_atlas("Centralizar")
             wait(f"canvasEdit.atlasPoint(603, 99)[0] < {previous_x}", "recenter normal crop")
-            click_atlas("−")
+            view_x, view_y = js("""(() => {
+                const box = document.querySelector('.gf-atlas-surface').getBoundingClientRect()
+                return [box.x + box.width / 2, box.y + box.height / 2]
+            })()""")
+            cdp("Input.dispatchMouseEvent", type="mouseWheel", x=view_x, y=view_y, deltaX=0, deltaY=120)
             wait("Number(document.querySelector('.gf-atlas-magnification').textContent.slice(0, -1)) <= 1000", "zoom out from crop")
             # Land just inside the last pixel so the ceiling yields the intended end.
             x, y, edge = js("""(() => {
@@ -359,11 +363,16 @@ def web(out, page, project, expected):
             drag_at(x, y, end_x - x, end_y - y)
             wait("document.querySelectorAll('.gf-atlas-fields input')[2].value === '69'", "resize normal crop")
             js("document.querySelector('.gf-atlas-resize input').click(); true")
-            click_atlas("Foco")
+            assert js("""(() => {
+                const select = document.querySelector('[data-testid=atlas-state-card] select')
+                Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'FocusUV')
+                select.dispatchEvent(new Event('change', { bubbles: true }))
+                return true
+            })()""")
             wait("""(() => {
                 const cut = document.querySelector('.gf-atlas-cut').getBoundingClientRect();
                 const view = document.querySelector('.gf-atlas-surface').getBoundingClientRect();
-                return document.querySelector('[data-state=FocusUV]').ariaPressed === 'true' &&
+                return document.querySelector('[data-testid=atlas-state-card] select').value === 'FocusUV' &&
                     Math.abs(cut.left + cut.width / 2 - view.left - view.width / 2) < 1 &&
                     Math.abs(cut.top + cut.height / 2 - view.top - view.height / 2) < 1;
             })()""", "focus state centered")
