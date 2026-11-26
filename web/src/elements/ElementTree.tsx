@@ -178,7 +178,7 @@ export default function ElementTree() {
     return (
       <button
         className={`flex h-5 w-5 items-center justify-center rounded hover:bg-pressed ${
-          on ? (kind === 'isolated' ? 'text-warning' : 'text-accent-text') : 'text-disabled opacity-0 group-hover:opacity-100'
+          on ? (kind === 'isolated' ? 'text-warning' : 'text-accent-text') : 'text-disabled opacity-45 group-hover:opacity-100'
         }`}
         title={title}
         aria-label={title}

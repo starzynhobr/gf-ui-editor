@@ -29,7 +29,7 @@ function NumberField({
   disabled?: boolean
   title?: string
   name?: string
-  onCommit: (value: number) => void
+  onCommit: (value: number) => Promise<boolean> | void
 }) {
   const [text, setText] = useState(String(value))
   const editing = useRef(false)
@@ -46,8 +46,13 @@ function NumberField({
     }
     const next = clamp(number)
     setText(String(next))
-    if (next !== value) onCommit(next)
+    if (next !== value) send(next)
   }
+  // Edição recusada (travado, store indisponível, erro): o campo volta ao valor do documento.
+  const send = (next: number) =>
+    void Promise.resolve(onCommit(next)).then((ok) => {
+      if (ok === false) setText(String(value))
+    })
   return (
     <label
       className={`field flex items-center gap-2 font-mono text-[12px] ${disabled ? 'opacity-50' : ''}`}
@@ -82,7 +87,7 @@ function NumberField({
             const next = clamp((Number.isFinite(base) ? base : value) + step)
             setText(String(next))
             editing.current = false
-            onCommit(next)
+            send(next)
           }
         }}
       />
@@ -202,15 +207,15 @@ export default function PropertiesPanel() {
   const setGeometry = (position: number, value: number) => {
     const after = [...geometry] as CanvasRect
     after[position] = value
-    void editElement(
+    return editElement(
       [{ index: element.index, field: 'geometry', before: geometry, after }],
       t('Mover/redimensionar WindowID {id}', { id: element.id }),
     )
   }
   const setFont = (name: string, value: string) => {
     const before = font[name]
-    if (before === undefined || before === value) return
-    void editElement([{ index: element.index, field: 'font', name, before, after: value }], `${name} = ${value}`)
+    if (before === undefined || before === value) return Promise.resolve(true)
+    return editElement([{ index: element.index, field: 'font', name, before, after: value }], `${name} = ${value}`)
   }
   const title = row?.text || `WindowID ${element.id}`
   const uv = element.uv

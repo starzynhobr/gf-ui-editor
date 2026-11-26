@@ -7,7 +7,7 @@ import { on } from '../bridge'
 import { t } from '../i18n'
 import { showStatus, useShell } from '../store'
 import { message } from '../ui/dialogs'
-import { docState, openDocument, setIsolated, useDocState } from './doc'
+import { docState, editingAvailable, openDocument, setIsolated, useDocState } from './doc'
 import { closeRequested } from './saving'
 
 export default function DocSync() {
@@ -27,6 +27,11 @@ export default function DocSync() {
   }, [dirty])
 
   useEffect(() => on('close_requested', () => void closeRequested()), [])
+
+  // Gancho para o harness/web_smoke.py: saber se a edição já existe (store do canvas) e ler o estado.
+  useEffect(() => {
+    ;(window as unknown as { __gfDoc: object }).__gfDoc = { editing: editingAvailable, state: docState }
+  }, [])
 
   useEffect(() => {
     if (primary == null) return

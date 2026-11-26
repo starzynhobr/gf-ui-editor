@@ -221,14 +221,14 @@ def scenario() -> None:
     js("__smoke.key('2', { ctrlKey: true })")
     check("Ctrl+2 mostra Texturas", bool(wait("(__smoke.text('[data-testid=files-panel]') || '').includes('Texturas')", 5, "texturas")))
     js("__smoke.key('3', { ctrlKey: true })")
-    check("Ctrl+3 mostra Elementos (em breve)", bool(wait("!!__smoke.q('[data-testid=coming-soon]')", 5, "elementos")))
+    check("Ctrl+3 mostra a árvore de elementos", bool(wait("!!__smoke.q('[data-testid=element-tree]')", 5, "elementos")))
     js("__smoke.key('1', { ctrlKey: true })")
     wait("!!__smoke.q('[data-testid=files-panel] [data-file]')", 5, "volta aos XMLs")
 
     # 5. Edita o XML no disco (como o Notepad++ faria) e espera o contador do F5.
     target = project_root / "ui" / "BasicChar.xml"
     original = target.read_bytes()
-    edited = original.replace(b"<", b"\r\n<", 1) if not original.startswith(b"\r\n") else original + b"\r\n"
+    edited = original + b"\r\n"  # espaço depois da raiz: muda o arquivo e o XML continua válido
     target.write_bytes(edited)
     pending = wait("__smoke.text('[data-testid=publish-count]')", 12, "contador do F5")
     check("contador do F5 = 1", (pending or "").strip() == "1", pending=pending)
@@ -282,6 +282,9 @@ def scenario() -> None:
     crumb = wait("__smoke.text('[data-testid=breadcrumb]')", 8, "continuar")
     check("Continuar reabre o último XML", crumb is not None and "BasicChar.xml" in crumb)
 
+    # 10b. Bloco 2: árvore, painel, menu de arquivos, salvar e descartar.
+    block2(project_root)
+
     # 11. Idioma: inglês pelas configurações.
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
     wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
@@ -303,6 +306,128 @@ def scenario() -> None:
         " document.body.dispatchEvent(m); return [e.defaultPrevented, w.defaultPrevented, m.defaultPrevented] })()"
     )
     check("Ctrl+R, Ctrl+roda e menu de contexto bloqueados", blocked == [True, True, True], blocked=blocked)
+
+
+def block2(project_root: Path) -> None:
+    from gf_ui_editor.xml_document import UIDocument
+
+    xml = project_root / "ui" / "BasicChar.xml"
+    document = UIDocument.load(xml)
+    child = document.elements[1]
+    before_edit = xml.read_bytes()
+
+    # Árvore de elementos (Ctrl+3): uma linha por elemento, hierarquia, filtro.
+    js("__smoke.key('3', { ctrlKey: true })")
+    count = wait("__smoke.all('[data-testid=tree-row]').length", 15, "árvore de elementos")
+    check("árvore com uma linha por elemento", count == len(document.elements), rows=count, elements=len(document.elements))
+    nested = js("__smoke.all('[data-testid=tree-row] [style*=\"padding-left\"]').some((e) => parseInt(e.style.paddingLeft) > 0)")
+    check("árvore mostra a hierarquia (recuo dos filhos)", bool(nested))
+    js(f"__smoke.setValue('[data-testid=element-tree] input', '{child.window_id}')")
+    filtered = wait(
+        f"(() => {{ const rows = __smoke.all('[data-testid=tree-row]'); return rows.length > 0 && rows.length < {len(document.elements)}"
+        f" && rows.some((r) => r.dataset.index === '{child.index}') && rows.length }})()",
+        5, "filtro da árvore",
+    )
+    check("filtro da árvore pelo WindowID", bool(filtered), rows=filtered)
+    js("__smoke.setValue('[data-testid=element-tree] input', '')")
+    wait(f"__smoke.all('[data-testid=tree-row]').length === {len(document.elements)}", 5, "filtro limpo")
+
+    # Painel: sem seleção, depois o elemento clicado na árvore.
+    panel = js("__smoke.text('[data-testid=properties-panel]')") or ""
+    check("painel sem seleção", "Nenhum elemento selecionado" in panel, panel=panel[:80])
+    js(f"__smoke.click('[data-testid=tree-row][data-index=\"{child.index}\"]')")
+    x_value = wait("(__smoke.q('input[name=geometry-x]') || {}).value", 5, "painel com o elemento")
+    check("painel mostra a posição do XML", x_value == str(child.x), x=x_value, expected=child.x)
+    check("linha selecionada na árvore", js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"]').getAttribute('aria-selected')") == "true")
+    panel = js("__smoke.text('[data-testid=properties-panel]')") or ""
+    check("painel tem identificação, textura e aparência", all(word in panel for word in ("IDENTIFICAÇÃO", "TEXTURA", "APARÊNCIA", child.window_id)))
+    js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")
+    check("travar desliga os campos do painel", bool(wait("__smoke.q('input[name=geometry-x]').disabled", 3, "travado")))
+    js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")
+    js("__smoke.q('[data-testid=tree-header]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 }))")
+    menu = wait("__smoke.text('[role=menu]')", 3, "menu de colunas") or ""
+    check("menu de colunas com WindowID e ParentNode", "WindowID" in menu and "ParentNode" in menu, menu=menu)
+    js("window.dispatchEvent(new MouseEvent('mousedown'))")
+    shot("11-arvore-e-painel")
+
+    if js("window.__gfDoc && window.__gfDoc.editing()"):
+        edit_and_save(xml, child)
+    else:
+        log("skip", what="editar, salvar e descartar: o store do documento (doc/store.ts) ainda não está implementado")
+        js(f"__smoke.setValue('input[name=geometry-x]', '{child.x + 3}')")
+        js("__smoke.q('input[name=geometry-x]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))")
+        status = wait("(__smoke.text('[data-testid=status-message]') || '').includes('Edição indisponível')", 5, "aviso sem store")
+        check("sem o store, editar avisa e não grava", bool(status) and xml.read_bytes() == before_edit)
+
+    # Menu de contexto da lista de arquivos: renomear e apagar um XML que não está aberto.
+    js("__smoke.key('1', { ctrlKey: true })")
+    wait("!!__smoke.q('[data-section=all] [data-file]')", 5, "lista de arquivos")
+    js("__smoke.setValue('[data-testid=files-panel] input', 'AddressBook')")
+    wait("!!__smoke.q('[data-section=all] [data-file=\"AddressBook.xml\"]')", 5, "AddressBook na lista")
+    js("__smoke.q('[data-section=all] [data-file=\"AddressBook.xml\"]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 150, clientY: 300 }))")
+    menu = wait("__smoke.text('[role=menu]')", 5, "menu do arquivo") or ""
+    check("menu do arquivo tem Renomear, Apagar e Restaurar", all(word in menu for word in ("Renomear", "Apagar", "Restaurar versão anterior")), menu=menu)
+    shot("12-menu-arquivo")
+    js("__smoke.clickText('Renomear', '[role=menu]')")
+    wait("!!__smoke.q('[role=dialog] input')", 5, "nome novo")
+    js("__smoke.setValue('[role=dialog] input', 'AddressBook2')")
+    js("__smoke.clickText('OK', '[role=dialog]')")
+    renamed = project_root / "ui" / "AddressBook2.xml"
+    deadline = time.time() + 5
+    while time.time() < deadline and not renamed.is_file():
+        time.sleep(0.1)
+    check("renomear grava no projeto", renamed.is_file() and not (project_root / "ui" / "AddressBook.xml").exists())
+    js("__smoke.setValue('[data-testid=files-panel] input', 'AddressBook2')")
+    wait("!!__smoke.q('[data-section=all] [data-file=\"AddressBook2.xml\"]')", 5, "AddressBook2 na lista")
+    js("__smoke.q('[data-section=all] [data-file=\"AddressBook2.xml\"]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 150, clientY: 300 }))")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu do arquivo renomeado")
+    js("__smoke.clickText('Apagar', '[role=menu]')")
+    wait("(__smoke.text('[role=dialog]') || '').includes('AddressBook2.xml')", 5, "confirmar apagar")
+    js("__smoke.clickText('Sim', '[role=dialog]')")
+    deadline = time.time() + 5
+    while time.time() < deadline and renamed.exists():
+        time.sleep(0.1)
+    check("apagar tira o arquivo do projeto", not renamed.exists())
+    js("__smoke.setValue('[data-testid=files-panel] input', '')")
+
+
+def edit_and_save(xml: Path, child) -> None:
+    """Passos que dependem do store do documento (doc/store.ts implementado pelo canvas)."""
+    before = xml.read_bytes()
+    new_x = child.x + 3
+    js(f"__smoke.setValue('input[name=geometry-x]', '{new_x}')")
+    js("__smoke.q('input[name=geometry-x]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))")
+    check("editar X marca o XML como alterado", bool(wait("!!__smoke.q('[data-testid=dirty-marker]')", 5, "alterado")))
+    check("Salvar habilitado", js("!__smoke.q('[data-testid=save]').disabled") is True)
+    js("__smoke.key('z', { ctrlKey: true })")
+    check("Ctrl+Z desfaz", bool(wait("!__smoke.q('[data-testid=dirty-marker]')", 5, "desfeito")))
+    js("__smoke.key('y', { ctrlKey: true })")
+    check("Ctrl+Y refaz", bool(wait("!!__smoke.q('[data-testid=dirty-marker]')", 5, "refeito")))
+    js("__smoke.key('s', { ctrlKey: true })")
+    diff = wait("__smoke.text('[data-testid=diff]')", 8, "diff antes de salvar") or ""
+    check("Ctrl+S mostra o diff antes de gravar", "WindowLeft" in diff and xml.read_bytes() == before, diff=diff[:300])
+    shot("13-diff-salvar")
+    js("__smoke.click('[data-testid=diff-confirm]')")
+    check("salvar grava o X novo", bool(wait("!__smoke.q('[data-testid=dirty-marker]')", 8, "salvo")))
+    check("XML no disco com o X novo", f'WindowLeft="{new_x}"'.encode() in xml.read_bytes())
+
+    # Descartar ao trocar de XML.
+    saved = xml.read_bytes()
+    js(f"__smoke.setValue('input[name=geometry-x]', '{new_x + 5}')")
+    js("__smoke.q('input[name=geometry-x]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))")
+    wait("!!__smoke.q('[data-testid=dirty-marker]')", 5, "alterado de novo")
+    js("__smoke.click('[data-testid=topbar] button')")  # casinha
+    asked = wait("(__smoke.text('[role=dialog]') || '').includes('alterações não salvas')", 5, "descartar ao ir para a tela inicial")
+    check("tela inicial pergunta Descartar alterações?", bool(asked))
+    shot("14-descartar")
+    js("__smoke.clickText('Cancelar', '[role=dialog]')")
+    check("Cancelar mantém o XML aberto", bool(wait("!__smoke.q('[data-testid=home]') && !!__smoke.q('[data-testid=dirty-marker]')", 3, "cancelado")))
+    js("__smoke.click('[data-testid=topbar] button')")
+    wait("!!__smoke.q('[role=dialog]')", 5, "pergunta de novo")
+    js("__smoke.clickText('Descartar', '[role=dialog]')")
+    check("Descartar vai para a tela inicial sem gravar", bool(wait("!!__smoke.q('[data-testid=home]')", 5, "home")) and xml.read_bytes() == saved)
+    js("__smoke.clickText('Continuar', '[data-testid=home]')")
+    wait("__smoke.text('[data-testid=breadcrumb]')", 8, "volta ao XML")
 
 
 def driver() -> None:
