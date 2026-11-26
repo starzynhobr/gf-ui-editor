@@ -676,8 +676,14 @@ def scenario() -> None:
 
     # 10e. Bloco 4: Configurações, atualizador e manifesto remoto.
     settings_flow()
+    hidden_buttons_flow()
     updates_flow()
     manifest_flow()
+
+    # 10f. Notas de versão (acordeão, filtro, linha do tempo), fontes e o cartão STZ nas duas vistas.
+    release_notes_flow()
+    fonts_flow()
+    stz_helpers_flow()
 
     # 11. Idioma: inglês pela tela de Configurações (a engrenagem só tem Configurações,
     # Como usar, Novidades, Verificar atualizações e Sobre).
@@ -765,6 +771,197 @@ def settings_flow() -> None:
     _close_settings()
 
 
+def hidden_buttons_flow() -> None:
+    """Configurações sem botões apagados: o que não tem o que fazer não aparece."""
+    _open_settings()
+    disabled = []
+    for section in ("general", "editor", "screen", "publish", "updates"):
+        _settings_section(section)
+        time.sleep(0.25)
+        disabled += js(
+            "__smoke.all('[data-testid=settings] button:disabled').map((b) => b.innerText.trim() || b.getAttribute('aria-label'))"
+        ) or []
+    check("Configurações sem botões apagados", disabled == [], disabled=disabled)
+    _settings_section("general")
+    time.sleep(0.3)
+    row = js("__smoke.text('[data-testid=settings-review-skipped]')") or ""
+    check("sem versão pulada, só o texto", "Nenhuma versão pulada" in row
+          and not js("!!__smoke.q('[data-testid=settings-review-skipped] button')"), row=row)
+    notices = js("__smoke.text('[data-testid=settings-review-notices]')") or ""
+    check("sem avisos vistos, só o texto", not js("!!__smoke.q('[data-testid=settings-review-notices] button')"), row=notices)
+    shot("25-configuracoes-sem-botoes-apagados")
+    _close_settings()
+
+
+WHATS_NEW = "[data-testid=whats-new]"
+
+
+def release_notes_flow() -> None:
+    _open_settings()
+    _settings_section("updates")
+    js("__smoke.clickText('Novidades desta versão', '[data-testid=settings-updates]')")
+    check("Novidades abre", bool(wait(f"!!__smoke.q('{WHATS_NEW} [data-testid=release-notes]')", 8, "Novidades")))
+    time.sleep(0.6)
+    chips = js(f"__smoke.all('{WHATS_NEW} [data-filter]').map((c) => [c.dataset.filter, c.innerText.trim()])") or []
+    check("chips de categoria com contagem", len(chips) >= 2 and chips[0][0] == "all", chips=chips)
+    check("destaques no topo", (js(f"__smoke.all('{WHATS_NEW} .gf-notes-highlight').length") or 0) >= 3)
+    closed = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item-head[aria-expanded=false]').length") or 0
+    check("lista recolhida (só títulos)", closed > 3 and not js(f"!!__smoke.q('{WHATS_NEW} .gf-notes-item-text')"), closed=closed)
+    js(f"__smoke.q('{WHATS_NEW} .gf-notes-item-head').click()")
+    check("clicar no título abre a descrição", bool(wait(f"!!__smoke.q('{WHATS_NEW} .gf-notes-item-text')", 3, "item aberto")))
+    time.sleep(0.4)
+    shot("22a-novidades-acordeao")
+    js(f"__smoke.click('{WHATS_NEW} [data-testid=notes-toggle-all]')")
+    time.sleep(0.5)
+    opened = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item-head[aria-expanded=true]').length") or 0
+    check("Expandir tudo", opened == closed, opened=opened, total=closed)
+    js(f"__smoke.click('{WHATS_NEW} [data-testid=notes-toggle-all]')")
+    time.sleep(0.3)
+    js(f"__smoke.click('{WHATS_NEW} [data-filter=improved]')")
+    time.sleep(0.5)
+    kinds = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item').map((e) => e.classList.contains('is-improved'))") or []
+    check("filtro Melhorado mostra só melhorias", bool(kinds) and all(kinds)
+          and not js(f"!!__smoke.q('{WHATS_NEW} .gf-notes-highlight')"), count=len(kinds))
+    shot("22b-novidades-filtro")
+    js(f"__smoke.click('{WHATS_NEW} [data-filter=all]')")
+    if js("!!__smoke.q('[data-testid=whats-new-all]')"):
+        js("__smoke.click('[data-testid=whats-new-all]')")
+        versions = wait("__smoke.all('[data-testid=notes-timeline] [data-version]').map((b) => b.dataset.version)", 5, "linha do tempo") or []
+        check("Ver todas: linha do tempo com as versões", len(versions) > 1, versions=versions)
+        if len(versions) > 1:
+            last = versions[-1]
+            js("__smoke.all('[data-testid=notes-timeline] [data-version]').pop().click()")
+            time.sleep(0.9)
+            jumped = js(
+                "(() => { const box = __smoke.q('[data-testid=notes-scroll]');"
+                " const node = __smoke.all('[data-testid=notes-scroll] [data-release]').pop();"
+                " const top = node.getBoundingClientRect().top - box.getBoundingClientRect().top;"
+                " return box.scrollTop > 0 && (top < 40 || box.scrollTop + box.clientHeight >= box.scrollHeight - 2) })()"
+            )
+            check("linha do tempo pula até a versão", bool(jumped), version=last)
+        time.sleep(0.3)
+        shot("22c-novidades-todas-as-versoes")
+    js("(() => { const d = __smoke.all('[role=dialog]').find((e) => e.querySelector('[data-testid=whats-new]'));"
+       " const b = Array.from(d.querySelectorAll('button')).find((x) => x.innerText.trim() === 'Fechar'); b.click() })()")
+    wait(f"!__smoke.q('{WHATS_NEW}')", 5, "fechar Novidades")
+    _close_settings()
+
+
+FONT_FAMILIES = {"system": "Segoe UI", "plex": "IBM Plex Sans", "inter": "Inter", "geist": "Geist"}
+MONO_FAMILIES = {"plex": "IBM Plex Mono", "geist": "Geist Mono"}
+
+WIDTH_PROBLEMS = """(() => { const bad = [];
+  const name = (b) => b.innerText.trim() || b.getAttribute('aria-label') || b.dataset.testid;
+  for (const b of __smoke.all('[data-testid=topbar] button, [data-testid=side-rail] button, [data-testid=settings] button')) {
+    if (!b.offsetParent) continue;
+    if (b.scrollWidth > b.clientWidth + 1) bad.push('cortado: ' + name(b));
+  }
+  const bar = __smoke.q('[data-testid=topbar]');
+  if (bar && bar.scrollWidth > bar.clientWidth + 1) bad.push('barra superior transborda');
+  const pill = __smoke.q('[data-testid=stz-pill]');
+  if (pill) {
+    const p = pill.getBoundingClientRect();
+    for (const b of __smoke.all('[data-testid=topbar] button')) {
+      if (b === pill || !b.offsetParent) continue;
+      const r = b.getBoundingClientRect();
+      if (r.right > p.left && r.left < p.right) bad.push('sobre a pílula: ' + name(b));
+    }
+  }
+  return bad })()"""
+
+
+def _width_problems() -> list:
+    """Botões da barra superior, do trilho e das Configurações com texto cortado ou sobre a pílula."""
+    return js(WIDTH_PROBLEMS) or []
+
+
+def _font_loaded(family: str) -> str:
+    return (f"document.fonts.status === 'loaded' && document.fonts.check('400 13px \"{family}\"')"
+            f" && document.fonts.check('600 13px \"{family}\"')")
+
+
+def fonts_flow() -> None:
+    for key in ("plex", "inter", "geist", "system"):
+        _open_settings()
+        wait("!!__smoke.q('[data-setting=web_font]')", 5, "seletor de fonte")
+        js(f"__smoke.click('[data-setting=web_font] [data-value={key}]')")
+        family = FONT_FAMILIES[key]
+        applied = wait(
+            f"getComputedStyle(document.body).fontFamily.includes({json.dumps(family)})"
+            f" && (document.documentElement.dataset.font || 'system') === '{key}'", 5, f"fonte {key}",
+        )
+        loaded = key == "system" or bool(wait(_font_loaded(family), 8, f"arquivo da fonte {key}"))
+        check(f"fonte {family} aplicada na hora", bool(applied) and loaded, family=js("getComputedStyle(document.body).fontFamily"))
+        time.sleep(0.2)
+        check(f"fonte {family} salva em web_font", app_module.prefs.get("web_font") == key, saved=app_module.prefs.get("web_font"))
+        previews = js(
+            "__smoke.all('[data-setting=web_font] .gf-font-name').map((e) => getComputedStyle(e).fontFamily.split(',')[0].split('\"').join(''))"
+        ) or []
+        check("cada opção escrita na sua fonte", previews == ["Segoe UI", "IBM Plex Sans", "Inter", "Geist"], previews=previews)
+        time.sleep(0.6)  # a marca da opção escolhida desliza (Motion); mede depois que ela para
+        problems = _width_problems()
+        check(f"Configurações sem cortes com {family}", problems == [], problems=problems)
+        if key != "system":
+            shot(f"23-fonte-{key}-configuracoes")
+        _close_settings()
+        if key in MONO_FAMILIES:
+            mono = js("getComputedStyle(document.documentElement).getPropertyValue('--font-mono')") or ""
+            check(f"código e números em {MONO_FAMILIES[key]}", MONO_FAMILIES[key] in mono, mono=mono)
+        problems = _width_problems()
+        check(f"barra superior e painéis sem cortes com {family}", problems == [], problems=problems)
+        if key != "system":
+            time.sleep(0.3)
+            shot(f"23-fonte-{key}-editor")
+    # Ctrl+K também troca a fonte.
+    for query, label, expected in (("Fonte", "Inter", "inter"), ("Segoe", "Segoe UI", "system")):
+        js("__smoke.key('k', { ctrlKey: true })")
+        wait("!!__smoke.q('[data-testid=command-input]')", 5, "paleta")
+        js(f"__smoke.setValue('[data-testid=command-input]', '{query}')")
+        wait(f"__smoke.all('[cmdk-item]').some((e) => e.innerText.includes('{label}'))", 5, f"{label} na paleta")
+        if expected == "inter":
+            shot("23-fonte-paleta")
+        js(f"(() => {{ const item = __smoke.all('[cmdk-item]').find((e) => e.innerText.includes('{label}')); item && item.click() }})()")
+        current = f"(document.documentElement.dataset.font || 'system') === '{expected}'"
+        check(f"Ctrl+K troca a fonte para {label}", bool(wait(current, 5, f"fonte {label} pela paleta"))
+              and app_module.prefs.get("web_font") == expected)
+
+
+def stz_helpers_flow() -> None:
+    js("__smoke.click('[data-testid=stz-pill]')")
+    wait("!!__smoke.q('[data-testid=stz-card] [data-person]')", 5, "cartão STZ com pessoas")
+    time.sleep(1.0)  # números contando e cartões entrando
+    helpers = js("__smoke.text('[data-testid=stz-helpers]')") or ""
+    card = js("__smoke.text('[data-testid=stz-card]')") or ""
+    people = js("__smoke.all('[data-testid=stz-card] [data-person]').length") or 0
+    # NumberFlow desenha os dígitos no shadow DOM: o número final fica em data-value.
+    counts = js("['stz-people-count', 'stz-items-count'].map((id) => __smoke.q(`[data-testid=${id}]`)?.dataset.value ?? null)") or []
+    items = js("__smoke.all('[data-testid=stz-card] [data-person]').reduce((n, c) => n + Number((c.innerText.match(/(\d+) contribuiç/) || [0, 0])[1]), 0)")
+    check("cabeçalho com avatares e N pessoas ajudaram", people > 0 and "pessoas ajudaram" in helpers
+          and js("__smoke.all('.gf-stz-stack .gf-stz-avatar').length") == people
+          and counts == [str(people), str(items)], counts=counts, people=people, items=items, text=helpers[:120])
+    check("tags coloridas por tipo", bool(js(
+        "(() => { const tags = __smoke.all('[data-testid=stz-card] .gf-stz-tag[data-tag]');"
+        " const colors = new Set(tags.map((t) => getComputedStyle(t).color)); return tags.length > 0 && colors.size > 1 })()"
+    )))
+    check("links e convite do Discord", all(text in card for text in ("GitHub", "Discord", "stzlabs.com", "Conte no Discord")))
+    shot("24a-stz-pessoas")
+    most = js("(() => { const card = __smoke.all('[data-testid=stz-card] [data-person]').sort((a, b) => b.dataset.count - a.dataset.count)[0];"
+              " card.querySelector('button').click(); return [card.dataset.person, Number(card.dataset.count)] })()") or ["", 0]
+    items = wait("__smoke.all('[data-testid=stz-person-items] li').length", 3, "pessoa expandida") or 0
+    plus = js("__smoke.all('[data-testid=stz-card] button').some((b) => b.innerText.trim().startsWith('+'))")
+    check("cartão da pessoa expande com todas as contribuições", items == most[1] and items > 0 and not plus, items=items, person=most)
+    time.sleep(0.5)
+    shot("24b-stz-pessoa-aberta")
+    js("__smoke.click('[data-testid=stz-card] [data-view=versions]')")
+    versions = wait("__smoke.all('[data-testid=stz-view-versions] [data-version]').map((v) => v.dataset.version)", 3, "vista por versão") or []
+    line = js("(__smoke.q('[data-testid=stz-view-versions] .gf-stz-timeline-items li') || {}).innerText || ''") or ""
+    check("vista por versão: linha do tempo", len(versions) >= 1 and " — " in line, versions=versions, line=line[:80])
+    time.sleep(0.5)
+    shot("24c-stz-por-versao")
+    js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
+    wait("!__smoke.q('[data-testid=stz-card]')", 3, "fecha cartão")
+
+
 def updates_flow() -> None:
     version = "99.0.0"
     base = f"https://github.com/{updater.REPOSITORY}/releases/download/v{version}"
@@ -800,6 +997,7 @@ def updates_flow() -> None:
     _settings_section("general")
     review = wait("__smoke.text('[data-testid=settings-general]')", 5, "seção Geral") or ""
     check("Geral mostra a versão pulada", "99.0.0" in review, review=review[:200])
+    check("com versão pulada, Oferecer de novo aparece", bool(js("!!__smoke.q('[data-testid=settings-reset-skipped]')")))
     _close_settings()
     NET.clear()
 
