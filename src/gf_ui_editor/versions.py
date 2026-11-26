@@ -3,19 +3,26 @@
 "Salvar versão" guarda em `<projeto>/.versions/` um .zip com:
 - `ui/…`: os arquivos que diferem da UI oficial (como no F5 e no Exportar .zip), além
   dos oficiais que precisam ser arquivados porque a base compartilhada não os tem.
+- `resolutions.json` e `resolutions/…`: os ajustes por resolução e arquivos variantes
+  (deduplicados por conteúdo e, em projetos leves, pela base oficial por CRC).
 - `version.json`: nome, rótulo, data, a lista completa de arquivos do projeto, camadas, modos
-  da raiz e os textos editados.
+  da raiz, metadados de resoluções e os textos editados.
 
 "Restaurar" deixa o projeto como estava: grava os arquivos do .zip, devolve ao oficial os que
 eram oficiais naquela versão (procurando a cópia oficial no próprio histórico do projeto, na
 pasta UI do jogo ou no cache .official-ui) e tira os que não existiam. Tudo que é trocado
 ou removido vai antes para o .history. Antes de restaurar, a versão atual é salva sozinha.
+
+Compatibilidade: versões antigas (salvas sem o bloco `"resolutions"` em `version.json`) não
+tinham informação sobre ajustes de resolução; ao restaurá-las, `resolutions.json` e
+`resolutions/` atuais são mantidos intactos.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,12 +30,13 @@ import shutil
 import tempfile
 import zipfile
 
-from . import __version__, gamedata, storage, text_data
-from .project import Project, _same_content, safe_name
+from . import __version__, gamedata, multi_resolution, storage, text_data
+from .project import HISTORY_LIMIT, Project, _same_content, is_backup_file, safe_name
 
 VERSIONS_DIR = ".versions"
 FORMAT = 1
 MANIFEST = "version.json"
+TEMP_SUFFIX = ".gf-ui-editor.tmp"
 
 
 @dataclass(frozen=True)
@@ -36,8 +44,9 @@ class Version:
     path: Path
     label: str
     created: datetime
-    files: int  # arquivos guardados no .zip (os que diferem do oficial)
+    files: int  # arquivos guardados no .zip (os que diferem do oficial + resoluções)
     size: int  # tamanho do .zip
+    resolutions: int = 0  # ajustes e variantes de resolução guardados nesta versão
 
 
 @dataclass
@@ -50,6 +59,104 @@ class RestoreResult:
 
 def versions_dir(project: Project) -> Path:
     return project.root / VERSIONS_DIR
+
+
+def _content_digest(path: Path) -> tuple[int, str]:
+    data = path.read_bytes()
+    return len(data), hashlib.sha1(data).hexdigest()
+
+
+def _resolution_files(project: Project) -> list[Path]:
+    """Variantes em `resolutions/`, relativas a essa pasta, sem ocultos nem temporários."""
+    folder = project.root / multi_resolution.VARIANTS_DIR
+    if not folder.is_dir():
+        return []
+    files: list[str] = []
+    root = str(folder)
+    for current, folders, names in os.walk(root):
+        relative_dir = os.path.relpath(current, root)
+        top_level = relative_dir == "."
+        folders[:] = [name for name in folders if not name.startswith(".")]
+        for name in names:
+            if name.startswith(".") or is_backup_file(name):
+                continue
+            files.append(name if top_level else f"{relative_dir.replace(os.sep, '/')}/{name}")
+    return [Path(item) for item in sorted(files, key=str.lower)]
+
+
+def _resolution_target(project: Project, relative: str) -> Path:
+    """Valida e resolve um caminho relativo dentro de `<projeto>/resolutions/`."""
+    rel = Path(relative)
+    if rel.anchor or ".." in rel.parts or not rel.parts:
+        raise ValueError(f"Caminho inválido em resoluções: {relative}")
+    base = (project.root / multi_resolution.VARIANTS_DIR).resolve()
+    target = (base / rel).resolve()
+    if base not in target.parents:
+        raise ValueError(f"Caminho inválido em resoluções: {relative}")
+    return project.root / multi_resolution.VARIANTS_DIR / rel
+
+
+def _validate_archive_alias(arcname: str) -> str:
+    """Valida um alias interno no .zip (apenas `ui/...` ou `resolutions/...`, sem travessia)."""
+    rel = Path(arcname)
+    if (
+        not arcname
+        or rel.anchor
+        or ".." in rel.parts
+        or len(rel.parts) < 2
+        or rel.parts[0] not in ("ui", multi_resolution.VARIANTS_DIR)
+    ):
+        raise ValueError(f"Referência inválida na versão: {arcname}")
+    return arcname
+
+
+def _atomic_copy(source: Path, target: Path) -> bool:
+    """Copia `source` para `target` por arquivo temporário + replace, sem deixar meia escrita."""
+    if target.is_file() and _same_content(source, target):
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=TEMP_SUFFIX, dir=target.parent)
+    os.close(fd)
+    try:
+        shutil.copy2(source, temporary)
+        os.replace(temporary, target)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+    return True
+
+
+def _backup_project_file(project: Project, file_path: Path) -> Path:
+    """Guarda uma cópia em `.history/` para arquivos fora de `ui/` (ex.: `resolutions.json`)."""
+    relative = file_path.resolve().relative_to(project.root.resolve())
+    folder = project.history_dir / relative
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    candidate = folder / f"{stamp}{file_path.suffix}"
+    number = 2
+    while candidate.exists():
+        candidate = folder / f"{stamp}-{number}{file_path.suffix}"
+        number += 1
+    _atomic_copy(file_path, candidate)
+    backups = sorted(
+        (item for item in folder.iterdir() if item.is_file()),
+        key=lambda item: item.name,
+        reverse=True,
+    )
+    for old in backups[HISTORY_LIMIT:]:
+        old.unlink(missing_ok=True)
+    return candidate
+
+
+def _prune_empty_dirs(folder: Path, *, remove_root: bool = False) -> None:
+    if not folder.is_dir():
+        return
+    for current, dirs, files in os.walk(folder, topdown=False):
+        if not dirs and not files and (remove_root or current != str(folder)):
+            try:
+                os.rmdir(current)
+            except OSError:
+                pass
 
 
 def save_version(
@@ -87,6 +194,7 @@ def save_version(
         },
     }
     archived = set(shipped)
+    official: dict[str, tuple[int, str]] = {}
     if project.light:
         official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
         pins = official_files or project.base_files
@@ -109,13 +217,74 @@ def save_version(
         manifest.update(light=project.light, official_files=official_files, base_files=project.base_files)
     if len(archived) != len(shipped):
         manifest["archived"] = [relative.as_posix() for relative in files if relative in archived]
-    temporary = target.with_name(f".{target.name}.tmp")
-    with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=1))
+
+    res_config_path = project.root / multi_resolution.STORE_NAME
+    has_res_config = res_config_path.is_file()
+    res_files = _resolution_files(project)
+    res_official_files: dict[str, str] = {}
+    res_aliases: dict[str, str] = {}
+    res_archived: list[tuple[Path, str]] = []
+    if res_files:
+        base_by_lower = {name.lower(): blob for name, blob in project.base_files.items()}
+        # Só calcula hash dos arquivos de ui/ que têm o mesmo tamanho de alguma variante.
+        variant_sizes = {
+            (project.root / multi_resolution.VARIANTS_DIR / relative).stat().st_size
+            for relative in res_files
+        }
+        archived_digests: dict[tuple[int, str], str] = {}
         for relative in files:
-            if relative in archived:
-                archive.write(project.resolve(relative), f"ui/{relative.as_posix()}")
-    os.replace(temporary, target)
+            if relative not in archived:
+                continue
+            source = project.resolve(relative)
+            try:
+                if source.stat().st_size in variant_sizes:
+                    archived_digests.setdefault(_content_digest(source), f"ui/{relative.as_posix()}")
+            except OSError:
+                continue
+        for relative in res_files:
+            key = relative.as_posix()
+            source = project.root / multi_resolution.VARIANTS_DIR / relative
+            if project.light:
+                ui_key = Path(*relative.parts[1:]).as_posix() if len(relative.parts) > 1 else key
+                blob = base_by_lower.get(ui_key.lower())
+                if blob is None or not _same_content(source, project.base_path(blob)):
+                    blob = project.cache_official(source, ui_key, official)
+                if blob is not None:
+                    res_official_files[key] = blob
+                    continue
+            digest = _content_digest(source)
+            existing = archived_digests.get(digest)
+            if existing is not None:
+                res_aliases[key] = existing
+                continue
+            arcname = f"{multi_resolution.VARIANTS_DIR}/{key}"
+            archived_digests[digest] = arcname
+            res_archived.append((source, arcname))
+    res_manifest: dict[str, object] = {
+        "config": has_res_config,
+        "files": [relative.as_posix() for relative in res_files],
+    }
+    if res_official_files:
+        res_manifest["official_files"] = res_official_files
+    if res_aliases:
+        res_manifest["aliases"] = res_aliases
+    manifest["resolutions"] = res_manifest
+
+    temporary = target.with_name(f".{target.name}{TEMP_SUFFIX}")
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=1))
+            for relative in files:
+                if relative in archived:
+                    archive.write(project.resolve(relative), f"ui/{relative.as_posix()}")
+            if has_res_config:
+                archive.write(res_config_path, multi_resolution.STORE_NAME)
+            for source, arcname in res_archived:
+                archive.write(source, arcname)
+        os.replace(temporary, target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     return target
 
 
@@ -142,7 +311,15 @@ def list_versions(project: Project) -> list[Version]:
             created = datetime.fromisoformat(str(manifest.get("created")))
         except ValueError:
             created = datetime.fromtimestamp(path.stat().st_mtime)
-        result.append(Version(path, str(manifest.get("label") or ""), created, len(manifest.get("shipped", [])), path.stat().st_size))
+        res_meta = manifest.get("resolutions")
+        if isinstance(res_meta, dict):
+            res_count = int(bool(res_meta.get("config"))) + len(res_meta.get("files", []))
+        else:
+            res_count = 0
+        ui_count = len(manifest.get("shipped", []))
+        result.append(
+            Version(path, str(manifest.get("label") or ""), created, ui_count + res_count, path.stat().st_size, res_count)
+        )
     return sorted(result, key=lambda version: version.created, reverse=True)
 
 
@@ -176,18 +353,32 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
     manifest = _read_manifest(version)
     if manifest is None:
         raise ValueError(f"Versão inválida: {version}")
+    wanted = {str(name) for name in manifest.get("files", [])}
+    archived = {str(name) for name in manifest.get("archived", manifest.get("shipped", []))}
+    for name in wanted:
+        project.resolve(name)  # Validate paths before extracting or writing anything.
+    res_meta = manifest.get("resolutions")
+    has_res_meta = isinstance(res_meta, dict)
+    want_res_config = bool(res_meta.get("config")) if has_res_meta else False
+    want_res_files = [str(name) for name in res_meta.get("files", [])] if has_res_meta else []
+    res_pinned = dict(res_meta.get("official_files") or {}) if has_res_meta else {}
+    res_aliases = dict(res_meta.get("aliases") or {}) if has_res_meta else {}
+    for name in want_res_files:
+        _resolution_target(project, name)
+    for blob in res_pinned.values():
+        project.base_path(str(blob))
+    for arcname in res_aliases.values():
+        _validate_archive_alias(str(arcname))
+
     save_version(project, "antes de restaurar")
     result = RestoreResult()
     official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
-    wanted = {str(name) for name in manifest.get("files", [])}
-    archived = {str(name) for name in manifest.get("archived", manifest.get("shipped", []))}
     current = {relative.as_posix(): relative for relative in project.files(refresh=True)}
+    current_res = {relative.as_posix(): relative for relative in _resolution_files(project)} if has_res_meta else {}
     restore_light = bool(manifest.get("light", project.light))
     pinned = dict(manifest.get("official_files") or {})
     restored_base = dict(manifest.get("base_files", project.base_files)) if restore_light else {}
     restored_keys = {name.lower() for name in restored_base}
-    for name in wanted:
-        project.resolve(name)  # Validate paths before extracting or writing anything.
     with tempfile.TemporaryDirectory() as folder, zipfile.ZipFile(version) as archive:
         for name in sorted(wanted):
             target = project.resolve(name)
@@ -217,6 +408,45 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
                 result.written += 1
             else:
                 result.reverted += 1
+        if has_res_meta:
+            res_config_source: Path | None = None
+            if want_res_config:
+                res_config_source = Path(archive.extract(multi_resolution.STORE_NAME, folder))
+            res_writes: list[tuple[str, Path, bool]] = []
+            for name in sorted(want_res_files):
+                if name in res_pinned:
+                    source = project.base_path(str(res_pinned[name]))
+                    from_official = True
+                else:
+                    arcname = str(res_aliases.get(name, f"{multi_resolution.VARIANTS_DIR}/{name}"))
+                    source = Path(archive.extract(arcname, folder))
+                    from_official = False
+                if not source.is_file():
+                    result.unresolved.append(f"{multi_resolution.VARIANTS_DIR}/{name}")
+                    continue
+                res_writes.append((name, source, from_official))
+            res_config_target = project.root / multi_resolution.STORE_NAME
+            if want_res_config and res_config_source is not None:
+                if not (res_config_target.is_file() and _same_content(res_config_source, res_config_target)):
+                    if res_config_target.is_file():
+                        _backup_project_file(project, res_config_target)
+                    _atomic_copy(res_config_source, res_config_target)
+                    result.written += 1
+            elif not want_res_config and res_config_target.is_file():
+                _backup_project_file(project, res_config_target)
+                res_config_target.unlink()
+                result.removed += 1
+            for name, source, from_official in res_writes:
+                target = _resolution_target(project, name)
+                if target.is_file() and _same_content(source, target):
+                    continue
+                if target.is_file():
+                    _backup_project_file(project, target)
+                _atomic_copy(source, target)
+                if from_official:
+                    result.reverted += 1
+                else:
+                    result.written += 1
     for name, relative in current.items():
         if name not in wanted:
             path = project.ui_dir / relative
@@ -226,6 +456,16 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
                 shutil.copy2(path, project.history_path_for(path))
                 path.unlink()
             result.removed += 1
+    if has_res_meta:
+        wanted_res_lower = {name.lower() for name in want_res_files}
+        for name, relative in current_res.items():
+            if name.lower() not in wanted_res_lower:
+                path = project.root / multi_resolution.VARIANTS_DIR / relative
+                if path.is_file():
+                    _backup_project_file(project, path)
+                    path.unlink()
+                    result.removed += 1
+        _prune_empty_dirs(project.root / multi_resolution.VARIANTS_DIR, remove_root=True)
     if not result.unresolved:
         project.light = restore_light
         project.base_files = restored_base
