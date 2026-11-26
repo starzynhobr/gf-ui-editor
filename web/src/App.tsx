@@ -12,6 +12,8 @@ import DocSync from './shell/DocSync'
 import { selectElements, useEditingAvailable } from './shell/doc'
 import HomeScreen from './home/HomeScreen'
 import TextsPage from './texts/TextsPage'
+import Banners from './project/Banners'
+import { installOfficialEvents, startOfficialScan } from './project/official'
 import ProgressOverlay from './shell/ProgressOverlay'
 import SideRail from './shell/SideRail'
 import StatusBar from './shell/StatusBar'
@@ -36,8 +38,16 @@ export default function App() {
       },
       (reason) => setError(errorText(reason)),
     )
-    return installShortcuts()
+    const uninstall = installOfficialEvents()
+    const unshortcut = installShortcuts()
+    return () => {
+      uninstall()
+      unshortcut()
+    }
   }, [])
+
+  const projectRoot = shell?.project?.root ?? null
+  useEffect(() => startOfficialScan(projectRoot), [projectRoot])
 
   // O contador do F5 e a lista mudam quando o XML é salvo fora (Notepad++): relê ao voltar
   // para a janela e, com um projeto aberto, a cada poucos segundos.
@@ -76,7 +86,9 @@ export default function App() {
             {page === 'texts' ? <TextsPage /> : page === 'elements' ? <ElementTree /> : <FilesPanel />}
           </aside>
         )}
-        <main className="min-w-0 flex-1 bg-window" data-testid="center">
+        <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
+          {view === 'workspace' && <Banners />}
+          <div className="min-h-0 flex-1">
           {view === 'home' ? (
             <HomeScreen />
           ) : (
@@ -87,6 +99,7 @@ export default function App() {
               onSelect={storeReady ? undefined : (element) => selectElements(element ? [element.index] : [])}
             />
           )}
+          </div>
         </main>
         {view === 'workspace' && shell.open_path && (
           <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-border bg-panel">

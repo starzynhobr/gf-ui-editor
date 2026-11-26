@@ -137,3 +137,13 @@ export const redo = () => guard(() => store.redo(), () => undefined)
 export const previewSave = () => guard(() => store.previewSave(), () => '')
 export const save = () => guard(() => store.save(), unavailable)
 export const revert = () => guard(() => store.revert(), () => undefined)
+
+/**
+ * Controles do oficial que faltam (game_updates.insert_controls) como um passo de desfazer.
+ * Usa `insertControls(ids, label)` do doc/store quando o canvas o oferecer; até lá, avisa.
+ */
+export async function insertOfficialControls(ids: string[], label: string): Promise<void> {
+  const insert = (store as unknown as Record<string, unknown>).insertControls
+  if (typeof insert !== 'function' || useFallback.getState().active) throw new StoreUnavailable('inserir controles indisponível')
+  await (insert as (ids: string[], label: string) => Promise<void>)(ids, label)
+}
