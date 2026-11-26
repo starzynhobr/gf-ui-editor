@@ -8,6 +8,7 @@ import { browseProject, exportZip, goHome, newProject, openProject, publishToGam
 import { Icon } from '../ui/Icon'
 import { redo, undo, useDocState, useEditingAvailable } from './doc'
 import { saveDocument } from './saving'
+import { toggleSource, useSource } from '../source/SourcePanel'
 import { openMenuAt, type MenuItem } from '../ui/Menu'
 import {
   exportTexts, openOfficialCompare, openOfficialReference, resolveGameError, saveProjectVersion, showCleanup, showPull, showVersions,
@@ -25,6 +26,7 @@ export default function TopBar() {
   const canUndo = useDocState((state) => state.canUndo)
   const canRedo = useDocState((state) => state.canRedo)
   const editable = useEditingAvailable()
+  const sourceOpen = useSource((state) => state.open)
 
   useEffect(() => {
     const marker = dirty ? ' *' : ''
@@ -116,6 +118,17 @@ export default function TopBar() {
       </button>
       <button className="icon-button h-8 w-8" disabled={!canRedo} title={`${t('Refazer')} (Ctrl+Y)`} aria-label={t('Refazer')} onClick={() => void redo()}>
         <Icon name="redo" size={17} />
+      </button>
+      <button
+        className={`icon-button h-8 w-8 ${sourceOpen ? 'bg-accent-soft text-accent-text' : ''}`}
+        disabled={!fileName}
+        title={`${t('Ver código XML')} (Ctrl+U)`}
+        aria-label={t('Ver código XML')}
+        aria-pressed={sourceOpen}
+        data-testid="view-source"
+        onClick={toggleSource}
+      >
+        <Icon name="code" size={17} />
       </button>
       <div className="flex-1" />
       <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[70] flex -translate-x-1/2 items-center">
