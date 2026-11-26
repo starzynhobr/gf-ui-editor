@@ -106,3 +106,13 @@ def test_history_orders_betas_before_their_stable_release() -> None:
         "history": [{"version": "0.7.0-beta.1", "notes": {"en_US": {"new": [["Beta 1.", "b"]]}}}],
     }))
     assert [r.version for r in beta.since("0.6.0")] == ["0.7.0-beta.2", "0.7.0-beta.1"]
+
+
+def test_spotlight_is_kept_for_the_release_and_its_history():
+    notes = release_notes.parse(json.dumps({
+        "version": "0.8.1", "notes": {"pt_BR": {"new": [["A.", "b"]]}},
+        "history": [{"version": "0.8.0", "spotlight": "new_interface", "notes": {"pt_BR": {"new": [["C.", "d"]]}}}],
+    }))
+    assert notes.spotlight == ""
+    assert notes.history[0].spotlight == "new_interface"
+    assert release_notes.parse(json.dumps({"spotlight": 3, "notes": {"pt_BR": {"new": [["A.", "b"]]}}})).spotlight == ""

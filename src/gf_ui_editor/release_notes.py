@@ -39,6 +39,7 @@ class ReleaseNotes:
     date: str
     notes: dict[str, dict[str, list[Entry]]]
     history: tuple["ReleaseNotes", ...] = field(default=())
+    spotlight: str = ""  # destaque especial no topo (ex.: "new_interface")
 
     def since(self, current: str, limit: int = 5) -> list["ReleaseNotes"]:
         """Esta versão e as do histórico mais novas que `current`, da mais nova para a mais antiga."""
@@ -84,7 +85,7 @@ def parse(text: str | bytes) -> ReleaseNotes | None:
     history = data.get("history")
     if isinstance(history, list):
         parsed = (_parse_release(item) for item in history[:HISTORY_LIMIT])
-        release = ReleaseNotes(release.version, release.date, release.notes, tuple(item for item in parsed if item))
+        release = ReleaseNotes(release.version, release.date, release.notes, tuple(item for item in parsed if item), release.spotlight)
     return release
 
 
@@ -111,7 +112,11 @@ def _parse_release(data: object) -> ReleaseNotes | None:
             notes[language] = cleaned
     if not notes:
         return None
-    return ReleaseNotes(str(data.get("version", ""))[:20], str(data.get("date", ""))[:20], notes)
+    spotlight = data.get("spotlight")
+    return ReleaseNotes(
+        str(data.get("version", ""))[:20], str(data.get("date", ""))[:20], notes,
+        spotlight=spotlight[:40] if isinstance(spotlight, str) else "",
+    )
 
 
 def bundled() -> ReleaseNotes | None:

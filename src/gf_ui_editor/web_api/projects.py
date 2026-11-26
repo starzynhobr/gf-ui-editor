@@ -299,6 +299,7 @@ class ProjectsApi:
         return {
             "version": notes.version if notes is not None else __version__,
             "date": notes.date if notes is not None else "",
+            "spotlight": notes.spotlight if notes is not None else "",
             "sections": {name: [list(entry) for entry in sections.get(name, [])] for name in release_notes.SECTIONS},
         }
 
