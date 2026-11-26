@@ -30,6 +30,7 @@ from pathlib import Path
 
 OUT = Path(sys.argv[1]).resolve()
 PRISTINE = Path(sys.argv[2]).resolve()
+LIGHT = "--light" in sys.argv[3:]
 if OUT.exists():
     shutil.rmtree(OUT)
 (OUT / "home" / "Documents").mkdir(parents=True)
@@ -229,6 +230,14 @@ project = state.get("project")
 if project is None:
     raise SystemExit("sem projeto")
 ui = project.ui_dir
+if LIGHT:
+    from gf_ui_editor.cleanup import folder_size
+    from gf_ui_editor.project import convert_to_light
+
+    sizes = {"project_before": folder_size(project.root), "ui_before": folder_size(ui)}
+    assert convert_to_light(project) is not None
+    sizes.update(project_after=folder_size(project.root), ui_after=folder_size(ui))
+    (OUT / "size.json").write_text(json.dumps(sizes, indent=2), encoding="utf-8")
 
 
 def open_basicchar():
@@ -294,12 +303,18 @@ def move_and_save():
 run("mover_e_salvar", move_and_save)
 
 
+def texture_names():
+    return [
+        path.name for path in project.files()
+        if len(path.parts) == 1 and path.suffix.lower() in (".dds", ".tga")
+    ]
+
+
 def change_texture():
     index = state["textured"][2]
     window.select_element(index)
     current = window.document.elements[index].texture_name
-    names = app_module.textures.ui_texture_names(window.texture_cache.ui_directory) if hasattr(app_module, "textures") else None
-    other = next(n for n in sorted((p.name for p in ui.iterdir() if p.suffix.lower() in (".dds", ".tga")), key=str.lower) if n != current)
+    other = next(name for name in texture_names() if name != current)
     ANSWERS.extend(["Usar outro", other])
     window.change_selected_texture()
     pump(0.3)
@@ -317,7 +332,7 @@ run("trocar_textura", change_texture)
 
 def new_image():
     window.select_element(0)
-    names = sorted((p.name for p in ui.iterdir() if p.suffix.lower() in (".dds", ".tga")), key=str.lower)
+    names = texture_names()
     ANSWERS.append(names[0])
     window.new_image()
     pump(1)
@@ -680,7 +695,10 @@ def digest(folder: Path, skip=()) -> dict[str, str]:
 
 
 outputs = {
-    "project_ui": digest(ui),
+    "project_ui": {
+        path.as_posix(): hashlib.sha1(project.resolve(path).read_bytes()).hexdigest()
+        for path in project.files(refresh=True)
+    } if LIGHT else digest(ui),
     "game_ui": digest(GAME / "UI"),
     "uicustom": digest(GAME / "UICustom"),
     "translate": digest(GAME / "data" / "Translate"),
