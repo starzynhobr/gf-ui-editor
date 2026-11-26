@@ -83,15 +83,20 @@ function shifted(scene: CanvasDocument, indexes: number[], [dx, dy]: CanvasPoint
   }
 }
 
+/** O pedaço sob o ponto: primeiro os que o editor moveu (ou a pessoa ajustou), depois o HUD;
+ * entre eles, o menor (o que está "por cima" de uma janela grande). */
 export function pieceAt(windows: WindowInfo[], [x, y]: CanvasPoint): { file: string; piece: PieceInfo } | null {
-  for (const window of [...windows].reverse()) {
-    if (!window.moves && !window.hud) continue
-    for (const piece of [...window.pieces].reverse()) {
+  const hits: { file: string; piece: PieceInfo; rank: number; area: number }[] = []
+  for (const window of windows) {
+    for (const piece of window.pieces) {
       const [px, py, pw, ph] = piece.rect
-      if (x >= px && x <= px + pw && y >= py && y <= py + ph) return { file: window.file, piece }
+      if (x < px || x > px + pw || y < py || y > py + ph) continue
+      const rank = piece.moved || piece.adjusted ? 0 : window.hud ? 1 : window.moves ? 2 : -1
+      if (rank >= 0) hits.push({ file: window.file, piece, rank, area: pw * ph })
     }
   }
-  return null
+  hits.sort((a, b) => a.rank - b.rank || a.area - b.area)
+  return hits[0] ? { file: hits[0].file, piece: hits[0].piece } : null
 }
 
 function cssColor(name: string, fallback: string) {
@@ -115,7 +120,13 @@ export function ResolutionPreview({
   const palette = useCanvasPalette()
   const images = useLayerImages(cache, layers)
   const background = useBackground(cache, layers.find((layer) => layer.scene.preview.background)?.scene.preview.background)
-  const [drag, setDrag] = useState<Drag | null>(null)
+  const [drag, setDragState] = useState<Drag | null>(null)
+  // O arraste vive numa ref: eventos que chegam antes do próximo render (mouse rápido) já o veem.
+  const dragRef = useRef<Drag | null>(null)
+  const setDrag = (next: Drag | null) => {
+    dragRef.current = next
+    setDragState(next)
+  }
   const [hover, setHover] = useState<string | null>(null)
   const [width, height] = size
 
@@ -146,7 +157,7 @@ export function ResolutionPreview({
         const moving = drag && drag.file === window.file && drag.piece.key === piece.key
         const lit = highlight === window.file || hover === `${window.file}|${piece.key}` || !!moving
         // Contorno no que o editor mexeu (ou a pessoa ajustou); o resto só sob o mouse.
-        if (!lit && (!window.moves || (piece.rule[0] === 'game' && !piece.adjusted))) continue
+        if (!lit && !piece.moved && !piece.adjusted) continue
         const [x, y, w, h] = piece.rect
         const box: CanvasRect = moving ? [x + drag.delta[0], y + drag.delta[1], w, h] : [x, y, w, h]
         ctx.strokeStyle = piece.adjusted ? gold : accent
@@ -185,25 +196,31 @@ export function ResolutionPreview({
         const point = toScreen(event)
         const hit = pieceAt(windows, point)
         if (!hit) return
-        event.currentTarget.setPointerCapture?.(event.pointerId)
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId)
+        } catch {
+          // Ponteiro que o navegador não conhece (sintético): o arraste segue sem captura.
+        }
         setDrag({ ...hit, start: point, delta: [0, 0] })
       } : undefined}
       onPointerMove={interactive ? (event) => {
         const point = toScreen(event)
-        if (drag) {
-          setDrag({ ...drag, delta: [Math.round(point[0] - drag.start[0]), Math.round(point[1] - drag.start[1])] })
+        const current = dragRef.current
+        if (current) {
+          setDrag({ ...current, delta: [Math.round(point[0] - current.start[0]), Math.round(point[1] - current.start[1])] })
           return
         }
         const hit = pieceAt(windows, point)
         setHover(hit ? `${hit.file}|${hit.piece.key}` : null)
       } : undefined}
       onPointerUp={interactive ? () => {
-        if (!drag) return
+        const current = dragRef.current
+        if (!current) return
         setDrag(null)
-        const [dx, dy] = drag.delta
-        if (dx || dy) onAdjust?.(drag.file, drag.piece, [drag.piece.rect[0] + dx, drag.piece.rect[1] + dy])
+        const [dx, dy] = current.delta
+        if (dx || dy) onAdjust?.(current.file, current.piece, [current.piece.rect[0] + dx, current.piece.rect[1] + dy])
       } : undefined}
-      onPointerLeave={interactive ? () => !drag && setHover(null) : undefined}
+      onPointerLeave={interactive ? () => !dragRef.current && setHover(null) : undefined}
     />
   )
 }

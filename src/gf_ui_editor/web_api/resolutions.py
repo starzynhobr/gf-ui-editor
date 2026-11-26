@@ -119,7 +119,7 @@ class ResolutionsApi:
                     files.append(source.relative)
                 summary = mr.window_summary(outcome)
                 summary["hud"] = source.relative.lower() in hud
-                summary["moves"] = any(piece.rule != (mr.GAME, mr.GAME) or piece.adjusted for piece in outcome.pieces)
+                summary["moves"] = any(piece.moved or piece.adjusted for piece in outcome.pieces)
                 if summary["moves"] or summary["hud"] or outcome.changed:
                     windows.append(summary)
             variants = sorted(store.variants(target))

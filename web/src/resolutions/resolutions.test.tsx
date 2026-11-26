@@ -36,7 +36,7 @@ globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {
 
 const COMMON: Size[] = [[1366, 768], [1600, 900], [1920, 1080], [2560, 1440]]
 const piece = (rect: [number, number, number, number], adjusted = false, rule: PieceInfo['rule'] = ['middle', 'middle']): PieceInfo => ({
-  key: 'id:10000', indexes: [1, 2], rule, base: [631, 455, 295, 46], rect, adjusted,
+  key: 'id:10000', indexes: [1, 2], rule, base: [631, 455, 295, 46], rect, adjusted, moved: rule[0] !== 'game',
 })
 const elf = (rect: [number, number, number, number], adjusted = false): WindowInfo => ({
   file: 'ElfAttack.xml', kind: 'game', changed: true, hud: false, moves: true, pieces: [piece(rect, adjusted)],

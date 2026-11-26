@@ -12,6 +12,8 @@ export interface PieceInfo {
   base: CanvasRect
   rect: CanvasRect
   adjusted: boolean
+  /** O XML muda nesta resolução para o pedaço ficar no lugar. */
+  moved: boolean
 }
 
 export interface WindowInfo {

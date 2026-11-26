@@ -147,7 +147,7 @@ function FocusView({ target, layers, cache, onBack, onAdjust, onUndo, onUndoAll,
           {list.length === 0 && <div className="text-[12px] text-muted">{t('Nada: tudo fica onde o jogo põe.')}</div>}
           {list.map((window) =>
             window.pieces
-              .filter((piece) => piece.rule[0] !== 'game' || piece.adjusted)
+              .filter((piece) => piece.moved || piece.adjusted)
               .map((piece, index, pieces) => (
                 <div
                   key={`${window.file}|${piece.key}`}

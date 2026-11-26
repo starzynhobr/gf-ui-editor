@@ -313,6 +313,7 @@ class PiecePlacement:
     base_rect: Rect  # na resolução base
     rect: Rect  # na resolução alvo, depois da regra ou do ajuste
     adjusted: bool
+    moved: bool = False  # o XML muda para este pedaço ficar no lugar
 
 
 @dataclass
@@ -348,7 +349,10 @@ def generate(
         else:
             wanted = target_rect(piece, plan.base, target, adjusted)
         corrections[piece.key] = (wanted[0] - current[0], wanted[1] - current[1])
-        placements.append(PiecePlacement(piece.key, piece.indexes, piece.rule, piece.rect, wanted, adjusted is not None))
+        placements.append(PiecePlacement(
+            piece.key, piece.indexes, piece.rule, piece.rect, wanted, adjusted is not None,
+            corrections[piece.key] != (0, 0),
+        ))
 
     geometries: dict[int, Rect] = {}
     moving = {key: delta for key, delta in corrections.items() if delta != (0, 0)}
@@ -657,6 +661,7 @@ def window_summary(result: WindowResult) -> dict:
                 "base": list(piece.base_rect),
                 "rect": list(piece.rect),
                 "adjusted": piece.adjusted,
+                "moved": piece.moved,
             }
             for piece in result.pieces
         ],

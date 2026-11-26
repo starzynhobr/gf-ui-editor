@@ -86,6 +86,14 @@ A casca monta `<CanvasView path={xml aberto} />` (de `web/src/canvas/CanvasView.
 - AutoAnimate (`ui/animate.ts`): projetos da tela inicial, banners, versões, Puxar, controles do oficial, escolher textura. Listas virtualizadas (Arquivos, Texturas, resultados de Textos) ficam sem.
 - Engrenagem: Configurações…, Novidades, Verificar atualizações, Sobre (abre o cartão da pílula). Idioma/tema/interface ficam em Configurações e na paleta.
 
+## Exportar para várias resoluções (Claude 2, 26/11/2026)
+
+- Serviço sem Qt: `multi_resolution.py`. Cada XML vira **pedaços** (elementos que se encostam, folga de 48 px; tamanho zero entra no mais próximo; fora da tela fica onde está). Regra por eixo, pelo terço do espaço livre: começo = mantém a distância dessa borda, fim = mantém a distância da outra, meio = mantém a proporção. Fica igual ("o jogo cuida"): janela que o jogo posiciona com a raiz no tamanho real, pedaço encostado na raiz, pedaço que já sai da tela e janela ainda não mapeada (`placement` None). Gera o XML com o mínimo: só a raiz quando tudo anda junto numa janela do jogo (como o Harlem no ElfAttack), senão os elementos do pedaço.
+- Projeto: `resolutions.json` (base, resoluções marcadas, ajustes `arquivo → LxA → pedaço → [x, y]` na tela daquela resolução) e `resolutions/<LxA>/<caminho>` (arquivos só daquela resolução, ex. main.dds). Fora de `ui/`, então não entram na lista de arquivos, no F5 nem no Exportar normal; o Duplicar copia. **Ainda não** entram nas Versões do projeto.
+- Ponte: `web_api/resolutions.py` (`resolutions_info/set_choice/plan/scenes/adjust/reset/add_variant/remove_variant/pick_folder/export`). As cenas são `describe_scene` do XML gerado na resolução alvo (sem User.ini), iguais às camadas de referência; a análise fica em cache até um arquivo do projeto mudar.
+- Front: `web/src/resolutions/` (diálogo, prévia que importa `drawScreen`/`drawReferenceLayer` do canvas, `rules.ts` com as frases). Exportar virou botão dividido: o clique principal continua "Exportar UI (.zip)…"; a seta abre o menu com "Exportar para várias resoluções…".
+- Teste de referência: `tests/test_multi_resolution.py` lê os zips do Harlem de `~/Downloads/UI_s` (ou `GF_HARLEM_UIS`) e pula sem eles.
+
 ## Próximos blocos
 
 3. Atlas, textos (busca, edição, importar/exportar), puxar, limpar, versões, UI oficial, erro do jogo, histórico.
