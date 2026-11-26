@@ -806,6 +806,78 @@ body:has(.gf-resize.is-dragging) * {
   }
 }
 
+/* ---- Prévia flutuante da lista de Texturas (files/TexturePeek.tsx) ---- */
+.gf-texture-peek {
+  position: fixed;
+  z-index: 90;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-menu);
+  box-shadow: var(--shadow-float);
+  pointer-events: none;
+  transform-origin: left center;
+}
+.gf-texture-peek-thumb {
+  display: grid;
+  place-items: center;
+  margin: 8px 8px 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  /* Xadrez para ver a transparência da textura. */
+  background:
+    repeating-conic-gradient(color-mix(in srgb, var(--color-text) 9%, transparent) 0% 25%, transparent 0% 50%) 0 0 / 14px 14px,
+    var(--color-input);
+  overflow: hidden;
+}
+.gf-texture-peek-image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: auto;
+}
+.gf-texture-peek-loading {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent);
+  border-radius: 999px;
+  animation: peek-spin 700ms linear infinite;
+}
+@keyframes peek-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.gf-texture-peek-tag {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-chip);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.gf-texture-peek-tag.is-format {
+  border-color: color-mix(in srgb, var(--color-accent-border) 55%, transparent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+:root[data-theme="rosa"] .gf-texture-peek {
+  border-radius: 16px;
+}
+:root[data-theme="rosa"] .gf-texture-peek-thumb {
+  border-radius: 12px;
+}
+:root[data-theme="rosa"] .gf-texture-peek-tag:not(.is-format) {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
 /* "Abrir .dds" no cabeçalho do atlas */
 .gf-atlas-open-dds {
   height: 28px;

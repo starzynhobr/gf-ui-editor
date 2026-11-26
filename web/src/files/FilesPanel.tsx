@@ -16,6 +16,7 @@ import { projectFileItems } from './fileActions'
 import { Icon } from '../ui/Icon'
 import { EmptyState } from '../ui/EmptyState'
 import { openMenu, type MenuItem } from '../ui/Menu'
+import { TexturePeek, useTexturePeek } from './TexturePeek'
 
 const ROW_HEIGHT = 24
 const HEADER_HEIGHT = 28
@@ -225,6 +226,22 @@ export default function FilesPanel() {
     window.addEventListener('mouseup', up)
   }
 
+  // Prévia flutuante das texturas: a lista informa a linha sob o mouse; o cartão fica ao lado.
+  const peek = useTexturePeek(mode === 'textures')
+  const hoverRow = (index: number | null, row: HTMLElement | null) => {
+    if (index == null || !row || !data?.directory || data.mode !== 'textures') {
+      peek.hover(null)
+      return
+    }
+    const rect = row.getBoundingClientRect()
+    peek.hover({
+      path: joinPath(data.directory, data.files[index]),
+      rowTop: rect.top,
+      rowHeight: rect.height,
+      anchorRight: listBox.current?.getBoundingClientRect().right ?? rect.right,
+    })
+  }
+
   const title = mode === 'textures' ? t('Texturas') : t('Arquivos XML')
   const sectionTitle = (kind: SectionKind, count: number) =>
     kind === 'layers'
@@ -325,6 +342,8 @@ export default function FilesPanel() {
                   canLayer={Boolean(data.in_project)}
                   onLayer={toggleLayer}
                   diffs={officialDiffs}
+                  onHoverRow={hoverRow}
+                  onHidePeek={peek.hide}
                 />
                 {next && (
                   <div
@@ -339,6 +358,7 @@ export default function FilesPanel() {
       </div>
       </SortableContext>
       </DndContext>
+      {mode === 'textures' && <TexturePeek target={peek.target} />}
     </div>
   )
 }
@@ -363,6 +383,8 @@ function FileRows({
   canLayer,
   onLayer,
   diffs,
+  onHoverRow,
+  onHidePeek,
 }: {
   files: string[]
   items: number[]
@@ -379,6 +401,8 @@ function FileRows({
   canLayer: boolean
   onLayer: (index: number, on: boolean) => void
   diffs: Record<string, { new_ids: string[]; other_ids: string[] }>
+  onHoverRow?: (index: number | null, row: HTMLElement | null) => void
+  onHidePeek?: (mute?: boolean) => void
 }) {
   const t = useT()
   const parent = useRef<HTMLDivElement>(null)
@@ -416,7 +440,22 @@ function FileRows({
   }
 
   return (
-    <div ref={parent} tabIndex={0} className="min-h-0 flex-1 overflow-y-auto outline-none" onKeyDown={onKeyDown}>
+    <div
+      ref={parent}
+      tabIndex={0}
+      className="min-h-0 flex-1 overflow-y-auto outline-none"
+      onKeyDown={(event) => {
+        onHidePeek?.()
+        onKeyDown(event)
+      }}
+      onMouseMove={(event) => {
+        const row = (event.target as HTMLElement).closest<HTMLElement>('[data-index]')
+        onHoverRow?.(row ? Number(row.dataset.index) : null, row)
+      }}
+      onMouseLeave={() => onHoverRow?.(null, null)}
+      onScroll={() => onHidePeek?.()}
+      onMouseDownCapture={() => onHidePeek?.(true)}
+    >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((row) => {
           const index = items[row.index]
@@ -427,6 +466,7 @@ function FileRows({
             <div
               key={row.key}
               data-file={relative}
+              data-index={index}
               className={`absolute inset-x-0 flex items-center gap-2 px-3 ${
                 active === index ? 'bg-selected' : 'hover:bg-hover'
               } ${isOpen ? 'font-semibold text-bright' : 'text-text'}`}
@@ -438,7 +478,7 @@ function FileRows({
                 onActive(index)
                 onMenu(index, event.clientX, event.clientY)
               }}
-              title={relative}
+              title={mode === 'textures' ? undefined : relative}
             >
               {canLayer && mode === 'xml' && (
                 <input
