@@ -236,7 +236,8 @@ if LIGHT:
 
     sizes = {"project_before": folder_size(project.root), "ui_before": folder_size(ui)}
     assert convert_to_light(project) is not None
-    sizes.update(project_after=folder_size(project.root), ui_after=folder_size(ui))
+    sizes.update(project_after=folder_size(project.root), ui_after=folder_size(ui),
+                 shared_base=folder_size(project.root.parent / ".official-ui"))
     (OUT / "size.json").write_text(json.dumps(sizes, indent=2), encoding="utf-8")
 
 

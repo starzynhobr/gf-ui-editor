@@ -6070,7 +6070,7 @@ class EditorWindow(QMainWindow):
 
     def convert_current_project_to_light(self) -> None:
         project = self.project
-        if project is None or project.light or not self._save_before_project_action():
+        if project is None or not self._save_before_project_action():
             return
         try:
             self._run_with_progress(
@@ -7350,7 +7350,7 @@ class EditorWindow(QMainWindow):
 
     def _refresh_files(self) -> None:
         self.convert_light_action.setEnabled(
-            self.project is not None and self.project.game_dir is not None and not self.project.light
+            self.project is not None and self.project.game_dir is not None
         )
         """Remonta a lista mantendo o item atual (e a rolagem).
 

@@ -48,6 +48,7 @@ def fixtures(out, game, light=False):
     index.write_text("637|Original harness label|\n", encoding="ascii")
     projects = tuple(Project.create(name, source, game_fixture, out / "projects", include_assets=True) for name in ("qt", "web"))
     if light:
+        shutil.copytree(source, game_fixture / "UI")
         rows = []
         for path in source.iterdir():
             data = path.read_bytes()

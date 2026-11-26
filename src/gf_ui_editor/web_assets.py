@@ -54,7 +54,10 @@ class WebAssets:
         from Microsoft.Web.WebView2.Core import CoreWebView2HostResourceAccessKind
         from System import Action
 
-        host = "gfui-assets-" + sha256(os.fsencode(os.path.normcase(directory))).hexdigest()[:24] + ".local"
+        # Folder mappings and layered streams need separate hosts even for the same logical folder.
+        kind = "layered" if project is not None else "assets"
+        digest = sha256(os.fsencode(os.path.normcase(directory))).hexdigest()[:24]
+        host = f"gfui-{kind}-{digest}.local"
         native = self._window.native
 
         def map_folder() -> None:

@@ -21,8 +21,12 @@ import struct
 import tempfile
 from time import monotonic, sleep
 import traceback
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageChops
+
+if TYPE_CHECKING:
+    from gf_ui_editor.project import Project
 
 
 FILES = ("BasicChar", "Storage", "MailList", "Menu")
@@ -55,7 +59,7 @@ def isolate(out: Path, *, qt_platform: str = "offscreen") -> None:
     assert "HKEY" not in IsolatedQSettings("Local", "GF UI Editor").fileName()
 
 
-def classic(out: Path, game: Path, *, text_only: bool) -> tuple[list[dict], list[dict]]:
+def classic(out: Path, game: Path, project: Project | None, *, text_only: bool) -> tuple[list[dict], list[dict]]:
     from PySide6.QtCore import QBuffer, QIODevice, QPoint, QRectF, Qt
     from PySide6.QtWidgets import QApplication, QMessageBox
     from gf_ui_editor import app as editor
@@ -70,6 +74,8 @@ def classic(out: Path, game: Path, *, text_only: bool) -> tuple[list[dict], list
 
     QMessageBox.critical = staticmethod(fail_dialog)
     window = editor.EditorWindow()
+    window.project = project
+    ui = project.ui_dir if project is not None else game / "UI"
     window.resize(1540, 1060)
     window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     window.show()
@@ -85,7 +91,7 @@ def classic(out: Path, game: Path, *, text_only: bool) -> tuple[list[dict], list
     cases = []
     try:
         for name in (() if text_only else FILES):
-            path = game / "UI" / f"{name}.xml"
+            path = ui / f"{name}.xml"
             window.open_document(path)
             until = monotonic() + 20
             while window._textures_pending and monotonic() < until:
@@ -100,7 +106,7 @@ def classic(out: Path, game: Path, *, text_only: bool) -> tuple[list[dict], list
                 window.set_text_mode("game" if preview else "off")
                 window.set_game_resolution(PREVIEW_SIZE if preview else None)
                 window.set_background_mode("builtin" if background else "none")
-                doc = describe_document(path, PREVIEW_SIZE)
+                doc = describe_document(path, PREVIEW_SIZE, source=project.read_path(path) if project else None)
                 x, y, width, height = doc["preview"]["screen"] if preview else doc["bounds"]
                 width, height = min(1210, int(width) + 40), min(890, int(height) + 40)
                 view.resetTransform()
@@ -130,7 +136,7 @@ def classic(out: Path, game: Path, *, text_only: bool) -> tuple[list[dict], list
         window.set_text_mode("game")
         window.set_game_resolution(PREVIEW_SIZE)
         for name in TEXT_FILES:
-            path = game / "UI" / f"{name}.xml"
+            path = ui / f"{name}.xml"
             window.open_document(path)
             probes = []
             for index, item in window.items.items():
@@ -183,7 +189,8 @@ def dds_samples(directory: Path) -> list[Path]:
     return files
 
 
-def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml: Path, text_cases: list[dict], *, text_only: bool) -> tuple[list[str], dict]:
+def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml: Path, text_cases: list[dict],
+        project: Project | None, *, text_only: bool) -> tuple[list[str], dict]:
     import webview
     from gf_ui_editor.web_shell import WebApi
 
@@ -202,6 +209,7 @@ def web(out: Path, page: Path, cases: list[dict], samples: list[Path], large_xml
             return masks
 
     api = CompareApi()
+    api._project = project
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from offscreen import window_options
 
@@ -387,6 +395,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "gf-ui-harness-codex")
     parser.add_argument("--text-only", action="store_true", help="Measure only text masks and opening with text")
+    parser.add_argument("--light", action="store_true", help="Compare both canvases with a real lightweight project.")
     parser.add_argument("--baseline-page", type=Path, help="Compare a previously built legacy harness page")
     args = parser.parse_args()
     work = args.work.resolve()
@@ -399,23 +408,38 @@ def main() -> int:
     print(out, flush=True)
     # Use the actual Windows font engine but keep the classic widget unmapped.
     isolate(out, qt_platform="windows" if sys.platform == "win32" else "offscreen")
+    project = None
+    shared_dds = 0
+    if args.light:
+        from gf_ui_editor.project import Project
+
+        project = Project.create("Canvas fixture", game / "UI", game, light=True)
+        shared_dds = sum(Path(name).suffix.lower() == ".dds" for name in project.base_files)
+        if not shared_dds:
+            raise RuntimeError("The game fixture supplied no official DDS to the lightweight project.")
+        large_xml = project.ui_dir / large_xml.name
     source = Path(__file__).resolve().parent
     build = out / "build"
     if args.baseline_page is None:
         subprocess.run(["node", str(source / "canvas_compare.mjs"), str(build)], check=True)
     page = args.baseline_page.resolve(strict=True) if args.baseline_page else build / "harness" / "canvas_compare.html"
-    cases, text_cases = classic(out, game, text_only=args.text_only)
+    cases, text_cases = classic(out, game, project, text_only=args.text_only)
     from gf_ui_editor.texture_cache import open_dds_rgba
     samples = [] if args.text_only else dds_samples(game / "UI")
-    hashes, checks = web(out, page, cases, samples, large_xml,
-                         text_cases, text_only=args.text_only)
+    web_samples = samples
+    if project is not None:
+        logical = [project.ui_dir / path.relative_to(game / "UI") for path in samples]
+        web_samples = [path if project.read_path(path).is_file() else original
+                       for path, original in zip(logical, samples, strict=True)]
+    hashes, checks = web(out, page, cases, web_samples, large_xml,
+                         text_cases, project, text_only=args.text_only)
     differing = [str(path.relative_to(game / "UI"))
                  for path, decoded in zip(samples, hashes, strict=True)
                  if sha256(open_dds_rgba(path).tobytes()).hexdigest() != decoded]
     print(f"DDS: {len(samples) - len(differing)}/{len(samples)} match Pillow RGBA", flush=True)
     results = [compare(out, case) for case in cases]
     text_results = [compare_masks(out, case) for case in text_cases]
-    report = {"dds": {"files": len(samples), "differing": differing}, "comparisons": cases,
+    report = {"dds": {"files": len(samples), "differing": differing, "shared_dds": shared_dds}, "comparisons": cases,
               "text_masks": text_cases, "checks": checks}
     (out / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     batches = checks["large_xml_text"]["batches"]

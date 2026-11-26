@@ -243,9 +243,18 @@ class Project:
     def cache_official(self, source: Path, key: str, official: dict[str, tuple[int, str]]) -> str | None:
         from .game_updates import cache_ui_file
 
-        if gamedata.is_official(source, key, official):
-            return cache_ui_file(source, official[key.lower()], self.root.parent)
-        return None
+        if not gamedata.is_official(source, key, official):
+            return None
+        entry = official[key.lower()]
+        if Path(key).suffix.lower() not in (".dds", ".tga"):
+            return cache_ui_file(source, entry, self.root.parent)
+        if self.game_dir is None:
+            return None
+        installed = self.game_dir / "UI" / key
+        if not gamedata.is_official(installed, key, official):
+            return None
+        blob = cache_ui_file(installed, entry, self.root.parent)
+        return blob if installed == source or _same_content(source, self.base_path(blob)) else None
 
     def resolve(self, relative: str | Path) -> Path:
         """Resolve a project-relative name to its overlay or its pinned official bytes."""
@@ -683,30 +692,38 @@ def convert_to_light(project: Project, progress: Progress = None) -> Path | None
     """Pin the official files, checkpoint the full project, then remove redundant copies."""
     from .versions import save_version
 
-    if project.light:
-        return None
     official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
     if not official:
         raise ValueError("A lista oficial da UI é necessária para converter o projeto.")
     files = project.files(refresh=True)
-    pinned = {}
+    old_pins = project.base_files
+    was_light = project.light
+    pinned = dict(old_pins)
+    existing = project._base_by_key()
     for done, relative in enumerate(files, 1):
         key = relative.as_posix()
-        blob = project.cache_official(project.resolve(relative), key, official)
-        if blob is not None:
-            pinned[key] = blob
+        if key.lower() not in existing:
+            blob = project.cache_official(project.resolve(relative), key, official)
+            if blob is not None:
+                pinned[key] = blob
         if progress is not None:
             progress(done, len(files))
     if not pinned:
         raise ValueError("Nenhum arquivo do projeto corresponde à UI oficial.")
-    backup = save_version(project, "antes de converter para leve", official_files=pinned)
+    if was_light and pinned == old_pins:
+        project.compact_base()
+        return None
+    backup = save_version(
+        project, "antes de converter para leve" if not was_light else "antes de reconverter",
+        official_files=pinned,
+    )
     project.light = True
     project.base_files = pinned
     try:
         project.save_manifest()
     except Exception:
-        project.light = False
-        project.base_files = {}
+        project.light = was_light
+        project.base_files = old_pins
         raise
     project.compact_base()
     return backup

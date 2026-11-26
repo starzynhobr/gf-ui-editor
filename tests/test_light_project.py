@@ -4,7 +4,7 @@ import zlib
 
 import pytest
 
-from gf_ui_editor import desktop, file_list, game_sync, textures, versions
+from gf_ui_editor import desktop, file_list, game_sync, game_updates, project as project_module, textures, versions
 from gf_ui_editor.document_session import DocumentSession
 from gf_ui_editor.project import Project, convert_to_light, create_from_source
 from gf_ui_editor.texture_cache import TextureCache
@@ -161,3 +161,43 @@ def test_session_reloads_base_after_revert(tmp_path, game):
     xml = project.ui_dir / "Window.xml"
     assert session.open(xml, project=project) == session.revert()
     assert not xml.exists()
+
+
+def test_reconversion_pins_installed_textures_and_preserves_old_layers(tmp_path, game, monkeypatch):
+    extra = {"itemicon/Item.dds": b"item", "map/World.tga": b"map", "Custom.dds": b"official"}
+    for name, data in extra.items():
+        path = game / "UI" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    write_official(game, {**FILES, **extra})
+    root = tmp_path / "projects"
+    monkeypatch.setattr(project_module, "PROJECTS_ROOT", root)
+    assert game_updates.snapshot_official_ui(game) == (2, 2)
+    project = Project.create("Old light", game / "UI", game, root, include_assets=True)
+    xml = project.ui_dir / "Window.xml"
+    blob = project.cache_official(xml, "Window.xml", {"window.xml": (len(XML), f"{zlib.crc32(XML):08X}")})
+    project.light = True
+    project.base_files = {"Window.xml": blob, "Other.xml": blob}
+    project.deleted.add("other.xml")
+    project.save_manifest()
+    xml.unlink()
+    (project.ui_dir / "Other.xml").unlink()
+    (game / "UI" / "Custom.dds").write_bytes(b"changed!")
+    (game / "UI" / "skin" / "Map.tga").write_bytes(b"TGA mine")
+
+    checkpoint = convert_to_light(project)
+    assert checkpoint is not None
+    reopened = Project.load(project.root)
+    assert reopened.base_files["Window.xml"] == blob
+    assert not reopened.resolve("Other.xml").exists()
+    for name in ("Main.dds", "itemicon/Item.dds", "map/World.tga"):
+        source = reopened.resolve(name)
+        assert source.parent == root / ".official-ui"
+        assert source.read_bytes() == (game / "UI" / name).read_bytes()
+        assert not (project.ui_dir / name).exists()
+    for name in ("Custom.dds", "skin/Map.tga"):
+        assert reopened.resolve(name) == project.ui_dir / name
+    assert convert_to_light(reopened) is None
+    assert not versions.restore_version(reopened, checkpoint).unresolved
+    assert (project.ui_dir / "Main.dds").read_bytes() == FILES["Main.dds"]
+    assert not reopened.resolve("Other.xml").exists()

@@ -2,9 +2,9 @@
 
 O launcher guarda em `GameDataFileList.txt` o tamanho e o CRC32 de cada arquivo
 oficial (`UI\\BasicChar.xml|31651|E01700FF|…`). Sempre que um XML em `<jogo>/UI`
-bate com essa lista ele é a versão oficial atual, e uma cópia vai para um cache
-(`<projetos>/.official-ui/<CRC>.xml`), junto com a ordem em que cada versão foi
-vista (`versions.json`): o launcher sobrescreve `UI/` com a UI custom escolhida.
+bate com essa lista ele é a versão oficial atual, e uma cópia vai para o cache
+por CRC (`<projetos>/.official-ui/`), junto com a ordem em que cada versão foi
+vista. O launcher sobrescreve `UI/` com a UI custom escolhida.
 
 Faltar um controle do oficial não quer dizer que algo quebrou: quem redesenha a
 UI remove controles de propósito. Só são "novos" (e só esses geram aviso) os
@@ -26,8 +26,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zlib
 
-from . import project as project_module
-from . import storage
+from . import gamedata, project as project_module, storage
 from .xml_document import ANY_TAG_RE, UIDocument, _kind_for
 
 
@@ -147,10 +146,11 @@ def _cache_blob(data: bytes, crc: str, folder: Path) -> Path:
             raise ValueError(f"Conteúdo incompatível no cache oficial: {target}")
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as temporary:
-        staged = Path(temporary.name)
-        temporary.write(data)
+    fd, name = tempfile.mkstemp(dir=target.parent)
+    staged = Path(name)
     try:
+        with os.fdopen(fd, "wb") as temporary:
+            temporary.write(data)
         # Publish an immutable file without overwriting a concurrent writer.
         try:
             project_module._install_new_file(staged, target)
@@ -193,7 +193,7 @@ def _record_version(relative: str, crc: str) -> None:
 
 
 def _cached_crc_names() -> frozenset[str]:
-    """Nomes (em maiúsculas) dos XMLs no cache oficial.
+    """Nomes (em maiúsculas) dos arquivos no cache oficial.
 
     A pasta muda de data quando ganha um arquivo: lista uma vez em vez de um stat por CRC.
     """
@@ -241,9 +241,27 @@ def official_xml(game_dir: Path, entry: OfficialEntry) -> Path | None:
 
 
 def snapshot_official_ui(game_dir: Path) -> tuple[int, int]:
-    """Guarda no cache todo XML oficial que ainda está em `UI/`. Devolve (disponíveis, total)."""
+    """Guarda XMLs e texturas oficiais disponíveis. Os totais são dos XMLs de referência."""
     entries = official_entries(game_dir)
     available = sum(1 for entry in entries.values() if official_xml(game_dir, entry) is not None)
+    official = gamedata.official_ui_files(game_dir)
+    names = set(_cached_crc_names())
+    ui = game_dir / "UI"
+    for folder, _, files in os.walk(ui):
+        directory = Path(folder)
+        for name in files:
+            path = directory / name
+            if path.suffix.lower() not in (".dds", ".tga"):
+                continue
+            key = path.relative_to(ui).as_posix().lower()
+            entry = official.get(key)
+            if entry is None or any(f"{entry[1]}.{ext}" in names for ext in ("XML", "BIN")):
+                continue
+            if gamedata.is_official(path, key, official):
+                try:
+                    names.add(cache_ui_file(path, entry, project_module.PROJECTS_ROOT).upper())
+                except (OSError, ValueError):
+                    continue  # The installed UI can change while the launcher is running.
     return available, len(entries)
 
 
