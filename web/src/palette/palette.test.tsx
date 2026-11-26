@@ -111,6 +111,9 @@ describe('ver código XML', () => {
     act(() => mock.select([0]))
     await waitFor(() => expect(document.querySelector('.gf-source-marked')?.textContent).toContain('WindowID="1"'))
     expect(screen.getByText(/com alterações não salvas/)).toBeTruthy()
+    const line = Array.from(document.querySelectorAll('.cm-line')).find((node) => node.textContent?.includes('WindowID="10"'))!
+    fireEvent.click(line)
+    await waitFor(() => expect(mock.useDoc.getState().selection).toEqual([1]))
     press('u')
     await waitFor(() => expect(screen.queryByTestId('source-panel')).toBeNull())
   })

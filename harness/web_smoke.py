@@ -198,6 +198,7 @@ def _theme(label: str) -> None:
     # Engrenagem enxuta: o tema fica em Configurações → Geral.
     key = {"Escuro": "dark", "Meia-noite": "midnight", "Claro": "light"}[label]
     _open_settings()
+    wait("!!__smoke.q('[data-setting=web_theme]')", 5, "seção Geral carregada")
     js(f"__smoke.click('[data-setting=web_theme] [data-value={key}]')")
     _close_settings()
 
@@ -735,6 +736,7 @@ CLICK_OTHER_LINE = r"""(() => {
     const opts = { bubbles: true, cancelable: true, clientX: box.left + 24, clientY: box.top + box.height / 2, button: 0, buttons: 1, view: window };
     line.dispatchEvent(new MouseEvent('mousedown', opts));
     line.dispatchEvent(new MouseEvent('mouseup', Object.assign({}, opts, { buttons: 0 })));
+    line.dispatchEvent(new MouseEvent('click', Object.assign({}, opts, { buttons: 0 })));
     return (line.textContent.match(/WindowID="([^"]*)"/) || [])[1] || null })()"""
 
 
@@ -767,7 +769,10 @@ def palette_and_source(xml: Path, child, new_x: int, before: bytes) -> None:
         f"(() => {{ const r = __smoke.q('[data-testid=tree-row][aria-selected=true]'); return r && r.dataset.index !== '{child.index}' ? r.innerText : null }})()",
         5, "seleção pela linha",
     ) or ""
-    check("clicar numa linha com WindowID seleciona o elemento", bool(picked) and picked in selected, picked=picked, row=selected[:60])
+    marked_now = js("(__smoke.q('.gf-source-marked') || {}).textContent || null")
+    rows = js("__smoke.all('[data-testid=tree-row][aria-selected=true]').map((r) => r.dataset.index + ':' + r.innerText.slice(0, 20))")
+    check("clicar numa linha com WindowID seleciona o elemento", bool(picked) and picked in selected, picked=picked, row=selected[:60],
+          marked=(marked_now or "")[:80], rows=rows)
     js(f"__smoke.click('[data-testid=tree-row][data-index=\"{child.index}\"]')")
     wait(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"]').getAttribute('aria-selected') === 'true'", 3, "volta ao elemento")
     js("__smoke.key('u', { ctrlKey: true })")

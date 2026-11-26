@@ -202,6 +202,9 @@ def web(out, page, project, expected):
         diagnostic = js("""({
             error: canvasEdit.state().error || document.querySelector('.gf-atlas-dialog [role=alert]')?.textContent,
             crop: [...document.querySelectorAll('.gf-atlas-fields input')].map(field => field.value),
+            editing: document.querySelector('.gf-atlas-surface')?.dataset.editing,
+            cut: (() => { const box = document.querySelector('.gf-atlas-cut')?.getBoundingClientRect(); return box && [box.x, box.y, box.width, box.height] })(),
+            hit: (() => { const box = document.querySelector('.gf-atlas-cut')?.getBoundingClientRect(); return box && document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.className })(),
         })""")
         raise TimeoutError(f"{label}: {diagnostic}")
 

@@ -66,7 +66,8 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
   const [resize, setResize] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [cursor, setCursor] = useState<[number, number] | null>(null)
+  // Texto trocado direto no DOM: re-renderizar o diálogo a cada movimento atrapalha o arrasto.
+  const cursorLine = useRef<HTMLParagraphElement>(null)
   const locked = useDoc((doc) => request.kind === 'edit' && doc.locked.includes(request.index))
   const editable = Boolean(element?.texture && cuts[normal])
   const name = request.kind === 'preview' ? request.path.split(/[/\\]/).at(-1)! : element?.texture ?? ''
@@ -135,7 +136,9 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
       <div className="gf-atlas-layout">
         <AtlasSurface bitmap={bitmap} label={!name ? t.unavailable : bitmap === null ? t.error : t.loading}
           cut={preview ? undefined : cut} editing={enabled} frame={frame} onCrop={setCrop}
-          onCursor={(point) => { if (point) setCursor(point) }} />
+          onCursor={(point) => {
+            if (point && cursorLine.current) cursorLine.current.textContent = shellT('Cursor: X {x} · Y {y}', { x: point[0], y: point[1] })
+          }} />
         <aside className="gf-atlas-side" data-testid="atlas-side">
           <div className="gf-atlas-heading">
             <h2 id="gf-atlas-title" title={preview ? shellT('Textura — {name}', { name }) : shellT('Atlas DDS — {name}', { name })}>
@@ -214,9 +217,7 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
           {locked && <p role="status">{t.locked}</p>}
           {error && <p role="alert">{error}</p>}
           <p className="gf-atlas-hint">{hint}</p>
-          <p className="gf-atlas-cursor" data-testid="atlas-cursor">
-            {cursor ? shellT('Cursor: X {x} · Y {y}', { x: cursor[0], y: cursor[1] }) : shellT('Cursor: —')}
-          </p>
+          <p ref={cursorLine} className="gf-atlas-cursor" data-testid="atlas-cursor">{shellT('Cursor: —')}</p>
           <footer className="gf-atlas-footer">
             <button type="button" className="btn gf-atlas-close" disabled={busy} onClick={closeAtlas}>{shellT('Fechar')}</button>
             {!preview && (

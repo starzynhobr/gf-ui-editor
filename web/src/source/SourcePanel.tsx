@@ -98,7 +98,7 @@ function lineOf(lines: number[], index: number | undefined): number | null {
   return index == null ? null : (lines[index] ?? null)
 }
 
-function extensions(onLine: (line: number) => void): Extension[] {
+function extensions(): Extension[] {
   return [
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -124,14 +124,17 @@ function extensions(onLine: (line: number) => void): Extension[] {
     EditorView.contentAttributes.of({ tabindex: '0' }),
     keymap.of([...searchKeymap, ...foldKeymap, ...defaultKeymap]),
     theme,
-    EditorView.updateListener.of((update) => {
-      for (const transaction of update.transactions) {
-        if (transaction.isUserEvent('select.pointer')) {
-          onLine(update.state.doc.lineAt(update.state.selection.main.head).number)
-        }
-      }
-    }),
   ]
+}
+
+/** Linha (1 em diante) do nó clicado dentro do texto, ou null. */
+function clickedLine(view: EditorView, target: EventTarget | null): number | null {
+  if (!(target instanceof Node) || !view.contentDOM.contains(target)) return null
+  try {
+    return view.state.doc.lineAt(view.posAtDOM(target)).number
+  } catch {
+    return null // nó fora do documento (ex.: marcador de bloco recolhido)
+  }
 }
 
 function SourceEditor({ source }: { source: DocSource }) {
@@ -139,16 +142,14 @@ function SourceEditor({ source }: { source: DocSource }) {
   const view = useRef<EditorView | null>(null)
   const linesRef = useRef<number[]>(source.lines)
   const selected = useDoc((state) => state.selection[0])
+  const pressed = useRef<[number, number] | null>(null)
 
   useEffect(() => {
     const editor = new EditorView({
       parent: host.current!,
       state: EditorState.create({
         doc: '',
-        extensions: extensions((line) => {
-          const index = linesRef.current.indexOf(line)
-          if (index >= 0) select([index])
-        }),
+        extensions: extensions(),
       }),
     })
     view.current = editor
@@ -190,6 +191,18 @@ function SourceEditor({ source }: { source: DocSource }) {
       ref={host}
       className="gf-source-editor"
       data-testid="source-editor"
+      // Clicar (sem arrastar para selecionar texto) numa linha com WindowID seleciona o elemento.
+      onPointerDown={(event) => { pressed.current = [event.clientX, event.clientY] }}
+      onClick={(event) => {
+        const editor = view.current
+        const start = pressed.current
+        pressed.current = null
+        if (!editor || event.button !== 0) return
+        if (start && Math.hypot(event.clientX - start[0], event.clientY - start[1]) > 4) return
+        const line = clickedLine(editor, event.target)
+        const index = line == null ? -1 : linesRef.current.indexOf(line)
+        if (index >= 0) select([index])
+      }}
       onKeyDown={(event) => {
         // Ctrl+F abre a busca do CodeMirror mesmo com o foco fora do texto (no painel).
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f' && view.current) {
