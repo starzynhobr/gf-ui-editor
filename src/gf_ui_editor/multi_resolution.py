@@ -10,11 +10,12 @@ Para cada XML, a conta é a do preview (`describe_scene`): a raiz aparece onde o
 1. Os elementos viram **pedaços**: grupos que se encostam na tela (o BasicChar, por exemplo,
    tem o retrato no canto e as barras de vida no meio, longe dali). Elementos de tamanho zero
    entram no pedaço mais próximo; elementos estacionados fora da tela ficam onde estão.
-2. Cada pedaço ganha uma **regra**, por eixo, a partir de onde está na resolução base:
-   no terço da esquerda (ou do topo) mantém a distância dessa borda; no terço da direita
-   (ou da base) mantém a distância dela; no meio mantém a proporção do espaço livre (o que
-   está centralizado continua centralizado). Em janelas que o jogo posiciona sozinho, o
-   pedaço que ainda está junto da janela principal fica igual: o jogo já o leva junto.
+2. Cada pedaço ganha uma **regra**, por eixo, a partir de onde o seu centro está na
+   resolução base: nos 35% da esquerda (ou do topo) mantém a distância dessa borda; nos
+   35% da direita (ou da base) mantém a distância dela; nos 30% do meio mantém a proporção
+   do espaço livre (o que está centralizado continua centralizado). Em janelas que o jogo
+   posiciona sozinho, o pedaço que ainda está junto da janela principal fica igual: o jogo
+   já o leva junto.
 3. Para cada resolução alvo, o pedaço vai para o lugar que a regra (ou o ajuste manual da
    pessoa, que vence a regra) manda, e o XML é reescrito com o mínimo de mudanças: quando
    tudo anda junto numa janela posicionada pelo jogo, só a raiz muda (como o Harlem fez no
@@ -105,15 +106,17 @@ def _distance(a: Rect, b: Rect) -> int:
     return max(dx, dy)
 
 
+EDGE_ZONE = 0.35
+
+
 def infer_axis(start: int, length: int, size: int) -> str:
-    """Terço do espaço livre em que o pedaço está: perto do começo, no meio ou perto do fim."""
-    free = size - length
-    if free <= 0:
+    """Faixa da tela em que o centro do pedaço está: perto do começo, no meio ou perto do fim."""
+    if size - length <= 0:
         return START
-    ratio = start / free
-    if ratio < 1 / 3:
+    center = (start + length / 2) / size
+    if center < EDGE_ZONE:
         return START
-    if ratio > 2 / 3:
+    if center > 1 - EDGE_ZONE:
         return END
     return MIDDLE
 

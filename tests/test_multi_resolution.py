@@ -50,11 +50,17 @@ def visible_at(src: mr.WindowSource, text: str | None, target, index: int) -> tu
 
 
 # ---- regra por eixo ----------------------------------------------------------------------
-def test_axis_rule_by_third_of_free_space():
+def test_axis_rule_by_piece_center():
     assert mr.infer_axis(0, 100, 1366) == mr.START
     assert mr.infer_axis(633, 100, 1366) == mr.MIDDLE  # centralizado
     assert mr.infer_axis(1266, 100, 1366) == mr.END
     assert mr.infer_axis(0, 2000, 1366) == mr.START  # maior que a tela
+    # Pedaço pequeno perto do limite fica na borda; barra larga começando no mesmo X fica no meio.
+    assert mr.infer_axis(455, 39, 1366) == mr.START
+    assert mr.infer_axis(450, 200, 1366) == mr.MIDDLE
+    # Simétrico na borda direita.
+    assert mr.infer_axis(1366 - 455 - 39, 39, 1366) == mr.END
+    assert mr.infer_axis(1366 - 450 - 200, 200, 1366) == mr.MIDDLE
 
 
 def test_axis_placement_keeps_edge_distance_or_proportion():
@@ -366,6 +372,8 @@ def test_reference_against_harlem_uis(set_name, tmp_path, capsys):
         assert all(abs(v) <= 12 for v in errors[("LookEquipment.xml", "1920x1080", "id:1001")])
         assert all(abs(v) <= 12 for v in errors[("SelfEquipment.xml", "1920x1080", "id:1001")])
         assert errors[("BasicChar.xml", "1920x1080", "id:2")] == (0, 0)
+        for target in TARGETS:
+            assert errors[("BasicChar.xml", mr.resolution_key(target), "id:10000")] == (0, 0)
     with capsys.disabled():
         print(f"\n[{set_name}] janela / resolução / pedaço / regra / nossa posição / a dele / diferença")
         for row in report:
