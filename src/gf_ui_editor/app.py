@@ -78,7 +78,11 @@ from PySide6.QtWidgets import (
 from . import __version__
 from . import game_texts, player_sample
 from . import storage, text_data
-from .ui_session import Restart, WebStartup, allow_web_retry, recover_web_start, restart_command
+from .ui_session import (
+    Restart, WebStartup, allow_web_retry, migrate_ui_default, recover_web_start, restart_command,
+    should_show_web_banner,
+)
+from .whats_new import notes_need_showing
 from .texts_panel import TextsPanel
 from .editor_widgets import (
     EditorView,
@@ -177,13 +181,13 @@ class QtPreferenceStore:
     def set(self, key: str, value: object) -> None:
         settings = QSettings("Local", "GF UI Editor")
         settings.setValue(key, value)
-        if key in ("ui_mode", "web_starting"):
+        if key in ("ui_mode", "ui_default_migrated", "web_starting", "notes_seen_version", "notes_pill_version"):
             settings.sync()
 
     def remove(self, key: str) -> None:
         settings = QSettings("Local", "GF UI Editor")
         settings.remove(key)
-        if key == "web_starting":
+        if key in ("web_starting", "notes_pill_version"):
             settings.sync()
 
 
@@ -1942,13 +1946,14 @@ class EditorWindow(QMainWindow):
         initial_path: Path | None = None,
         *,
         language: str = "pt_BR",
-        restore_last_project: bool = False,
         restart: Callable[[Restart], None] | None = None,
+        offer_web_banner: bool = False,
     ):
         super().__init__()
         load_fonts()
         self.language = language
         self._restart = restart
+        self._offer_web_banner = offer_web_banner
         self._restart_on_close = False
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.document: UIDocument | None = None
@@ -2317,18 +2322,10 @@ class EditorWindow(QMainWindow):
 
         self._refresh_files()
         self._update_title()
-        if restore_last_project:
-            # Só na janela principal de verdade (não em testes nem na troca de idioma).
-            QTimer.singleShot(2500, self._automatic_update_check)
-            QTimer.singleShot(4000, self._load_remote_manifest)
         if initial_path is not None and storage.is_project(initial_path):
             self.open_project(initial_path)
         elif initial_path is not None:
             self.open_document(initial_path)
-        elif restore_last_project:
-            last = prefs.last_project
-            if last and storage.is_project(Path(last)):
-                self.open_project(Path(last))
         if self.project is None and self.document is None:
             self.show_home()
 
@@ -3085,6 +3082,8 @@ class EditorWindow(QMainWindow):
 
     def show_whats_new(self) -> None:
         WhatsNewDialog(__version__, release_notes.bundled(), self.language, parent=self).exec()
+        if notes_need_showing(prefs, __version__):
+            prefs.set("notes_seen_version", __version__)
 
     def _install_update(self, info: "updater.UpdateInfo") -> None:
         if not updater.is_installed_build():
@@ -3136,7 +3135,7 @@ class EditorWindow(QMainWindow):
         switch_language(application, language)
         # Os textos são definidos ao montar a janela: recriá-la aplica o idioma
         # sem reiniciar, reabrindo o mesmo projeto e o mesmo XML.
-        window = EditorWindow(language=language)
+        window = EditorWindow(language=language, restart=self._restart, offer_web_banner=self._offer_web_banner)
         if self.project is not None:
             window.open_project(self.project.root)
         if self.document is not None:
@@ -5614,6 +5613,8 @@ class EditorWindow(QMainWindow):
         page.setObjectName("emptyPage")
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
+        if self._offer_web_banner:
+            layout.addWidget(self._build_web_banner(page))
         self.home_scroll = QScrollArea()
         self.home_scroll.setObjectName("homeScroll")
         self.home_scroll.setWidgetResizable(True)
@@ -5624,6 +5625,24 @@ class EditorWindow(QMainWindow):
         self._home_manage = False
         self._home_checks: dict[str, QCheckBox] = {}
         return page
+
+    def _build_web_banner(self, parent: QWidget) -> QFrame:
+        banner = QFrame(parent)
+        banner.setObjectName("homeCard")
+        layout = QHBoxLayout(banner)
+        layout.setContentsMargins(14, 6, 14, 6)
+        label = QLabel(self.tr("Existe uma interface nova para testar."))
+        label.setObjectName("homeCardText")
+        label.setWordWrap(True)
+        layout.addWidget(label, 1)
+        layout.addWidget(self._home_link(self.tr("Experimentar"), lambda: self.set_ui_mode("web")))
+        layout.addWidget(self._home_link(self.tr("Agora não"), lambda: self._dismiss_web_banner(banner)))
+        return banner
+
+    def _dismiss_web_banner(self, banner: QFrame) -> None:
+        prefs.set("web_banner_dismissed_version", __version__)
+        self._offer_web_banner = False
+        banner.hide()
 
     def _relative_time(self, timestamp: float) -> str:
         key, value = home.relative_age(timestamp)
@@ -8152,9 +8171,10 @@ class EditorWindow(QMainWindow):
             action.setChecked(action.data() == self.language)
 
     def set_ui_mode(self, mode: str) -> None:
-        if mode == "classic" and prefs.ui_mode == mode:
-            return
+        already_classic = mode == "classic" and prefs.ui_mode == mode
         prefs.ui_mode = mode
+        if already_classic:
+            return
         if mode == "web":
             # Selecionar a nova na clássica autoriza uma nova tentativa após uma falha.
             allow_web_retry(prefs)
@@ -8224,12 +8244,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    from . import webview_runtime
+    from . import web_shell, webview_runtime
 
-    def web_available() -> bool:
-        from .web_shell import WEB_DIST
+    migrate_ui_default(prefs, __version__)
 
-        return webview_runtime.webview2_version() is not None and (args.dev or webview_runtime.web_build_ready(WEB_DIST))
+    def web_available(*, allow_dev: bool = True) -> bool:
+        return webview_runtime.webview2_version() is not None and (
+            (allow_dev and args.dev) or webview_runtime.web_build_ready(web_shell.WEB_DIST)
+        )
 
     def launch_restart(restart: Restart, *, classic_fallback: bool = False) -> None:
         frozen = bool(getattr(sys, "frozen", False))
@@ -8245,7 +8267,7 @@ def main(argv: list[str] | None = None) -> int:
     ui_mode, web_missing = webview_runtime.resolve_ui(args.ui, prefs.ui_mode, web_available)
     web_failed = args.web_start_failed or recover_web_start(args.ui, prefs)
     if ui_mode == "web":
-        from . import single_instance, web_shell
+        from . import single_instance
 
         xml = args.xml.resolve() if args.xml is not None else None
         # Uma janela só: com o editor já aberto, o arquivo ("Abrir com") vai para ele.
@@ -8281,13 +8303,36 @@ def main(argv: list[str] | None = None) -> int:
     if language not in LANGUAGES:
         language = "pt_BR"
     switch_language(application, language)
-    window = EditorWindow(args.xml, language=language, restore_last_project=True, restart=launch_restart)
+    fallback = web_failed or web_missing
+    offer_web_banner = should_show_web_banner(
+        prefs, __version__, fallback=fallback,
+        web_available=not fallback and web_available(allow_dev=False),
+    )
+    window = EditorWindow(language=language, restart=launch_restart, offer_web_banner=offer_web_banner)
     window.show()
     application._main_window = window
-    if web_failed:
-        QTimer.singleShot(0, window.warn_web_ui_failed)
-    elif web_missing:
-        QTimer.singleShot(0, window.warn_web_ui_unavailable)
+
+    def finish_classic_startup() -> None:
+        if notes_need_showing(prefs, __version__):
+            window.show_whats_new()
+        if web_failed:
+            window.warn_web_ui_failed()
+        elif web_missing:
+            window.warn_web_ui_unavailable()
+
+        if args.xml is not None:
+            if storage.is_project(args.xml):
+                window.open_project(args.xml)
+            else:
+                window.open_document(args.xml)
+        elif last := prefs.last_project:
+            if storage.is_project(Path(last)):
+                window.open_project(Path(last))
+
+        QTimer.singleShot(2500, window._automatic_update_check)
+        QTimer.singleShot(4000, window._load_remote_manifest)
+
+    QTimer.singleShot(0, finish_classic_startup)
     return application.exec()
 
 

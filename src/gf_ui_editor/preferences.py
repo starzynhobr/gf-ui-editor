@@ -69,7 +69,9 @@ KEYS: dict[str, Key] = {
     # Interface
     "language": Key("str", "pt_BR"),
     "ui_mode": Key("str", "classic"),  # "classic" (Qt) ou "web" (nova, beta); vale ao reiniciar
+    "ui_default_migrated": Key("bool", False),
     "web_starting": Key("json", {}),
+    "web_banner_dismissed_version": Key("str", ""),
     "navigation_style": Key("str", "corel"),
     "text_mode": Key("str", "off"),
     "tree_hidden_columns": Key("str", "2"),  # colunas da árvore de elementos, "0,2"
@@ -98,6 +100,8 @@ KEYS: dict[str, Key] = {
     "beta_updates": Key("flag", False),  # o app passa True como padrão numa versão beta
     "last_update_check": Key("float", 0.0),
     "skipped_update_version": Key("str", ""),
+    "notes_seen_version": Key("str", ""),
+    "notes_pill_version": Key("str", ""),
     "manifest_seen": Key("json", []),
 }
 

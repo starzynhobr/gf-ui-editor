@@ -1,8 +1,44 @@
 from pathlib import Path
 
+import pytest
+
 from gf_ui_editor import desktop
 from gf_ui_editor.preferences import MemoryStore, Preferences
 from gf_ui_editor.web_api.ui_state import AboutApi, ReleaseHistoryApi, TextureFileApi, UiStateApi
+
+
+@pytest.mark.parametrize(
+    ("seen", "auto_open"),
+    [("", True), ("0.7.0", True), ("0.8.0-beta.4", True), ("v0.8.0", False), ("0.8.0", False), ("0.8.1", False)],
+)
+def test_whats_new_uses_semver(monkeypatch, seen, auto_open):
+    from gf_ui_editor.web_api import ui_state
+
+    monkeypatch.setattr(ui_state, "__version__", "0.8.0")
+    api = UiStateApi()
+    api._prefs = Preferences(MemoryStore({"notes_seen_version": seen}))
+    assert api.whats_new_state() == {"version": "0.8.0", "auto_open": auto_open, "pill": False}
+
+
+def test_whats_new_close_and_dismiss_across_sessions_and_versions(monkeypatch):
+    from gf_ui_editor.web_api import ui_state
+
+    monkeypatch.setattr(ui_state, "__version__", "0.8.0")
+    store = MemoryStore()
+    api = UiStateApi()
+    api._prefs = Preferences(store)
+    api.whats_new_closed()
+    api = UiStateApi()
+    api._prefs = Preferences(store)
+    assert api.whats_new_state() == {"version": "0.8.0", "auto_open": False, "pill": True}
+    api.whats_new_pill_dismissed()
+    assert "notes_pill_version" not in store.values
+    assert api.whats_new_state() == {"version": "0.8.0", "auto_open": False, "pill": False}
+
+    monkeypatch.setattr(ui_state, "__version__", "0.8.1")
+    assert api.whats_new_state() == {"version": "0.8.1", "auto_open": True, "pill": False}
+    api.whats_new_closed()
+    assert api.whats_new_state() == {"version": "0.8.1", "auto_open": False, "pill": True}
 
 
 def test_layout_and_theme_are_saved_in_preferences() -> None:

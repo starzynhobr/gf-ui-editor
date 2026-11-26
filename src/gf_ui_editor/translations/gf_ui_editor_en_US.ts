@@ -362,6 +362,21 @@
 <context>
     <name>EditorWindow</name>
     <message>
+        <location filename="../app.py" line="5634"/>
+        <source>Existe uma interface nova para testar.</source>
+        <translation>There’s a new interface to try.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="5638"/>
+        <source>Experimentar</source>
+        <translation>Try it</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="5639"/>
+        <source>Agora não</source>
+        <translation>Not now</translation>
+    </message>
+    <message>
         <location filename="../app.py" line="1842"/>
         <source>Mover/redimensionar WindowID {id}</source>
         <translation>Move/resize WindowID {id}</translation>

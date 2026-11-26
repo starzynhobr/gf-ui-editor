@@ -1,4 +1,4 @@
-"""Proteção da inicialização da web e comando de reinício, sem Qt."""
+"""Preferências de abertura, proteção da inicialização da web e reinício, sem Qt."""
 
 from __future__ import annotations
 
@@ -8,8 +8,23 @@ from pathlib import Path
 from threading import Lock
 
 from .preferences import Preferences
+from .updater import parse_version
 
 WEB_START_TIMEOUT = 20.0
+
+
+def migrate_ui_default(prefs: Preferences, version: str) -> None:
+    if prefs.get("ui_default_migrated") or parse_version(version) < parse_version("0.8.0"):
+        return
+    if prefs.get("ui_mode", None) is None:
+        prefs.ui_mode = "web"
+    prefs.set("ui_default_migrated", True)
+
+
+def should_show_web_banner(
+    prefs: Preferences, version: str, *, web_available: bool, fallback: bool,
+) -> bool:
+    return web_available and not fallback and prefs.get("web_banner_dismissed_version") != version
 
 
 @dataclass(frozen=True)
