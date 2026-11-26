@@ -22,6 +22,8 @@ interface OpenMenu {
   items: MenuItem[]
   /** Alinha pela direita do ponto (menus abertos de botões no canto direito). */
   alignRight?: boolean
+  /** Chamado ao fechar (depois do onClick do item escolhido, se houver). */
+  onClose?: () => void
 }
 
 const useMenu = create<{ menu: OpenMenu | null }>(() => ({ menu: null }))
@@ -31,13 +33,15 @@ export function openMenu(menu: OpenMenu): void {
 }
 
 /** Abre o menu logo abaixo do elemento clicado. */
-export function openMenuAt(element: HTMLElement, items: MenuItem[], alignRight = false): void {
+export function openMenuAt(element: HTMLElement, items: MenuItem[], alignRight = false, onClose?: () => void): void {
   const rect = element.getBoundingClientRect()
-  openMenu({ x: alignRight ? rect.right : rect.left, y: rect.bottom + 4, items, alignRight })
+  openMenu({ x: alignRight ? rect.right : rect.left, y: rect.bottom + 4, items, alignRight, onClose })
 }
 
 export function closeMenu(): void {
+  const current = useMenu.getState().menu
   useMenu.setState({ menu: null })
+  current?.onClose?.()
 }
 
 function MenuList({ items, x, y, alignRight }: OpenMenu) {
@@ -88,8 +92,8 @@ function MenuList({ items, x, y, alignRight }: OpenMenu) {
                 setSub({ index, x: rect.right + 2, y: rect.top - 5 })
                 return
               }
-              closeMenu()
               item.onClick?.()
+              closeMenu()
             }}
           >
             <span className="flex w-4 justify-center">

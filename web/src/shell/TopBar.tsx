@@ -5,6 +5,8 @@ import { useT } from '../i18n'
 import { useShell } from '../store'
 import { browseProject, exportZip, goHome, newProject, openProject, publishToGame } from '../actions'
 import { Icon } from '../ui/Icon'
+import { redo, undo, useDocState, useEditingAvailable } from './doc'
+import { saveDocument } from './saving'
 import { openMenuAt, type MenuItem } from '../ui/Menu'
 
 export default function TopBar() {
@@ -15,10 +17,15 @@ export default function TopBar() {
   const fileName = shell?.open_path?.split(/[\\/]/).pop() ?? null
   const pending = shell?.pending ?? 0
   const canPublish = Boolean(project?.game_dir)
+  const dirty = useDocState((state) => state.dirty)
+  const canUndo = useDocState((state) => state.canUndo)
+  const canRedo = useDocState((state) => state.canRedo)
+  const editable = useEditingAvailable()
 
   useEffect(() => {
-    document.title = project ? `STZ GF UI [${project.name}]${fileName ? ` — ${fileName}` : ''}` : 'STZ GF UI'
-  }, [project, fileName])
+    const marker = dirty ? ' *' : ''
+    document.title = project ? `STZ GF UI [${project.name}]${fileName ? ` — ${fileName}${marker}` : ''}` : `STZ GF UI${fileName ? ` — ${fileName}${marker}` : ''}`
+  }, [project, fileName, dirty])
 
   const loadRecent = async () => {
     const data = await api.homeData()
@@ -72,12 +79,29 @@ export default function TopBar() {
           <span className="truncate font-mono text-text" title={shell?.open_path ?? ''}>
             {fileName}
           </span>
+          {dirty && (
+            <span className="text-gold" title={t('alterado')} data-testid="dirty-marker">
+              ●
+            </span>
+          )}
         </div>
       )}
       <div className="mx-1.5 h-5 w-px bg-border" />
-      <button className="btn btn-ghost h-8 px-2" disabled title={t('Salvar com backup')}>
+      <button
+        className="btn btn-ghost h-8 px-2"
+        disabled={!dirty || !editable}
+        title={`${t('Salvar com backup')} (Ctrl+S)`}
+        data-testid="save"
+        onClick={() => void saveDocument()}
+      >
         <Icon name="save" size={16} />
         {t('Salvar')}
+      </button>
+      <button className="icon-button h-8 w-8" disabled={!canUndo} title={`${t('Desfazer')} (Ctrl+Z)`} aria-label={t('Desfazer')} onClick={() => void undo()}>
+        <Icon name="undo" size={17} />
+      </button>
+      <button className="icon-button h-8 w-8" disabled={!canRedo} title={`${t('Refazer')} (Ctrl+Y)`} aria-label={t('Refazer')} onClick={() => void redo()}>
+        <Icon name="redo" size={17} />
       </button>
       <div className="flex-1" />
       <button className="btn h-8" disabled={!project} onClick={() => void exportZip()} data-testid="export-zip">

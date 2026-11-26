@@ -6,6 +6,7 @@ import { api, type FileListData, type SectionKind } from '../api'
 import { useT } from '../i18n'
 import { showStatus, useShell } from '../store'
 import { openXml } from '../actions'
+import { projectFileItems } from './fileActions'
 import { Icon } from '../ui/Icon'
 import { openMenu, type MenuItem } from '../ui/Menu'
 
@@ -126,7 +127,13 @@ export default function FilesPanel() {
       })
     }
     items.push({ label: t('Abrir pasta'), icon: 'folder-open', onClick: () => void api.openFolder(data.directory!) })
-    openMenu({ x, y, items })
+    void api
+      .fileHistory(path)
+      .catch(() => null)
+      .then((history) => {
+        if (history) items.push({ separator: true }, ...projectFileItems(path, history))
+        openMenu({ x, y, items })
+      })
   }
 
   const startResize = (kind: SectionKind, event: React.MouseEvent) => {

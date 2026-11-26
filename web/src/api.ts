@@ -19,6 +19,7 @@ export interface ShellState {
   loose_dir: string | null
   pending: number
   publish_confirmed: boolean
+  publish_on_save: boolean
 }
 
 export type Age = [string, number | string | null]
@@ -95,6 +96,20 @@ export interface PublishResult {
   pending: number
 }
 
+export interface TreeRow {
+  index: number
+  label: string
+  text: string
+  search: string
+}
+
+export interface FileHistory {
+  backups: { path: string; name: string; stamp: string | null }[]
+  original: string | null
+  folder: string | null
+  in_project: boolean
+}
+
 export const api = {
   startup: () => call<ShellState & { view: 'home' | 'workspace' }>('startup'),
   shellState: () => call<ShellState>('shell_state'),
@@ -134,6 +149,28 @@ export const api = {
   openXml: (path: string) => call<ShellState>('open_xml', path),
   openInTextEditor: (path: string) => call<string>('open_in_text_editor', path),
   textEditorName: () => call<string>('text_editor_name'),
+  setUnsaved: (unsaved: boolean) => call<void>('set_unsaved', unsaved),
+  closeWindow: () => call<void>('close_window'),
+  elementTree: (path: string, kinds: string[]) => call<TreeRow[]>('element_tree', path, kinds),
+  treeColumns: () => call<string[]>('tree_columns'),
+  setTreeColumns: (hidden: string[]) => call<string[]>('set_tree_columns', hidden),
+  textureNames: (xmlPath: string) => call<string[]>('texture_names', xmlPath),
+  textureCopyInfo: (xmlPath: string, current: string) =>
+    call<{ exists: boolean; suggestion: string }>('texture_copy_info', xmlPath, current),
+  copyTexture: (xmlPath: string, current: string, name: string) =>
+    call<{ name: string; error?: 'exists' }>('copy_texture', xmlPath, current, name),
+  pickTexture: (xmlPath: string) => call<{ path: string; name: string; replacing: boolean } | null>('pick_texture', xmlPath),
+  bringTexture: (xmlPath: string, source: string) => call<{ name: string }>('bring_texture', xmlPath, source),
+  fileHistory: (path: string) => call<FileHistory>('file_history', path),
+  renameCheck: (path: string, name: string) =>
+    call<{ invalid?: true; target: string; name: string; replacing: boolean; texture_users: number }>('rename_check', path, name),
+  renameFile: (path: string, name: string) => call<{ path: string; name: string }>('rename_file', path, name),
+  retargetTexture: (oldName: string, newName: string) => call<number>('retarget_texture', oldName, newName),
+  deleteFileInfo: (path: string) => call<{ official: boolean; texture_users: number }>('delete_file_info', path),
+  deleteFile: (path: string) => call<void>('delete_file', path),
+  restorePreview: (path: string, source: string, currentLabel: string, restoredLabel: string) =>
+    call<string>('restore_preview', path, source, currentLabel, restoredLabel),
+  restoreFile: (path: string, source: string) => call<void>('restore_file', path, source),
   publishInfo: () => call<{ confirmed: boolean; custom_dir: string; custom_name: string }>('publish_info'),
   confirmPublish: () => call<void>('confirm_publish'),
   publish: () => call<PublishResult>('publish'),
