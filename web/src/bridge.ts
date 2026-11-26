@@ -92,3 +92,10 @@ export interface CanvasDocument {
   frame_anchor_delta?: CanvasPoint | null
   ghost_area?: CanvasRect | null
 }
+
+export type AtlasCuts = Record<string, CanvasRect>
+export type AtlasElement = CanvasElement & { atlas_uvs: AtlasCuts }
+export interface TextEditsChanged {
+  project: string
+  files: string[]
+}

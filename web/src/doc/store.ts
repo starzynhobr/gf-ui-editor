@@ -10,7 +10,7 @@ import { call, type CanvasDocument, type CanvasPoint, type CanvasRect } from '..
 
 export type Edit =
   | { index: number; field: 'geometry'; before: CanvasRect; after: CanvasRect }
-  | { index: number; field: 'uv'; before: CanvasRect | null; after: CanvasRect | null }
+  | { index: number; field: 'uv'; name?: string; before: CanvasRect | null; after: CanvasRect | null }
   | { index: number; field: 'texture'; before: string | null; after: string | null }
   | { index: number; field: 'font'; name: string; before: string; after: string }
 
@@ -241,5 +241,15 @@ export function checkExternalChange(path: string, confirm: (missing: boolean, di
   queue = task.catch((error) => {
     update({ error: error instanceof Error ? error.message : String(error) })
   })
+  return task
+}
+
+export function refreshGameTexts(project: string) {
+  const task = queue.then(async () => {
+    if (!state().doc) return
+    const doc = await call<CanvasDocument | null>('doc_refresh_texts', project)
+    if (doc) received(doc)
+  })
+  queue = task.catch(() => undefined)
   return task
 }

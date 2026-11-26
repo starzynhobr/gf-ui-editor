@@ -6,6 +6,7 @@ from dataclasses import astuple, dataclass
 from pathlib import Path
 
 from . import backgrounds, game_layout, game_texts, player_sample, storage, text_preview, window_geometry
+from .atlas import atlas_states
 from .xml_document import UIDocument, UIElement, UVRect
 
 TEXT_MODES = ("off", "game", "xml", "short", "long")
@@ -17,10 +18,17 @@ def element_preview_offset(name: str, root_y: int, element: UIElement, enabled: 
     return (0, target - element.y) if enabled and target is not None and element.kind == "slot" else (0, 0)
 
 
-def _preview_context(path: Path) -> tuple[Path | None, str, dict[int, str]]:
+def project_ui_root(path: Path) -> Path | None:
     for parent in path.parents:
         if parent.name.lower() == "ui" and (parent.parent / storage.PROJECT_DB).is_file():
-            return storage.peek_preview_context(parent.parent, path.relative_to(parent).as_posix())
+            return parent
+    return None
+
+
+def _preview_context(path: Path) -> tuple[Path | None, str, dict[int, str]]:
+    ui = project_ui_root(path)
+    if ui is not None:
+        return storage.peek_preview_context(ui.parent, path.relative_to(ui).as_posix())
     beside = path.parent.parent
     return (beside if game_layout.looks_like_game_dir(beside) else None), "auto", {}
 
@@ -29,7 +37,7 @@ def _uv(rect: UVRect | None) -> tuple[int, int, int, int] | None:
     return astuple(rect) if rect is not None else None
 
 
-def _element(element: UIElement, name: str, labels: dict[str, str]) -> dict:
+def _element(document: UIDocument, element: UIElement, name: str, labels: dict[str, str]) -> dict:
     sample = player_sample.sample_text(name, element.window_id)
     texts = {}
     for mode in TEXT_MODES:
@@ -46,6 +54,7 @@ def _element(element: UIElement, name: str, labels: dict[str, str]) -> dict:
         "texture": element.texture_name,
         "uv": _uv(element.uv),
         "button_uvs": {state: _uv(rect) for state, rect in element.button_uvs.items()},
+        "atlas_uvs": {state: _uv(rect) for state, rect in atlas_states(document, element.index).items()},
         "progress_offset": element.progress_offset,
         "visible": element.visible,
         "text_props": element.text_props,
@@ -64,6 +73,10 @@ class PreviewContext:
     mode: str
     labels: dict[str, str]
     saved: window_geometry.Rect | None
+
+    def refresh_labels(self, path: Path) -> None:
+        game_dir, _, overrides = _preview_context(path)
+        self.labels = game_texts.labels_for(path.name, game_dir, overrides)
 
     @classmethod
     def load(
@@ -102,7 +115,7 @@ def describe_document(path: Path, resolution: tuple[int, int] | None = None, *, 
 def describe_scene(document: UIDocument, context: PreviewContext) -> dict:
     name = document.path.name
     resolution = context.resolution
-    elements = [_element(element, name, context.labels) for element in document.elements]
+    elements = [_element(document, element, name, context.labels) for element in document.elements]
 
     root, *children = document.elements or [None]
     root_rect = root.geometry if root else (0, 0, *resolution)

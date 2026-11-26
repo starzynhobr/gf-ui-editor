@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .atlas import crop_between, move_crop, resize_crop
 from .icons import icon
 
 from .theme import qcolor
@@ -180,25 +181,18 @@ class AtlasView(QGraphicsView):
     def _resized(self, point: QPointF) -> UVRect:
         """Move só os lados da alça arrastada; os outros ficam onde estavam."""
         assert self._resize_corner is not None and self._resize_rect is not None
-        rect = self._resize_rect
-        left, top, right, bottom = rect.left(), rect.top(), rect.right(), rect.bottom()
-        if "left" in self._resize_corner:
-            left = point.x()
-        if "right" in self._resize_corner:
-            right = point.x()
-        if "top" in self._resize_corner:
-            top = point.y()
-        if "bottom" in self._resize_corner:
-            bottom = point.y()
-        return self._uv_between(QPointF(left, top), QPointF(right, bottom))
+        return resize_crop(self._rect_uv(self._resize_rect), self._resize_corner, (point.x(), point.y()), self._texture_size())
 
     def _uv_between(self, first: QPointF, second: QPointF) -> UVRect:
+        return crop_between((first.x(), first.y()), (second.x(), second.y()), self._texture_size())
+
+    def _texture_size(self) -> tuple[int, int]:
         bounds = self._pixmap_item.boundingRect()
-        left = max(0, min(math.floor(min(first.x(), second.x())), int(bounds.width()) - 1))
-        top = max(0, min(math.floor(min(first.y(), second.y())), int(bounds.height()) - 1))
-        right = max(left + 1, min(math.ceil(max(first.x(), second.x())), int(bounds.width())))
-        bottom = max(top + 1, min(math.ceil(max(first.y(), second.y())), int(bounds.height())))
-        return UVRect(left, top, right - left, bottom - top)
+        return int(bounds.width()), int(bounds.height())
+
+    @staticmethod
+    def _rect_uv(rect: QRectF) -> UVRect:
+        return UVRect(round(rect.left()), round(rect.top()), round(rect.width()), round(rect.height()))
 
     def set_progress_offset(self, offset: tuple[int, int] | None) -> None:
         self._progress_offset = offset
@@ -363,12 +357,7 @@ class AtlasView(QGraphicsView):
 
     def _moved(self, dx: int, dy: int) -> UVRect:
         assert self._move_rect is not None
-        bounds = self._pixmap_item.boundingRect()
-        rect = self._move_rect
-        width, height = round(rect.width()), round(rect.height())
-        left = max(0, min(round(rect.left()) + dx, int(bounds.width()) - width))
-        top = max(0, min(round(rect.top()) + dy, int(bounds.height()) - height))
-        return UVRect(left, top, width, height)
+        return move_crop(self._rect_uv(self._move_rect), (dx, dy), self._texture_size())
 
     def _keep_progress_inside(self) -> None:
         """Recorte novo perto da borda: puxa o estado preenchido de volta pra dentro da textura.

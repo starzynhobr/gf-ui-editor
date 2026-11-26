@@ -3,6 +3,7 @@ import { createRoot } from '../web/node_modules/react-dom/client.js'
 import { flushSync } from '../web/node_modules/react-dom/index.js'
 import { createElement } from '../web/node_modules/react/index.js'
 import { openCanvasDocument, type CanvasElement } from '../web/src/bridge'
+import { openAtlas, previewTexture } from '../web/src/atlas'
 import CanvasView from '../web/src/canvas/CanvasView'
 import { previewSave, redo, save, select, setHidden, setIsolated, setLocked, undo, useDoc } from '../web/src/doc/store'
 import DdsProbe from './canvas_compare_dds?worker&inline'
@@ -10,6 +11,7 @@ import DdsProbe from './canvas_compare_dds?worker&inline'
 Konva.pixelRatio = 1
 const root = createRoot(document.getElementById('root')!)
 let selected: CanvasElement | null = null
+root.render(createElement(CanvasView, { path: null }))
 
 async function open(path: string, preview: boolean, background: boolean) {
   const doc = await openCanvasDocument(path, [1024, 768])
@@ -116,6 +118,12 @@ Object.assign(window, {
     open: editOpen,
     state: useDoc.getState,
     select, setHidden, setLocked, setIsolated, undo, redo, save, previewSave,
+    openAtlas, previewTexture,
+    atlasPoint(x: number, y: number) {
+      const image = document.querySelector<HTMLCanvasElement>('.gf-atlas-surface > canvas')!
+      const rect = image.getBoundingClientRect()
+      return [rect.left + x * rect.width / image.width, rect.top + y * rect.height / image.height]
+    },
     point(x: number, y: number) {
       const group = Konva.stages[0].findOne('Group')!
       const rect = document.querySelector('.gf-canvas-viewport')!.getBoundingClientRect()

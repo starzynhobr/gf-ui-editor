@@ -1,4 +1,5 @@
 import { decodeDds } from './decode'
+import { decodeTga } from './tga'
 
 const worker = self as unknown as {
   onmessage: (event: MessageEvent<{ id: number; url: string; dds: boolean }>) => void
@@ -15,6 +16,9 @@ worker.onmessage = async ({ data }) => {
     let image: Blob | ImageData
     if (dds) {
       const { rgba, width, height } = decodeDds(await response.arrayBuffer())
+      image = new ImageData(rgba, width, height)
+    } else if (url.toLowerCase().endsWith('.tga')) {
+      const { rgba, width, height } = decodeTga(await response.arrayBuffer())
       image = new ImageData(rgba, width, height)
     } else {
       image = await response.blob()

@@ -39,3 +39,9 @@ class DocumentApi:
 
     def doc_external_change(self) -> str | None:
         return self._document_session.external_change()
+
+    def doc_atlas_plan(self, path: str, index: int, before: dict, after: dict, resize: bool) -> list[dict]:
+        return self._document_session.plan_atlas(path, index, before, after, resize)
+
+    def doc_refresh_texts(self, project: str) -> dict | None:
+        return self._document_session.refresh_texts(project)
