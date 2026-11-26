@@ -34,7 +34,12 @@ import { openExternalXml, openProject } from './actions'
 import { call, on } from './bridge'
 import { MenuHost } from './ui/Menu'
 import SourcePanel from './source/SourcePanel'
+import './doc/standalone.css'
 import StandaloneBar from './doc/StandaloneBar'
+import DropOverlay from './doc/DropOverlay'
+import ExternalChangeBand, { installExternalChangeStub } from './doc/ExternalChangeBand'
+import CanvasHoverTip, { CanvasHoverToggle } from './shell/CanvasHoverTip'
+import { setCanvasHover } from './shell/canvasHover'
 import CommandPalette from './palette/CommandPalette'
 
 export default function App() {
@@ -72,6 +77,7 @@ export default function App() {
     const uninstall = installOfficialEvents()
     const unshortcut = installShortcuts()
     const ungameText = installGameTextEditing()
+    const unexternalChange = installExternalChangeStub()
     // Outro .exe ("Abrir com") mandou um XML para esta janela.
     const unexternal = on('open_external', (payload) => {
       const { path, project } = payload as { path: string; project?: boolean }
@@ -79,6 +85,7 @@ export default function App() {
     })
     return () => {
       unexternal()
+      unexternalChange()
       uninstall()
       unshortcut()
       ungameText()
@@ -133,6 +140,7 @@ export default function App() {
         )}
         <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
           {view === 'workspace' && !notesHold && <Banners />}
+          {view === 'workspace' && <ExternalChangeBand />}
           {view === 'workspace' && <StandaloneBar />}
           <div className="relative min-h-0 flex-1">
           {view === 'home' ? (
@@ -145,6 +153,8 @@ export default function App() {
               language={shell.language}
               // Antes do store do canvas, o clique no canvas seleciona pelo modo só leitura.
               onSelect={storeReady ? undefined : (element) => selectElements(element ? [element.index] : [])}
+              onHover={setCanvasHover}
+              toolbarExtra={<CanvasHoverToggle />}
             />
           )}
           {view === 'workspace' && <SourcePanel />}
@@ -165,6 +175,8 @@ export default function App() {
       <CommandPalette />
       <SettingsHost />
       <DialogHost />
+      {view === 'workspace' && <CanvasHoverTip />}
+      <DropOverlay />
       <ProgressOverlay />
       <TooltipHost />
       <Toaster theme={isLightTheme(theme) ? 'light' : 'dark'} position="bottom-right" offset={40} toastOptions={{ className: "gf-toast" }} />

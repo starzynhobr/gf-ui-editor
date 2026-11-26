@@ -8,6 +8,8 @@ export interface VersionInfo {
   created: string
   files: number
   size: string
+  /** Itens de resolução guardados na versão (resolutions.json + variantes); 0 ou ausente = nenhum. */
+  resolutions?: number
 }
 
 export interface PullCandidate {
@@ -27,6 +29,8 @@ export interface CleanupScan {
   name: string
   days: number
   total: string
+  /** Total em bytes (para "Depois de limpar"); ausente em pontes antigas. */
+  total_bytes?: number
   ui: string
   history: string
   versions: string

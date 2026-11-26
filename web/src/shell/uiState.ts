@@ -26,10 +26,12 @@ interface UiState {
   layout: Partial<Record<PanelSide, number>>
   theme: ThemeName
   font: FontName
+  /** Liga/desliga e "já vi" (ponte ui_set_flag → web_flags). */
+  flags: Record<string, boolean>
   loaded: boolean
 }
 
-export const useUi = create<UiState>(() => ({ layout: {}, theme: 'dark', font: 'system', loaded: false }))
+export const useUi = create<UiState>(() => ({ layout: {}, theme: 'dark', font: 'system', flags: {}, loaded: false }))
 
 export function applyTheme(theme: ThemeName): void {
   document.documentElement.dataset.theme = theme
@@ -43,9 +45,9 @@ export function applyFont(font: FontName): void {
 
 export async function loadUiState(): Promise<void> {
   try {
-    const state = await call<{ layout: Record<string, number>; theme: ThemeName; font?: FontName }>('ui_state')
+    const state = await call<{ layout: Record<string, number>; theme: ThemeName; font?: FontName; flags?: Record<string, boolean> }>('ui_state')
     const font = state.font && FONTS.includes(state.font) ? state.font : 'system'
-    useUi.setState({ layout: state.layout ?? {}, theme: state.theme ?? 'dark', font, loaded: true })
+    useUi.setState({ layout: state.layout ?? {}, theme: state.theme ?? 'dark', font, flags: state.flags ?? {}, loaded: true })
     applyTheme(state.theme ?? 'dark')
     applyFont(font)
   } catch {
@@ -85,4 +87,14 @@ export function setFont(font: FontName): void {
   applyFont(font)
   useUi.setState({ font })
   void call('ui_set_font', font).catch(() => undefined)
+}
+
+/** Flag da interface nova; `fallback` vale enquanto a pessoa não mudou. */
+export function useFlag(name: string, fallback: boolean): boolean {
+  return useUi((state) => state.flags[name] ?? fallback)
+}
+
+export function setFlag(name: string, value: boolean): void {
+  useUi.setState((state) => ({ flags: { ...state.flags, [name]: value } }))
+  void call('ui_set_flag', name, value).catch(() => undefined)
 }

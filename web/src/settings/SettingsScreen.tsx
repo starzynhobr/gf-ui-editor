@@ -17,6 +17,8 @@ import { Icon } from '../ui/Icon'
 import { Select } from '../ui/Select'
 import { checkForUpdates } from './updates'
 import { offerRestart, type UiMode } from './interfaceSwitch'
+import { setFlag, useFlag } from '../shell/uiState'
+import { HOVER_TIP_FLAG } from '../shell/canvasHover'
 import { settingsApi, type SettingName, type SettingsState, type SettingsValues } from './settingsApi'
 import './settings.css'
 
@@ -281,6 +283,7 @@ function SettingsPanel() {
   ]
 
   const values = state?.values
+  const hoverTip = useFlag(HOVER_TIP_FLAG, true)
   const resolutionOptions = state
     ? [
         { value: 'game', label: t('Igual ao jogo (client.ini)') },
@@ -416,6 +419,9 @@ function SettingsPanel() {
               ]}
               onChange={(value) => void change('navigation_style', value as SettingsValues['navigation_style'])}
             />
+          </Row>
+          <Row title={t('Dica ao passar o mouse no canvas')} text={t('Mostra o WindowID, o tipo, o texto e a posição do controle sob o mouse parado.')}>
+            <Toggle name="canvas_hover_tip" checked={hoverTip} onChange={(value) => setFlag(HOVER_TIP_FLAG, value)} />
           </Row>
           <Row title={t('Oferecer um projeto ao abrir um XML solto')} text={t('Pergunta se você quer criar um projeto antes de editar um arquivo solto.')}>
             <Toggle name="offer_project_on_open" checked={values.offer_project_on_open} onChange={(value) => void change('offer_project_on_open', value)} />

@@ -9,6 +9,7 @@ import { browseProject, exportZip, goHome, newProject, openProject, publishToGam
 import { Icon } from '../ui/Icon'
 import { redo, undo, useDocState, useEditingAvailable } from './doc'
 import { saveDocument } from './saving'
+import { isStandalone } from '../doc/standalone'
 import { toggleSource, useSource } from '../source/SourcePanel'
 import { openMenuAt, type MenuItem } from '../ui/Menu'
 import { openResolutionsDialog } from '../resolutions/ResolutionsDialog'
@@ -23,6 +24,7 @@ export default function TopBar() {
   const project = shell?.project ?? null
   const fileName = shell?.open_path?.split(/[\\/]/).pop() ?? null
   const pending = shell?.pending ?? 0
+  const standalone = isStandalone(shell)
   const canPublish = Boolean(project?.game_dir)
   const dirty = useDocState((state) => state.dirty)
   const canUndo = useDocState((state) => state.canUndo)
@@ -98,6 +100,15 @@ export default function TopBar() {
           <span className="truncate font-mono text-text" title={shell?.open_path ?? ''}>
             {fileName}
           </span>
+          {standalone && (
+            <span
+              className="gf-standalone-badge"
+              title={t('Arquivo avulso, de fora do projeto: {path}', { path: shell?.open_path ?? '' })}
+              data-testid="standalone-badge"
+            >
+              {t('Avulso')}
+            </span>
+          )}
           {dirty && (
             <span className="text-gold" title={t('alterado')} data-testid="dirty-marker">
               ●

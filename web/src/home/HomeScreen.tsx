@@ -1,5 +1,6 @@
 // Tela inicial: continuar, novo/abrir/XML solto, projetos (filtro, tamanho, data, ⋯,
 // Gerenciar) e, à direita, Novidades e Como funciona. Mesma organização da clássica.
+import { AnimatedSize } from '../ui/AnimatedSize'
 import { useEffect, useMemo, useState } from 'react'
 import { api, type HomeData, type HomeProject } from '../api'
 import { on } from '../bridge'
@@ -211,7 +212,12 @@ export default function HomeScreen() {
                     )}
                   </span>
                   <span className="font-mono text-[12px] text-muted">{project.files ?? '—'}</span>
-                  <span className="font-mono text-[12px] text-muted">{sizes[project.root] ?? project.size ?? '…'}</span>
+                  <span className="font-mono text-[12px] text-muted" data-testid="project-size">
+                    {(sizes[project.root] ?? project.size)
+                      // Chegou depois (cálculo em segundo plano): sobe de zero; mudou (Limpar): anda até o novo.
+                      ? <AnimatedSize value={(sizes[project.root] ?? project.size)!} countUp={!project.size} />
+                      : '…'}
+                  </span>
                   <span className="text-[12px] text-muted">{relativeAge(project.age)}</span>
                   <button
                     className="icon-button opacity-60 group-hover:opacity-100"

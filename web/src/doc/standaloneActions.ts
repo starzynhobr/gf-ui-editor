@@ -1,12 +1,15 @@
 import { call } from '../bridge'
 import { t } from '../i18n'
 import { confirmSourceDraft } from '../source/SourcePanel'
-import { setShell, showStatus, useShell } from '../store'
+import { toast } from 'sonner'
+import { setShell, useShell } from '../store'
+import { flyToProjectList } from './importFlight'
 import { openDiffDialog } from '../ui/DiffDialog'
 import { ask, message, prompt } from '../ui/dialogs'
 import { importStandalone } from './store'
 
-export async function importStandaloneFile(path: string) {
+/** `from`: de onde o arquivo "voa" até a lista do projeto (o botão Importar do cartão). */
+export async function importStandaloneFile(path: string, from?: DOMRect) {
   if (!(await confirmSourceDraft())) return
   let root = useShell.getState().shell?.project?.root ?? null
   if (!root) root = await call<string | null>('standalone_pick_project')
@@ -26,8 +29,14 @@ export async function importStandaloneFile(path: string) {
   for (;;) {
     const result = await importStandalone(path, name, replace, options.checked, root)
     if (!result.conflict) {
-      setShell(result.state)
-      showStatus(t('XML importado: {name}', { name: result.name }))
+      setShell(result.state, { page: 'xml' })
+      void flyToProjectList(from ?? null, result.path, result.name)
+      const copied = result.textures.length
+      toast(copied === 0
+        ? t('Importado para o projeto')
+        : copied === 1
+          ? t('Importado para o projeto · 1 textura copiada')
+          : t('Importado para o projeto · {count} texturas copiadas', { count: copied }), { duration: 5000 })
       return
     }
     const { choice } = await ask({
