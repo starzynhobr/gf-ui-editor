@@ -35,9 +35,10 @@ function NativeSelect({ label, caption, active, value, disabled, onChange, child
     const text = Children.toArray(child.props.children).join('')
     return [{ value: String(child.props.value ?? text), label: text, disabled: child.props.disabled }]
   })
-  return <div className="gf-canvas-select gf-canvas-select-themed" data-caption={caption !== undefined}>
-    {caption !== undefined && <span aria-hidden="true">{caption}</span>}
-    <Select size="sm" label={label} value={value} disabled={disabled} active={active} options={options} onChange={onChange} />
+  // Com legenda (Tela, Fundo, Camadas, Texto), o próprio botão mostra o resumo, como antes.
+  return <div className="gf-canvas-select-themed">
+    <Select size="sm" label={label} value={value} disabled={disabled} active={active} options={options} onChange={onChange}
+      display={caption} />
   </div>
 }
 

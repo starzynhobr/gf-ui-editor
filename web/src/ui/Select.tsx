@@ -30,6 +30,7 @@ export function Select({
   testId,
   label,
   active,
+  display,
 }: {
   value: string
   options: SelectOption[]
@@ -44,6 +45,8 @@ export function Select({
   label?: string
   /** Destaque de "ligado" (barra do canvas). */
   active?: boolean
+  /** Texto do botão no lugar do item escolhido (ex.: "Tela 1024 × 768 · jogo"). */
+  display?: string
 }) {
   const current = options.find((option) => option.value === value)
   return (
@@ -56,7 +59,7 @@ export function Select({
           aria-label={label ?? title}
         >
           <span className="min-w-0 truncate">
-            <RadixSelect.Value placeholder="—">{current?.label ?? value}</RadixSelect.Value>
+            <RadixSelect.Value placeholder="—">{display ?? current?.label ?? value}</RadixSelect.Value>
           </span>
           <RadixSelect.Icon className="gf-select-chevron shrink-0 text-muted">
             <Icon name="chevron-down" size={14} />
