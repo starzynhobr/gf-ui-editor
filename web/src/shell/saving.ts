@@ -98,11 +98,11 @@ export async function saveBeforeProjectAction(): Promise<boolean> {
   return choice === 'discard'
 }
 
-/** Pedido de fechar a janela (o Python cancelou porque havia alterações). */
-export async function closeRequested(): Promise<void> {
+/** Pedido de fechar ou reiniciar, com a mesma confirmação de alterações. */
+export async function closeRequested(restart = false): Promise<void> {
   if (await confirmDiscard()) {
     await api.setUnsaved(false)
-    await api.closeWindow()
+    await api.closeWindow(restart)
   }
 }
 

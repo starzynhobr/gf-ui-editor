@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="en_US">
+<TS version="2.1" language="en_US" sourcelanguage="pt_BR">
 <context>
     <name>AboutDialog</name>
     <message>
@@ -185,9 +185,10 @@
         <translation>Drag to move the view · wheel = zoom · Edit position unlocks the slice</translation>
     </message>
     <message>
-        <location filename="../atlas_dialog.py" line="644"/>
-        <location filename="../atlas_dialog.py" line="722"/>
-        <location filename="../atlas_dialog.py" line="729"/>
+        <location filename="../atlas_dialog.py" line="635"/>
+        <location filename="../atlas_dialog.py" line="714"/>
+        <location filename="../atlas_dialog.py" line="719"/>
+        <location filename="../atlas_dialog.py" line="726"/>
         <source>Abrir .dds</source>
         <translation>Open .dds</translation>
     </message>
@@ -994,17 +995,26 @@
         <translation>Project versions…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2707"/>
+        <location filename="../app.py" line="2627"/>
+        <location filename="../app.py" line="6094"/>
+        <source>Converter em projeto leve…</source>
+        <translation>Convert to lightweight project…</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="2725"/>
+        <location filename="../app.py" line="8162"/>
         <source>Interface</source>
         <translation>Interface</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2711"/>
+        <location filename="../app.py" line="2729"/>
+        <location filename="../app.py" line="8161"/>
         <source>Clássica</source>
         <translation>Classic</translation>
     </message>
     <message>
-        <location filename="../app.py" line="2711"/>
+        <location filename="../app.py" line="2729"/>
+        <location filename="../app.py" line="8161"/>
         <source>Nova (beta)</source>
         <translation>New (beta)</translation>
     </message>
@@ -1872,6 +1882,11 @@ Exact backup:
         <translation>Project versions</translation>
     </message>
     <message>
+        <location filename="../app.py" line="6090"/>
+        <source>Convertendo em projeto leve…</source>
+        <translation>Converting to a lightweight project…</translation>
+    </message>
+    <message>
         <location filename="../app.py" line="6061"/>
         <source>Nome da versão (opcional), ex.: antes de mudar o BasicChar:</source>
         <translation>Version name (optional), e.g. before changing BasicChar:</translation>
@@ -1965,12 +1980,33 @@ Exact backup:
         <translation>Duplicating the project…</translation>
     </message>
     <message>
-        <location filename="../app.py" line="8105"/>
-        <source>A interface escolhida vale na próxima vez que o editor abrir.</source>
-        <translation>The chosen interface takes effect the next time the editor opens.</translation>
+        <location filename="../app.py" line="8163"/>
+        <source>Reiniciar agora para usar a interface {name}?</source>
+        <translation>Restart now to use the {name} interface?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="8110"/>
+        <location filename="../app.py" line="8164"/>
+        <source>Reiniciar agora</source>
+        <translation>Restart now</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="8165"/>
+        <source>Depois</source>
+        <translation>Later</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="8180"/>
+        <source>A interface nova não abriu da última vez. Abrimos a clássica; você pode tentar a nova de novo em Configurações → Interface.</source>
+        <translation>The new interface did not open last time. The classic interface has opened. You can try the new one again in Settings → Interface.</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="8196"/>
+        <source>Não foi possível reiniciar</source>
+        <translation>Could not restart</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="8178"/>
+        <location filename="../app.py" line="8188"/>
         <source>Interface nova indisponível</source>
         <translation>New interface unavailable</translation>
     </message>
@@ -2713,7 +2749,8 @@ The game may crash or show &quot;Child control can not found&quot;. Remove this 
         <translation>Edit as text and save; then Refresh (Ctrl+R) brings the change here.</translation>
     </message>
     <message>
-        <location filename="../app.py" line="7680"/>
+        <location filename="../app.py" line="7729"/>
+        <location filename="../app.py" line="7732"/>
         <source>Abrir como texto</source>
         <translation>Open as text</translation>
     </message>
@@ -4144,8 +4181,9 @@ IDs that are not in the imported files keep the game&apos;s text.</translation>
         <translation>Whole atlas</translation>
     </message>
     <message>
-        <location filename="../atlas_dialog.py" line="897"/>
-        <location filename="../atlas_dialog.py" line="946"/>
+        <location filename="../atlas_dialog.py" line="899"/>
+        <location filename="../atlas_dialog.py" line="950"/>
+        <location filename="../atlas_dialog.py" line="958"/>
         <source>Abrir .dds</source>
         <translation>Open .dds</translation>
     </message>

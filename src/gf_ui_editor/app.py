@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from datetime import datetime
 import difflib
 import hashlib
@@ -10,6 +11,7 @@ import os
 from pathlib import Path
 from queue import Empty, SimpleQueue
 import shutil
+import subprocess
 import sys
 from threading import Thread
 import tempfile
@@ -76,6 +78,7 @@ from PySide6.QtWidgets import (
 from . import __version__
 from . import game_texts, player_sample
 from . import storage, text_data
+from .ui_session import Restart, WebStartup, allow_web_retry, recover_web_start, restart_command
 from .texts_panel import TextsPanel
 from .editor_widgets import (
     EditorView,
@@ -172,10 +175,16 @@ class QtPreferenceStore:
         return QSettings("Local", "GF UI Editor").value(key)
 
     def set(self, key: str, value: object) -> None:
-        QSettings("Local", "GF UI Editor").setValue(key, value)
+        settings = QSettings("Local", "GF UI Editor")
+        settings.setValue(key, value)
+        if key in ("ui_mode", "web_starting"):
+            settings.sync()
 
     def remove(self, key: str) -> None:
-        QSettings("Local", "GF UI Editor").remove(key)
+        settings = QSettings("Local", "GF UI Editor")
+        settings.remove(key)
+        if key == "web_starting":
+            settings.sync()
 
 
 prefs = preferences.Preferences(QtPreferenceStore())
@@ -1934,10 +1943,13 @@ class EditorWindow(QMainWindow):
         *,
         language: str = "pt_BR",
         restore_last_project: bool = False,
+        restart: Callable[[Restart], None] | None = None,
     ):
         super().__init__()
         load_fonts()
         self.language = language
+        self._restart = restart
+        self._restart_on_close = False
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.document: UIDocument | None = None
         self.project: Project | None = None
@@ -2309,7 +2321,9 @@ class EditorWindow(QMainWindow):
             # Só na janela principal de verdade (não em testes nem na troca de idioma).
             QTimer.singleShot(2500, self._automatic_update_check)
             QTimer.singleShot(4000, self._load_remote_manifest)
-        if initial_path is not None:
+        if initial_path is not None and storage.is_project(initial_path):
+            self.open_project(initial_path)
+        elif initial_path is not None:
             self.open_document(initial_path)
         elif restore_last_project:
             last = prefs.last_project
@@ -2708,7 +2722,6 @@ class EditorWindow(QMainWindow):
         view_menu.addAction(self.isolate_action)
         language_menu = self.main_menu.addMenu(self.tr("Idioma"))
         self.language_menu = language_menu
-        # Interface clássica ou nova: vale na próxima vez que o editor abrir.
         ui_mode_menu = self.main_menu.addMenu(self.tr("Interface"))
         self.ui_mode_menu = ui_mode_menu
         ui_mode_actions = QActionGroup(self)
@@ -8139,9 +8152,35 @@ class EditorWindow(QMainWindow):
             action.setChecked(action.data() == self.language)
 
     def set_ui_mode(self, mode: str) -> None:
-        """Interface ao abrir (clássica ou nova); vale ao reiniciar."""
+        if mode == "classic" and prefs.ui_mode == mode:
+            return
         prefs.ui_mode = mode
-        self.statusBar().showMessage(self.tr("A interface escolhida vale na próxima vez que o editor abrir."), 8000)
+        if mode == "web":
+            # Selecionar a nova na clássica autoriza uma nova tentativa após uma falha.
+            allow_web_retry(prefs)
+        name = self.tr("Nova (beta)") if mode == "web" else self.tr("Clássica")
+        dialog = QMessageBox(QMessageBox.Icon.Question, self.tr("Interface"), "", parent=self)
+        dialog.setText(self.tr("Reiniciar agora para usar a interface {name}?").format(name=name))
+        restart = dialog.addButton(self.tr("Reiniciar agora"), QMessageBox.ButtonRole.AcceptRole)
+        later = dialog.addButton(self.tr("Depois"), QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(later)
+        dialog.exec()
+        if dialog.clickedButton() is restart:
+            self._restart_on_close = True
+            try:
+                self.close()
+            finally:
+                self._restart_on_close = False
+
+    def warn_web_ui_failed(self) -> None:
+        QMessageBox.warning(
+            self,
+            self.tr("Interface nova indisponível"),
+            self.tr(
+                "A interface nova não abriu da última vez. Abrimos a clássica; "
+                "você pode tentar a nova de novo em Configurações → Interface."
+            ),
+        )
 
     def warn_web_ui_unavailable(self) -> None:
         QMessageBox.warning(
@@ -8153,21 +8192,33 @@ class EditorWindow(QMainWindow):
             ),
         )
 
+    def warn_restart_error(self, error: str) -> None:
+        QMessageBox.warning(self, self.tr("Não foi possível reiniciar"), error)
+
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
-        if getattr(self, "_closing_for_language", False) or self._confirm_discard_changes():
-            event.accept()
-        else:
+        if not getattr(self, "_closing_for_language", False) and not self._save_before_project_action():
             event.ignore()
+            return
+        if self._restart_on_close and self._restart is not None:
+            path = self.project.root if self.project is not None else self.document.path if self.document is not None else None
+            try:
+                self._restart(Restart(path))
+            except OSError as exc:
+                self.warn_restart_error(str(exc))
+                event.ignore()
+                return
+        event.accept()
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Editor visual dos XMLs de UI do Grand Fantasia")
-    parser.add_argument("xml", nargs="?", type=Path, help="XML que será aberto ao iniciar")
+    parser.add_argument("xml", nargs="?", type=Path, help="XML ou projeto que será aberto ao iniciar")
     parser.add_argument("--lang", choices=LANGUAGES, help="Idioma da interface nesta execução")
     parser.add_argument(
         "--ui", choices=preferences.UI_MODES, help="Interface: clássica (Qt) ou nova (web); sem isto, a escolhida nas configurações"
     )
     parser.add_argument("--dev", action="store_true", help="Interface web pelo servidor do Vite (npm run dev em web/)")
+    parser.add_argument("--web-start-failed", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -8180,7 +8231,19 @@ def main(argv: list[str] | None = None) -> int:
 
         return webview_runtime.webview2_version() is not None and (args.dev or webview_runtime.web_build_ready(WEB_DIST))
 
+    def launch_restart(restart: Restart, *, classic_fallback: bool = False) -> None:
+        frozen = bool(getattr(sys, "frozen", False))
+        command = restart_command(
+            sys.executable, frozen=frozen, dev=args.dev, path=restart.path, language=args.lang,
+            classic_fallback=classic_fallback,
+        )
+        env = os.environ.copy()
+        if frozen:
+            env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        subprocess.Popen(command, env=env)
+
     ui_mode, web_missing = webview_runtime.resolve_ui(args.ui, prefs.ui_mode, web_available)
+    web_failed = args.web_start_failed or recover_web_start(args.ui, prefs)
     if ui_mode == "web":
         from . import single_instance, web_shell
 
@@ -8191,13 +8254,25 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         language = args.lang or prefs.language
         try:
-            return web_shell.run(
-                language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=xml, prefs=prefs,
-                default_ui_directory=DEFAULT_UI_DIRECTORY, instance=instance,
-            )
+            # Uma janela em inicialização também tem marcador, mas atende pelo pipe.
+            web_failed = recover_web_start(args.ui, prefs)
+            if not web_failed:
+                startup = WebStartup(prefs, __version__)
+                restart = web_shell.run(
+                    language if language in LANGUAGES else "pt_BR", dev=args.dev, xml=xml, prefs=prefs,
+                    default_ui_directory=DEFAULT_UI_DIRECTORY, instance=instance, startup=startup,
+                )
         finally:
             if instance is not None:
                 instance.close()
+        if not web_failed:
+            if startup.finish():
+                # O rasterizador de textos da web pode ter criado um QGuiApplication.
+                # A clássica precisa de um QApplication em um processo novo.
+                launch_restart(Restart(xml), classic_fallback=True)
+            elif restart is not None:
+                launch_restart(restart)
+            return 0
     application = QApplication(sys.argv[:1])
     application.setApplicationName(APP_NAME)
     application.setOrganizationName("Local")
@@ -8206,10 +8281,12 @@ def main(argv: list[str] | None = None) -> int:
     if language not in LANGUAGES:
         language = "pt_BR"
     switch_language(application, language)
-    window = EditorWindow(args.xml, language=language, restore_last_project=True)
+    window = EditorWindow(args.xml, language=language, restore_last_project=True, restart=launch_restart)
     window.show()
     application._main_window = window
-    if web_missing:
+    if web_failed:
+        QTimer.singleShot(0, window.warn_web_ui_failed)
+    elif web_missing:
         QTimer.singleShot(0, window.warn_web_ui_unavailable)
     return application.exec()
 

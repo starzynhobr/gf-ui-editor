@@ -186,7 +186,7 @@ class ProjectsApi:
         }
 
     def startup(self) -> dict:
-        """Como a clássica: o XML da linha de comando, senão o último projeto (com o último XML)."""
+        """Como a clássica: abre o XML ou projeto pedido, senão restaura o último projeto."""
         if not self._manifest_ready.is_set():
             threading.Thread(target=self._fetch_manifest, name="gf-ui-manifest", daemon=True).start()
         view = "home"
@@ -195,6 +195,8 @@ class ProjectsApi:
             view = "workspace"
         else:
             last = self._prefs.last_project
+            if self._startup_xml is not None and storage.is_project(self._startup_xml):
+                last = str(self._startup_xml)
             if last and storage.is_project(Path(last)):
                 try:
                     self._load_project(Path(last))

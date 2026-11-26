@@ -10,9 +10,10 @@ import { refreshShell } from '../actions'
 import { applyCanvasPreference } from '../doc/store'
 import { openWhatsNew } from '../home/WhatsNewDialog'
 import { LANGUAGES, setLanguage, t, useT } from '../i18n'
+import { closeRequested } from '../shell/saving'
 import { THEMES, loadUiState, setTheme, useUi, type ThemeName } from '../shell/uiState'
 import { setShell, showStatus, useShell } from '../store'
-import { message } from '../ui/dialogs'
+import { confirm, message } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
 import { Select } from '../ui/Select'
 import { checkForUpdates } from './updates'
@@ -206,7 +207,13 @@ function SettingsPanel() {
       announce(name, value)
       if (name === 'ui_mode') {
         await refreshShell()
-        showStatus(t('A interface escolhida vale na próxima vez que o editor abrir.'), 8)
+        const name = value === 'web' ? t('Nova (beta)') : t('Clássica')
+        if (await confirm(t('Interface'), t('Reiniciar agora para usar a interface {name}?', { name }), {
+          no: t('Depois'),
+          yes: t('Reiniciar agora'),
+        })) {
+          await closeRequested(true)
+        }
       }
       if (name === 'publish_on_save' || name === 'publish_confirmed') await refreshShell()
       if (name === 'beta_updates' && value === true) void checkForUpdates(true) // como a clássica ao entrar no canal
@@ -289,7 +296,7 @@ function SettingsPanel() {
                 }}
               />
             </Row>
-            <Row title={t('Interface')} text={t('A interface escolhida vale na próxima vez que o editor abrir.')}>
+            <Row title={t('Interface')}>
               <Segmented
                 name="ui_mode"
                 value={values.ui_mode}

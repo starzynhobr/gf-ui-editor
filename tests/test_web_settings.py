@@ -366,7 +366,7 @@ def test_main_sends_to_the_open_window(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(webview_runtime, "resolve_ui", lambda requested, saved, available: ("web", False))
     monkeypatch.setattr(single_instance, "acquire", lambda: None)
     monkeypatch.setattr(single_instance, "send_open", lambda path: sent.append(path) or True)
-    monkeypatch.setattr(web_shell, "run", lambda *args, **kwargs: ran.append(kwargs) or 0)
+    monkeypatch.setattr(web_shell, "run", lambda *args, **kwargs: ran.append(kwargs))
     assert app.main([str(tmp_path / "Bag.xml"), "--ui", "web"]) == 0
     assert sent == [(tmp_path / "Bag.xml").resolve()] and ran == []
 
@@ -383,7 +383,7 @@ def test_main_opens_the_xml_and_serves_the_next_ones(monkeypatch, tmp_path: Path
     ran = []
     monkeypatch.setattr(webview_runtime, "resolve_ui", lambda requested, saved, available: ("web", False))
     monkeypatch.setattr(single_instance, "acquire", lambda: Instance())
-    monkeypatch.setattr(web_shell, "run", lambda *args, **kwargs: ran.append(kwargs) or 0)
+    monkeypatch.setattr(web_shell, "run", lambda *args, **kwargs: ran.append(kwargs))
     assert app.main([str(tmp_path / "Bag.xml")]) == 0
     assert ran[0]["xml"] == (tmp_path / "Bag.xml").resolve() and isinstance(ran[0]["instance"], Instance)
     assert Instance.closed

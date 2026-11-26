@@ -978,6 +978,26 @@ def edit_and_save(xml: Path, child) -> None:
     js(f"__smoke.setValue('input[name=geometry-x]', '{new_x + 5}')")
     js("__smoke.q('input[name=geometry-x]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))")
     wait("!!__smoke.q('[data-testid=dirty-marker]')", 5, "alterado de novo")
+    _open_settings()
+    js("__smoke.click('[data-setting=ui_mode] [data-value=web]')")
+    prompt = _dialog_with("Reiniciar agora para usar a interface")
+    check("trocar interface oferece Reiniciar agora e Depois", bool(wait(prompt, 5, "reiniciar interface"))
+          and app_module.prefs.ui_mode == "web")
+    js("__smoke.clickText('Depois', '[role=dialog][aria-label=Interface]')")
+    wait(f"!({prompt})", 5, "reiniciar depois")
+    js("__smoke.click('[data-setting=ui_mode] [data-value=classic]')")
+    wait(prompt, 5, "reiniciar na clássica")
+    js("__smoke.clickText('Reiniciar agora', '[role=dialog][aria-label=Interface]')")
+    dirty_prompt = _dialog_with("alterações não salvas")
+    choices = wait(dirty_prompt, 5, "salvar antes de reiniciar") or ""
+    check("reiniciar com alterações oferece Salvar, Descartar e Cancelar",
+          all(label in choices for label in ("Salvar", "Descartar", "Cancelar")))
+    js("""__smoke.clickText('Cancelar', '[role=dialog][aria-label="Descartar alterações?"]')""")
+    dismissed = wait(f"!({dirty_prompt})", 5, "cancelar reinício")
+    check("cancelar mantém as alterações e a preferência", dismissed and js("!!__smoke.q('[data-testid=dirty-marker]')")
+          and app_module.prefs.ui_mode == "classic" and xml.read_bytes() == saved)
+    _close_settings()
+
     js("__smoke.click('[data-testid=topbar] button')")  # casinha
     asked = wait("(__smoke.text('[role=dialog]') || '').includes('alterações não salvas')", 5, "descartar ao ir para a tela inicial")
     check("tela inicial pergunta Descartar alterações?", bool(asked))
