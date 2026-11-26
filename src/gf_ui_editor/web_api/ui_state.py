@@ -36,7 +36,7 @@ class AboutApi:
     """Popup da pílula STZ Labs: links e quem ajudou a construir (assets/contributors.json)."""
 
     def about_info(self) -> dict:
-        from .. import __version__, about, updater
+        from .. import __version__, about, home, updater
 
         language = getattr(self, "_language", "pt_BR")
         people = []
@@ -56,6 +56,8 @@ class AboutApi:
             "site": "https://stzlabs.com/pt" if language == "pt_BR" else "https://stzlabs.com",
             "github": "https://github.com/starzynhobr?tab=repositories",
             "discord": "https://discord.com/invite/cTsJhtMzSe",
+            # Vídeo do "Como usar" (F1) e do cartão Como funciona da tela inicial.
+            "how_to_url": home.how_to_url(language),
             "contributors": people,
         }
 

@@ -1,11 +1,12 @@
 // Atalhos da janela (os mesmos da clássica): F5, Ctrl+S, Ctrl+Z, Ctrl+Y/Ctrl+Shift+Z,
-// Ctrl+Shift+N, Ctrl+Shift+O, Ctrl+1..4. Da interface nova: Ctrl+K (paleta) e Ctrl+U (código XML).
+// Ctrl+Shift+N, Ctrl+Shift+O, Ctrl+1..4, F1 (Como usar). Da interface nova: Ctrl+K (paleta) e Ctrl+U (código XML).
 import { browseProject, newProject, publishToGame, showPage } from '../actions'
 import { docState, redo, undo } from './doc'
 import { saveDocument } from './saving'
 import { useShell, type SidePage } from '../store'
 import { openPalette } from '../palette/CommandPalette'
 import { toggleSource } from '../source/SourcePanel'
+import { openHowTo } from '../home/HowToDialog'
 
 const PAGES: SidePage[] = ['xml', 'textures', 'elements', 'texts']
 
@@ -15,6 +16,12 @@ function modalOpen(): boolean {
 
 export function installShortcuts(): () => void {
   const onKey = (event: KeyboardEvent) => {
+    // F1 é da janela (QKeySequence.HelpContents na clássica): nunca vai para a ajuda do navegador.
+    if (event.key === 'F1' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault()
+      if (!modalOpen() && !event.repeat) openHowTo()
+      return
+    }
     if (modalOpen() || event.repeat) return
     const key = event.key.toLowerCase()
     const ctrl = event.ctrlKey || event.metaKey

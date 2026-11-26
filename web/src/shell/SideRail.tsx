@@ -1,5 +1,5 @@
 // Barrinha da esquerda: Arquivos XML, Texturas, Elementos, Textos (Ctrl+1..4) e, embaixo,
-// a engrenagem enxuta: Configurações… (idioma, tema e interface ficam lá), Novidades,
+// a engrenagem enxuta: Configurações… (idioma, tema e interface ficam lá), Como usar (F1), Novidades,
 // Verificar atualizações e Sobre. Idioma e tema também saem pela paleta (Ctrl+K).
 import { useT } from '../i18n'
 import { useShell, type SidePage } from '../store'
@@ -8,6 +8,7 @@ import { showPage } from '../actions'
 import { openSettings } from '../settings/SettingsScreen'
 import { checkForUpdates } from '../settings/updates'
 import { openWhatsNew } from '../home/WhatsNewDialog'
+import { openHowTo } from '../home/HowToDialog'
 import { Icon } from '../ui/Icon'
 import { openMenu } from '../ui/Menu'
 
@@ -30,6 +31,7 @@ export default function SideRail() {
       y: rect.top,
       items: [
         { label: t('Configurações…'), icon: 'settings', onClick: () => openSettings() },
+        { label: t('Como usar'), icon: 'help', hint: 'F1', onClick: openHowTo },
         { separator: true },
         { label: t('Novidades desta versão'), icon: 'info', onClick: openWhatsNew },
         { label: t('Verificar atualizações…'), icon: 'sparkles', onClick: () => void checkForUpdates(true) },
