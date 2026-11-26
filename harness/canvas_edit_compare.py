@@ -245,8 +245,11 @@ def web(out, page, project, expected):
         cdp("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button=button, buttons=buttons,
             clickCount=clicks, modifiers=modifiers)
         if dx or dy:
+            # CDP defaults `button` to "none" on mouseMoved, which drops pointer capture in Blink;
+            # if a frame promoted `gotpointercapture` between press and move, Blink fires
+            # `lostpointercapture` right before `pointermove` and cancels the drag.
             cdp("Input.dispatchMouseEvent", type="mouseMoved", x=x + dx, y=y + dy,
-                buttons=buttons, modifiers=modifiers)
+                button=button, buttons=buttons, modifiers=modifiers)
         cdp("Input.dispatchMouseEvent", type="mouseReleased", x=x + dx, y=y + dy,
             button=button, buttons=0, clickCount=clicks, modifiers=modifiers)
 
