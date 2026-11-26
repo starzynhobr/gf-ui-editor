@@ -6,7 +6,7 @@ const tokens = {
   frame: '--color-canvas-frame',
   outline: '--color-canvas-outline',
   selection: '--color-gold',
-  label: '--color-warning',
+  label: '--color-canvas-label',
   character: '--color-success',
   ghost: '--color-warning',
 } as const

@@ -16,11 +16,23 @@ root.render(createElement(CanvasView, { path: null }))
 
 async function setToggle(caption: string, pressed: boolean) {
   const button = [...document.querySelectorAll<HTMLButtonElement>('.gf-canvas-toolbar button')]
-    .find((button) => button.textContent === caption)
+    .find((button) => (button.getAttribute('aria-label') ?? button.textContent) === caption)
   if (!button) throw new Error('Missing canvas control: ' + caption)
   const deadline = performance.now() + 5000
   if (button.ariaPressed !== String(pressed)) button.click()
   while (button.disabled || button.ariaPressed !== String(pressed)) {
+    if (performance.now() > deadline) throw new Error('Canvas control timed out: ' + caption)
+    await new Promise(requestAnimationFrame)
+  }
+}
+
+async function change(caption: string, value: string) {
+  const select = document.querySelector<HTMLSelectElement>(`select[aria-label="${caption}"]`)!
+  if (select.value === value) return
+  select.value = value
+  select.dispatchEvent(new Event('change', { bubbles: true }))
+  const deadline = performance.now() + 5000
+  while (select.value !== value || select.disabled) {
     if (performance.now() > deadline) throw new Error('Canvas control timed out: ' + caption)
     await new Promise(requestAnimationFrame)
   }
@@ -36,19 +48,8 @@ async function open(path: string, preview: boolean, background: boolean) {
   while ((!Konva.stages[0]?.width() || !document.querySelector('.gf-canvas-toolbar')) && performance.now() < timeout) {
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  const change = async (caption: string, value: string) => {
-    const select = document.querySelector<HTMLSelectElement>(`select[aria-label="${caption}"]`)!
-    if (select.value === value) return
-    select.value = value
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-    const deadline = performance.now() + 5000
-    while (select.value !== value || select.disabled) {
-      if (performance.now() > deadline) throw new Error('Canvas control timed out: ' + caption)
-      await new Promise(requestAnimationFrame)
-    }
-  }
   await setToggle('Contornos', false)
-  await setToggle('IDs', false)
+  await setToggle('Mostrar identificadores', false)
   await change('Tela', preview ? 'game' : 'off')
   await change('Fundo', background ? 'builtin' : 'none')
   await change('Texto', preview ? 'game' : 'off')
@@ -115,14 +116,14 @@ async function checkControls() {
   await commit()
   if (group.x() !== initial.x || group.y() !== initial.y || group.scaleX() !== scale) throw new Error('Canvas fit did not restore framing')
 
-  await setToggle('IDs', true)
+  await setToggle('Mostrar identificadores', true)
   await commit()
   const context = CanvasRenderingContext2D.prototype
   const { fillText, strokeRect } = context
   const fonts: string[] = []
   const strokes: number[] = []
   context.fillText = function (text, ...args) {
-    if (text.startsWith('1 · ')) fonts.push(`${this.font} × ${this.getTransform().a}`)
+    if (text === '1 · Texto · Auto Awake') fonts.push(`${this.font} × ${this.getTransform().a}`)
     fillText.call(this, text, ...args)
   }
   context.strokeRect = function (...args) {
@@ -146,7 +147,7 @@ async function checkControls() {
   if (strokes.length !== 2 || strokes.some((width) => Math.abs(width - 2) > .001)) {
     throw new Error('Selection outlines did not retain their screen thickness: ' + strokes.join(', '))
   }
-  await setToggle('IDs', false)
+  await setToggle('Mostrar identificadores', false)
 
   const html = document.documentElement
   const theme = document.createElement('style')
@@ -167,15 +168,52 @@ async function checkControls() {
   return true
 }
 
+async function checkGameTextZoom() {
+  await change('Texto', 'xml')
+  const stage = positionStage(0, 0)
+  const group = stage.findOne('Group')!
+  const size = 96
+  const pixels = (width: number) => stage.toCanvas({ width, height: width, pixelRatio: 1 })
+    .getContext('2d')!.getImageData(0, 0, width, width).data
+  const normal = pixels(size)
+  const zoom = 3
+  group.scale({ x: zoom, y: zoom })
+  stage.draw()
+  const enlarged = pixels(size * zoom)
+  let black = 0, white = 0
+  // Ignore the editor's fixed-screen-size selection border and handles.
+  const inset = 8 * zoom
+  for (let y = inset; y < size * zoom - inset; y++) {
+    for (let x = inset; x < size * zoom - inset; x++) {
+      const source = (Math.floor(y / zoom) * size + Math.floor(x / zoom)) * 4
+      const target = (y * size * zoom + x) * 4
+      for (let channel = 0; channel < 4; channel++) {
+        if (normal[source + channel] !== enlarged[target + channel]) {
+          throw new Error(`Text zoom resampled game pixels at ${x},${y}`)
+        }
+      }
+      if (normal[source] === 0) black++
+      if (normal[source + 1] === 255) white++
+    }
+  }
+  if (!black || !white) throw new Error('Outlined game text was not drawn')
+  await change('Texto', 'off')
+  return true
+}
+
 async function editOpen(path: string, preview: boolean) {
   await open(path, preview, false)
   const doc = useDoc.getState().doc!
   const [, , width, height] = preview ? doc.preview.screen : doc.bounds
   const viewport = document.querySelector<HTMLDivElement>('.gf-canvas-viewport')!
-  Object.assign(viewport.style, { flex: 'none', width: `${width + 40}px`, height: `${height + 44}px` })
+  Object.assign(viewport.style, { flex: 'none', width: `${Math.max(850, width + 40)}px`, height: `${height + 104}px` })
+  // Leave room above the fixture for real pointer input below the floating bar.
   for (let attempt = 0; attempt < 30; attempt++) {
     await new Promise(requestAnimationFrame)
-    if (Konva.stages[0].findOne('Group')!.scaleX() === 1) return true
+    const stage = Konva.stages[0]
+    if (stage.width() !== viewport.clientWidth || stage.height() !== viewport.clientHeight) continue
+    if (stage.findOne('Group')!.scaleX() === 1) return true
+    document.querySelector<HTMLButtonElement>('[data-testid="canvas-zoom-reset"]')!.click()
   }
   throw new Error('Editing fixture did not reach 1:1 zoom')
 }
@@ -199,7 +237,9 @@ Object.assign(window, {
   },
   canvasCompare: {
     open,
+    textOff: async () => { await change('Texto', 'off'); return true },
     checkControls,
+    checkGameTextZoom,
     ddsHashes: (files: [base: string, file: string][]) => new Promise((resolve, reject) => {
       const worker = new DdsProbe()
       worker.onmessage = ({ data }) => {

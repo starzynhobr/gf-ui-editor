@@ -1,4 +1,6 @@
 import type { CanvasDocument, CanvasElement, CanvasRect, CanvasTextMode } from '../bridge'
+import { kindLabel, gameColorToHex } from '../elements/kinds'
+import { drawGameText } from './gameText'
 import type { Handle } from './geometry'
 import type { CanvasPalette } from './palette'
 
@@ -115,50 +117,8 @@ function drawText(ctx: CanvasRenderingContext2D, element: CanvasElement, box: Ca
   const text = (options.sample && element.sample_text) || ('value' in entry ? entry.value : options[entry.sample]) || fallback
   if (!text) return
   const props = element.text_props
-  const outline = props.FontStyle === '1'
-  const multiline = props.MultiLine === '1'
-  const align = element.button ? '1' : props.TextAlign
-  const [x, y, width, height] = box
-  ctx.font = '11px Arial'
-  ctx.letterSpacing = outline ? '1px' : '0px'
-  ctx.textBaseline = 'alphabetic'
-  ctx.textAlign = align === '1' ? 'center' : align === '2' ? 'right' : 'left'
-  const tx = x + (align === '1' ? width / 2 : align === '2' ? width : 0)
-  let ty = y + (multiline ? 10 : Math.floor((height - 13) / 2) + 10)
-  const number = Number(props.FontColor ?? 0xffffff)
-  const bgr = Number.isInteger(number) ? number : 0xffffff
-  const color = `rgb(${bgr & 255},${(bgr >> 8) & 255},${(bgr >> 16) & 255})`
-  const lines: string[] = []
-  for (const paragraph of text.split(/\r?\n/)) {
-    if (!multiline) {
-      lines.push(paragraph)
-      continue
-    }
-    let line = ''
-    for (const word of paragraph.split(/\s+/)) {
-      const candidate = line ? `${line} ${word}` : word
-      if (line && ctx.measureText(candidate).width > width) {
-        lines.push(line)
-        line = word
-      } else {
-        line = candidate
-      }
-    }
-    lines.push(line)
-  }
-  for (const line of lines) {
-    if (outline) {
-      ctx.fillStyle = '#000'
-      for (const dx of [-1, 0, 1]) {
-        for (const dy of [-1, 0, 1]) {
-          if (dx || dy) ctx.fillText(line, tx + dx, ty + dy)
-        }
-      }
-    }
-    ctx.fillStyle = color
-    ctx.fillText(line, tx, ty)
-    ty += 13
-  }
+  drawGameText(ctx, text, gameColorToHex(props.FontColor), props.FontStyle === '1', props.MultiLine === '1',
+    element.button ? '1' : props.TextAlign ?? '0', ...box)
 }
 
 export function drawDots(ctx: CanvasRenderingContext2D, width: number, height: number, palette: CanvasPalette) {
@@ -228,16 +188,22 @@ function drawLabels(
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
   ctx.font = '12px Arial'
   ctx.textBaseline = 'top'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#18150a'
+  ctx.fillStyle = palette.label
   const occupied = new Set<number>()
   const columns = Math.ceil(width / 16)
   const primary = rows.find(({ element }) => element.index === selected)
   const ordered = primary ? [primary, ...rows.filter((row) => row !== primary)] : rows
+  const labels: { label: string; x: number; y: number }[] = []
   for (const row of ordered) {
     const [x, y] = project(row)
     if (x < 0 || x >= width || y < 0 || y + 16 > height) continue
-    const label = `${row.element.id} · ${row.element.ctrl_type ?? row.element.kind}`
-    const w = Math.ceil(ctx.measureText(label).width) + 6
-    if (x + w > width) continue
+    const { id, kind, ctrl_type, texts } = row.element
+    const text = ('value' in texts.game && texts.game.value) || ('value' in texts.xml && texts.xml.value) || ''
+    const label = [id, kindLabel(kind, ctrl_type), text.trim().replace(/\s+/g, ' ')].filter(Boolean).join(' · ')
+    const w = Math.min(width - x, Math.ceil(ctx.measureText(label).width) + 2)
     // Reserve screen-space cells so IDs on nearby elements don't overlap at small zooms.
     const cells: number[] = []
     for (let iy = Math.floor(y / 16); iy <= Math.floor((y + 15) / 16); iy++) {
@@ -245,10 +211,11 @@ function drawLabels(
     }
     if (cells.some((cell) => occupied.has(cell))) continue
     for (const cell of cells) occupied.add(cell)
-    ctx.fillStyle = palette.surface
-    ctx.fillRect(x, y, w, 16)
-    ctx.fillStyle = palette.label
-    ctx.fillText(label, x + 3, y + 2)
+    labels.push({ label, x, y })
+  }
+  for (const { label, x, y } of labels.reverse()) {
+    ctx.strokeText(label, x, y)
+    ctx.fillText(label, x, y)
   }
   ctx.restore()
 }
@@ -309,7 +276,6 @@ export function drawScene(
     ctx.fillStyle = palette.ghost
     ctx.fillText(ghostLabel, ghost[0] + 3 / scale, ghost[1] + 13 / scale)
   }
-  if (options.labels) drawLabels(ctx, rows, selected, pixelRatio, palette)
   const marked = new Set(selection)
   for (const { element, box } of rows) {
     if (!marked.has(element.index)) continue
@@ -332,5 +298,6 @@ export function drawScene(
     ctx.globalAlpha = 1
     ctx.strokeRect(...marquee)
   }
+  if (options.labels) drawLabels(ctx, rows, selected, pixelRatio, palette)
   ctx.restore()
 }

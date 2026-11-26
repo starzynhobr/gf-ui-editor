@@ -604,9 +604,10 @@ def canvas_toolbar() -> None:
     )))
     js(f"__smoke.clickText('Contornos', '{toolbar}')")
     wait(f"__smoke.q('{toolbar} button').getAttribute('aria-pressed') === 'true'", 5, "contornos restaurados")
-    js(f"__smoke.clickText('IDs', '{toolbar}')")
-    check("IDs liga os rótulos", bool(wait(
-        f"__smoke.q('{toolbar} button:nth-child(2)').getAttribute('aria-pressed') === 'true'", 5, "IDs ligados",
+    ids = json.dumps(f'{toolbar} button[aria-label="Mostrar identificadores"]')
+    js(f"__smoke.click({ids})")
+    check("Mostrar identificadores liga os rótulos", bool(wait(
+        f"__smoke.q({ids}).getAttribute('aria-pressed') === 'true'", 5, "IDs ligados",
     )))
     choose("Tela", "custom")
     wait(f"!!__smoke.q('{toolbar} form input')", 5, "resolução personalizada")
@@ -620,12 +621,21 @@ def canvas_toolbar() -> None:
     zoom = "[data-testid=canvas-zoom-reset]"
     js(f"__smoke.click('{zoom}')")
     check("Porcentagem volta a 100%", bool(wait(f"__smoke.text('{zoom}') === '100%'", 5, "zoom 100%")))
-    js(f"__smoke.click('{toolbar} button[aria-label=\"Diminuir zoom\"]')")
+    js(f"__smoke.click('.gf-canvas-zoom button[aria-label=\"Diminuir zoom\"]')")
     wait(f"__smoke.text('{zoom}') !== '100%'", 5, "reduzir zoom")
     js("__smoke.key('0', { ctrlKey: true })")
     check("Ctrl+0 volta a 100%", bool(wait(f"__smoke.text('{zoom}') === '100%'", 5, "Ctrl+0")))
     js("__smoke.click('[data-testid=canvas-fit]')")
     check("Enquadrar ajusta a tela", bool(wait(f"__smoke.text('{zoom}') !== '100%'", 5, "enquadrar")))
+    check("Pílulas flutuam sobre o canvas e recebem os próprios cliques", bool(js("""(() => {
+      const viewport = __smoke.q('.gf-canvas-viewport').getBoundingClientRect();
+      const bars = __smoke.all('.gf-canvas-toolbar, .gf-canvas-zoom');
+      return bars.length === 2 && bars.every(bar => {
+        const box = bar.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return box.top >= viewport.top && box.bottom <= viewport.bottom && bar.contains(hit);
+      });
+    })()""")))
 
     js(f"__smoke.clickText('User.ini', '{toolbar}')")
     wait(f"!__smoke.q('{toolbar} button[title*=User]').disabled", 5, "User.ini desligado")
@@ -656,9 +666,10 @@ def canvas_toolbar() -> None:
     )) and app_module.prefs.game_background == str(capture))
     choose("Fundo", "builtin")
     wait("__smoke.q('select[aria-label=Fundo]').value === 'builtin' && !__smoke.q('select[aria-label=Fundo]').disabled", 5, "fundo embutido")
+    js("window.layerEvents = 0; window.addEventListener('gf:layers-changed', () => window.layerEvents++)")
     choose("Camadas", "default")
     check("Camadas monta o HUD na lista Arquivos", bool(wait(
-        "!!__smoke.q('[data-section=layers] [data-file]') && __smoke.q('select[aria-label=Camadas]').dataset.active === 'true'",
+        "window.layerEvents === 1 && !!__smoke.q('[data-section=layers] [data-file]') && __smoke.q('select[aria-label=Camadas]').dataset.active === 'true'",
         8, "camadas do HUD",
     )))
     shot("04b-canvas-camadas-e-ids")
@@ -672,14 +683,14 @@ def canvas_toolbar() -> None:
     wait("window.innerWidth > 1280", 5, "restaurar largura")
     choose("Camadas", "clear")
     check("Camadas limpa o HUD e a lista", bool(wait(
-        "!__smoke.q('[data-section=layers]') && __smoke.q('select[aria-label=Camadas]').dataset.active === 'false'",
+        "window.layerEvents === 2 && !__smoke.q('[data-section=layers]') && __smoke.q('select[aria-label=Camadas]').dataset.active === 'false'",
         8, "camadas limpas",
     )))
     choose("Texto", "off")
     wait("__smoke.q('select[aria-label=Texto]').value === 'off' && !__smoke.q('select[aria-label=Texto]').disabled", 5, "texto desligado")
     js(f"__smoke.clickText('Personagem', '{toolbar}')")
     wait(f"__smoke.all('{toolbar} button').find(b => b.textContent === 'Personagem').getAttribute('aria-pressed') === 'true'", 5, "Personagem restaurado")
-    js(f"__smoke.clickText('IDs', '{toolbar}')")
+    js(f"__smoke.click({ids})")
 
 
 def driver() -> None:
