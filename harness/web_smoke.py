@@ -167,6 +167,11 @@ def scenario() -> None:
 
     # 1. Tela inicial sem projetos.
     check("home aparece", bool(wait("!!__smoke.q('[data-testid=home]')", 30, "tela inicial")))
+    wait(
+        "(__smoke.text('[data-testid=home-projects]') || '').includes('Nenhum projeto ainda')"
+        " || !!__smoke.q('[data-testid=home-project-row]')",
+        20, "carregamento dos projetos",
+    )
     text = js("__smoke.text('[data-testid=home]')") or ""
     check("home sem projeto convida a começar", "Comece um projeto de UI" in text, text=text[:200])
     check("home sem projetos", "Nenhum projeto ainda" in text)
@@ -228,7 +233,7 @@ def scenario() -> None:
     # 5. Edita o XML no disco (como o Notepad++ faria) e espera o contador do F5.
     target = project_root / "ui" / "BasicChar.xml"
     original = target.read_bytes()
-    edited = original.replace(b"<", b"\r\n<", 1) if not original.startswith(b"\r\n") else original + b"\r\n"
+    edited = original + b"\r\n"
     target.write_bytes(edited)
     pending = wait("__smoke.text('[data-testid=publish-count]')", 12, "contador do F5")
     check("contador do F5 = 1", (pending or "").strip() == "1", pending=pending)
