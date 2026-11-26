@@ -1,8 +1,10 @@
 from pathlib import Path
+from struct import pack
 
 import pytest
 
-from gf_ui_editor import project
+from gf_ui_editor import game_layout, project
+from gf_ui_editor.preferences import Preferences
 from gf_ui_editor.web_shell import WebApi
 from gf_ui_editor.xml_document import ExternalModificationError, UIDocument
 
@@ -32,6 +34,70 @@ def write_xml(path: Path):
 
 def geometry(index, before, after):
     return {"index": index, "field": "geometry", "before": list(before), "after": list(after)}
+
+
+def test_canvas_preview_preferences_keep_the_dirty_document(api, tmp_path):
+    game = tmp_path / "game"
+    game.mkdir()
+    (game / "client.ini").write_text("[Option]\nScreenWidth=1280\nScreenHeight=720\n", encoding="ascii")
+    position = "".join(chr(65 + digit) for byte in pack("<4i", 200, 240, 100, 80) for digit in (byte & 15, byte >> 4))
+    (game / "User.ini").write_text(f"[INVENTORY]\nPosition={position}\n", encoding="ascii")
+    source = tmp_path / "source"
+    source.mkdir()
+    write_xml(source / "Inventory.xml")
+    active = project.create_from_source("Web", source, game, projects_root=tmp_path / "projects")
+    path = str(active.ui_dir / "Inventory.xml")
+    scene = api.doc_open(path)
+    assert scene["preview"]["screen"][2:] == (1280, 720)
+    assert scene["preview"]["root_on_screen"] == (200, 240)
+    api.doc_edit([geometry(1, scene["elements"][1]["geometry"], (43, 30, 15, 12))])
+    diff = api.doc_diff()
+
+    changed = api.canvas_set_preference(path, "resolution", "1367 × 769")
+    assert changed["doc"]["preview"]["screen"][2:] == (1367, 769)
+    assert changed["preferences"]["resolution"] == "1367x769"
+    changed = api.canvas_set_preference(path, "savedPositions", False)
+    assert changed["doc"]["preview"]["root_on_screen"] == game_layout.root_screen_position(
+        "Inventory.xml", (1367, 769), scene["elements"][0]["geometry"],
+    )
+    assert not changed["doc"]["preview"]["saved_positions"]
+    assert changed["doc"]["dirty"] and api.doc_diff() == diff
+    with pytest.raises(ValueError, match="largura x altura"):
+        api.canvas_set_preference(path, "resolution", "x")
+    assert api.canvas_preferences()["resolution"] == "1367x769"
+    assert Path(path).read_bytes() == XML
+
+    api.canvas_set_preference(path, "outlines", False)
+    api.canvas_set_preference(path, "ids", True)
+    reopened_api = WebApi("pt_BR", False, Preferences(api._prefs.store))
+    assert not reopened_api.canvas_preferences()["outlines"]
+    assert reopened_api.canvas_preferences()["ids"]
+    reopened = reopened_api.doc_open(path)
+    assert reopened["preview"]["screen"][2:] == (1367, 769)
+    assert not reopened["preview"]["saved_positions"]
+
+
+def test_canvas_reference_layers_share_the_project_file_list(api, tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("Plain.xml", "BasicChar.xml", "Radar.xml"):
+        write_xml(source / name)
+    active = project.create_from_source("Web", source, None, projects_root=tmp_path / "projects")
+    api._project = active
+    api.asset_base = lambda _path: "https://assets.test/"
+    path = str(active.ui_dir / "BasicChar.xml")
+    api.canvas_change_layers(path, "default")
+    api.canvas_change_layers(path, "add", "Plain.xml")
+    layers = api.canvas_layers(path, [1024, 768])
+    assert layers["names"] == ["BasicChar.xml", "Radar.xml", "Plain.xml"]
+    assert [layer["name"] for layer in layers["scenes"]] == ["Radar.xml", "Plain.xml"]
+    assert layers["scenes"][0]["scene"]["preview"]["root_on_screen"] == (924, 0)
+    files = api.file_list()
+    section = next(section for section in files["sections"] if section["kind"] == "layers")
+    assert {files["files"][index] for index in section["items"]} == set(layers["names"])
+    assert api.canvas_layers(path)["scenes"] == []
+    api.canvas_change_layers(path, "clear")
+    assert api.canvas_layers(path)["names"] == []
 
 
 def test_edit_is_atomic_and_in_memory(api, tmp_path):

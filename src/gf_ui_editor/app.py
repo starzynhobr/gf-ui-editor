@@ -91,6 +91,7 @@ from .editor_widgets import (
     state_slot_at,
 )
 from .game_layout import (
+    DEFAULT_HUD,
     client_resolution,
     load_user_positions,
     menu_shortcut_preview_y,
@@ -193,11 +194,6 @@ from .xml_document import (
 # tela do jogo. A foto do BasicChar fica sempre no canto da tela, mesmo movendo a janela
 # (medida em prints do jogo, aproximada).
 TEXT_MODES = ("off", "game", "xml", "short", "long")
-# Janelas sempre visíveis no jogo, para "Montar HUD padrão".
-DEFAULT_HUD = (
-    "BasicChar.xml", "Target.xml", "Radar.xml", "TinyClock.xml", "QuestTraceWnd.xml",
-    "Channel.xml", "ShortcutBar.xml", "Menu.xml",
-)
 DEFAULT_UI_DIRECTORY = Path(r"C:\Violet Games\Grand Fantasia Violet\UI")
 APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "app-icon.png"
 GITHUB_REPOSITORIES_URL = "https://github.com/starzynhobr?tab=repositories"
@@ -2416,11 +2412,12 @@ class EditorWindow(QMainWindow):
         self.reset_zoom_action.triggered.connect(lambda: self.view.zoom_by(1 / self.view.transform().m11()))
         self.labels_action = QAction(self.tr("Mostrar identificadores"), self)
         self.labels_action.setCheckable(True)
-        self.labels_action.setChecked(False)
+        self.labels_action.setChecked(prefs.canvas_ids)
         self.labels_action.setShortcut("I")
         self.labels_action.setIcon(icon("type"))
         self.labels_action.setToolTip(self.tr("Mostrar identificadores (I)"))
         self.labels_action.toggled.connect(self.set_labels_visible)
+        self.labels_action.triggered.connect(lambda checked: setattr(prefs, "canvas_ids", checked))
         # Texto no canvas como o jogo desenha. A maior parte dos textos vem do código do jogo,
         # então as amostras servem para ver se cabem na caixa.
         # Última escolha do usuário; o canvas é preenchido quando um arquivo abre.
@@ -2464,13 +2461,14 @@ class EditorWindow(QMainWindow):
         # Contornos ligados = tracejados e rótulos do editor; desligados = só o que o jogo desenha.
         self.outlines_action = QAction(self.tr("Contornos"), self)
         self.outlines_action.setCheckable(True)
-        self.outlines_action.setChecked(True)
+        self.outlines_action.setChecked(prefs.canvas_outlines)
         self.outlines_action.setShortcut("P")
         self.outlines_action.setIcon(icon("frame"))
         self.outlines_action.setToolTip(
             self.tr("Mostra os contornos tracejados e rótulos dos elementos. Desligue para ver só o que o jogo desenha (P)")
         )
         self.outlines_action.toggled.connect(lambda shown: self.set_preview_mode(not shown))
+        self.outlines_action.triggered.connect(self._remember_outlines)
         self.resolution_actions = QActionGroup(self)
         self.resolution_actions.setExclusive(True)
         self.resolution_game_action = QAction(self.tr("Igual ao jogo (client.ini)"), self)
@@ -2496,21 +2494,23 @@ class EditorWindow(QMainWindow):
         self.resolution_actions.addAction(self.resolution_custom_action)
         self.saved_positions_action = QAction(self.tr("Usar posições salvas do User.ini"), self)
         self.saved_positions_action.setCheckable(True)
-        self.saved_positions_action.setChecked(True)
+        self.saved_positions_action.setChecked(prefs.canvas_saved_positions)
         self.saved_positions_action.setToolTip(
             self.tr("Janelas arrastadas no jogo ficam na posição gravada no User.ini da pasta do jogo")
         )
         self.saved_positions_action.toggled.connect(lambda _checked: self._place_game_screen())
+        self.saved_positions_action.triggered.connect(lambda checked: setattr(prefs, "canvas_saved_positions", checked))
         # O que o jogo desenha sozinho com os dados do personagem (foto, nick, nível, ícones):
         # ajuda a encaixar a moldura, mas polui a tela quando não se está mexendo nisso.
         self.game_drawn_action = QAction(self.tr("Personagem"), self)
         self.game_drawn_action.setCheckable(True)
-        self.game_drawn_action.setChecked(True)
+        self.game_drawn_action.setChecked(prefs.canvas_character)
         self.game_drawn_action.setToolTip(self.tr(
             "Mostrar um personagem de exemplo onde o jogo desenha os dados dele: foto, nick com "
             "{max} caracteres (o máximo do jogo), nível, HP/MP, classe e reencarnação"
         ).format(max=player_sample.NICK_MAX_LENGTH))
         self.game_drawn_action.toggled.connect(self._sync_game_drawn_visibility)
+        self.game_drawn_action.triggered.connect(lambda checked: setattr(prefs, "canvas_character", checked))
         self.background_actions = QActionGroup(self)
         self.background_actions.setExclusive(True)
         self.builtin_background_action = QAction(self.tr("Fundo do jogo (embutido)"), self)
@@ -4328,6 +4328,10 @@ class EditorWindow(QMainWindow):
             item.set_preview_mode(enabled)
         if enabled:
             self.labels_action.setChecked(False)
+
+    def _remember_outlines(self, visible: bool) -> None:
+        prefs.canvas_outlines = visible
+        prefs.canvas_ids = self.labels_action.isChecked()
 
     def _start_texture_loading(self) -> None:
         assert self.document is not None and self.texture_cache is not None

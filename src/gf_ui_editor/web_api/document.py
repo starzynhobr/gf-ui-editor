@@ -10,6 +10,7 @@ doc_save(), doc_revert().
 
 from __future__ import annotations
 
+from ..about import parse_resolution
 from ..document_session import DocumentSession
 
 
@@ -20,7 +21,8 @@ class DocumentApi:
         self._document_session = DocumentSession()
 
     def doc_open(self, path: str | None, resolution: list[int] | None = None) -> dict | None:
-        return self._document_session.open(path, tuple(resolution) if resolution is not None else None)
+        size = tuple(resolution) if resolution is not None else parse_resolution(self._prefs.game_resolution)
+        return self._document_session.open(path, size, saved_positions=self._prefs.canvas_saved_positions)
 
     def doc_edit(self, edits: list[dict]) -> dict:
         return self._document_session.edit(edits)
