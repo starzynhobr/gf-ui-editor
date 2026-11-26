@@ -52,7 +52,9 @@ def versions_dir(project: Project) -> Path:
     return project.root / VERSIONS_DIR
 
 
-def save_version(project: Project, label: str = "") -> Path:
+def save_version(
+    project: Project, label: str = "", *, official_files: dict[str, str] | None = None,
+) -> Path:
     """Guarda a versão atual do projeto e devolve o caminho do .zip."""
     shipped, _skipped = project.shipped_files()
     files = project.files(refresh=True)
@@ -84,11 +86,28 @@ def save_version(project: Project, label: str = "") -> Path:
             for name, records in edits.items()
         },
     }
+    if project.light:
+        official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
+        archived = set(shipped)
+        official_files = {}
+        for relative in files:
+            if relative in archived:
+                continue
+            key = relative.as_posix()
+            source = project.resolve(relative)
+            blob = project.base_files.get(key)
+            if blob is None or source != project.base_path(blob):
+                blob = project.cache_official(source, key, official)
+            if blob is None:
+                raise ValueError(f"A UI oficial mudou durante o salvamento: {key}")
+            official_files[key] = blob
+    if official_files is not None:
+        manifest.update(light=project.light, official_files=official_files, base_files=project.base_files)
     temporary = target.with_name(f".{target.name}.tmp")
     with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=1))
         for relative in shipped:
-            archive.write(project.ui_dir / relative, f"ui/{relative.as_posix()}")
+            archive.write(project.resolve(relative), f"ui/{relative.as_posix()}")
     os.replace(temporary, target)
     return target
 
@@ -128,7 +147,9 @@ def _official_copy(project: Project, relative: str, entry: tuple[int, str]) -> P
     """Uma cópia do arquivo oficial: original guardado no histórico, pasta UI do jogo ou cache."""
     from .game_updates import cached_version  # game_updates importa project; evita ciclo na carga
 
-    candidates = [project.original_path_for(project.ui_dir / relative)]
+    candidates = [project.resolve(relative), project.original_path_for(project.ui_dir / relative)]
+    if (blob := project.base_files.get(relative)) is not None:
+        candidates.append(project.base_path(blob))
     if project.game_dir is not None:
         candidates.append(project.game_dir / "UI" / relative)
     cached = cached_version(entry[1])
@@ -154,31 +175,38 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
     wanted = {str(name) for name in manifest.get("files", [])}
     shipped = {str(name) for name in manifest.get("shipped", [])}
     current = {relative.as_posix(): relative for relative in project.files(refresh=True)}
+    restore_light = bool(manifest.get("light", project.light))
+    pinned = dict(manifest.get("official_files") or {})
+    restored_base = dict(manifest.get("base_files", project.base_files)) if restore_light else {}
+    if restore_light:
+        restored_base = {**pinned, **restored_base}
+    for name in wanted:
+        project.resolve(name)  # Validate paths before extracting or writing anything.
     with tempfile.TemporaryDirectory() as folder, zipfile.ZipFile(version) as archive:
         for name in sorted(wanted):
-            target = project.ui_dir / name
+            target = project.resolve(name)
             if name in shipped:
                 extracted = Path(archive.extract(f"ui/{name}", folder))
-                if target.exists() and target.read_bytes() == extracted.read_bytes():
-                    continue
                 source = extracted
+            elif name in pinned:
+                source = project.base_path(pinned[name])
             else:
                 entry = official.get(name.lower())
                 if entry is None:
                     result.unresolved.append(name)
                     continue
-                if target.is_file() and gamedata.is_official(target, name, official):
-                    continue
                 source = _official_copy(project, name, entry)
                 if source is None:
                     result.unresolved.append(name)
                     continue
-            if target.exists():
-                project.remember_original(target)
-                project.restore(target, source)
-            else:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
+            if not source.is_file():
+                result.unresolved.append(name)
+                continue
+            if target.is_file() and target.read_bytes() == source.read_bytes():
+                if not restore_light:
+                    project.materialize(project.ui_dir / name)
+                continue
+            project.write_from(name, source)
             if name in shipped:
                 result.written += 1
             else:
@@ -186,17 +214,26 @@ def restore_version(project: Project, version: Path) -> RestoreResult:
     for name, relative in current.items():
         if name not in wanted:
             path = project.ui_dir / relative
-            shutil.copy2(path, project.history_path_for(path))
-            path.unlink()
+            if project.light:
+                project.delete_file(path)
+            else:
+                shutil.copy2(path, project.history_path_for(path))
+                path.unlink()
             result.removed += 1
+    if not result.unresolved:
+        project.light = restore_light
+        project.base_files = restored_base
+        project.deleted = {name.lower() for name in restored_base if name not in wanted}
     project.root_modes = dict(manifest.get("root_modes") or {})
     project.reference_layers = list(manifest.get("reference_layers") or [])
     project.save_manifest()
+    if project.light and not result.unresolved:
+        project.compact_base()
     text_data.save_edits(project.root, {
         name: {record_id: text_data.TextEdit(list(edit.get("fields", [])), list(edit.get("original", []))) for record_id, edit in records.items()}
         for name, records in (manifest.get("text_edits") or {}).items()
     })
-    project.invalidate_changes()
+    project.files(refresh=True)
     return result
 
 

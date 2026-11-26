@@ -364,10 +364,10 @@ class UIDocument:
             )
 
     @classmethod
-    def load(cls, path: str | Path) -> "UIDocument":
+    def load(cls, path: str | Path, *, source: Path | None = None) -> "UIDocument":
         xml_path = Path(path).resolve()
         try:
-            raw = xml_path.read_bytes()
+            raw = (source or xml_path).read_bytes()
         except OSError as exc:
             raise DocumentError(f"Não foi possível ler {xml_path}: {exc}", code="read", details={"path": xml_path, "error": exc}) from exc
         try:

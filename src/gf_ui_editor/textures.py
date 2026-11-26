@@ -12,7 +12,15 @@ if TYPE_CHECKING:
     from .project import Project
 
 
-def ui_texture_names(folder: Path) -> list[str]:
+def ui_texture_names(folder: Path, project: Project | None = None) -> list[str]:
+    if project is not None and project.light:
+        names = {
+            path.name.lower(): path.name for path in project.base_files_in(folder)
+            if is_texture(path)
+        }
+        if folder.is_dir():
+            names.update({path.name.lower(): path.name for path in folder.iterdir() if is_texture(path) and path.is_file()})
+        return sorted(names.values(), key=str.lower)
     return sorted(
         (path.name for path in folder.iterdir() if is_texture(path) and path.is_file()),
         key=str.lower,
@@ -22,6 +30,7 @@ def ui_texture_names(folder: Path) -> list[str]:
 def backup_texture_for_edit(project: Project | None, target: Path) -> None:
     """Save the original and a history entry before replacing an existing texture."""
     if project is not None and project.contains(target):
+        project.materialize(target)
         project.remember_original(target)
         shutil.copy2(target, project.history_path_for(target))
 
@@ -29,14 +38,16 @@ def backup_texture_for_edit(project: Project | None, target: Path) -> None:
 def copy_texture_for_edit(project: Project | None, source: Path, name: str | Path) -> Path:
     """Copy into a project's UI with history, or directly to a destination path if project is None."""
     target = project.ui_dir / name if project is not None else Path(name)
-    if project is not None and target.exists():
-        backup_texture_for_edit(project, target)
-    shutil.copy2(source, target)
+    if project is not None:
+        project.write_from(name, source)
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
     return target
 
 
 # ---- trocar a textura de um controle (o mesmo menu "Trocar .dds…" das duas interfaces) ----
-def find_texture(folder: Path, name: str) -> Path | None:
+def find_texture(folder: Path, name: str, project: Project | None = None) -> Path | None:
     """Arquivo da textura na pasta da UI, sem diferenciar maiúsculas (como o jogo)."""
     if not name:
         return None
@@ -44,7 +55,7 @@ def find_texture(folder: Path, name: str) -> Path | None:
     if direct.is_file():
         return direct
     wanted = name.lower()
-    return next((path for path in folder.iterdir() if path.is_file() and path.name.lower() == wanted), None)
+    return next((folder / item for item in ui_texture_names(folder, project) if item.lower() == wanted), None)
 
 
 def copy_suggestion(current: str) -> str:
@@ -58,29 +69,32 @@ def with_texture_suffix(name: str) -> str:
     return name if name.lower().endswith((".dds", ".tga")) else name + ".dds"
 
 
-def copy_for_edit(folder: Path, current: str, name: str) -> Path:
+def copy_for_edit(folder: Path, current: str, name: str, project: Project | None = None) -> Path:
     """Cria uma cópia de `current` com outro nome na pasta da UI. Erro se já existe."""
-    source = find_texture(folder, current)
+    source = find_texture(folder, current, project)
     if source is None:
         raise FileNotFoundError(current)
     target = folder / with_texture_suffix(name)
-    if target.exists():
+    if find_texture(folder, target.name, project) is not None:
         raise FileExistsError(target.name)
+    if project is not None:
+        return copy_texture_for_edit(project, project.read_path(source), project.relative_key(target))
     return copy_texture_for_edit(None, source, target)
 
 
-def bring_target(folder: Path, source: Path) -> tuple[Path, bool]:
+def bring_target(folder: Path, source: Path, project: Project | None = None) -> tuple[Path, bool]:
     """Destino de um .dds trazido de fora e se ele substitui outro (o mesmo arquivo não conta)."""
-    target = folder / source.name
-    same = target.exists() and source.resolve() == target.resolve()
-    return target, target.exists() and not same
+    existing = find_texture(folder, source.name, project)
+    target = existing or folder / source.name
+    same = existing is not None and source.resolve() == target.resolve()
+    return target, existing is not None and not same
 
 
 def bring_texture(project: Project | None, folder: Path, source: Path) -> Path:
     """Copia um .dds de outra pasta para a UI; o que for substituído vai para o histórico."""
-    target, replacing = bring_target(folder, source)
+    target, _replacing = bring_target(folder, source, project)
     if source.resolve() == target.resolve():
         return target
-    if replacing:
-        backup_texture_for_edit(project, target)
+    if project is not None:
+        return copy_texture_for_edit(project, source, project.relative_key(target))
     return copy_texture_for_edit(None, source, target)

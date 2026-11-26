@@ -17,7 +17,6 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
-import shutil
 
 from . import gamedata
 from . import project as project_module
@@ -178,7 +177,7 @@ def compare(project: "project_module.Project", source_dir: Path, progress=None) 
     result = []
     for done, path in enumerate(files, 1):
         relative = path.relative_to(source_dir).as_posix()
-        target = project.ui_dir / relative
+        target = project.resolve(relative)
         if progress is not None:
             progress(done, len(files))
         exists = target.is_file()
@@ -201,15 +200,9 @@ def pull(project: "project_module.Project", items: list[tuple[str, Path]]) -> in
     project.invalidate_changes()
     count = 0
     for relative, source in items:
-        target = project.ui_dir / relative
-        if target.exists():
-            if _same(source, target):
-                continue
-            project.remember_original(target)
-            project.restore(target, source)
-        else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+        if _same(source, project.resolve(relative)):
+            continue
+        project.write_from(relative, source)
         count += 1
     project.files(refresh=True)
     return count

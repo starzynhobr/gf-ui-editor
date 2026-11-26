@@ -123,12 +123,16 @@ class Project:
     publish_folder: str = ""
     # XMLs mostrados como camadas de referência no Preview do jogo (só para ver).
     reference_layers: list[str] = field(default_factory=list)
+    light: bool = False
+    base_files: dict[str, str] = field(default_factory=dict)
+    deleted: set[str] = field(default_factory=set)
     # (tamanho, mtime) -> hash, para não reler arquivos que não mudaram.
     _hash_cache: dict[str, tuple[int, int, str]] = field(default_factory=dict, repr=False)
     _files: list[Path] | None = field(default=None, repr=False)
     changes_ttl: float = field(default=0.0, repr=False)
     _changes_memo: tuple[float, frozenset[str]] | None = field(default=None, repr=False)
     _unpublished_memo: tuple[float, frozenset[str]] | None = field(default=None, repr=False)
+    _base_index: tuple[dict[str, str], dict[str, str]] | None = field(default=None, init=False, repr=False)
 
     @property
     def ui_dir(self) -> Path:
@@ -154,6 +158,7 @@ class Project:
         progress: Progress = None,
         include_assets: bool = False,
         publish_folder: str = "",
+        light: bool = False,
     ) -> "Project":
         root = projects_root / safe_name(name)
         if root.exists():
@@ -163,17 +168,26 @@ class Project:
         files = _ui_files(source_dir, include_assets)
         if not include_assets:
             files = [relative for relative in files if relative.parts[0].lower() != MAP_FOLDER or len(relative.parts) == 1]
+        project = cls(root, name, game_dir, hashes, include_assets, publish_folder=publish_folder, light=light)
+        official = gamedata.official_ui_files(game_dir) if light and game_dir is not None else {}
+        if light and not official:
+            raise ValueError("A lista oficial da UI é necessária para criar um projeto leve.")
+        ui_dir.mkdir(parents=True)
         for done, relative in enumerate(files, 1):
+            key = relative.as_posix()
+            source = source_dir / relative
             target = ui_dir / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_dir / relative, target)
-            hashes[relative.as_posix()] = _hash(target)
+            if light and (blob := project.cache_official(source, key, official)) is not None:
+                project.base_files[key] = blob
+                target = project.base_path(blob)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+            digest = hashes[key] = _hash(target)
+            stat = target.stat()
+            project._hash_cache[key] = (stat.st_size, stat.st_mtime_ns, digest)
             if progress is not None:
                 progress(done, len(files))
-        project = cls(root, name, game_dir, hashes, include_assets, publish_folder=publish_folder)
-        for key, digest in hashes.items():
-            stat = (ui_dir / key).stat()
-            project._hash_cache[key] = (stat.st_size, stat.st_mtime_ns, digest)
         project.save_manifest()
         store = storage.ProjectStore(root)
         store.save_base_hashes(hashes)
@@ -197,6 +211,9 @@ class Project:
             store.root_modes(),
             str(settings.get("publish_folder") or ""),
             store.reference_layers(),
+            bool(settings.get("light", False)),
+            dict(settings.get("base_files") or {}),
+            set(settings.get("deleted") or ()),
         )
 
     def save_manifest(self) -> None:
@@ -208,18 +225,114 @@ class Project:
                 "game_dir": str(self.game_dir) if self.game_dir else None,
                 "include_assets": self.include_assets,
                 "publish_folder": self.publish_folder,
+                "light": self.light,
+                "base_files": self.base_files,
+                "deleted": sorted(self.deleted),
             },
             self.root_modes,
             self.reference_layers,
         )
 
+    def base_path(self, blob: str) -> Path:
+        from .game_updates import CACHE_FOLDER
+
+        if not re.fullmatch(r"[0-9A-F]{8}\.(xml|bin)", blob):
+            raise ValueError(f"Nome inválido no cache oficial: {blob}")
+        return self.root.parent / CACHE_FOLDER / blob
+
+    def cache_official(self, source: Path, key: str, official: dict[str, tuple[int, str]]) -> str | None:
+        from .game_updates import cache_ui_file
+
+        if gamedata.is_official(source, key, official):
+            return cache_ui_file(source, official[key.lower()], self.root.parent)
+        return None
+
+    def resolve(self, relative: str | Path) -> Path:
+        """Resolve a project-relative name to its overlay or its pinned official bytes."""
+        relative = Path(relative)
+        if relative.anchor or ".." in relative.parts:
+            raise ValueError(f"Caminho inválido no projeto: {relative}")
+        local = self.ui_dir / relative
+        key = relative.as_posix().lower()
+        if self.light and key not in self.deleted and not local.is_file():
+            blob = self._base_by_key().get(key)
+            if blob is not None:
+                return self.base_path(blob)
+        return local
+
+    def _base_by_key(self) -> dict[str, str]:
+        index = self._base_index
+        if index is None or index[0] is not self.base_files:
+            index = (self.base_files, {name.lower(): blob for name, blob in self.base_files.items()})
+            self._base_index = index
+        return index[1]
+
+    def read_path(self, path: Path) -> Path:
+        return self.resolve(self.relative_key(path)) if self.contains(path) else path
+
+    def load_document(self, path: Path):
+        from .xml_document import UIDocument
+
+        return UIDocument.load(path, source=self.read_path(path))
+
+    def base_files_in(self, folder: Path) -> Iterable[Path]:
+        """Visible base names in a single logical folder."""
+        directory = Path(os.path.relpath(folder, self.ui_dir))
+        for name in self.base_files:
+            if name.lower() not in self.deleted:
+                relative = Path(name)
+                if relative.parent == directory:
+                    yield relative
+
+    def compact_base(self) -> None:
+        """Remove private copies that now match the visible base, preserving the effective UI."""
+        try:
+            for key, blob in self.base_files.items():
+                if key.lower() not in self.deleted:
+                    path = self.ui_dir / key
+                    if _same_content(path, self.base_path(blob)):
+                        path.unlink(missing_ok=True)
+        finally:
+            self.files(refresh=True)
+
+    def materialize(self, path: Path) -> Path:
+        """Give an editor a private physical copy without changing the logical path."""
+        source = self.read_path(path)
+        if not source.is_file():
+            raise FileNotFoundError(path)
+        if source != path and not path.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
+                staged = Path(temporary.name)
+            try:
+                shutil.copy2(source, staged)
+                try:
+                    _install_new_file(staged, path)
+                except FileExistsError:
+                    pass
+            finally:
+                staged.unlink(missing_ok=True)
+        return path
+
+    def write_from(self, relative: str | Path, source: Path) -> Path | None:
+        """Replace a logical file, retaining its original and previous contents."""
+        self.resolve(relative)  # Validate the relative path.
+        return self.restore(self.ui_dir / relative, source)
+
     # ---- estado ------------------------------------------------------------
     def files(self, refresh: bool = False) -> list[Path]:
+        """Lista em cache; `refresh=True` relê a pasta (arquivos criados/apagados fora)."""
         if refresh:
             self.invalidate_changes()
-        """Lista em cache; `refresh=True` relê a pasta (arquivos criados/apagados fora)."""
         if refresh or self._files is None:
-            self._files = _ui_files(self.ui_dir, self.include_assets)
+            local = _ui_files(self.ui_dir, self.include_assets)
+            if self.light:
+                names = {path.as_posix().lower(): path for path in local}
+                for key in self.base_files:
+                    if key.lower() not in self.deleted:
+                        names.setdefault(key.lower(), Path(key))
+                local = sorted(names.values(), key=lambda path: path.as_posix().lower())
+            self._files = local
         return self._files
 
     def invalidate_changes(self) -> None:
@@ -244,10 +357,16 @@ class Project:
         if not self._hash_cache:
             self._hash_cache = storage.ProjectStore(self.root).file_hashes()
         before = dict(self._hash_cache)
-        changed: set[str] = set()
+        changed = {key for key in self.base_files if key.lower() in self.deleted and not self.resolve(key).is_file()}
         for relative in self.files():
             key = relative.as_posix()
-            if self.base_hashes.get(key) != self._cached_hash(relative):
+            try:
+                digest = self._cached_hash(relative)
+            except FileNotFoundError:
+                if not self.light:
+                    raise
+                digest = None
+            if digest is None or self.base_hashes.get(key) != digest:
                 changed.add(key)
         updated = {key: value for key, value in self._hash_cache.items() if before.get(key) != value}
         if updated:
@@ -255,7 +374,7 @@ class Project:
         return changed
 
     def _cached_hash(self, relative: Path) -> str:
-        path = self.ui_dir / relative
+        path = self.resolve(relative)
         stat = os.stat(path)
         key = relative.as_posix()
         cached = self._hash_cache.get(key)
@@ -298,7 +417,12 @@ class Project:
         try:
             if original.is_file():
                 return original.read_bytes()
-            data = path.read_bytes()
+            blob = self.base_files.get(Path(relative).as_posix())
+            if self.light and blob is not None:
+                data = self.base_path(blob).read_bytes()
+                if self.base_hashes.get(Path(relative).as_posix()) == hashlib.sha1(data).hexdigest():
+                    return data
+            data = self.read_path(path).read_bytes()
         except OSError:
             return None
         key = Path(relative).as_posix()
@@ -319,20 +443,33 @@ class Project:
         """Antes do 1º salvamento, guarda o original se o arquivo ainda não foi alterado."""
         original = self.original_path_for(file_path)
         key = file_path.resolve().relative_to(self.ui_dir.resolve()).as_posix()
-        if original.exists() or self.base_hashes.get(key) != _hash(file_path):
+        source = self.read_path(file_path)
+        if original.exists() or self.base_hashes.get(key) != _hash(source):
             return
         original.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(file_path, original)
+        shutil.copy2(source, original)
 
-    def restore(self, file_path: Path, source: Path) -> Path:
+    def restore(self, file_path: Path, source: Path) -> Path | None:
         """Substitui o arquivo por `source`, guardando antes o estado atual no histórico."""
         self.invalidate_changes()
-        backup = self.history_path_for(file_path)
-        shutil.copy2(file_path, backup)
-        temporary = file_path.with_name(f".{file_path.name}.gf-ui-editor.tmp")
-        shutil.copy2(source, temporary)
-        os.replace(temporary, file_path)
-        self.prune_history(file_path)
+        backup = None
+        if self.read_path(file_path).is_file():
+            self.materialize(file_path)
+            self.remember_original(file_path)
+            backup = self.history_path_for(file_path)
+            shutil.copy2(file_path, backup)
+        _copy_if_different(source, file_path)
+        if backup is not None:
+            self.prune_history(file_path)
+        self._files = None
+        key = self.relative_key(file_path).lower()
+        if key in self.deleted:
+            self.deleted.remove(key)
+            try:
+                self.save_manifest()
+            except Exception:
+                self.deleted.add(key)
+                raise
         return backup
 
     def import_target(self, source: Path) -> Path:
@@ -344,16 +481,8 @@ class Project:
 
     def import_file(self, source: Path) -> tuple[Path, Path | None]:
         """Copia `source` para o projeto. Devolve o destino e o backup do arquivo substituído."""
-        self.invalidate_changes()
         target = self.import_target(source)
-        if target.exists():
-            self.remember_original(target)
-            backup = self.restore(target, source)
-        else:
-            shutil.copy2(source, target)
-            backup = None
-        self._files = None
-        return target, backup
+        return target, self.write_from(self.relative_key(target), source)
 
     def import_loose_files(self, sources: Iterable[Path], focus: Path | None = None) -> Path | None:
         """Importa os arquivos em ordem e devolve o caminho atualizado do arquivo em foco."""
@@ -370,11 +499,14 @@ class Project:
         target = file_path.with_name(new_name)
         backup = None
         same_file = os.path.normcase(str(target)) == os.path.normcase(str(file_path))
-        if target.exists() and not same_file:
+        self.materialize(file_path)
+        if self.read_path(target).is_file() and not same_file:
+            self.materialize(target)
             self.remember_original(target)
             backup = self.history_path_for(target)
             shutil.copy2(target, backup)
-            target.unlink()
+        if not same_file:
+            self._mark_deleted(file_path)
         os.replace(file_path, target)
         self._files = None
         return target, backup
@@ -384,10 +516,21 @@ class Project:
         self.invalidate_changes()
         self.remember_original(file_path)
         backup = self.history_path_for(file_path)
-        shutil.copy2(file_path, backup)
-        file_path.unlink()
+        shutil.copy2(self.read_path(file_path), backup)
+        self._mark_deleted(file_path)
+        file_path.unlink(missing_ok=self.light)
         self._files = None
         return backup
+
+    def _mark_deleted(self, path: Path) -> None:
+        key = self.relative_key(path).lower()
+        if self.light and key not in self.deleted and key in self._base_by_key():
+            self.deleted.add(key)
+            try:
+                self.save_manifest()
+            except Exception:
+                self.deleted.remove(key)
+                raise
 
     def contains(self, file_path: Path) -> bool:
         # Comparação de texto: Path.resolve() consulta o disco e era chamado centenas de vezes.
@@ -409,11 +552,14 @@ class Project:
         """
         files = self.files(refresh=True)
         official = gamedata.official_ui_files(self.game_dir) if self.game_dir is not None else {}
-        if not official:
+        if not official and not self.light:
             return files, 0
         shipped = []
         for done, relative in enumerate(files, 1):
-            if not gamedata.is_official(self.ui_dir / relative, relative.as_posix(), official):
+            source = self.resolve(relative)
+            if self.light and not source.is_file():
+                raise FileNotFoundError(f"Arquivo indisponível na UI do projeto: {relative} ({source})")
+            if not gamedata.is_official(source, relative.as_posix(), official):
                 shipped.append(relative)
             if progress is not None:
                 progress(done, len(files))
@@ -427,7 +573,7 @@ class Project:
             raise ValueError("Nenhum arquivo do projeto difere da UI oficial: não há o que exportar.")
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
             for done, relative in enumerate(files, 1):
-                archive.write(self.ui_dir / relative, f"{self.custom_name}/{relative.as_posix()}")
+                archive.write(self.resolve(relative), f"{self.custom_name}/{relative.as_posix()}")
                 if progress is not None:
                     progress(done, len(files))
         self.last_export = (len(files), skipped)
@@ -461,7 +607,7 @@ class Project:
         backups: list[tuple[str, Path]] = []
         custom_dir.mkdir(parents=True, exist_ok=True)
         for done, relative in enumerate(files, 1):
-            source = self.ui_dir / relative
+            source = self.resolve(relative)
             key = relative.as_posix()
             if key.lower() in wanted:
                 _copy_if_different(source, custom_dir / relative)
@@ -473,7 +619,7 @@ class Project:
                 if target.is_file() and not _same_content(source, target) and game_sync.edited_outside(
                     self.game_dir, key, target, official, sent
                 ):
-                    backup = game_sync.game_backup_path(self, source)
+                    backup = game_sync.game_backup_path(self, self.ui_dir / relative)
                     shutil.copy2(target, backup)
                     backups.append((key, backup))
                 if _copy_if_different(source, target):
@@ -512,7 +658,11 @@ class Project:
         assert self.game_dir is not None
         pending: set[str] = set()
         for key in self.modified_files():
-            source = self.ui_dir / key
+            source = self.resolve(key)
+            if key.lower() in self.deleted and not source.is_file():
+                if not self.publish_folder and (self.game_dir / "UICustom" / self.custom_name / key).is_file():
+                    pending.add(key)
+                continue
             target = self.game_dir / "UI" / key
             try:
                 if not target.is_file() or source.read_bytes() != target.read_bytes():
@@ -529,6 +679,39 @@ def _same_content(source: Path, target: Path) -> bool:
         return False
 
 
+def convert_to_light(project: Project, progress: Progress = None) -> Path | None:
+    """Pin the official files, checkpoint the full project, then remove redundant copies."""
+    from .versions import save_version
+
+    if project.light:
+        return None
+    official = gamedata.official_ui_files(project.game_dir) if project.game_dir is not None else {}
+    if not official:
+        raise ValueError("A lista oficial da UI é necessária para converter o projeto.")
+    files = project.files(refresh=True)
+    pinned = {}
+    for done, relative in enumerate(files, 1):
+        key = relative.as_posix()
+        blob = project.cache_official(project.resolve(relative), key, official)
+        if blob is not None:
+            pinned[key] = blob
+        if progress is not None:
+            progress(done, len(files))
+    if not pinned:
+        raise ValueError("Nenhum arquivo do projeto corresponde à UI oficial.")
+    backup = save_version(project, "antes de converter para leve", official_files=pinned)
+    project.light = True
+    project.base_files = pinned
+    try:
+        project.save_manifest()
+    except Exception:
+        project.light = False
+        project.base_files = {}
+        raise
+    project.compact_base()
+    return backup
+
+
 def _copy_if_different(source: Path, target: Path) -> bool:
     if target.exists() and _same_content(source, target):
         return False
@@ -537,6 +720,14 @@ def _copy_if_different(source: Path, target: Path) -> bool:
     shutil.copy2(source, temporary)
     os.replace(temporary, target)
     return True
+
+
+def _install_new_file(staged: Path, target: Path) -> None:
+    """Publish a staged file atomically, failing if another writer already installed it."""
+    if os.name == "nt":
+        os.rename(staged, target)
+    else:
+        os.link(staged, target)
 
 
 def selected_ui(launcher_ini: Path) -> str:
@@ -661,6 +852,7 @@ def create_from_source(
     include_assets: bool = False,
     publish_folder: str = "",
     loose_files: Iterable[Path] = (),
+    light: bool = False,
 ) -> Project:
     """Cria o projeto a partir de uma pasta ou .zip e importa os arquivos soltos."""
     if not source.exists():
@@ -669,7 +861,7 @@ def create_from_source(
     def create(source_dir: Path) -> Project:
         return Project.create(
             name, source_dir, game_dir, projects_root=projects_root, progress=progress,
-            include_assets=include_assets, publish_folder=publish_folder,
+            include_assets=include_assets, publish_folder=publish_folder, light=light,
         )
 
     if source.is_file():

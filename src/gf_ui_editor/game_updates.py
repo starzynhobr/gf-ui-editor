@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
 import xml.etree.ElementTree as ET
 import zlib
 
@@ -84,7 +85,7 @@ def _crc(data: bytes) -> str:
 # UI oficial consultava estes arquivos uma vez por XML e travava o começo do editor.
 _entries_cache: dict[str, tuple[tuple[int, int], dict[str, "OfficialEntry"]]] = {}
 _versions_cache: tuple[Path, dict[str, list[str]]] | None = None
-_cached_names: tuple[int, frozenset[str]] | None = None
+_cached_names: tuple[Path, int, frozenset[str]] | None = None
 
 
 def _signature(path: Path) -> tuple[int, int] | None:
@@ -129,6 +130,38 @@ def cache_dir() -> Path:
     return project_module.PROJECTS_ROOT / CACHE_FOLDER
 
 
+def cache_ui_file(source: Path, entry: tuple[int, str], projects_root: Path) -> str:
+    """Pin a verified official file in the shared cache and return its blob name."""
+    size, crc = entry
+    data = source.read_bytes()
+    if len(data) != size or _crc(data) != crc:
+        raise ValueError(f"O arquivo mudou durante a leitura: {source}")
+    return _cache_blob(data, crc, projects_root / CACHE_FOLDER).name
+
+
+def _cache_blob(data: bytes, crc: str, folder: Path) -> Path:
+    legacy = folder / f"{crc}.xml"
+    target = legacy if legacy.is_file() else folder / f"{crc}.bin"
+    if target.is_file():
+        if target.read_bytes() != data:
+            raise ValueError(f"Conteúdo incompatível no cache oficial: {target}")
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as temporary:
+        staged = Path(temporary.name)
+        temporary.write(data)
+    try:
+        # Publish an immutable file without overwriting a concurrent writer.
+        try:
+            project_module._install_new_file(staged, target)
+        except FileExistsError:
+            if target.read_bytes() != data:
+                raise ValueError(f"Conteúdo incompatível no cache oficial: {target}")
+    finally:
+        staged.unlink(missing_ok=True)
+    return target
+
+
 def _versions() -> dict[str, list[str]]:
     """CRCs já vistos de cada XML oficial (banco compartilhado), lidos uma vez por sessão."""
     global _versions_cache
@@ -170,15 +203,15 @@ def _cached_crc_names() -> frozenset[str]:
         modified = os.stat(folder).st_mtime_ns
     except OSError:
         return frozenset()
-    if _cached_names is None or _cached_names[0] != modified:
+    if _cached_names is None or _cached_names[:2] != (folder, modified):
         with os.scandir(folder) as entries:
-            _cached_names = (modified, frozenset(entry.name.upper() for entry in entries))
-    return _cached_names[1]
+            _cached_names = (folder, modified, frozenset(entry.name.upper() for entry in entries))
+    return _cached_names[2]
 
 
 def cached_version(crc: str) -> Path | None:
-    name = f"{crc}.xml"
-    return cache_dir() / name if name.upper() in _cached_crc_names() else None
+    names = _cached_crc_names()
+    return next((cache_dir() / f"{crc}.{ext}" for ext in ("xml", "bin") if f"{crc}.{ext}".upper() in names), None)
 
 
 def official_xml(game_dir: Path, entry: OfficialEntry) -> Path | None:
@@ -200,13 +233,9 @@ def official_xml(game_dir: Path, entry: OfficialEntry) -> Path | None:
     if _crc(data) != entry.crc:
         return None
     try:
-        target = cache_dir() / f"{entry.crc}.xml"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_suffix(".tmp")
-        temporary.write_bytes(data)
-        os.replace(temporary, target)
+        target = _cache_blob(data, entry.crc, cache_dir())
         _record_version(entry.relative, entry.crc)
-    except OSError:
+    except (OSError, ValueError):
         return source
     return target
 
@@ -222,7 +251,7 @@ def cached_count(game_dir: Path) -> tuple[int, int]:
     """(XMLs oficiais atuais já guardados no cache, total na lista do launcher). Não lê a pasta UI."""
     entries = official_entries(game_dir)
     names = _cached_crc_names()
-    return sum(1 for entry in entries.values() if f"{entry.crc}.xml".upper() in names), len(entries)
+    return sum(1 for entry in entries.values() if {f"{entry.crc}.XML", f"{entry.crc}.BIN"} & names), len(entries)
 
 
 def reference_ready(game_dir: Path) -> bool:
@@ -430,7 +459,7 @@ def _read_text(path: Path) -> str | None:
 
 def file_diff(
     game_dir: Path,
-    ui_dir: Path,
+    ui_dir: Path | Callable[[str], Path],
     relative: str,
     base_bytes: Callable[[str], bytes | None] | None = None,
 ) -> FileDiff | None:
@@ -445,7 +474,7 @@ def file_diff(
     official_path = official_xml(game_dir, entry)
     if official_path is None:
         return None
-    mine_path = ui_dir / entry.relative
+    mine_path = ui_dir(entry.relative) if callable(ui_dir) else ui_dir / entry.relative
     if not mine_path.is_file():
         return FileDiff(entry.relative, missing_file=True)
     official_raw = official_path.read_bytes()
@@ -477,7 +506,7 @@ def file_diff(
 
 def scan(
     game_dir: Path,
-    ui_dir: Path,
+    ui_dir: Path | Callable[[str], Path],
     base_bytes: Callable[[str], bytes | None] | None = None,
 ) -> tuple[dict[str, FileDiff], int]:
     """Diferenças por arquivo (chave em minúsculas) e quantos oficiais não têm cópia."""
@@ -499,12 +528,15 @@ def official_text_for(game_dir: Path, relative: str) -> str | None:
     return path.read_bytes().decode(UIDocument.encoding, "replace") if path is not None else None
 
 
-def copy_official_file(game_dir: Path, ui_dir: Path, relative: str) -> Path:
+def copy_official_file(game_dir: Path, ui_dir: Path | project_module.Project, relative: str) -> Path:
     """Copia para o projeto um XML oficial que ele não tem."""
     entry = official_entries(game_dir)[relative.lower()]
     source = official_xml(game_dir, entry)
     if source is None:
         raise FileNotFoundError(relative)
+    if isinstance(ui_dir, project_module.Project):
+        ui_dir.write_from(entry.relative, source)
+        return ui_dir.ui_dir / entry.relative
     target = ui_dir / entry.relative
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, target)
@@ -522,13 +554,13 @@ def parse_game_error(text: str) -> tuple[str, str] | None:
     return (sources[-1], id_match.group(1)) if sources else None
 
 
-def files_missing_id(game_dir: Path, ui_dir: Path, window_id: str) -> list[str]:
+def files_missing_id(game_dir: Path, ui_dir: Path | Callable[[str], Path], window_id: str) -> list[str]:
     """XMLs cuja versão oficial tem o controle e a UI do projeto não tem."""
     pattern = re.compile(r'\bWindowID\s*=\s*"%s"' % re.escape(window_id))
     found = []
     for entry in official_entries(game_dir).values():
         official = official_xml(game_dir, entry)
-        mine = ui_dir / entry.relative
+        mine = ui_dir(entry.relative) if callable(ui_dir) else ui_dir / entry.relative
         if official is None or not mine.is_file():
             continue
         if pattern.search(official.read_bytes().decode(UIDocument.encoding, "replace")) and not pattern.search(
@@ -556,7 +588,7 @@ def error_candidates(game_dir: Path, cpp: str, window_id: str) -> list[str]:
 
 def locate_error(
     game_dir: Path | Callable[[], Path | None] | None,
-    project_ui_dir: Path | None,
+    project_ui_dir: Path | Callable[[str], Path] | None,
     text: str,
 ) -> tuple[str, str, list[str]] | None:
     """Devolve o .cpp, o ID e os XMLs candidatos, ou None se a mensagem for inválida.
