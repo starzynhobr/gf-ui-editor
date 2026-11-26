@@ -95,6 +95,7 @@ from gf_ui_editor import updater  # noqa: E402
 
 updater._request = _fake_request
 app_module.prefs.game_dir = str(GAME)  # o Novo projeto já abre com a cópia do jogo
+app_module.prefs.set("notes_seen_version", web_shell.__version__)  # mantém o roteiro visual sem popup no início
 
 LOG: list[dict] = []
 FAILED: list[str] = []
@@ -1688,6 +1689,23 @@ FINISHED = threading.Event()
 def driver() -> None:
     try:
         scenario()
+        app_module.prefs.remove("notes_seen_version")
+        app_module.prefs.remove("notes_pill_version")
+        js("""(async () => {
+            const api = window.pywebview.api;
+            const first = await api.whats_new_state();
+            await api.whats_new_closed();
+            const closed = await api.whats_new_state();
+            await api.whats_new_pill_dismissed();
+            const dismissed = await api.whats_new_state();
+            window.notesBridgeStates = [first, closed, dismissed];
+        })().catch(error => { window.notesBridgeStates = String(error); });""")
+        states = wait("window.notesBridgeStates", 5, "estado das Novidades pela ponte")
+        check("ponte das Novidades", states == [
+            {"version": web_shell.__version__, "auto_open": True, "pill": False},
+            {"version": web_shell.__version__, "auto_open": False, "pill": True},
+            {"version": web_shell.__version__, "auto_open": False, "pill": False},
+        ], states=states)
     except Exception:  # noqa: BLE001
         log("error", traceback=traceback.format_exc())
         FAILED.append("exceção no roteiro")

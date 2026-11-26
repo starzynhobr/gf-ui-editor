@@ -1,6 +1,10 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $scripts = Join-Path $root ".venv\Scripts"
+if (-not (Test-Path (Join-Path $scripts "python.exe"))) {
+    $gitCommon = git -C $root rev-parse --path-format=absolute --git-common-dir
+    $scripts = Join-Path (Split-Path $gitCommon -Parent) ".venv\Scripts"
+}
 $python = Join-Path $scripts "python.exe"
 $translations = Join-Path $root "src\gf_ui_editor\translations"
 $sources = @(
@@ -12,7 +16,7 @@ $sources = @(
     (Join-Path $root "src\gf_ui_editor\update_dialog.py")
 )
 
-$languages = & $python -c "from gf_ui_editor.i18n import LANGUAGES; print(' '.join(language for language in LANGUAGES if language != 'pt_BR'))"
+$languages = & $python -c "import sys; sys.path.insert(0, sys.argv[1]); from gf_ui_editor.i18n import LANGUAGES; print(' '.join(language for language in LANGUAGES if language != 'pt_BR'))" "$root\src"
 if ($LASTEXITCODE -ne 0) { throw "Falha ao ler os idiomas do aplicativo." }
 foreach ($language in $languages.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)) {
     $catalog = Join-Path $translations "gf_ui_editor_$language.ts"

@@ -5,7 +5,86 @@ from types import SimpleNamespace
 import pytest
 
 from gf_ui_editor.preferences import MemoryStore, Preferences
-from gf_ui_editor.ui_session import Restart, WebStartup, allow_web_retry, recover_web_start, restart_command
+from gf_ui_editor.ui_session import (
+    Restart, WebStartup, allow_web_retry, migrate_ui_default, recover_web_start, restart_command,
+    should_show_web_banner,
+)
+from gf_ui_editor.webview_runtime import resolve_ui
+
+
+@pytest.mark.parametrize(
+    ("values", "version", "requested", "available", "expected", "saved", "migrated"),
+    [
+        ({}, "0.8.0", None, True, ("web", False), "web", True),
+        ({"ui_mode": "classic"}, "0.8.0", None, True, ("classic", False), "classic", True),
+        ({"ui_mode": "web"}, "0.8.0", None, True, ("web", False), "web", True),
+        ({"ui_default_migrated": True}, "0.8.1", None, True, ("classic", False), None, True),
+        ({}, "0.8.0-beta.4", None, True, ("web", False), "web", True),
+        ({}, "0.7.9", None, True, ("classic", False), None, False),
+        ({}, "0.8.0", "classic", True, ("classic", False), "web", True),
+        ({"ui_mode": "classic"}, "0.8.0", "web", True, ("web", False), "classic", True),
+        ({}, "0.8.0", None, False, ("classic", True), "web", True),
+    ],
+)
+def test_first_launch_ui(values, version, requested, available, expected, saved, migrated):
+    prefs = Preferences(MemoryStore(values))
+    migrate_ui_default(prefs, version)
+    assert resolve_ui(requested, prefs.ui_mode, lambda: available) == expected
+    assert prefs.get("ui_mode", None) == saved
+    assert prefs.get("ui_default_migrated") is migrated
+
+
+def test_user_choice_after_migration_is_kept():
+    prefs = Preferences(MemoryStore())
+    migrate_ui_default(prefs, "0.8.0")
+    prefs.ui_mode = "classic"
+    migrate_ui_default(prefs, "0.8.1")
+    assert prefs.ui_mode == "classic"
+
+
+@pytest.mark.parametrize(
+    ("dismissed", "available", "fallback", "expected"),
+    [
+        ("", True, False, True),
+        ("0.7.0", True, False, True),
+        ("0.8.0", True, False, False),
+        ("", True, True, False),
+        ("", False, False, False),
+    ],
+)
+def test_classic_banner_visibility(dismissed, available, fallback, expected):
+    prefs = Preferences(MemoryStore({"web_banner_dismissed_version": dismissed}))
+    assert should_show_web_banner(prefs, "0.8.0", web_available=available, fallback=fallback) is expected
+
+
+def test_selecting_classic_persists_an_explicit_choice_without_restart(monkeypatch):
+    from gf_ui_editor import app
+
+    self = SimpleNamespace()
+    monkeypatch.setattr(app, "prefs", Preferences(MemoryStore()))
+    assert app.prefs.get("ui_mode", None) is None
+    app.EditorWindow.set_ui_mode(self, "classic")
+    migrate_ui_default(app.prefs, "0.8.0")
+    assert app.prefs.ui_mode == "classic"
+
+
+def test_classic_banner_buttons(monkeypatch):
+    from PySide6.QtWidgets import QApplication, QPushButton
+
+    from gf_ui_editor import app
+
+    application = QApplication.instance() or QApplication([])
+    calls = []
+    window = app.EditorWindow(offer_web_banner=True)
+    monkeypatch.setattr(window, "set_ui_mode", calls.append)
+    buttons = {button.text(): button for button in window.home_page.findChildren(QPushButton)}
+    buttons["Experimentar"].click()
+    assert calls == ["web"]
+    buttons["Agora não"].click()
+    assert buttons["Agora não"].parentWidget().isHidden()
+    assert app.prefs.get("web_banner_dismissed_version") == app.__version__
+    window.deleteLater()
+    application.processEvents()
 
 
 @pytest.mark.parametrize("frozen", [False, True])

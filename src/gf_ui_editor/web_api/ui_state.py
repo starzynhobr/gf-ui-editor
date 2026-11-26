@@ -6,12 +6,24 @@ localStorage: o pywebview roda em modo privado e o armazenamento do navegador so
 
 from __future__ import annotations
 
+from .. import __version__, whats_new
+
 THEMES = ("dark", "midnight", "light", "cappuccino", "rosa")
 FONTS = ("system", "plex", "inter", "geist")
 
 
 class UiStateApi:
     """Métodos públicos viram window.pywebview.api.<nome>. Só tipos JSON."""
+
+    def whats_new_state(self) -> whats_new.WhatsNewState:
+        return whats_new.whats_new_state(self._prefs, __version__)
+
+    def whats_new_closed(self) -> None:
+        self._prefs.set("notes_pill_version", __version__)
+        self._prefs.set("notes_seen_version", __version__)
+
+    def whats_new_pill_dismissed(self) -> None:
+        self._prefs.remove("notes_pill_version")
 
     def ui_state(self) -> dict:
         prefs = getattr(self, "_prefs", None)

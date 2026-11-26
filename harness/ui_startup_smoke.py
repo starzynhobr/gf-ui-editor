@@ -36,6 +36,10 @@ def child(out: Path, scenario: str, arguments: list[str]) -> None:
     app.DEFAULT_UI_DIRECTORY = out / "missing" / "UI"
     if scenario == "timeout":
         app.prefs.ui_mode = "web"
+    elif scenario == "healthy":
+        app.__version__ = "0.8.0"
+        app.prefs.remove("ui_mode")
+        app.prefs.remove("web_starting")
     app.prefs.auto_update_check = False
 
     address = single_instance.default_address() + "-" + out.name
@@ -55,31 +59,44 @@ def child(out: Path, scenario: str, arguments: list[str]) -> None:
         return window
 
     confirmed = threading.Event()
+    loaded = threading.Event()
 
     def close_after_ready():
         deadline = time.monotonic() + 15
-        while app.prefs.get("web_starting") and time.monotonic() < deadline:
+        while time.monotonic() < deadline:
+            if loaded.is_set() and not app.prefs.get("web_starting"):
+                confirmed.set()
+                break
             time.sleep(0.05)
-        if not app.prefs.get("web_starting"):
-            confirmed.set()
         opened[0].destroy()
 
     webview.create_window = create
     if scenario == "healthy":
-        webview.start = lambda **kwargs: start(close_after_ready, **kwargs)
+        def start_healthy(**kwargs):
+            opened[0].events.loaded += loaded.set
+            start(close_after_ready, **kwargs)
 
-    warning = []
+        webview.start = start_healthy
+
+    from gf_ui_editor.whats_new import notes_need_showing
+
+    notes_pending = notes_need_showing(app.prefs, app.__version__)
+    dialogs = []
 
     def dismiss_warning():
         widget = QApplication.activeModalWidget()
-        if isinstance(widget, QMessageBox):
-            warning.append(widget.text())
+        if isinstance(widget, app.WhatsNewDialog):
+            dialogs.append("notes")
+            widget.accept()
+        elif isinstance(widget, QMessageBox):
+            dialogs.append(widget.text())
             widget.accept()
             QApplication.instance().quit()
 
     show = app.EditorWindow.show
 
     def show_classic(window):
+        assert not window._offer_web_banner, "faixa visível durante a recuperação"
         window.move(-12000, -12000)
         show(window)
         timer = QTimer(window)
@@ -96,10 +113,11 @@ def child(out: Path, scenario: str, arguments: list[str]) -> None:
         fallback.extend(command[3:])
 
     app.subprocess = SimpleNamespace(Popen=spawn)
-    assert app.main(["--ui", "web"] if scenario in ("forced", "healthy") else arguments) == 0
+    assert app.main(["--ui", "web"] if scenario == "forced" else arguments) == 0
     assert app.prefs.ui_mode == "web"
     if scenario == "healthy":
         assert opened and confirmed.is_set() and not app.prefs.get("web_starting")
+        assert app.prefs.get("ui_default_migrated")
         return
     assert app.prefs.get("web_starting")
     if scenario == "timeout":
@@ -107,10 +125,11 @@ def child(out: Path, scenario: str, arguments: list[str]) -> None:
         assert fallback
         subprocess.run([sys.executable, __file__, str(out), "fallback", *fallback], timeout=18, check=True)
         return
-    assert not opened and warning == [
+    assert not opened and dialogs == (["notes"] if notes_pending else []) + [
         "A interface nova não abriu da última vez. Abrimos a clássica; "
         "você pode tentar a nova de novo em Configurações → Interface."
     ]
+    assert app.prefs.get("notes_seen_version") == app.__version__
     print("CLASSIC-WARNING", flush=True)
 
 
