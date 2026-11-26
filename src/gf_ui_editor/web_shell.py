@@ -43,6 +43,7 @@ class WebApi(ProjectsApi, CanvasApi, DocumentApi):
         self._dev = dev
         self._window: Any = None
         self._setup_projects(prefs, default_ui_directory, xml)
+        self._setup_document()
 
     # ---- infraestrutura ---------------------------------------------------------------
     def _attach(self, window: Any) -> None:
