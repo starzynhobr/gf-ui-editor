@@ -695,3 +695,9 @@ body.is-row-resizing {
   cursor: row-resize;
   user-select: none;
 }
+
+/* Canvas focado (para as setas funcionarem) sem o contorno branco do navegador. */
+.gf-canvas-viewport:focus,
+.gf-canvas-viewport:focus-visible {
+  outline: none;
+}
