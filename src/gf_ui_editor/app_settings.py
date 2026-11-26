@@ -20,6 +20,7 @@ from .game_layout import looks_like_game_dir, normalize_game_dir
 from .preferences import KEYS, UI_LANGUAGES, UI_MODES, Preferences
 
 THEMES = ("dark", "midnight", "light", "cappuccino", "rosa")  # os mesmos de web_api/ui_state.py
+FONTS = ("system", "plex", "inter", "geist")  # os mesmos de web_api/ui_state.py
 NAVIGATION_STYLES = ("corel", "paintnet", "photoshop")  # os mesmos de EditorView.NAVIGATION_STYLES
 BACKGROUND_MODES = ("builtin", "custom", "none")
 
@@ -37,6 +38,7 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "language": UI_LANGUAGES,
     "ui_mode": UI_MODES,
     "web_theme": THEMES,
+    "web_font": FONTS,
     "navigation_style": NAVIGATION_STYLES,
 }
 SETTABLE = (*FLAGS, *CHOICES, "game_dir", "game_resolution", "background_mode")
@@ -167,6 +169,6 @@ def reset(prefs: Preferences, what: str) -> dict:
 
 
 __all__ = [
-    "BACKGROUND_MODES", "CHOICES", "FLAGS", "NAVIGATION_STYLES", "RESETS", "SETTABLE", "THEMES",
+    "BACKGROUND_MODES", "CHOICES", "FLAGS", "FONTS", "NAVIGATION_STYLES", "RESETS", "SETTABLE", "THEMES",
     "apply", "beta_enabled", "reset", "review", "snapshot",
 ]

@@ -1,5 +1,5 @@
 // Estado visual da interface nova, guardado nas preferências (ponte ui_state): larguras dos
-// painéis laterais e tema. Lido uma vez ao abrir; gravado com atraso para não martelar o disco.
+// painéis laterais, tema e fonte. Lido uma vez ao abrir; gravado com atraso para não martelar o disco.
 import { create } from 'zustand'
 import { call } from '../bridge'
 
@@ -7,6 +7,12 @@ export type ThemeName = 'dark' | 'midnight' | 'light' | 'cappuccino' | 'rosa'
 export const THEMES: ThemeName[] = ['dark', 'midnight', 'light', 'cappuccino', 'rosa']
 /** Temas claros: toasts (sonner) e outros componentes que só conhecem claro/escuro. */
 export const isLightTheme = (theme: ThemeName) => theme === 'light' || theme === 'rosa'
+
+/** Fontes da interface (fonts.css: data-font no <html> troca --font-sans e --font-mono). */
+export type FontName = 'system' | 'plex' | 'inter' | 'geist'
+export const FONTS: FontName[] = ['system', 'plex', 'inter', 'geist']
+/** Nome de cada fonte como aparece no seletor (nomes próprios, sem tradução). */
+export const FONT_LABELS: Record<FontName, string> = { system: 'Segoe UI', plex: 'IBM Plex Sans', inter: 'Inter', geist: 'Geist' }
 
 export const PANEL_LIMITS = {
   left: { min: 240, max: 560, initial: 310 },
@@ -19,23 +25,33 @@ export type PanelSide = keyof typeof PANEL_LIMITS
 interface UiState {
   layout: Partial<Record<PanelSide, number>>
   theme: ThemeName
+  font: FontName
   loaded: boolean
 }
 
-export const useUi = create<UiState>(() => ({ layout: {}, theme: 'dark', loaded: false }))
+export const useUi = create<UiState>(() => ({ layout: {}, theme: 'dark', font: 'system', loaded: false }))
 
 export function applyTheme(theme: ThemeName): void {
   document.documentElement.dataset.theme = theme
 }
 
+export function applyFont(font: FontName): void {
+  const root = document.documentElement
+  if (font === 'system') delete root.dataset.font
+  else root.dataset.font = font
+}
+
 export async function loadUiState(): Promise<void> {
   try {
-    const state = await call<{ layout: Record<string, number>; theme: ThemeName }>('ui_state')
-    useUi.setState({ layout: state.layout ?? {}, theme: state.theme ?? 'dark', loaded: true })
+    const state = await call<{ layout: Record<string, number>; theme: ThemeName; font?: FontName }>('ui_state')
+    const font = state.font && FONTS.includes(state.font) ? state.font : 'system'
+    useUi.setState({ layout: state.layout ?? {}, theme: state.theme ?? 'dark', font, loaded: true })
     applyTheme(state.theme ?? 'dark')
+    applyFont(font)
   } catch {
     useUi.setState({ loaded: true })
     applyTheme('dark')
+    applyFont('system')
   }
 }
 
@@ -62,4 +78,11 @@ export function setTheme(theme: ThemeName): void {
   useUi.setState({ theme })
   window.setTimeout(() => root.classList.remove('theme-switching'), 350)
   void call('ui_set_theme', theme).catch(() => undefined)
+}
+
+/** Troca a fonte na hora (só as variáveis --font-sans/--font-mono mudam) e grava em web_font. */
+export function setFont(font: FontName): void {
+  applyFont(font)
+  useUi.setState({ font })
+  void call('ui_set_font', font).catch(() => undefined)
 }

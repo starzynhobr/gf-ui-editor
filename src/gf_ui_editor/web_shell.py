@@ -26,7 +26,7 @@ from .web_api.settings import SettingsApi
 from .web_api.source import SourceApi
 from .web_api.texts import TextsApi
 from .web_api.text_updates import TextUpdatesApi
-from .web_api.ui_state import AboutApi, TextureFileApi, UiStateApi
+from .web_api.ui_state import AboutApi, ReleaseHistoryApi, TextureFileApi, UiStateApi
 from .web_api.updates import UpdatesApi
 
 APP_TITLE = "STZ GF UI"
@@ -36,7 +36,7 @@ WEB_DIST = Path(__file__).resolve().parent / "web_dist"
 
 class WebApi(
     ProjectsApi, CanvasApi, DocumentApi, TextsApi, TextUpdatesApi, MaintenanceApi, UiStateApi, AboutApi, SettingsApi,
-    UpdatesApi, TextureFileApi, SourceApi,
+    UpdatesApi, TextureFileApi, SourceApi, ReleaseHistoryApi,
 ):
     """Métodos chamáveis pelo front (`call("nome", ...)` em web/src/bridge.ts).
 

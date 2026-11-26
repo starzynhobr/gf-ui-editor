@@ -1,0 +1,49 @@
+/* Fontes da interface (Configurações → Geral → Fonte; shell/uiState.ts põe data-font no <html>).
+ *
+ * Empacotadas com o app (@fontsource, nada vem da internet), só o subconjunto latin (cobre
+ * pt/en/es/fr) em woff2 e só os pesos que a interface usa: 400, 500 e 600. O CSS dos
+ * pacotes @fontsource traria também .woff e todos os subconjuntos; por isso as regras são
+ * escritas aqui. O browser só baixa o arquivo de uma fonte quando ela está em uso.
+ *
+ * O app inteiro lê só --font-sans e --font-mono (index.css, @theme). Trocar a fonte é
+ * trocar estas duas variáveis; nenhum componente fixa font-family.
+ * O texto do jogo no canvas não passa por aqui: é o rasterizado do jogo.
+ */
+
+@font-face { font-family: "Inter"; font-style: normal; font-display: swap; font-weight: 400; src: url("@fontsource/inter/files/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-display: swap; font-weight: 500; src: url("@fontsource/inter/files/inter-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-display: swap; font-weight: 600; src: url("@fontsource/inter/files/inter-latin-600-normal.woff2") format("woff2"); }
+
+@font-face { font-family: "Geist"; font-style: normal; font-display: swap; font-weight: 400; src: url("@fontsource/geist-sans/files/geist-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Geist"; font-style: normal; font-display: swap; font-weight: 500; src: url("@fontsource/geist-sans/files/geist-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Geist"; font-style: normal; font-display: swap; font-weight: 600; src: url("@fontsource/geist-sans/files/geist-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Geist Mono"; font-style: normal; font-display: swap; font-weight: 400; src: url("@fontsource/geist-mono/files/geist-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Geist Mono"; font-style: normal; font-display: swap; font-weight: 500; src: url("@fontsource/geist-mono/files/geist-mono-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Geist Mono"; font-style: normal; font-display: swap; font-weight: 600; src: url("@fontsource/geist-mono/files/geist-mono-latin-600-normal.woff2") format("woff2"); }
+
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-display: swap; font-weight: 400; src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-display: swap; font-weight: 500; src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-display: swap; font-weight: 600; src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-display: swap; font-weight: 400; src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-display: swap; font-weight: 500; src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-display: swap; font-weight: 600; src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2") format("woff2"); }
+
+/* "system" (padrão) usa os valores de @theme em index.css: Segoe UI e Cascadia Mono. */
+:root[data-font="plex"] {
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+}
+:root[data-font="inter"] {
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  /* Inter não tem mono: o código segue na do sistema. */
+}
+:root[data-font="geist"] {
+  --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Mono", Consolas, monospace;
+}
+
+/* Prévia no seletor: cada opção escrita na sua fonte, qualquer que seja a atual. */
+.gf-font-preview-system { font-family: "Segoe UI", system-ui, sans-serif; }
+.gf-font-preview-plex { font-family: "IBM Plex Sans", "Segoe UI", sans-serif; }
+.gf-font-preview-inter { font-family: "Inter", "Segoe UI", sans-serif; }
+.gf-font-preview-geist { font-family: "Geist", "Segoe UI", sans-serif; }

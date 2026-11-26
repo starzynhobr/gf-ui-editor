@@ -2,17 +2,37 @@ from pathlib import Path
 
 from gf_ui_editor import desktop
 from gf_ui_editor.preferences import MemoryStore, Preferences
-from gf_ui_editor.web_api.ui_state import AboutApi, TextureFileApi, UiStateApi
+from gf_ui_editor.web_api.ui_state import AboutApi, ReleaseHistoryApi, TextureFileApi, UiStateApi
 
 
 def test_layout_and_theme_are_saved_in_preferences() -> None:
     api = UiStateApi()
     api._prefs = Preferences(MemoryStore())
-    assert api.ui_state() == {"layout": {}, "theme": "dark"}
+    assert api.ui_state() == {"layout": {}, "theme": "dark", "font": "system"}
     api.ui_set_layout({"left": 420, "bad": [1], "right": 300})
     api.ui_set_theme("light")
     api.ui_set_theme("neon")  # tema desconhecido: ignorado
-    assert api.ui_state() == {"layout": {"left": 420, "right": 300}, "theme": "light"}
+    api.ui_set_font("geist")
+    api.ui_set_font("comic-sans")  # fonte desconhecida: ignorada
+    assert api.ui_state() == {"layout": {"left": 420, "right": 300}, "theme": "light", "font": "geist"}
+    assert api._prefs.get("web_font") == "geist"
+
+
+def test_unknown_saved_font_falls_back_to_system() -> None:
+    api = UiStateApi()
+    api._prefs = Preferences(MemoryStore())
+    api._prefs.set("web_font", "papyrus")
+    assert api.ui_state()["font"] == "system"
+
+
+def test_release_history_lists_bundled_versions_newest_first() -> None:
+    api = ReleaseHistoryApi()
+    api._language = "en_US"
+    history = api.release_history()
+    versions = [release["version"] for release in history["releases"]]
+    assert versions and versions[0] == history["version"]
+    assert all("-" not in version for version in versions[1:]) or "-" in history["version"]  # estável: sem betas
+    assert all(set(release["sections"]) == {"new", "improved", "fixed"} for release in history["releases"])
 
 
 def test_about_info_lists_contributors_with_links() -> None:

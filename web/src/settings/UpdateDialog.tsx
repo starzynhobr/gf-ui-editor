@@ -1,60 +1,12 @@
 // Atualização disponível, como o WhatsNewDialog da clássica com current_version: versão atual
 // → nova, notas traduzidas (inclusive as das versões puladas) e Pular / Depois / Atualizar.
-import { motion } from 'motion/react'
 import { t, useT } from '../i18n'
 import { Modal, openDialog } from '../ui/dialogs'
-import type { ReleaseSections, UpdateOffer } from './settingsApi'
+import { ReleaseNotes } from './ReleaseNotes'
+import type { UpdateOffer } from './settingsApi'
 import './settings.css'
 
 export type UpdateChoice = 'update' | 'skip' | 'later'
-
-const SECTION_STYLE: Record<keyof ReleaseSections, string> = {
-  new: 'text-success',
-  improved: 'text-accent-text',
-  fixed: 'text-gold',
-}
-
-function sectionTitle(name: keyof ReleaseSections): string {
-  return { new: t('NOVO'), improved: t('MELHORADO'), fixed: t('CORRIGIDO') }[name]
-}
-
-export function ReleaseNotesList({ releases, grouped }: Pick<UpdateOffer, 'releases' | 'grouped'>) {
-  useT()
-  return (
-    <div className="space-y-5">
-      {releases.map((release, index) => (
-        <motion.div
-          key={release.version}
-          className="space-y-3"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 * index, duration: 0.2 }}
-        >
-          {grouped && (
-            <div className="font-mono text-[11px] text-muted">
-              {release.date ? `${release.version}  ·  ${release.date}` : release.version}
-            </div>
-          )}
-          {(['new', 'improved', 'fixed'] as const).map((name) =>
-            release.sections[name]?.length ? (
-              <section key={name} className="space-y-2">
-                <div className={`section-label ${SECTION_STYLE[name]}`}>{sectionTitle(name)}</div>
-                {release.sections[name].map(([title, text]) => (
-                  <div key={title} className="gf-note-entry">
-                    <span className={`gf-note-dot ${SECTION_STYLE[name]}`}>●</span>
-                    <div className="leading-relaxed">
-                      <span className="font-semibold text-bright">{title}</span> <span className="text-text">{text}</span>
-                    </div>
-                  </div>
-                ))}
-              </section>
-            ) : null,
-          )}
-        </motion.div>
-      ))}
-    </div>
-  )
-}
 
 function UpdateDialog({ offer, finish }: { offer: UpdateOffer; finish: (choice: UpdateChoice) => void }) {
   useT()
@@ -67,7 +19,7 @@ function UpdateDialog({ offer, finish }: { offer: UpdateOffer; finish: (choice: 
   return (
     <Modal
       title={t('Atualização disponível')}
-      width={620}
+      width={offer.releases.length > 1 ? 800 : 640}
       onClose={() => finish('later')}
       footer={
         <div className="flex w-full items-center gap-2" data-testid="update-dialog-footer">
@@ -100,7 +52,7 @@ function UpdateDialog({ offer, finish }: { offer: UpdateOffer; finish: (choice: 
           </div>
         </div>
         {offer.releases.length ? (
-          <ReleaseNotesList releases={offer.releases} grouped={offer.grouped} />
+          <ReleaseNotes releases={offer.releases} showVersion={offer.grouped} />
         ) : (
           <div className="whitespace-pre-wrap text-text">{offer.fallback_text || t('Sem notas para esta versão.')}</div>
         )}

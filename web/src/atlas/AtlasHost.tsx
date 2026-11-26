@@ -148,9 +148,9 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
               {bitmap ? `${bitmap.width} × ${bitmap.height} px` : bitmap === null ? shellT('Não foi possível ler a imagem.') : ' '}
             </p>
           </div>
-          <div className={preview ? 'gf-atlas-row gf-atlas-row-single' : 'gf-atlas-row'}>
-            {!preview && (
-              <button type="button" className="btn" disabled={!bitmap || !cut}
+          <div className={preview || !cut ? 'gf-atlas-row gf-atlas-row-single' : 'gf-atlas-row'}>
+            {!preview && cut && (
+              <button type="button" className="btn" disabled={!bitmap}
                 title={shellT('Aproxima e enquadra o recorte NorUV selecionado atualmente.')}
                 onClick={() => setFrame({ mode: 'crop', crop: cut })}>
                 <Icon name="focus" size={16} />{shellT('Centralizar')}
@@ -205,13 +205,13 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
                 disabled={!enabled || state !== normal} onChange={setResize} />
             </section>
           )}
-          <button type="button" className="btn gf-atlas-open-dds" data-testid="atlas-open-dds" disabled={!name}
+          {name && <button type="button" className="btn gf-atlas-open-dds" data-testid="atlas-open-dds"
             title={preview
               ? shellT('Abre no programa padrão do Windows para .dds (Paint.NET, por exemplo)')
               : shellT('Abre esta textura no aplicativo padrão do sistema.')}
             onClick={openDds}>
             <Icon name="image" size={16} />{shellT('Abrir .dds')}
-          </button>
+          </button>}
           <div className="gf-atlas-spacer" />
           {!preview && !editable && name && <p role="status">{t.unavailable}</p>}
           {locked && <p role="status">{t.locked}</p>}

@@ -1,12 +1,13 @@
-"""Ponte: estado visual da interface nova (larguras dos painéis, tema).
+"""Ponte: estado visual da interface nova (larguras dos painéis, tema, fonte).
 
-Fica nas preferências compartilhadas (preferences.py: `web_layout`, `web_theme`) e não no
+Fica nas preferências compartilhadas (preferences.py: `web_layout`, `web_theme`, `web_font`) e não no
 localStorage: o pywebview roda em modo privado e o armazenamento do navegador some ao fechar.
 """
 
 from __future__ import annotations
 
 THEMES = ("dark", "midnight", "light", "cappuccino", "rosa")
+FONTS = ("system", "plex", "inter", "geist")
 
 
 class UiStateApi:
@@ -15,10 +16,15 @@ class UiStateApi:
     def ui_state(self) -> dict:
         prefs = getattr(self, "_prefs", None)
         if prefs is None:
-            return {"layout": {}, "theme": "dark"}
+            return {"layout": {}, "theme": "dark", "font": "system"}
         layout = prefs.get("web_layout")
         theme = prefs.get("web_theme")
-        return {"layout": layout if isinstance(layout, dict) else {}, "theme": theme if theme in THEMES else "dark"}
+        font = prefs.get("web_font")
+        return {
+            "layout": layout if isinstance(layout, dict) else {},
+            "theme": theme if theme in THEMES else "dark",
+            "font": font if font in FONTS else "system",
+        }
 
     def ui_set_layout(self, layout: dict) -> None:
         prefs = getattr(self, "_prefs", None)
@@ -30,6 +36,11 @@ class UiStateApi:
         prefs = getattr(self, "_prefs", None)
         if prefs is not None and theme in THEMES:
             prefs.set("web_theme", theme)
+
+    def ui_set_font(self, font: str) -> None:
+        prefs = getattr(self, "_prefs", None)
+        if prefs is not None and font in FONTS:
+            prefs.set("web_font", font)
 
 
 class AboutApi:
@@ -60,6 +71,30 @@ class AboutApi:
             "how_to_url": home.how_to_url(language),
             "contributors": people,
         }
+
+
+class ReleaseHistoryApi:
+    """"Novidades" → "Ver todas": a versão instalada e o histórico embutido (release-notes.json)."""
+
+    def release_history(self) -> dict:
+        from .. import __version__, release_notes, updater
+
+        language = getattr(self, "_language", "pt_BR")
+        notes = release_notes.bundled()
+        releases = [notes, *notes.history] if notes is not None else []
+        # Numa estável, as notas dela já resumem as betas (como ReleaseNotes.since).
+        if notes is not None and not updater.is_prerelease(notes.version):
+            releases = [release for release in releases if not updater.is_prerelease(release.version)]
+        rows = []
+        for release in releases:
+            sections = release.for_language(language)
+            if sections:
+                rows.append({
+                    "version": release.version,
+                    "date": release.date,
+                    "sections": {name: [list(entry) for entry in sections.get(name, [])] for name in release_notes.SECTIONS},
+                })
+        return {"version": notes.version if notes is not None else __version__, "releases": rows}
 
 
 class TextureFileApi:

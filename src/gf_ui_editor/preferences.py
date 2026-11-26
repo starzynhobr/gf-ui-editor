@@ -77,6 +77,7 @@ KEYS: dict[str, Key] = {
     "brand_seen": Key("bool", False),
     "web_layout": Key("json", {}),  # interface nova: larguras dos painéis etc. {"left": 310, "right": 320}
     "web_theme": Key("str", "dark"),  # interface nova: tema (data-theme)
+    "web_font": Key("str", "system"),  # interface nova: fonte (data-font): system, plex, inter, geist
     # Projeto e jogo
     "last_project": Key("str", ""),
     "game_dir": Key("str", ""),

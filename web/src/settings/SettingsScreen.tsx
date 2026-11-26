@@ -10,7 +10,7 @@ import { refreshShell } from '../actions'
 import { applyCanvasPreference } from '../doc/store'
 import { openWhatsNew } from '../home/WhatsNewDialog'
 import { LANGUAGES, setLanguage, t, useT } from '../i18n'
-import { THEMES, loadUiState, setTheme, useUi, type ThemeName } from '../shell/uiState'
+import { FONTS, FONT_LABELS, THEMES, loadUiState, setFont, setTheme, useUi, type FontName, type ThemeName } from '../shell/uiState'
 import { setShell, showStatus, useShell } from '../store'
 import { message } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
@@ -150,12 +150,44 @@ const THEME_ICON: Record<ThemeName, ReactNode> = {
   ),
 }
 
+/** Escolha da fonte: cada opção escrita na própria fonte (fonts.css, .gf-font-preview-*). */
+function FontPicker({ value, onChange }: { value: FontName; onChange: (value: FontName) => void }) {
+  const hint: Record<FontName, string> = {
+    system: t('Padrão do Windows'),
+    plex: t('A mesma da interface clássica'),
+    inter: t('Compacta, feita para telas'),
+    geist: t('Moderna, com mono própria'),
+  }
+  return (
+    <div className="gf-font-picker" role="radiogroup" aria-label={t('Fonte')} data-setting="web_font">
+      {FONTS.map((font) => (
+        <button
+          key={font}
+          role="radio"
+          aria-checked={font === value}
+          className="gf-font-option"
+          data-value={font}
+          onClick={() => font !== value && onChange(font)}
+        >
+          {font === value && (
+            <motion.span layoutId="font-picker-active" className="gf-font-option-active" transition={{ type: 'spring', stiffness: 520, damping: 38 }} />
+          )}
+          <span className={`gf-font-sample gf-font-preview-${font}`}>Aa</span>
+          <span className={`gf-font-name gf-font-preview-${font}`}>{FONT_LABELS[font]}</span>
+          <span className="gf-font-hint">{hint[font]}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ---- a tela -----------------------------------------------------------------------------------
 
 function SettingsPanel() {
   useT()
   const section = useSettings((state) => state.section)
   const theme = useUi((state) => state.theme)
+  const font = useUi((state) => state.font)
   const [state, setState] = useState<SettingsState | null>(null)
   // Mudanças em fila: duas trocas rápidas gravam as duas, na ordem (nenhuma é descartada).
   const queue = useRef<Promise<void>>(Promise.resolve())
@@ -289,6 +321,21 @@ function SettingsPanel() {
                 }}
               />
             </Row>
+            <div className="gf-settings-row gf-settings-row-stacked" data-testid="settings-font">
+              <div>
+                <div className="text-bright">{t('Fonte')}</div>
+                <div className="mt-0.5 text-[12px] leading-snug text-muted">
+                  {t('Vale para toda a interface. O texto do jogo no canvas continua o do jogo.')}
+                </div>
+              </div>
+              <FontPicker
+                value={font}
+                onChange={(value) => {
+                  setFont(value)
+                  setState({ ...state, values: { ...values, web_font: value } })
+                }}
+              />
+            </div>
             <Row title={t('Interface')} text={t('A interface escolhida vale na próxima vez que o editor abrir.')}>
               <Segmented
                 name="ui_mode"
@@ -302,25 +349,45 @@ function SettingsPanel() {
             </Row>
           </Group>
           <Group title={t('Rever e limpar')}>
+            {/* Os botões só aparecem quando há o que limpar; sem nada, a linha mostra só o texto. */}
             <Row
               title={t('Versão pulada')}
+              testId="settings-review-skipped"
               text={state.review.skipped_update
                 ? t('A {version} não é mais oferecida ao abrir.', { version: state.review.skipped_update })
                 : t('Nenhuma versão pulada.')}
             >
-              <button className="btn" disabled={!state.review.skipped_update} onClick={() => void reset('skipped_update')}>
-                {t('Oferecer de novo')}
-              </button>
+              {state.review.skipped_update && (
+                <button className="btn" onClick={() => void reset('skipped_update')} data-testid="settings-reset-skipped">
+                  {t('Oferecer de novo')}
+                </button>
+              )}
             </Row>
-            <Row title={t('Avisos já vistos')} text={t('{count} aviso(s) do STZ Labs já mostrados.', { count: state.review.manifest_seen })}>
-              <button className="btn" disabled={!state.review.manifest_seen} onClick={() => void reset('manifest_seen')}>
-                {t('Mostrar de novo')}
-              </button>
+            <Row
+              title={t('Avisos já vistos')}
+              testId="settings-review-notices"
+              text={state.review.manifest_seen
+                ? t('{count} aviso(s) do STZ Labs já mostrados.', { count: state.review.manifest_seen })
+                : t('Nenhum aviso do STZ Labs mostrado ainda.')}
+            >
+              {state.review.manifest_seen > 0 && (
+                <button className="btn" onClick={() => void reset('manifest_seen')} data-testid="settings-reset-notices">
+                  {t('Mostrar de novo')}
+                </button>
+              )}
             </Row>
-            <Row title={t('Painéis e colunas')} text={t('Larguras dos painéis, ordem das seções da lista e colunas da árvore.')}>
-              <button className="btn" disabled={!state.review.layout} onClick={() => void reset('layout')} data-testid="settings-reset-layout">
-                {t('Restaurar')}
-              </button>
+            <Row
+              title={t('Painéis e colunas')}
+              testId="settings-review-layout"
+              text={state.review.layout
+                ? t('Larguras dos painéis, ordem das seções da lista e colunas da árvore.')
+                : t('Painéis e colunas no arranjo padrão.')}
+            >
+              {state.review.layout && (
+                <button className="btn" onClick={() => void reset('layout')} data-testid="settings-reset-layout">
+                  {t('Restaurar')}
+                </button>
+              )}
             </Row>
           </Group>
         </>

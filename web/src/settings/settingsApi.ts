@@ -9,6 +9,7 @@ export interface SettingsValues {
   language: string
   ui_mode: 'classic' | 'web'
   web_theme: ThemeValue
+  web_font: 'system' | 'plex' | 'inter' | 'geist'
   navigation_style: NavigationStyle
   auto_update_check: boolean
   beta_updates: boolean
