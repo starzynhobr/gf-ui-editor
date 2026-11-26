@@ -27,6 +27,7 @@ from .web_api.resolutions import ResolutionsApi
 from .web_api.maintenance import MaintenanceApi
 from .web_api.settings import SettingsApi
 from .web_api.source import SourceApi
+from .web_api.standalone import StandaloneApi
 from .web_api.texts import TextsApi
 from .web_api.text_updates import TextUpdatesApi
 from .web_api.ui_state import AboutApi, ReleaseHistoryApi, TextureFileApi, UiStateApi
@@ -40,6 +41,7 @@ WEB_DIST = Path(__file__).resolve().parent / "web_dist"
 class WebApi(
     ProjectsApi, CanvasApi, DocumentApi, TextsApi, TextUpdatesApi, MaintenanceApi, UiStateApi, AboutApi, SettingsApi,
     UpdatesApi, TextureFileApi, SourceApi, ReleaseHistoryApi, ResolutionsApi,
+    StandaloneApi,
 ):
     """Métodos chamáveis pelo front (`call("nome", ...)` em web/src/bridge.ts).
 
