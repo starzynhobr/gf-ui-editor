@@ -147,6 +147,7 @@ from .project import (
     projects_publishing_to,
     safe_name,
 )
+from .atlas import atlas_edits, atlas_states
 from .atlas_dialog import AtlasDialog, TexturePreviewDialog
 from .texture_cache import TextureCache
 from . import textures
@@ -4773,22 +4774,26 @@ class EditorWindow(QMainWindow):
         element = self.document.elements[index]
         if element.uv is None:
             return
-        geometry = (element.x, element.y, uv.width, uv.height)
-        uv_changed = element.uv != uv
-        geometry_changed = resize_element and element.geometry != geometry
+        edits = atlas_edits(self.document, index, {"NorUV": uv}, resize_element)
         offset_changed = offset is not None and element.progress_offset is not None and offset != element.progress_offset
-        if not uv_changed and not geometry_changed and not offset_changed:
+        if not edits and not offset_changed:
             return
         self.undo_stack.beginMacro(self.tr("Alterar atlas do WindowID {id}").format(id=element.window_id))
-        if uv_changed:
-            self.undo_stack.push(UVCommand(self, index, element.uv, uv))
-        if geometry_changed:
-            self.undo_stack.push(
-                GeometryCommand(self, index, element.geometry, geometry)
-            )
+        self._push_atlas_edits(index, edits)
         if offset_changed:
             self.undo_stack.push(OffsetCommand(self, index, element.progress_offset, offset))
         self.undo_stack.endMacro()
+
+    def _push_atlas_edits(self, index: int, edits: list[dict]) -> None:
+        for edit in edits:
+            before, after = edit["before"], edit["after"]
+            if edit["field"] == "geometry":
+                command = GeometryCommand(self, index, before, after)
+            elif edit["name"] == "NorUV":
+                command = UVCommand(self, index, UVRect(*before), UVRect(*after))
+            else:
+                command = ButtonUVCommand(self, index, edit["name"], UVRect(*before), UVRect(*after))
+            self.undo_stack.push(command)
 
     def apply_offset(self, index: int, offset: tuple[int, int]) -> None:
         assert self.document is not None
@@ -4811,21 +4816,12 @@ class EditorWindow(QMainWindow):
         if (("ButtonNode" not in element.child_tags and "ThumbUV" not in element.button_uvs)
                 or element.uv is None or not self.document.button_states_editable):
             return
-        allowed = {"NorUV": element.uv, **element.button_uvs}
-        changes = {state: uv for state, uv in states.items()
-                   if state in allowed and allowed[state] is not None and allowed[state] != uv}
-        normal = states.get("NorUV", element.uv)
-        geometry = (element.x, element.y, normal.width, normal.height)
-        resize = resize_element and element.geometry != geometry
-        if not changes and not resize:
+        allowed = atlas_states(self.document, index)
+        edits = atlas_edits(self.document, index, {state: uv for state, uv in states.items() if state in allowed}, resize_element)
+        if not edits:
             return
         self.undo_stack.beginMacro(self.tr("Alterar atlas do WindowID {id}").format(id=element.window_id))
-        for state, uv in changes.items():
-            command = (UVCommand(self, index, element.uv, uv) if state == "NorUV" else
-                       ButtonUVCommand(self, index, state, element.button_uvs[state], uv))
-            self.undo_stack.push(command)
-        if resize:
-            self.undo_stack.push(GeometryCommand(self, index, element.geometry, geometry))
+        self._push_atlas_edits(index, edits)
         self.undo_stack.endMacro()
 
     def apply_button_uv(self, index: int, state: str, uv: UVRect) -> None:

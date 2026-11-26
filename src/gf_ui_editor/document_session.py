@@ -7,8 +7,8 @@ from hashlib import sha256
 from pathlib import Path
 from threading import RLock
 
-from . import game_layout, window_geometry
-from .canvas_document import PreviewContext, describe_scene
+from . import atlas, game_layout, window_geometry
+from .canvas_document import PreviewContext, describe_scene, project_ui_root
 from .project import Project
 from .xml_document import UIDocument, UVRect
 
@@ -63,10 +63,13 @@ def _apply_edits(document: UIDocument, edits: list[dict]) -> None:
                 update = document.set_geometry
                 args = (after,)
             elif field == "uv" and element.uv is not None:
-                current = element.uv
+                name = edit.get("name", atlas.NORMAL)
+                current = atlas.atlas_states(document, index).get(name)
                 before, after = UVRect(*_rect(before, dimensions=False)), UVRect(*_rect(after))
-                update = document.set_uv
-                args = (after,)
+                if name == atlas.NORMAL:
+                    update, args = document.set_uv, (after,)
+                else:
+                    update, args = document.set_button_uv, (name, after)
             elif field == "texture" and (after is None or isinstance(after, str)):
                 current = element.texture_name
                 update = document.set_texture
@@ -192,6 +195,31 @@ class DocumentSession:
         with self._lock:
             document, _ = self._require()
             return document.unified_diff()
+
+    def plan_atlas(self, path: str, index: int, before: dict, after: dict, resize: bool) -> list[dict]:
+        with self._lock:
+            document, _ = self._require()
+            index = _index(document, index)
+            current = atlas.atlas_states(document, index)
+            if (
+                document.path != Path(path).resolve()
+                or {name: UVRect(*_rect(rect, dimensions=False)) for name, rect in before.items()} != current
+            ):
+                raise ValueError("O elemento mudou desde o início da edição.")
+            return atlas.atlas_edits(
+                document, index, {name: UVRect(*_rect(rect)) for name, rect in after.items()}, resize,
+            )
+
+    def refresh_texts(self, project: str) -> dict | None:
+        with self._lock:
+            if self._document is None:
+                return None
+            document, context = self._require()
+            ui = project_ui_root(document.path)
+            if ui is None or ui.parent.resolve() != Path(project).resolve():
+                return None
+            context.refresh_labels(document.path)
+            return describe_scene(document, context)
 
     def save(self, project: Project | None) -> dict:
         with self._lock:

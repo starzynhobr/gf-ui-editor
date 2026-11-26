@@ -21,10 +21,14 @@ from offscreen import capture_window, window_options
 
 RESOLUTION = (1024, 768)
 FILES = ("MailList.xml", "Storage.xml")
+ATLAS_INDEX = 4  # MailList WindowID 2050, with all four button states.
+ATLAS_NORMAL = (539, 81, 69, 16)
+ATLAS_FOCUS = (539, 93, 60, 20)
 
 
 def fixtures(out, game):
     from gf_ui_editor.project import Project
+    from gf_ui_editor.game_texts import TEXT_INDEX
     from gf_ui_editor.xml_document import UIDocument
 
     source = out / "fixture"
@@ -37,7 +41,11 @@ def fixtures(out, game):
                 texture = ui / element.texture_name
                 if texture.is_file() and texture.parent == ui:
                     shutil.copy2(texture, source / texture.name)
-    return tuple(Project.create(name, source, None, out / "projects", include_assets=True) for name in ("qt", "web"))
+    game_fixture = out / "game"
+    index = game_fixture / TEXT_INDEX
+    index.parent.mkdir(parents=True)
+    index.write_text("637|Original harness label|\n", encoding="ascii")
+    return tuple(Project.create(name, source, game_fixture, out / "projects", include_assets=True) for name in ("qt", "web"))
 
 
 def classic(project):
@@ -126,6 +134,26 @@ def classic(project):
         QTest.keyClick(view, Qt.Key.Key_Right)
         QTest.keyClick(view, Qt.Key.Key_Down, shift)
         snapshot("nudge")
+
+        assert QThreadPool.globalInstance().waitForDone(5000)
+        window._apply_loaded_textures()
+        window.select_element(ATLAS_INDEX)
+        window.open_selected_atlas()
+        atlas = window.atlas_dialog
+        assert atlas is not None
+        atlas.edit_button.click()
+        atlas.resize_element.setChecked(True)
+        for state, values in (("NorUV", ATLAS_NORMAL), ("FocusUV", ATLAS_FOCUS)):
+            atlas.state_combo.setCurrentIndex(atlas.state_combo.findData(state))
+            for field, value in zip((atlas.left_spin, atlas.top_spin, atlas.width_spin, atlas.height_spin), values):
+                field.setValue(value)
+        atlas.apply_button.click()
+        snapshot("atlas")
+        window.undo_stack.undo()
+        snapshot("atlas-undo")
+        window.undo_stack.redo()
+        snapshot("atlas-redo")
+        atlas.close()
         window.save_document()
         assert not window.document.is_dirty
 
@@ -171,7 +199,11 @@ def web(out, page, project, expected):
             if value:
                 return value
             sleep(0.05)
-        raise TimeoutError(f"{label}: {js('canvasEdit.state().error')}")
+        diagnostic = js("""({
+            error: canvasEdit.state().error || document.querySelector('.gf-atlas-dialog [role=alert]')?.textContent,
+            crop: [...document.querySelectorAll('.gf-atlas-fields input')].map(field => field.value),
+        })""")
+        raise TimeoutError(f"{label}: {diagnostic}")
 
     def async_js(expression):
         js(f"""window.editResult = null; {expression}.then(
@@ -193,15 +225,31 @@ def web(out, page, project, expected):
         if not pending[0].Wait(5000):
             raise TimeoutError(method)
 
-    def gesture(x, y, dx=0, dy=0, *, modifiers=0):
-        x, y = js(f"canvasEdit.point({x},{y})")
-        cdp("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button="left", buttons=1,
-            clickCount=1, modifiers=modifiers)
+    def drag_at(x, y, dx=0, dy=0, *, modifiers=0, button="left", clicks=1):
+        buttons = {"left": 1, "middle": 4}[button]
+        cdp("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button=button, buttons=buttons,
+            clickCount=clicks, modifiers=modifiers)
         if dx or dy:
             cdp("Input.dispatchMouseEvent", type="mouseMoved", x=x + dx, y=y + dy,
-                buttons=1, modifiers=modifiers)
+                buttons=buttons, modifiers=modifiers)
         cdp("Input.dispatchMouseEvent", type="mouseReleased", x=x + dx, y=y + dy,
-            button="left", buttons=0, clickCount=1, modifiers=modifiers)
+            button=button, buttons=0, clickCount=clicks, modifiers=modifiers)
+
+    def gesture(x, y, dx=0, dy=0, *, modifiers=0, clicks=1):
+        x, y = js(f"canvasEdit.point({x},{y})")
+        drag_at(x, y, dx, dy, modifiers=modifiers, clicks=clicks)
+
+    def atlas_gesture(start, end):
+        x, y = js(f"canvasEdit.atlasPoint({start[0]}, {start[1]})")
+        end_x, end_y = js(f"canvasEdit.atlasPoint({end[0]}, {end[1]})")
+        drag_at(x, y, end_x - x, end_y - y)
+
+    def click_atlas(caption):
+        assert js(f"""[...document.querySelectorAll('.gf-atlas-dialog button')].some(button => {{
+            if (button.textContent !== {json.dumps(caption)} || button.disabled) return false
+            button.click()
+            return true
+        }})"""), caption
 
     def snapshot(key):
         geometries = "canvasEdit.state().doc.elements.map(e => e.geometry)"
@@ -225,8 +273,27 @@ def web(out, page, project, expected):
             if not window.events.loaded.wait(30):
                 raise TimeoutError("WebView2 did not load")
             paths = [project.ui_dir / name for name in FILES]
+            wait("!!window.canvasEdit", "harness ready")
+            js(f"canvasEdit.previewTexture({json.dumps(str(project.ui_dir / 'main.dds'))}); true")
+            wait("!!document.querySelector('.gf-atlas-surface > canvas[style]') && document.querySelector('.gf-atlas-surface > canvas').offsetTop > 0", "texture preview without XML")
+            assert not js("!!document.querySelector('.gf-atlas-controls')")
+            x, y = js("canvasEdit.atlasPoint(512, 512)")
+            drag_at(x, y, 22, 17, button="middle")
+            pan_x, pan_y = js("canvasEdit.atlasPoint(512, 512)")
+            assert (round(pan_x - x), round(pan_y - y)) == (22, 17)
+            scale = js("canvasEdit.atlasPoint(513, 512)[0] - canvasEdit.atlasPoint(512, 512)[0]")
+            cdp("Input.dispatchMouseEvent", type="mouseWheel", x=pan_x, y=pan_y, deltaX=0, deltaY=-120)
+            wait(f"canvasEdit.atlasPoint(513, 512)[0] - canvasEdit.atlasPoint(512, 512)[0] > {scale}", "atlas zoom")
+            js("document.querySelector('.gf-atlas-close').click(); true")
+            results["texture-preview-zoom-pan"] = True
+
             async_js(f"canvasEdit.open({json.dumps(str(paths[0]))}, false)")
             snapshot("mail-open")
+            js("window.addEventListener('gf:element-dblclick', event => window.elementDoubleClick = event.detail); true")
+            gesture(45, 35)
+            gesture(45, 35, clicks=2)
+            assert js("window.elementDoubleClick") == {"index": 2, "windowId": "2010"}
+            results["element-doubleclick"] = True
             gesture(48, 95)
             wait("canvasEdit.state().selection[0] === 9", "click selection")
             gesture(48, 95, 13, -4, modifiers=8)
@@ -248,6 +315,57 @@ def web(out, page, project, expected):
                     windowsVirtualKeyCode=code, modifiers=modifiers)
             snapshot("nudge")
             assert capture_window(window.native.Handle.ToInt64(), out / "mail-group.png")
+
+            js("""const mode = document.querySelector('select[aria-label="Texto"]');
+                mode.value = 'game'; mode.dispatchEvent(new Event('change', {bubbles: true})); true""")
+            assert js("canvasEdit.state().doc.elements[2].texts.game.value") == "Original harness label"
+            assert async_js("pywebview.api.texts_save('T_TextIndex.ini', '637', ['Updated harness label'])") == {"saved": True}
+            wait("canvasEdit.state().doc.elements[2].texts.game.value === 'Updated harness label'", "live game text")
+            assert js("canvasEdit.state().dirty && canvasEdit.state().canUndo")
+            assert js("canvasEdit.state().doc.elements[10].geometry") == expected["nudge"][10]
+            results["live-text-preserves-dirty-xml"] = True
+
+            js(f"canvasEdit.openAtlas({ATLAS_INDEX}); true")
+            wait("document.querySelectorAll('.gf-atlas-thumb canvas').length === 4 && !!document.querySelector('.gf-atlas-cut')", "atlas states")
+            click_atlas("Editar posição")
+            atlas_gesture((550, 87), (553, 89))
+            wait("document.querySelector('.gf-atlas-fields input').value === '539'", "move normal crop")
+            previous_x = js("canvasEdit.atlasPoint(603, 99)[0]")
+            click_atlas("Centralizar recorte")
+            wait(f"canvasEdit.atlasPoint(603, 99)[0] < {previous_x}", "recenter normal crop")
+            click_atlas("−")
+            wait("Number(document.querySelector('.gf-atlas-magnification').textContent.slice(0, -1)) <= 1000", "zoom out from crop")
+            # Land just inside the last pixel so the ceiling yields the intended end.
+            x, y, edge = js("""(() => {
+                const box = document.querySelector('.gf-atlas-cut [data-edge=se]').getBoundingClientRect()
+                const x = box.x + box.width / 2, y = box.y + box.height / 2
+                return [x, y, document.elementFromPoint(x,y)?.dataset.edge]
+            })()""")
+            assert edge == "se", (x, y, edge)
+            end_x, end_y = js("canvasEdit.atlasPoint(607.8, 96.8)")
+            drag_at(x, y, end_x - x, end_y - y)
+            wait("document.querySelectorAll('.gf-atlas-fields input')[2].value === '69'", "resize normal crop")
+            js("document.querySelector('.gf-atlas-resize input').click(); true")
+            click_atlas("Foco")
+            wait("document.querySelector('[data-state=FocusUV]').ariaPressed === 'true'", "focus state active")
+            atlas_gesture((539.2, 93.2), (598.8, 112.8))
+            wait("document.querySelectorAll('.gf-atlas-fields input')[1].value === '93'", "draw focus crop")
+            async_js("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))")
+            assert capture_window(window.native.Handle.ToInt64(), out / "mail-atlas.png")
+            click_atlas("Aplicar")
+            snapshot("atlas")
+            uv = f"canvasEdit.state().doc.elements[{ATLAS_INDEX}]"
+            assert js(f"{uv}.uv") == list(ATLAS_NORMAL)
+            assert js(f"{uv}.button_uvs.FocusUV") == list(ATLAS_FOCUS)
+            js("document.querySelector('.gf-atlas-close').click(); true")
+            async_js("canvasEdit.undo()")
+            snapshot("atlas-undo")
+            assert js(f"{uv}.uv") == [536, 79, 64, 18]
+            assert js(f"{uv}.button_uvs.FocusUV") == [536, 98, 64, 18]
+            async_js("canvasEdit.redo()")
+            snapshot("atlas-redo")
+            assert js(f"{uv}.uv") == list(ATLAS_NORMAL)
+            assert js(f"{uv}.button_uvs.FocusUV") == list(ATLAS_FOCUS)
             assert async_js("canvasEdit.previewSave()")
             async_js("canvasEdit.save()")
             assert not js("canvasEdit.state().dirty || canvasEdit.state().canUndo")

@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
+import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from 'react'
 import { Group, Layer, Shape, Stage } from 'react-konva/lib/ReactKonvaCore.js'
 import {
   canvasAssetBase, canvasBackgroundBase, on,
-  type CanvasDocument, type CanvasElement, type CanvasPoint, type CanvasRect, type CanvasTextMode,
+  type CanvasDocument, type CanvasElement, type CanvasPoint, type CanvasRect, type CanvasTextMode, type TextEditsChanged,
 } from '../bridge'
-import { applyCanvasEdits, checkExternalChange, ensureDoc, select, useDoc } from '../doc/store'
+import { applyCanvasEdits, checkExternalChange, ensureDoc, refreshGameTexts, select, useDoc } from '../doc/store'
+import { AtlasHost } from '../atlas/AtlasHost'
 import { drawDots, drawScene, drawsRootTexture, sceneRows, type SceneOptions } from './drawScene'
 import {
   between, contains, draftScene, intersects, moves, resizeHandles, resizes, visibleRows,
@@ -110,7 +111,7 @@ function useTextures(
     let frame = 0
     const requests = new Map<string, Promise<ImageBitmap | null>>()
     const load = (name: string) => {
-      const request = current.load(base, name)
+      const request = current.load(base, name, name.endsWith('.dds'))
       requests.set(name, request)
       void request.then((bitmap) => {
         if (!active || requests.get(name) !== request) return
@@ -165,6 +166,12 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   const [resolutionWidth, resolutionHeight] = resolution ?? []
   const current = loaded?.path === path ? loaded : undefined
   const scene = openPath === path ? doc ?? undefined : undefined
+  useEffect(() => on('text_edits_changed', (payload) => {
+    const { project, files } = payload as TextEditsChanged
+    if (files.some((file) => file.toLowerCase() === 't_textindex.ini')) {
+      void refreshGameTexts(project).catch(() => undefined)
+    }
+  }), [])
   const draftSource = drag.current?.document ?? committing.current
   const drawn = useMemo(
     () => scene && (draft.length && scene === draftSource ? draftScene(scene, draft, options.preview) : scene),
@@ -275,9 +282,18 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
     return () => node.removeEventListener('wheel', wheel)
   }, [scene])
 
-  function scenePoint(event: PointerEvent<HTMLDivElement>): CanvasPoint {
+  function scenePoint(event: MouseEvent<HTMLDivElement>): CanvasPoint {
     const rect = event.currentTarget.getBoundingClientRect()
     return [(event.clientX - rect.left - view.x) / view.scale, (event.clientY - rect.top - view.y) / view.scale]
+  }
+
+  function doubleClick(event: MouseEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    const point = scenePoint(event)
+    const hit = rows.findLast(({ box }) => contains(box, point))?.element
+    if (hit) window.dispatchEvent(new CustomEvent('gf:element-dblclick', {
+      detail: { index: hit.index, windowId: hit.id },
+    }))
   }
 
   function handleAt(point: CanvasPoint) {
@@ -435,7 +451,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
         {documentError && <output title={documentError}>{documentError}</output>}
       </div>}
       <div ref={viewport} className="gf-canvas-viewport" tabIndex={0} style={{ cursor }}
-        onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
+        onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onDoubleClick={doubleClick}
         onLostPointerCapture={() => { if (drag.current) cancelGesture() }} onPointerCancel={cancelGesture}
         onKeyDown={keyDown}
         onKeyUp={(event) => { if (event.code === 'Space') { space.current = false; setCursor('default') } }}
@@ -458,6 +474,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
             {!path ? t[0] : error?.path === path ? error.message : t[1]}
           </div>}
       </div>
+      <AtlasHost language={locale} />
     </section>
   )
 }

@@ -15,7 +15,7 @@ def _texture_signatures(directory: Path) -> dict[str, tuple[int, int]]:
     try:
         with os.scandir(directory) as entries:
             for entry in entries:
-                if not entry.name.lower().endswith(".dds"):
+                if not entry.name.lower().endswith((".dds", ".tga")):
                     continue
                 try:
                     if entry.is_file():
