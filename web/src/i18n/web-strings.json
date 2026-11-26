@@ -4,11 +4,6 @@
     "es_ES": "Los cambios se guardaron.",
     "fr_FR": "Les modifications ont été enregistrées."
   },
-  "Busca e edição de textos chegam num próximo bloco. Enquanto isso, estão na interface clássica.": {
-    "en_US": "Text search and editing arrive in an upcoming block. Meanwhile, they are in the classic interface.",
-    "es_ES": "La búsqueda y edición de textos llegan en un próximo bloque. Mientras tanto, están en la interfaz clásica.",
-    "fr_FR": "La recherche et la modification des textes arrivent dans un prochain bloc. En attendant, elles sont dans l'interface classique."
-  },
   "Configurações": {
     "en_US": "Settings",
     "es_ES": "Configuración",
@@ -23,11 +18,6 @@
     "en_US": "Editing unavailable: the editable canvas has not arrived in this version yet.",
     "es_ES": "Edición no disponible: el lienzo editable aún no llegó en esta versión.",
     "fr_FR": "Modification indisponible : le canevas modifiable n’est pas encore arrivé dans cette version."
-  },
-  "Em breve": {
-    "en_US": "Coming soon",
-    "es_ES": "Próximamente",
-    "fr_FR": "Bientôt"
   },
   "Não": {
     "en_US": "No",

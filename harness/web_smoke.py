@@ -290,6 +290,9 @@ def scenario() -> None:
     # 10b. Bloco 2: árvore, painel, menu de arquivos, salvar e descartar.
     block2(project_root)
 
+    # 10c. Textos (Ctrl+4): buscar, abrir, editar, salvar e enviar com F5.
+    texts_flow(project_root)
+
     # 11. Idioma: inglês pelas configurações.
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
     wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
@@ -433,6 +436,62 @@ def edit_and_save(xml: Path, child) -> None:
     check("Descartar vai para a tela inicial sem gravar", bool(wait("!!__smoke.q('[data-testid=home]')", 5, "home")) and xml.read_bytes() == saved)
     js("__smoke.clickText('Continuar', '[data-testid=home]')")
     wait("__smoke.text('[data-testid=breadcrumb]')", 8, "volta ao XML")
+
+
+def _pick_text_record():
+    """Um texto do T_TextIndex.ini da cópia do jogo que só aparece uma vez (busca sem ambiguidade)."""
+    from gf_ui_editor.text_data import TRANSLATE_DIR, TextFile
+
+    text_file = TextFile.load(GAME / TRANSLATE_DIR / "T_TextIndex.ini")
+    lowered = text_file.text.lower()
+    for record in text_file.records:
+        value = record.fields[0] if record.fields else ""
+        if 12 <= len(value) <= 40 and value.isascii() and value.replace(" ", "").isalpha() and lowered.count(value.lower()) == 1:
+            return text_file, record
+    raise RuntimeError("nenhum texto único no T_TextIndex.ini da cópia do jogo")
+
+
+def texts_flow(project_root: Path) -> None:
+    from gf_ui_editor import text_data
+    from gf_ui_editor.text_data import TRANSLATE_DIR, TextFile
+
+    text_file, record = _pick_text_record()
+    new_text = "Smoke " + record.fields[0]
+    js("__smoke.key('4', { ctrlKey: true })")
+    check("Ctrl+4 mostra a tela de Textos", bool(wait("!!__smoke.q('[data-testid=texts-page]')", 5, "textos")))
+    summary = wait("__smoke.text('[data-testid=texts-summary]')", 10, "resumo dos textos") or ""
+    check("resumo sem busca", "Digite para buscar" in summary, summary=summary)
+    js(f"__smoke.setValue('input[name=texts-search]', {json.dumps(record.fields[0])})")
+    row = f"[data-testid=text-row][data-id=\"{record.record_id}\"]"
+    found = wait(f"!!__smoke.q('{row}')", 30, "resultado da busca de texto")
+    check("busca acha o texto", bool(found), text=record.fields[0], id=record.record_id)
+    summary = js("__smoke.text('[data-testid=texts-summary]')") or ""
+    check("resumo com o total", "resultado" in summary, summary=summary)
+    shot("15-textos-busca")
+    js(f"__smoke.click('{row}')")
+    check("editor flutuante abre", bool(wait("!!__smoke.q('[data-testid=text-editor] textarea')", 5, "editor de texto")))
+    editor = js("__smoke.text('[data-testid=text-editor]')") or ""
+    check("editor mostra arquivo, ID e a dica do |", f"T_TextIndex.ini · ID {record.record_id}" in editor and '"|"' in editor, editor=editor[:200])
+    js("(() => { const area = __smoke.q('[data-testid=text-editor] textarea'); const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;"
+       f" set.call(area, {json.dumps(new_text)}); area.dispatchEvent(new Event('input', {{ bubbles: true }})); return true }})()")
+    shot("16-textos-editor")
+    js("__smoke.click('[data-testid=text-save]')")
+    check("editor fecha ao salvar", bool(wait("!__smoke.q('[data-testid=text-editor]')", 8, "salvar texto")))
+    edits = text_data.load_edits(project_root)
+    saved = edits.get("T_TextIndex.ini", {}).get(record.record_id)
+    check("project.db guarda a edição", saved is not None and saved.fields[0] == new_text and saved.original[0] == record.fields[0])
+    check("jogo só muda ao enviar", TextFile.load(GAME / TRANSLATE_DIR / "T_TextIndex.ini").by_id[record.record_id].fields == record.fields)
+    js("__smoke.setValue('input[name=texts-search]', '')")
+    marked = wait(f"(__smoke.q('{row}') || {{}}).dataset && __smoke.q('{row}').dataset.state", 8, "marcador de editado")
+    check("sem busca, o texto editado aparece com ●", marked == "edited" and "●" in (js(f"__smoke.text('{row}')") or ""), state=marked)
+
+    js("__smoke.key('F5')")
+    status = wait("(__smoke.text('[data-testid=status-message]') || '').includes('Textos:') && __smoke.text('[data-testid=status-message]')", 60, "F5 com textos")
+    check("F5 envia o texto para data/Translate", status is not None and "Textos: 1 arquivo" in status, status=status)
+    sent = TextFile.load(GAME / TRANSLATE_DIR / "T_TextIndex.ini").by_id[record.record_id].fields[0]
+    check("data/Translate da cópia do jogo com o texto novo", sent == new_text, sent=sent)
+    shot("17-textos-enviados")
+    js("__smoke.key('1', { ctrlKey: true })")
 
 
 def driver() -> None:

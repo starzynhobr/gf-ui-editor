@@ -11,30 +11,14 @@ import PropertiesPanel from './elements/PropertiesPanel'
 import DocSync from './shell/DocSync'
 import { selectElements, useEditingAvailable } from './shell/doc'
 import HomeScreen from './home/HomeScreen'
+import TextsPage from './texts/TextsPage'
 import ProgressOverlay from './shell/ProgressOverlay'
 import SideRail from './shell/SideRail'
 import StatusBar from './shell/StatusBar'
 import TopBar from './shell/TopBar'
 import { installShortcuts } from './shell/shortcuts'
 import { DialogHost } from './ui/dialogs'
-import { Icon } from './ui/Icon'
 import { MenuHost } from './ui/Menu'
-
-function ComingSoon({ page }: { page: 'texts' }) {
-  const t = useT()
-  return (
-    <div className="flex h-full flex-col" data-testid="coming-soon">
-      <div className="px-3 pt-3 pb-2 text-[13px] font-semibold text-bright">{t('Textos')}</div>
-      <div className="m-3 rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
-        <Icon name={page === 'texts' ? 'type' : 'layers'} size={22} className="mx-auto mb-2 text-disabled" />
-        <div className="font-semibold text-text">{t('Em breve')}</div>
-        <div className="mt-1 text-[12px] leading-snug text-muted">
-          {t('Busca e edição de textos chegam num próximo bloco. Enquanto isso, estão na interface clássica.')}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function App() {
   useT()
@@ -89,7 +73,7 @@ export default function App() {
         <SideRail />
         {view === 'workspace' && (
           <aside className="w-[310px] shrink-0 border-r border-border bg-panel">
-            {page === 'texts' ? <ComingSoon page={page} /> : page === 'elements' ? <ElementTree /> : <FilesPanel />}
+            {page === 'texts' ? <TextsPage /> : page === 'elements' ? <ElementTree /> : <FilesPanel />}
           </aside>
         )}
         <main className="min-w-0 flex-1 bg-window" data-testid="center">
