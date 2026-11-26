@@ -15,6 +15,7 @@ from pathlib import Path
 from ..about import parse_resolution
 from ..document_session import DocumentSession
 from ..project import Project
+from ..xml_source import SourceError
 
 
 class DocumentApi:
@@ -46,10 +47,13 @@ class DocumentApi:
             if self._open_path != target or target not in self._standalone_paths:
                 raise ValueError("O arquivo avulso ativo mudou.")
             project = Project.load(Path(root)) if root is not None and not self._is_current(root) else self._require_project()
-            result = self._document_session.import_standalone(
-                target, project, project.game_dir or self._game_dir(),
-                name=name, replace=replace, bring_textures=bring_textures,
-            )
+            try:
+                result = self._document_session.import_standalone(
+                    target, project, project.game_dir or self._game_dir(),
+                    name=name, replace=replace, bring_textures=bring_textures,
+                )
+            except SourceError as exc:
+                raise ValueError(f"{exc} Linha {exc.line}, coluna {exc.column}.") from exc
             if not result["conflict"]:
                 if project is not self._project:
                     self._set_project(project)

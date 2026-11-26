@@ -484,8 +484,10 @@ class ProjectsApi:
             self._open_xml(path)
             return
         if self._project is not None:
-            self._register_standalone(path.resolve())
-            self._open_xml(path.resolve())
+            path = path.resolve()
+            if not self._is_game_xml(path):
+                self._register_standalone(path)
+            self._open_xml(path)
             return
         self._loose_dir = path.parent
         self._open_path = path
@@ -501,6 +503,10 @@ class ProjectsApi:
             UIDocument.load(path, xml_encoding=True)
             self._standalone_paths[path] = None
 
+    def _is_game_xml(self, path: Path) -> bool:
+        game = self._game_dir()
+        return game is not None and path.is_relative_to((game / "UI").resolve())
+
     def open_dropped_xmls(self, paths: list[str]) -> dict:
         """Register all readable XMLs and select the last valid path in drop order."""
         with self._standalone_lock:
@@ -512,10 +518,12 @@ class ProjectsApi:
                 try:
                     path = path.resolve()
                     project = self._project_for_path(path)
-                    if project is None:
-                        self._register_standalone(path)
-                    else:
+                    if project is not None:
                         project.load_document(path)
+                    elif self._is_game_xml(path):
+                        UIDocument.load(path)
+                    else:
+                        self._register_standalone(path)
                     self._open_xml(path)
                 except (DocumentError, OSError, ValueError) as exc:
                     errors.append({"path": value, "message": str(exc)})

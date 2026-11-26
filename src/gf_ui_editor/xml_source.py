@@ -24,16 +24,20 @@ def _location(text: str, offset: int) -> tuple[int, int]:
     return prefix.count("\n") + 1, len(prefix.rsplit("\n", 1)[-1]) + 1
 
 
-def replace_source(document: UIDocument, text: str) -> UIDocument:
-    """Validate editable XML and keep the original bytes for diff and external-change checks."""
+def encode_source(text: str, encoding: str) -> bytes:
     try:
-        text.encode(document.encoding)
+        return text.encode(encoding)
     except UnicodeEncodeError as exc:
         codepoint = ord(text[exc.start])
         raise SourceError(
-            f"Caractere U+{codepoint:04X} não pode ser gravado em {'Big5' if document.encoding == 'big5' else document.encoding.upper()}.",
+            f"Caractere U+{codepoint:04X} não pode ser gravado em {'Big5' if encoding == 'big5' else encoding.upper()}.",
             *_location(text, exc.start),
         ) from exc
+
+
+def replace_source(document: UIDocument, text: str) -> UIDocument:
+    """Validate editable XML and keep the original bytes for diff and external-change checks."""
+    encode_source(text, document.encoding)
     try:
         return document.with_text(text)
     except DocumentError as exc:

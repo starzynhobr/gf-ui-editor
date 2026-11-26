@@ -7,7 +7,8 @@ from gf_ui_editor import game_updates, project as project_module, standalone_doc
 from gf_ui_editor.project import Project
 from gf_ui_editor.standalone_document import StandaloneTextures, import_document
 from gf_ui_editor.web_shell import WebApi
-from gf_ui_editor.xml_document import ExternalModificationError, UIDocument
+from gf_ui_editor.xml_document import DocumentError, ExternalModificationError, UIDocument, convert_utf8_file_to_big5
+from gf_ui_editor.xml_source import SourceError
 
 
 def xml(*names: str) -> bytes:
@@ -155,21 +156,124 @@ def test_bridge_routes_drop_and_single_instance_preserves_project(files, monkeyp
     assert b'WindowLeft="33"' in Path(imported["path"]).read_bytes() and path.read_bytes() == external
 
 
-def test_import_can_adopt_a_project_from_standalone_workspace(files):
+def test_project_and_game_keep_strict_big5_loading(files):
+    game, projects, source, path = files
+    project = Project.create("Project", source, game, projects)
+    text = "<doc>中</doc>"
+    raw = text.encode("utf-8")
+    target = project.ui_dir / path.name
+    target.write_bytes(raw)
+    game_path = game / "UI" / path.name
+    game_path.write_bytes(raw)
+    api = WebApi("pt_BR", False, default_ui_directory=game / "UI")
+    api.open_project(str(project.root))
+
+    for open_document in (project.load_document, lambda path: api.doc_open(str(path)),
+                          lambda path: api.open_document(str(path))):
+        with pytest.raises(DocumentError) as exc:
+            open_document(target)
+        assert exc.value.code == "utf8"
+
+    assert api.open_dropped_xmls([str(game_path)])["errors"]
+    assert api.open_loose(str(game_path))["standalone_paths"] == []
+    with pytest.raises(DocumentError) as exc:
+        api.doc_open(str(game_path))
+    assert exc.value.code == "utf8"
+
+    backup = convert_utf8_file_to_big5(target)
+    assert backup.read_bytes() == raw
+    assert target.read_bytes() == text.encode("big5")
+    assert project.load_document(target).text == text
+
+
+@pytest.fixture
+def ambiguous_xml():
+    # Bytes found in the game files. UTF-8 would read them as U+00E7 and U+00E3.
+    return b"<doc>\xc3\xa7\xc3\xa3</doc>"
+
+
+@pytest.mark.parametrize("filename", ["CommonDlgD.xml", "MonsterInfo.xml", "Strengthen.xml"])
+def test_ambiguous_xml_prefers_big5(files, ambiguous_xml, filename):
+    game, projects, source, path = files
+    project = Project.create("Project", source, game, projects)
+    path = path.with_name(filename)
+    target = project.ui_dir / filename
+    expected = ambiguous_xml.decode("big5")
+    assert expected.encode("big5") == ambiguous_xml
+    assert expected != ambiguous_xml.decode("utf-8")
+    for location in (target, path):
+        location.write_bytes(ambiguous_xml)
+
+    for document in (project.load_document(target), UIDocument.load(path, xml_encoding=True)):
+        assert document.encoding == "big5"
+        assert document.text == expected
+
+
+@pytest.mark.parametrize(("encoding", "declaration", "expected_encoding"), [
+    ("utf-16", 'encoding="UTF-16"', "utf-16-le"),
+    ("utf-8", "encoding='UTF-8'", "utf-8"),
+    ("utf-8-sig", "", "utf-8"),
+    ("utf-8", "", "utf-8"),
+])
+def test_import_can_adopt_a_project_from_standalone_workspace(files, encoding, declaration, expected_encoding):
     game, projects, source, path = files
     project = Project.create("Project", source, game, projects)
     api = WebApi("pt_BR", False, default_ui_directory=game / "UI")
     path = path.with_name("Unicode.xml")
-    raw = '<?xml version="1.0" encoding="UTF-16"?><doc>Olá 😀</doc>'.encode("utf-16")
+    body = "<doc>中</doc>"
+    prefix = f'<?xml version="1.0" {declaration}?>\r\n' if declaration else ""
+    raw = (prefix + body).encode(encoding)
     path.write_bytes(raw)
+    assert UIDocument.load(path, xml_encoding=True).encoding == expected_encoding
     assert api.open_dropped_xmls([str(path)])["state"]["project"] is None
     api.doc_open(str(path))
-    assert "Olá 😀" in api.doc_source()["text"]
+    assert body in api.doc_source()["text"]
     result = api.standalone_import(str(path), None, False, True, str(project.root))
     assert result["state"]["project"]["root"] == str(project.root)
-    assert Path(result["path"]).read_bytes() == raw
+    expected = (prefix.replace(encoding.upper(), "Big5") + body).encode("big5")
+    assert Path(result["path"]).read_bytes() == expected
+    assert path.read_bytes() == raw
     api.doc_open(result["path"])
-    assert "Olá 😀" in api.doc_source()["text"]
+    assert body in api.doc_source()["text"]
+
+
+def test_utf8_declaration_takes_precedence_over_ambiguous_big5(tmp_path, ambiguous_xml):
+    path = tmp_path / "Declared.xml"
+    raw = b'<?xml version="1.0" encoding="UTF-8"?>' + ambiguous_xml
+    path.write_bytes(raw)
+    assert UIDocument.load(path, xml_encoding=True).text == raw.decode("utf-8")
+
+
+def test_import_rejects_unencodable_character_with_location(files):
+    game, projects, source, path = files
+    project = Project.create("Project", source, game, projects)
+    path = path.with_name("Unicode.xml")
+    raw = ('<?xml version="1.0" encoding="UTF-8"?>\r\n<doc>中😀</doc>').encode("utf-8")
+    path.write_bytes(raw)
+    document = UIDocument.load(path, xml_encoding=True)
+    with pytest.raises(SourceError, match=r"Caractere U\+1F600.*Big5") as exc:
+        import_document(document, project, game)
+    assert (exc.value.line, exc.value.column) == (2, 7)
+
+    api = WebApi("pt_BR", False, default_ui_directory=game / "UI")
+    api.open_project(str(project.root))
+    api.open_dropped_xmls([str(path)])
+    api.doc_open(str(path))
+    with pytest.raises(ValueError, match=r"U\+1F600.*Linha 2, coluna 7"):
+        api.standalone_import(str(path), None, False, True)
+    assert not (project.ui_dir / path.name).exists()
+    assert api.doc_source()["path"] == str(path)
+
+
+def test_import_preserves_big5_bytes(files, ambiguous_xml):
+    game, projects, source, path = files
+    project = Project.create("Project", source, game, projects)
+    path = path.with_name("Big5.xml")
+    raw = b"<?xml version='1.0' encoding = 'big5'?>\r\n  " + ambiguous_xml + b"\r\n"
+    path.write_bytes(raw)
+    document = UIDocument.load(path, xml_encoding=True)
+    result = import_document(document, project, game)
+    assert Path(result["path"]).read_bytes() == raw
 
 
 def test_import_rolls_back_new_textures_if_xml_install_fails(files, monkeypatch):

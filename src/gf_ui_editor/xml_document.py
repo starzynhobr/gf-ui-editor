@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 
 
 START_TAG_RE = re.compile(r"<BaseWndProperty\b[^>]*>")
+XML_ENCODING_RE = re.compile(rb'''<\?xml\s+[^?]*?encoding\s*=\s*['"]([\w.-]+)['"]''', re.I)
 NOR_UV_TAG_RE = re.compile(r"<NorUV\b[^>]*>")
 # Deslocamento do estado preenchido de barras (ProgressNode/OffSetUV).
 SOFFSET_TAG_RE = re.compile(r"<SOffset-0\b[^>]*>")
@@ -388,20 +389,24 @@ class UIDocument:
                                      (b"\xef\xbb\xbf", "utf-8")):
                 if raw.startswith(prefix):
                     return cls._from_bytes(xml_path, raw, encoding)
-            declaration = re.match(rb'''<\?xml\s+[^?]*?encoding\s*=\s*['"]([\w.-]+)['"]''', raw, re.I)
+            declaration = XML_ENCODING_RE.match(raw)
             if declaration is not None:
                 encoding = declaration[1].decode("ascii").lower()
                 try:
                     return cls._from_bytes(xml_path, raw, encoding)
                 except LookupError as exc:
                     raise DocumentError(f"Codificação XML desconhecida: {encoding}", code="decode") from exc
-            if not raw.isascii():
+            try:
+                return cls._from_bytes(xml_path, raw, cls.encoding)
+            except DocumentError as big5_error:
+                if big5_error.code not in ("decode", "roundtrip", "utf8"):
+                    raise
                 try:
-                    raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    pass
-                else:
                     return cls._from_bytes(xml_path, raw, "utf-8")
+                except DocumentError as utf8_error:
+                    if utf8_error.code != "decode":
+                        raise
+                    raise big5_error from None
         return cls._from_bytes(xml_path, raw, cls.encoding)
 
     @classmethod

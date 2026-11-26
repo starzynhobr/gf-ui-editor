@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
@@ -12,7 +13,8 @@ import xml.etree.ElementTree as ET
 from . import gamedata, game_updates
 from .project import Project, _install_new_file
 from .textures import find_texture, ui_texture_names
-from .xml_document import UIDocument, unified_xml_diff
+from .xml_document import UIDocument, XML_ENCODING_RE, unified_xml_diff
+from .xml_source import encode_source
 
 
 def texture_relative(name: str) -> Path | None:
@@ -151,6 +153,15 @@ def import_document(
             return {**result, "conflict": True}
 
         text = document.render_text()
+        converting = codecs.lookup(document.encoding).name != "big5"
+        if converting:
+            text = text.removeprefix("\ufeff")
+        raw = encode_source(text, "big5")
+        if converting:
+            declaration = XML_ENCODING_RE.match(raw)
+            if declaration is not None:
+                start, end = declaration.span(1)
+                raw = raw[:start] + b"Big5" + raw[end:]
         root = ET.fromstring(text)
         textures = StandaloneTextures(document.path.parent, project, game)
         needed: dict[str, tuple[Path, Path]] = {}
@@ -172,8 +183,8 @@ def import_document(
         with TemporaryDirectory(prefix=".gf-ui-import-", dir=project.root) as folder:
             stage = Path(folder)
             xml = stage / "import.xml"
-            xml.write_bytes(text.encode(document.encoding))
-            UIDocument.load(target, source=xml, xml_encoding=True)
+            xml.write_bytes(raw)
+            UIDocument.load(target, source=xml)
             for index, (source, _) in enumerate(needed.values()):
                 shutil.copy2(source, stage / str(index))
             try:
