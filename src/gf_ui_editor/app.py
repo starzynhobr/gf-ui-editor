@@ -131,6 +131,7 @@ from .file_list import FILE_SECTIONS, TEXTURE_SUFFIXES
 from . import publishing
 from .update_dialog import SKIP, UPDATE, WhatsNewDialog
 from . import game_updates, project as project_module
+from .document_session import save_document as save_xml_document
 from .project import (
     CHANGES_TTL,
     PROJECTS_ROOT,
@@ -1972,7 +1973,7 @@ class EditorWindow(QMainWindow):
         self.game_screen_item: GameScreenItem | None = None
         self.game_drawn_item: GameDrawnItem | None = None
         self.reference_layer_items: list[ReferenceLayerItem] = []
-        self._layer_documents: dict[Path, tuple[int, UIDocument]] = {}
+        self._layer_documents: dict[Path, tuple[tuple[Path, int, int], UIDocument]] = {}
         self.ghost_item: GhostAreaItem | None = None
 
         self.undo_stack = QUndoStack(self)
@@ -2609,6 +2610,9 @@ class EditorWindow(QMainWindow):
         self.versions_action.setEnabled(False)
         self.versions_action.triggered.connect(lambda: self.project and self.show_versions(self.project.root))
         project_menu.addAction(self.versions_action)
+        self.convert_light_action = project_menu.addAction(self.tr("Converter em projeto leve…"))
+        self.convert_light_action.triggered.connect(self.convert_current_project_to_light)
+        self.convert_light_action.setEnabled(False)
         project_menu.addSeparator()
         project_menu.addAction(self.import_action)
         self.official_reference_action = QAction(self.tr("UI oficial de referência…"), self)
@@ -3590,17 +3594,24 @@ class EditorWindow(QMainWindow):
         )
         return answer == QMessageBox.StandardButton.Yes
 
+    def _read_ui_path(self, path: Path) -> Path:
+        return self.project.read_path(path) if self.project is not None else path
+
     def open_document(self, path: Path) -> None:
+        project = self.project if self.project is not None and self.project.contains(path) else None
         try:
-            document = UIDocument.load(path)
+            document = UIDocument.load(path, source=self._read_ui_path(path))
         except DocumentError as exc:
             if exc.code == "utf8" and self._confirm_utf8_conversion(path):
                 in_project = self.project is not None and self.project.contains(path)
                 try:
+                    if in_project:
+                        self.project.materialize(path)
                     convert_utf8_file_to_big5(path, self.project.history_path_for(path) if in_project else None)
                     document = UIDocument.load(path)
-                except DocumentError as retry_exc:
-                    QMessageBox.critical(self, self.tr("Não foi possível abrir"), document_error_text(retry_exc))
+                except (DocumentError, OSError) as retry_exc:
+                    message = document_error_text(retry_exc) if isinstance(retry_exc, DocumentError) else str(retry_exc)
+                    QMessageBox.critical(self, self.tr("Não foi possível abrir"), message)
                     return
             else:
                 if exc.code != "utf8":
@@ -3612,8 +3623,11 @@ class EditorWindow(QMainWindow):
             prefs.set_last_file(self.project.custom_name, self.project.relative_key(document.path))
         self._texture_generation += 1
         ui_directory = document.path.parent.resolve()
-        if self.texture_cache is None or self.texture_cache.ui_directory != ui_directory:
-            self.texture_cache = TextureCache(ui_directory)
+        if (
+            self.texture_cache is None or self.texture_cache.ui_directory != ui_directory
+            or self.texture_cache.project is not project
+        ):
+            self.texture_cache = TextureCache(ui_directory, project)
         else:
             self.texture_cache.missing.clear()
         self.undo_stack.clear()
@@ -3765,14 +3779,16 @@ class EditorWindow(QMainWindow):
     def _layer_document(self, path: Path) -> UIDocument | None:
         """Abre (e guarda) um XML de camada; relê só quando o arquivo muda."""
         try:
-            modified = path.stat().st_mtime_ns
+            source = self._read_ui_path(path)
+            stat = source.stat()
+            modified = (source, stat.st_mtime_ns, stat.st_size)
         except OSError:
             return None
         cached = self._layer_documents.get(path)
         if cached is not None and cached[0] == modified:
             return cached[1]
         try:
-            document = UIDocument.load(path)
+            document = UIDocument.load(path, source=source)
         except Exception:
             return None
         self._layer_documents[path] = (modified, document)
@@ -4352,11 +4368,12 @@ class EditorWindow(QMainWindow):
             return
         generation = self._texture_generation
         directory = self.texture_cache.ui_directory
+        project = self.texture_cache.project
         self.statusBar().showMessage(self.tr("Elementos prontos · carregando texturas ({done}/{total})…").format(done=0, total=len(names)))
         self._texture_timer.start()
 
         def load() -> None:
-            cache = TextureCache(directory)
+            cache = TextureCache(directory, project)
             for name in names:
                 try:
                     source = cache.prepare_source(name)
@@ -4864,7 +4881,7 @@ class EditorWindow(QMainWindow):
             return
         name = None
         if chosen is use_other:
-            names = textures.ui_texture_names(folder)
+            names = textures.ui_texture_names(folder, self.texture_cache.project)
             if not names:
                 return
             name, accepted = QInputDialog.getItem(
@@ -4874,7 +4891,6 @@ class EditorWindow(QMainWindow):
             if not accepted:
                 return
         elif chosen is copy_current:
-            source = self.texture_cache.path_for(current)
             suggestion = f"{Path(current).stem}_custom{Path(current).suffix or '.dds'}"
             name, accepted = QInputDialog.getText(
                 self, self.tr("Criar cópia do .dds"), self.tr("Nome do novo arquivo (fica na pasta da UI):"), text=suggestion
@@ -4882,14 +4898,14 @@ class EditorWindow(QMainWindow):
             name = name.strip()
             if not accepted or not name:
                 return
-            if not name.lower().endswith((".dds", ".tga")):
-                name += ".dds"
-            target = folder / name
-            if target.exists():
-                QMessageBox.warning(self, self.tr("Criar cópia do .dds"), self.tr("Já existe {name} nesta pasta.").format(name=name))
-                return
             try:
-                textures.copy_texture_for_edit(None, source, target)
+                name = textures.copy_for_edit(folder, current, name, self.texture_cache.project).name
+            except FileExistsError as exc:
+                QMessageBox.warning(
+                    self, self.tr("Criar cópia do .dds"),
+                    self.tr("Já existe {name} nesta pasta.").format(name=exc.args[0]),
+                )
+                return
             except OSError as exc:
                 QMessageBox.critical(self, self.tr("Criar cópia do .dds"), str(exc))
                 return
@@ -4901,22 +4917,22 @@ class EditorWindow(QMainWindow):
                 return
             source = Path(filename)
             name = source.name
-            target = folder / name
+            target, replacing = textures.bring_target(folder, source, self.texture_cache.project)
             if os.path.normcase(str(source.resolve())) != os.path.normcase(str(target.resolve())):
-                if target.exists():
+                if replacing:
                     answer = QMessageBox.question(
                         self, self.tr("Trazer .dds"),
                         self.tr("Já existe {name} nesta UI. Substituir?").format(name=name),
                     )
                     if answer != QMessageBox.StandardButton.Yes:
                         return
-                    textures.backup_texture_for_edit(self.project, target)
                 try:
-                    textures.copy_texture_for_edit(None, source, target)
+                    target = textures.bring_texture(self.texture_cache.project, folder, source)
                 except OSError as exc:
                     QMessageBox.critical(self, self.tr("Trazer .dds"), str(exc))
                     return
                 self.texture_cache.invalidate(target)
+                name = target.name
         if not name or name == current:
             return
         if self.project is not None:
@@ -4987,6 +5003,7 @@ class EditorWindow(QMainWindow):
             button_uvs=(element.button_uvs if ("ButtonNode" in element.child_tags or "ThumbUV" in element.button_uvs)
                         and self.document.button_states_editable else None),
             apply_button_uvs=lambda states, resize, item_index=index: self.edit_button_uvs(item_index, states, resize),
+            materialize_texture=lambda name=element.texture_name: self._materialize_atlas_texture(name),
         )
         dialog.finished.connect(self._atlas_dialog_closed)
         self.atlas_dialog = dialog
@@ -4996,6 +5013,16 @@ class EditorWindow(QMainWindow):
 
     def _atlas_dialog_closed(self, _result: int = 0) -> None:
         self.atlas_dialog = None
+
+    def _materialize_atlas_texture(self, name: str) -> Path:
+        cache = self.texture_cache
+        logical = textures.find_texture(cache.ui_directory, name, cache.project) if cache is not None else None
+        if logical is None:
+            raise FileNotFoundError(name)
+        if cache.project is not None:
+            cache.project.materialize(logical)
+        self._watch_texture_files()
+        return logical
 
     def _refresh_element_texture(self, index: int) -> None:
         if self.document is None or self.texture_cache is None:
@@ -5014,7 +5041,7 @@ class EditorWindow(QMainWindow):
             return False
         path = self.document.path
         try:
-            current = path.read_bytes()
+            current = self._read_ui_path(path).read_bytes()
         except OSError:
             return False
         if current == self.document.raw:
@@ -5365,15 +5392,8 @@ class EditorWindow(QMainWindow):
         if not self._confirm_diff_preview():
             return
         in_project = self.project is not None and self.project.contains(self.document.path)
-        if in_project:
-            try:
-                self.project.remember_original(self.document.path)
-            except OSError:
-                pass
         try:
-            backup = self.document.save(
-                self.project.history_path_for(self.document.path) if in_project else None
-            )
+            backup = save_xml_document(self.document, self.project)
         except ExternalModificationError as exc:
             QMessageBox.warning(self, self.tr("Arquivo alterado externamente"), document_error_text(exc))
             return
@@ -5381,11 +5401,8 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Falha ao salvar"), document_error_text(exc))
             return
         self.undo_stack.clear()
-        if self.project is not None:
-            self.project.invalidate_changes()
         self._update_title()
         if in_project:
-            self.project.prune_history(self.document.path)
             self._refresh_official_diff()
             self._refresh_files()
             if self.publish_on_save_action.isChecked() and self.project.game_dir is not None:
@@ -5554,7 +5571,7 @@ class EditorWindow(QMainWindow):
         if project is None or self.document is not None:
             return
         last = prefs.last_file(project.custom_name)
-        if last and (project.ui_dir / last).is_file():
+        if last and project.resolve(last).is_file():
             self.open_document(project.ui_dir / last)
 
     def _set_workspace_visible(self, visible: bool) -> None:
@@ -6003,7 +6020,7 @@ class EditorWindow(QMainWindow):
         if self.project is None:
             return
         candidates = [
-            game_sync.PullCandidate(relative, backup, not (self.project.ui_dir / relative).exists(), game_sync.EDITED_OUTSIDE)
+            game_sync.PullCandidate(relative, backup, not self.project.resolve(relative).exists(), game_sync.EDITED_OUTSIDE)
             for relative, backup in self._game_backups
             if backup.is_file()
         ]
@@ -6051,6 +6068,19 @@ class EditorWindow(QMainWindow):
         if self.home_mode:
             self._refresh_home()
 
+    def convert_current_project_to_light(self) -> None:
+        project = self.project
+        if project is None or project.light or not self._save_before_project_action():
+            return
+        try:
+            self._run_with_progress(
+                self.tr("Convertendo em projeto leve…"),
+                lambda progress: project_module.convert_to_light(project, progress),
+            )
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, self.tr("Converter em projeto leve…"), str(exc))
+        self._refresh_files()
+
     def save_project_version(self, project: "Project") -> bool:
         if self._is_current_project(project.root) and not self._save_before_project_action():
             return False
@@ -6093,7 +6123,7 @@ class EditorWindow(QMainWindow):
         if current:
             self.project.files(refresh=True)
             if open_path is not None:
-                if open_path.is_file():
+                if project.read_path(open_path).is_file():
                     self.open_document(open_path)
                 else:
                     self.close_document()
@@ -6664,7 +6694,7 @@ class EditorWindow(QMainWindow):
         if focus is not None:
             if not project.contains(focus):
                 focus = project.import_target(focus)
-            if focus.is_file():
+            if project.read_path(focus).is_file():
                 self.document = None
                 self.open_document(focus)
         self.statusBar().showMessage(
@@ -6683,14 +6713,14 @@ class EditorWindow(QMainWindow):
         project = self.project
         if project is None or project.game_dir is None:
             return
-        game_dir, ui_dir, root = project.game_dir, project.ui_dir, project.root
+        game_dir, root = project.game_dir, project.root
         base_bytes = project.base_bytes
         signals = self._scan_signals
 
         def work() -> None:
             try:
                 snapshot_official_ui(game_dir)
-                diffs, unavailable = scan_official(game_dir, ui_dir, base_bytes)
+                diffs, unavailable = scan_official(game_dir, project.resolve, base_bytes)
             except Exception:  # noqa: BLE001 - a comparação é só um aviso
                 return
             signals.done.emit((root, diffs, unavailable))
@@ -6740,7 +6770,7 @@ class EditorWindow(QMainWindow):
         if project is None or project.game_dir is None or key is None or self.document is None:
             return
         relative = project.relative_key(self.document.path)
-        diff = file_diff(project.game_dir, project.ui_dir, relative, self._project_base_bytes)
+        diff = file_diff(project.game_dir, project.resolve, relative, self._project_base_bytes)
         if diff is None:
             self._official_diffs.pop(key, None)
         else:
@@ -6954,7 +6984,7 @@ class EditorWindow(QMainWindow):
             owner = selected.window_id if "Container_Node" in selected.child_tags else owner_of(text, selected.window_id)
         owner = owner or self.document.elements[0].window_id
         folder = self.texture_cache.ui_directory
-        names = textures.ui_texture_names(folder)
+        names = textures.ui_texture_names(folder, self.texture_cache.project)
         if not names:
             QMessageBox.information(self, self.tr("Nova imagem"), self.tr("Não há arquivos .dds na pasta desta UI."))
             return
@@ -6996,8 +7026,8 @@ class EditorWindow(QMainWindow):
         )
         if not accepted or not text.strip():
             return
-        project_ui_dir = self.project.ui_dir if self.project is not None else None
-        located = game_updates.locate_error(lambda: self._document_game_dir() or self._game_dir(), project_ui_dir, text)
+        project_resolver = self.project.resolve if self.project is not None else None
+        located = game_updates.locate_error(lambda: self._document_game_dir() or self._game_dir(), project_resolver, text)
         if located is None:
             QMessageBox.information(
                 self,
@@ -7032,7 +7062,7 @@ class EditorWindow(QMainWindow):
                 self, self.tr("Resolver erro do jogo"), self.tr("O controle {id} fica em {file}. Abra a UI e tente de novo.").format(id=window_id, file=name)
             )
             return
-        if not path.is_file():
+        if not self._read_ui_path(path).is_file():
             QMessageBox.information(
                 self, self.tr("Resolver erro do jogo"), self.tr("Esta UI não tem o arquivo {file}.").format(file=name)
             )
@@ -7094,7 +7124,7 @@ class EditorWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Não foi possível importar"), str(exc))
         if reopen:
-            self.document.raw = open_path.read_bytes()  # evita o aviso de alteração externa ao reabrir
+            self.document.raw = self._read_ui_path(open_path).read_bytes()  # evita o aviso de alteração externa ao reabrir
             self.open_document(open_path)
         self.reload_all_textures()
         self.statusBar().showMessage(
@@ -7165,7 +7195,7 @@ class EditorWindow(QMainWindow):
         self._official_diffs = {}
         self._start_official_scan()
         last = prefs.last_file(project.custom_name)
-        if last and (project.ui_dir / last).is_file() and self.document is None:
+        if last and project.resolve(last).is_file() and self.document is None:
             self.open_document(project.ui_dir / last)
 
     def _make_files_section(self, kind: str) -> tuple[QWidget, QLabel, QTreeWidget]:
@@ -7319,6 +7349,9 @@ class EditorWindow(QMainWindow):
         return None
 
     def _refresh_files(self) -> None:
+        self.convert_light_action.setEnabled(
+            self.project is not None and self.project.game_dir is not None and not self.project.light
+        )
         """Remonta a lista mantendo o item atual (e a rolagem).
 
         Abrir um XML remonta a lista (negrito, alterados); sem isto o item atual se perdia e a
@@ -7563,7 +7596,10 @@ class EditorWindow(QMainWindow):
         path = Path(data)
         if path.suffix.lower() in TEXTURE_SUFFIXES:
             # Primeiro uma prévia dentro do editor; o botão "Abrir .dds" leva ao editor de imagem.
-            TexturePreviewDialog(path, len(self._xml_using_texture(path.name)), self).exec()
+            TexturePreviewDialog(
+                path, len(self._xml_using_texture(path.name)), self,
+                project=self.project, on_materialized=self._watch_texture_files,
+            ).exec()
             return
         if not self._is_open_document(path):
             if not self._confirm_discard_changes():
@@ -7673,6 +7709,12 @@ class EditorWindow(QMainWindow):
     def open_in_text_editor(self, path: Path) -> None:
         """Abre o XML (a cópia do projeto) no Notepad++ ou no Bloco de Notas, sem esperar."""
         program, label = text_editor_command()
+        if self.project is not None and self.project.contains(path):
+            try:
+                self.project.materialize(path)
+            except OSError as exc:
+                QMessageBox.warning(self, self.tr("Abrir como texto"), str(exc))
+                return
         if not QProcess.startDetached(program, [str(path)]):
             QMessageBox.warning(self, self.tr("Abrir como texto"), self.tr("Não foi possível abrir o {program}.").format(program=label))
             return
@@ -7698,7 +7740,7 @@ class EditorWindow(QMainWindow):
         if file_list.has_invalid_chars(name):
             QMessageBox.warning(self, self.tr("Renomear"), self.tr("O nome não pode ter \\ / : * ? \" < > |."))
             return
-        target, replacing = file_list.rename_target(path, name)
+        target, replacing = file_list.rename_target(path, name, self.project)
         name = target.name
         if replacing:
             answer = QMessageBox.question(
@@ -7784,7 +7826,7 @@ class EditorWindow(QMainWindow):
                 return
         try:
             diff = file_list.restore_diff(
-                path, source, self.tr("{name} (atual)").format(name=path.name), self.tr("versão restaurada")
+                self._read_ui_path(path), source, self.tr("{name} (atual)").format(name=path.name), self.tr("versão restaurada")
             )
         except OSError as exc:
             QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
@@ -7819,7 +7861,7 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Falha ao restaurar"), str(exc))
             return
         if is_open:
-            self.document.raw = path.read_bytes()  # evita o aviso de alteração externa ao reabrir
+            self.document.raw = self._read_ui_path(path).read_bytes()  # evita o aviso de alteração externa ao reabrir
             self.open_document(path)
         self._refresh_files()
         self.statusBar().showMessage(self.tr("{name} restaurado.").format(name=path.name), 6000)

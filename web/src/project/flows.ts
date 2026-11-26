@@ -1,6 +1,6 @@
 // Fluxos das ferramentas do projeto (versões, puxar, limpar, UI oficial, erro do jogo,
 // exportar textos, cópias do F5), com os mesmos textos e a mesma ordem da clássica.
-import { errorText } from '../api'
+import { api, errorText } from '../api'
 import { openXml, refreshShell, withProgress } from '../actions'
 import { t } from '../i18n'
 import { showStatus, useShell } from '../store'
@@ -26,6 +26,16 @@ async function projectFilesChanged(root: string, reopen: boolean): Promise<void>
 }
 
 // ---- versões --------------------------------------------------------------------------------
+export async function convertProjectToLight(): Promise<void> {
+  if (!(await saveBeforeProjectAction())) return
+  try {
+    await withProgress(t('Convertendo em projeto leve…'), api.convertProjectToLight)
+    await refreshShell()
+  } catch (error) {
+    await message('error', t('Converter em projeto leve…'), errorText(error))
+  }
+}
+
 export async function saveProjectVersion(root: string): Promise<boolean> {
   if (isCurrent(root) && !(await saveBeforeProjectAction())) return false
   const label = await prompt(t('Salvar versão'), t('Nome da versão (opcional), ex.: antes de mudar o BasicChar:'))

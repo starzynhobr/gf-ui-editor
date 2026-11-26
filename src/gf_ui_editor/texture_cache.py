@@ -9,6 +9,8 @@ from PIL.ImageQt import ImageQt
 from PySide6.QtGui import QPixmap
 
 from .xml_document import UIElement
+from .project import Project
+from .textures import find_texture
 
 
 _HIGH_NIBBLE = [(value >> 4) * 17 for value in range(256)]
@@ -55,8 +57,9 @@ def open_dds_rgba(path: Path) -> Image.Image:
 
 
 class TextureCache:
-    def __init__(self, ui_directory: Path):
+    def __init__(self, ui_directory: Path, project: Project | None = None):
         self.ui_directory = ui_directory.resolve()
+        self.project = project
         # Chaves por caminho em texto: Path.resolve() custa milissegundos por
         # chamada no Windows e era chamado centenas de vezes por arquivo aberto.
         self._images: dict[str, tuple[int, int, Image.Image]] = {}
@@ -86,11 +89,16 @@ class TextureCache:
 
     def path_for(self, texture_name: str) -> Path | None:
         """Busca sem diferenciar maiúsculas, como o jogo; relista a pasta uma vez se faltar."""
+        if self.project is not None and self.project.light:
+            logical = find_texture(self.ui_directory, texture_name, self.project)
+            return self.project.read_path(logical) if logical is not None else None
         lowered = texture_name.lower()
         path = self._name_index().get(lowered)
         if path is None or not path.exists():
             self._index = None
             path = self._name_index().get(lowered)
+        if path is not None and self.project is not None:
+            return self.project.read_path(path)
         return path
 
     def invalidate(self, texture_path: Path | None = None) -> None:

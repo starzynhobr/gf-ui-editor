@@ -6,6 +6,7 @@ export interface ProjectInfo {
   name: string
   custom_name: string
   ui_dir: string
+  light?: boolean
   game_dir: string | null
   publish_dir: string | null
 }
@@ -176,6 +177,7 @@ export const api = {
   publish: () => call<PublishResult>('publish'),
   pickExportTarget: () => call<string | null>('pick_export_target'),
   exportZip: (target: string) => call<{ path: string; count: number; skipped: number } | { empty: true }>('export_zip', target),
+  convertProjectToLight: () => call<{ backup: string | null; state: ShellState }>('convert_project_to_light'),
 }
 
 /** Mensagem legível de um erro vindo do Python (o pywebview rejeita com {name, message}). */

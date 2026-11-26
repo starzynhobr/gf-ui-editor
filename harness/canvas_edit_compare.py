@@ -14,6 +14,7 @@ import shutil
 import subprocess
 from time import monotonic, sleep
 import traceback
+import zlib
 
 from canvas_compare import isolate
 from offscreen import capture_window, window_options
@@ -26,8 +27,8 @@ ATLAS_NORMAL = (539, 81, 69, 16)
 ATLAS_FOCUS = (539, 93, 60, 20)
 
 
-def fixtures(out, game):
-    from gf_ui_editor.project import Project
+def fixtures(out, game, light=False):
+    from gf_ui_editor.project import Project, convert_to_light
     from gf_ui_editor.game_texts import TEXT_INDEX
     from gf_ui_editor.xml_document import UIDocument
 
@@ -45,7 +46,17 @@ def fixtures(out, game):
     index = game_fixture / TEXT_INDEX
     index.parent.mkdir(parents=True)
     index.write_text("637|Original harness label|\n", encoding="ascii")
-    return tuple(Project.create(name, source, game_fixture, out / "projects", include_assets=True) for name in ("qt", "web"))
+    projects = tuple(Project.create(name, source, game_fixture, out / "projects", include_assets=True) for name in ("qt", "web"))
+    if light:
+        rows = []
+        for path in source.iterdir():
+            data = path.read_bytes()
+            rows.append(f"UI/{path.name}|{len(data)}|{zlib.crc32(data):08X}|0|0|")
+        (game_fixture / "GameDataFileList.txt").write_text("\n".join(rows), encoding="ascii")
+        for project in projects:
+            convert_to_light(project)
+            assert not any(project.ui_dir.iterdir())
+    return projects
 
 
 def classic(project):
@@ -262,8 +273,9 @@ def web(out, page, project, expected):
         drag_at(x, y, dx, dy, modifiers=modifiers, clicks=clicks)
 
     def atlas_gesture(start, end):
-        x, y = js(f"canvasEdit.atlasPoint({start[0]}, {start[1]})")
-        end_x, end_y = js(f"canvasEdit.atlasPoint({end[0]}, {end[1]})")
+        (x, y), (end_x, end_y) = stable(
+            f"[canvasEdit.atlasPoint({start[0]}, {start[1]}), canvasEdit.atlasPoint({end[0]}, {end[1]})]"
+        )
         drag_at(x, y, end_x - x, end_y - y)
 
     def click_atlas(caption):
@@ -364,6 +376,7 @@ def web(out, page, project, expected):
             js(f"canvasEdit.openAtlas({ATLAS_INDEX}); true")
             wait("document.querySelectorAll('[data-testid=atlas-state-card] select option:not([disabled])').length === 4 && !!document.querySelector('.gf-atlas-cut')", "atlas states")
             click_atlas("Editar posição")
+            wait("document.querySelector('.gf-atlas-surface').dataset.editing === 'true'", "atlas edit mode")
             atlas_gesture((550, 87), (553, 89))
             wait("document.querySelector('.gf-atlas-fields input').value === '539'", "move normal crop")
             previous_x = js("canvasEdit.atlasPoint(603, 99)[0]")
@@ -486,6 +499,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     parser.add_argument("game_copy", type=Path)
+    parser.add_argument("--light", action="store_true", help="Run both canvases with converted project fixtures.")
     args = parser.parse_args()
     out = args.output.resolve()
     game = args.game_copy.resolve(strict=True)
@@ -496,7 +510,7 @@ def main():
     here = Path(__file__).resolve().parent
     build = out / "web-build"
     subprocess.run(["node", str(here / "canvas_compare.mjs"), str(build)], check=True)
-    qt_project, web_project = fixtures(out, game)
+    qt_project, web_project = fixtures(out, game, args.light)
     steps = web(out, build / "harness" / "canvas_compare.html", web_project, classic(qt_project))
 
     summary = {"steps": steps, "files": {}}

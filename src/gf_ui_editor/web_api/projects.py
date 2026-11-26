@@ -23,6 +23,7 @@ from ..project import (
     ProjectNameTaken,
     configured_game_dir,
     create_from_source,
+    convert_to_light,
     delete_project,
     duplicate_project,
     list_projects,
@@ -121,6 +122,10 @@ class ProjectsApi:
             raise RuntimeError("Nenhum projeto aberto.")
         return self._project
 
+    def _project_for_path(self, path: Path) -> Project | None:
+        project = getattr(self, "_project", None)
+        return project if project is not None and project.contains(path) else None
+
     def _project_info(self) -> dict | None:
         project = self._project
         if project is None:
@@ -130,6 +135,7 @@ class ProjectsApi:
             "name": project.name,
             "custom_name": project.custom_name,
             "ui_dir": str(project.ui_dir),
+            "light": project.light,
             "game_dir": str(project.game_dir) if project.game_dir is not None else None,
             "publish_dir": str(project.game_dir / "UICustom" / project.custom_name) if project.game_dir is not None else None,
         }
@@ -156,7 +162,13 @@ class ProjectsApi:
         if project is None:
             return None
         last = self._prefs.last_file(project.custom_name)
-        return project.ui_dir / last if last and (project.ui_dir / last).is_file() else None
+        return project.ui_dir / last if last and project.resolve(last).is_file() else None
+
+    def convert_project_to_light(self) -> dict:
+        project = self._require_project()
+        backup = convert_to_light(project, self._progress("convert"))
+        self._sizes.forget(project.root)
+        return {"backup": str(backup) if backup is not None else None, "state": self.shell_state()}
 
     # ---- casca ---------------------------------------------------------------------------
     def shell_state(self) -> dict:
@@ -409,6 +421,7 @@ class ProjectsApi:
                 name, Path(form["source"]), game_dir, projects_root=self._projects_root(),
                 progress=self._progress("create"), include_assets=bool(form.get("include_assets")),
                 publish_folder=str(form.get("publish_folder") or ""),
+                light=bool(form.get("light")),
             )
         except FileExistsError as exc:
             return {"error": "exists", "path": str(exc.args[0])}
@@ -421,7 +434,7 @@ class ProjectsApi:
         if focus is not None:
             if not project.contains(focus):
                 focus = project.import_target(focus)
-            if focus.is_file():
+            if project.read_path(focus).is_file():
                 self._open_xml(focus)
         return {"count": len(project.base_hashes), "state": self.shell_state()}
 
@@ -501,13 +514,16 @@ class ProjectsApi:
     def open_xml(self, path: str) -> dict:
         """Abre um XML da lista (o canvas recebe o caminho). Lembra o último do projeto."""
         target = Path(path)
-        if not target.is_file():
+        project = self._project_for_path(target)
+        if not (project.read_path(target) if project is not None else target).is_file():
             raise FileNotFoundError(path)
         self._open_xml(target)
         return self.shell_state()
 
     def open_in_text_editor(self, path: str) -> str:
-        return desktop.open_in_text_editor(Path(path))
+        target = Path(path)
+        project = self._project_for_path(target)
+        return desktop.open_in_text_editor(project.materialize(target) if project is not None else target)
 
     def text_editor_name(self) -> str:
         """Nome do editor de texto para o menu ("Notepad++" ou "Bloco de Notas")."""
@@ -597,16 +613,21 @@ class ProjectsApi:
     # ---- trocar a textura do controle ---------------------------------------------------------
     def texture_names(self, xml_path: str) -> list[str]:
         """Texturas da pasta da UI do XML ("Usar outro .dds desta UI…")."""
-        return textures.ui_texture_names(Path(xml_path).parent)
+        path = Path(xml_path)
+        return textures.ui_texture_names(path.parent, self._project_for_path(path))
 
     def texture_copy_info(self, xml_path: str, current: str) -> dict:
-        folder = Path(xml_path).parent
-        return {"exists": textures.find_texture(folder, current) is not None, "suggestion": textures.copy_suggestion(current)}
+        path = Path(xml_path)
+        return {
+            "exists": textures.find_texture(path.parent, current, self._project_for_path(path)) is not None,
+            "suggestion": textures.copy_suggestion(current),
+        }
 
     def copy_texture(self, xml_path: str, current: str, name: str) -> dict:
         """Cópia editável de `current`. {"error": "exists"} se o nome já existe."""
         try:
-            target = textures.copy_for_edit(Path(xml_path).parent, current, name)
+            path = Path(xml_path)
+            target = textures.copy_for_edit(path.parent, current, name, self._project_for_path(path))
         except FileExistsError as exc:
             return {"error": "exists", "name": str(exc.args[0])}
         self._refresh_project_files()
@@ -617,7 +638,8 @@ class ProjectsApi:
         chosen = self._ask_path("open", None, ("Texturas (*.dds;*.tga)",))
         if chosen is None:
             return None
-        target, replacing = textures.bring_target(Path(xml_path).parent, chosen)
+        path = Path(xml_path)
+        target, replacing = textures.bring_target(path.parent, chosen, self._project_for_path(path))
         return {"path": str(chosen), "name": target.name, "replacing": replacing}
 
     def bring_texture(self, xml_path: str, source: str) -> dict:
@@ -651,7 +673,7 @@ class ProjectsApi:
         if file_list.has_invalid_chars(name):
             return {"invalid": True}
         source = Path(path)
-        target, replacing = file_list.rename_target(source, name.strip())
+        target, replacing = file_list.rename_target(source, name.strip(), self._require_project())
         users = len(file_list.xml_using_texture(self._require_project(), source.name)) if file_list.is_texture(source) else 0
         return {"target": str(target), "name": target.name, "replacing": replacing, "texture_users": users}
 
@@ -684,7 +706,9 @@ class ProjectsApi:
 
     def restore_preview(self, path: str, source: str, current_label: str, restored_label: str) -> str:
         """Diff entre o arquivo e a versão a restaurar ('' se iguais). Os rótulos vêm traduzidos."""
-        return file_list.restore_diff(Path(path), Path(source), current_label, restored_label)
+        target = Path(path)
+        project = self._project_for_path(target)
+        return file_list.restore_diff(project.read_path(target) if project is not None else target, Path(source), current_label, restored_label)
 
     def restore_file(self, path: str, source: str) -> None:
         file_list.restore_file(self._project, Path(path), Path(source))

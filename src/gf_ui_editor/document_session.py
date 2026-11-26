@@ -10,7 +10,7 @@ from threading import RLock
 from . import atlas, game_layout, window_geometry
 from .canvas_document import PreviewContext, describe_scene, project_ui_root
 from .project import Project
-from .xml_document import UIDocument, UVRect
+from .xml_document import DocumentError, UIDocument, UVRect
 
 
 def _rect(value, *, dimensions: bool = True) -> window_geometry.Rect:
@@ -29,21 +29,26 @@ def _index(document: UIDocument, value) -> int:
     return value
 
 
-def save_document(document: UIDocument, project: Project | None) -> None:
+def save_document(document: UIDocument, project: Project | None) -> Path | None:
     """Save with the same original, backup, and change-cache handling as Qt."""
     if not document.is_dirty:
         return
     in_project = project is not None and project.contains(document.path)
     if in_project:
         try:
+            project.materialize(document.path)
+        except OSError as exc:
+            raise DocumentError(f"Falha ao copiar o XML para o projeto: {exc}", code="write", details={"error": exc}) from exc
+        try:
             project.remember_original(document.path)
         except OSError:
             pass
-    document.save(project.history_path_for(document.path) if in_project else None)
+    backup = document.save(project.history_path_for(document.path) if in_project else None)
     if project is not None:
         project.invalidate_changes()
     if in_project:
         project.prune_history(document.path)
+    return backup
 
 
 def _apply_edits(document: UIDocument, edits: list[dict]) -> None:
@@ -158,6 +163,7 @@ class DocumentSession:
         self._context: PreviewContext | None = None
         self._resolution: tuple[int, int] | None = None
         self._saved_positions = True
+        self._project: Project | None = None
 
     def _require(self) -> tuple[UIDocument, PreviewContext]:
         if self._document is None or self._context is None:
@@ -165,17 +171,20 @@ class DocumentSession:
         return self._document, self._context
 
     def open(
-        self, path: str | Path | None, resolution: tuple[int, int] | None = None, *, saved_positions: bool = True,
+        self, path: str | Path | None, resolution: tuple[int, int] | None = None, *,
+        saved_positions: bool = True, project: Project | None = None,
     ) -> dict | None:
         with self._lock:
             if path is None:
                 self._document = self._context = self._resolution = None
+                self._project = None
                 return None
-            document = UIDocument.load(Path(path))
+            document = project.load_document(Path(path)) if project is not None else UIDocument.load(Path(path))
             context = PreviewContext.load(document.path, resolution, saved_positions=saved_positions)
             scene = describe_scene(document, context)
             self._document, self._context, self._resolution = document, context, resolution
             self._saved_positions = saved_positions
+            self._project = project
             return scene
 
     def configure_preview(
@@ -248,7 +257,7 @@ class DocumentSession:
     def revert(self) -> dict:
         with self._lock:
             document, _ = self._require()
-            scene = self.open(document.path, self._resolution, saved_positions=self._saved_positions)
+            scene = self.open(document.path, self._resolution, saved_positions=self._saved_positions, project=self._project)
             assert scene is not None
             return scene
 
@@ -258,7 +267,8 @@ class DocumentSession:
                 return None
             document = self._document
             try:
-                current = document.path.read_bytes()
+                path = self._project.read_path(document.path) if self._project is not None else document.path
+                current = path.read_bytes()
             except FileNotFoundError:
                 return "missing"
             except OSError:

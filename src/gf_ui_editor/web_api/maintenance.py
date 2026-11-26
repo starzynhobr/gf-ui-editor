@@ -126,7 +126,7 @@ class MaintenanceApi:
         if project is None:
             return []
         return [
-            _candidate(game_sync.PullCandidate(relative, backup, not (project.ui_dir / relative).exists(), game_sync.EDITED_OUTSIDE))
+            _candidate(game_sync.PullCandidate(relative, backup, not project.resolve(relative).exists(), game_sync.EDITED_OUTSIDE))
             for relative, backup in getattr(self, "_game_backups", [])
             if backup.is_file()
         ]
@@ -210,12 +210,12 @@ class MaintenanceApi:
         project = getattr(self, "_project", None)
         if project is None or project.game_dir is None:
             return
-        game_dir, ui_dir, root, base_bytes = project.game_dir, project.ui_dir, project.root, project.base_bytes
+        game_dir, root, base_bytes = project.game_dir, project.root, project.base_bytes
 
         def work() -> None:
             try:
                 game_updates.snapshot_official_ui(game_dir)
-                diffs, _unavailable = game_updates.scan(game_dir, ui_dir, base_bytes)
+                diffs, _unavailable = game_updates.scan(game_dir, project.resolve, base_bytes)
             except Exception:  # noqa: BLE001 - a comparação é só um aviso
                 return
             current = getattr(self, "_project", None)
@@ -243,7 +243,9 @@ class MaintenanceApi:
         official = game_updates.official_text_for(game_dir, key) if game_dir is not None else None
         if official is None:
             return {"unavailable": True, "file": target.name}
-        current = target.read_bytes().decode(game_updates.UIDocument.encoding, "replace")
+        project = getattr(self, "_project", None)
+        source = project.read_path(target) if project is not None else target
+        current = source.read_bytes().decode(game_updates.UIDocument.encoding, "replace")
         missing = game_updates.missing_controls(current, official)
         if not missing:
             return {"complete": True, "file": target.name}
@@ -264,7 +266,7 @@ class MaintenanceApi:
     def locate_game_error(self, text: str) -> dict:
         """Do texto do erro até o XML: {"error": "invalid"} ou cpp, ID e arquivos candidatos."""
         project = getattr(self, "_project", None)
-        located = game_updates.locate_error(self._official_game_dir, project.ui_dir if project is not None else None, text)
+        located = game_updates.locate_error(self._official_game_dir, project.resolve if project is not None else None, text)
         if located is None:
             return {"error": "invalid"}
         cpp, window_id, candidates = located
@@ -279,7 +281,7 @@ class MaintenanceApi:
             "candidates": candidates,
             "folder": str(folder) if folder is not None else None,
             "paths": {name: str(folder / name) for name in candidates} if folder is not None else {},
-            "exists": {name: (folder / name).is_file() for name in candidates} if folder is not None else {},
+            "exists": {name: (project.resolve(name) if project is not None else folder / name).is_file() for name in candidates} if folder is not None else {},
         }
 
     # ---- textos -------------------------------------------------------------------------

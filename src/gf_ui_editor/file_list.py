@@ -143,7 +143,7 @@ def xml_using_texture(project: "Project", name: str) -> list[Path]:
             continue
         path = project.ui_dir / relative
         try:
-            if pattern.search(path.read_bytes()):
+            if pattern.search(project.read_path(path).read_bytes()):
                 found.append(path)
         except OSError:
             continue
@@ -155,13 +155,14 @@ def retarget_texture(project: "Project", paths: list[Path], old: str, new: str) 
     pattern = re.compile(r'(BGmap\s*=\s*")' + re.escape(old) + r'(")', re.IGNORECASE)
     for path in paths:
         try:
-            raw = path.read_bytes()
+            raw = project.read_path(path).read_bytes()
             text = raw.decode("big5")
         except (OSError, UnicodeDecodeError):
             continue
         changed = pattern.sub(lambda match: match.group(1) + new + match.group(2), text)
         if changed == text:
             continue
+        project.materialize(path)
         project.remember_original(path)
         shutil.copy2(path, project.history_path_for(path))
         path.write_bytes(changed.encode("big5"))
@@ -195,13 +196,14 @@ def has_invalid_chars(name: str) -> bool:
     return any(char in name for char in INVALID_NAME_CHARS)
 
 
-def rename_target(path: Path, name: str) -> tuple[Path, bool]:
+def rename_target(path: Path, name: str, project: "Project | None" = None) -> tuple[Path, bool]:
     """Destino ao renomear `path` para `name` (sem extensão, mantém a atual) e se ele
     substitui outro arquivo (mudar só maiúsculas/minúsculas não substitui)."""
     if not Path(name).suffix:
         name += path.suffix
     target = path.with_name(name)
-    replacing = target.exists() and os.path.normcase(str(target)) != os.path.normcase(str(path))
+    current = project.read_path(target) if project is not None else target
+    replacing = current.exists() and os.path.normcase(str(target)) != os.path.normcase(str(path))
     return target, replacing
 
 
@@ -225,7 +227,7 @@ def delete_warning(project: "Project", path: Path) -> DeleteWarning:
 def import_plan(project: "Project", sources: list[Path]) -> tuple[dict[Path, Path], list[Path]]:
     """Destino de cada arquivo importado e os que já existem no projeto (serão substituídos)."""
     targets = {source: project.import_target(source) for source in sources}
-    replaced = [target for target in targets.values() if target.exists()]
+    replaced = [target for target in targets.values() if project.read_path(target).exists()]
     return targets, replaced
 
 
@@ -245,7 +247,7 @@ def restore_file(project: "Project | None", path: Path, source: Path, now: datet
     """Volta `path` para `source`. No projeto o estado atual vai para o histórico; num XML
     solto fica um backup `.before-gf-ui-editor-…` ao lado."""
     if project is not None and project.contains(path):
-        project.restore(path, source)
+        project.write_from(project.relative_key(path), source)
         return
     backup = path.with_name(
         f"{path.stem}.before-gf-ui-editor-{(now or datetime.now()):%Y%m%d-%H%M%S}{path.suffix}"

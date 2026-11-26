@@ -11,7 +11,7 @@ import { saveDocument } from './saving'
 import { toggleSource, useSource } from '../source/SourcePanel'
 import { openMenuAt, type MenuItem } from '../ui/Menu'
 import {
-  exportTexts, openOfficialCompare, openOfficialReference, resolveGameError, saveProjectVersion, showCleanup, showPull, showVersions,
+  convertProjectToLight, exportTexts, openOfficialCompare, openOfficialReference, resolveGameError, saveProjectVersion, showCleanup, showPull, showVersions,
 } from '../project/flows'
 
 export default function TopBar() {
@@ -56,6 +56,7 @@ export default function TopBar() {
       { separator: true },
       { label: t('Salvar versão…'), icon: 'save', disabled: !project, onClick: () => project && void saveProjectVersion(project.root) },
       { label: t('Versões do projeto…'), icon: 'layers', disabled: !project, onClick: () => project && void showVersions(project.root, project.name) },
+      { label: t('Converter em projeto leve…'), disabled: !project?.game_dir || project.light, onClick: () => void convertProjectToLight() },
       { label: t('Puxar da pasta do jogo…'), icon: 'file-import', disabled: !project?.game_dir, onClick: () => project && void showPull(project.root, project.name) },
       { label: t('Limpar projeto…'), icon: 'sparkles', disabled: !project, onClick: () => project && void showCleanup(project.root) },
       { separator: true },
