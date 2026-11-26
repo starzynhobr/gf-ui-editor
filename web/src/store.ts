@@ -1,5 +1,6 @@
 // Estado da casca (projeto e XML abertos, tela, mensagens). O canvas tem o próprio estado.
 import { create } from 'zustand'
+import { toast } from 'sonner'
 import type { ShellState } from './api'
 
 export type SidePage = 'xml' | 'textures' | 'elements' | 'texts'
@@ -40,6 +41,8 @@ let statusId = 0
 /** Mensagem no rodapé por alguns segundos (como statusBar().showMessage da clássica). */
 export function showStatus(text: string, seconds = 10): void {
   statusId += 1
+  // Avisos importantes (resultado do F5, versão salva…) também sobem como toast.
+  if (seconds >= 10) toast(text, { duration: Math.min(seconds, 12) * 1000 })
   useShell.setState({ status: { text, id: statusId } })
   window.clearTimeout(statusTimer)
   statusTimer = window.setTimeout(() => useShell.setState({ status: null }), seconds * 1000)

@@ -1,6 +1,7 @@
 // Painel de propriedades (direita), como o PropertyPanel da clássica: posição e tamanho,
 // textura, identificação e aparência/fonte (só os campos que o controle tem no XML).
 // Toda edição vai por applyEdits (um passo de desfazer).
+import { Select } from '../ui/Select'
 import { atlasModule } from '../shell/atlas'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, type TreeRow } from '../api'
@@ -148,20 +149,15 @@ function Choice({
   // Valor fora do comum aparece como está (como a clássica).
   const all = options.some(([data]) => data === value) ? options : [...options, [value, value] as [string, string]]
   return (
-    <select
-      className="field h-7 w-full"
+    <Select
+      size="sm"
+      className="w-full"
       value={value}
       disabled={disabled}
       title={title}
-      onWheel={(event) => event.currentTarget.blur()}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {all.map(([data, label]) => (
-        <option key={data} value={data}>
-          {label}
-        </option>
-      ))}
-    </select>
+      options={all.map(([data, label]) => ({ value: data, label }))}
+      onChange={onChange}
+    />
   )
 }
 

@@ -1,4 +1,5 @@
 // Barra superior: casinha, projeto ˅ / arquivo, salvar e, à direita, Exportar e Enviar · N.
+import StzPill from './StzPill'
 import { useEffect, useState } from 'react'
 import { api, type HomeProject } from '../api'
 import { useT } from '../i18n'
@@ -73,7 +74,7 @@ export default function TopBar() {
       : ''
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-1 border-b border-border bg-chrome px-2" data-testid="topbar">
+    <header className="relative flex h-11 shrink-0 items-center gap-1 border-b border-border bg-chrome px-2" data-testid="topbar">
       <button className="icon-button h-8 w-8" title={t('Tela inicial: fecha o XML aberto e mostra os projetos recentes')} onClick={() => void goHome()}>
         <Icon name="home" size={18} />
       </button>
@@ -117,6 +118,11 @@ export default function TopBar() {
         <Icon name="redo" size={17} />
       </button>
       <div className="flex-1" />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[70] flex -translate-x-1/2 items-center">
+        <div className="pointer-events-auto">
+          <StzPill />
+        </div>
+      </div>
       <button className="btn h-8" disabled={!project} onClick={() => void exportZip()} data-testid="export-zip">
         <Icon name="package" size={16} />
         {t('Exportar UI (.zip)…')}

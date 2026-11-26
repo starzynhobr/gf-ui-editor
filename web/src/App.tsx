@@ -1,5 +1,8 @@
 // Casca da interface nova: barra superior, lateral, centro (tela inicial ou canvas) e status.
 // O canvas é do bloco do canvas: a casca só monta <CanvasView path=... />.
+import { Toaster } from 'sonner'
+import { ResizeHandle } from './ui/ResizeHandle'
+import { loadUiState, panelWidth, useUi } from './shell/uiState'
 import { useEffect, useState } from 'react'
 import { api, errorText } from './api'
 import { setLanguage, useT } from './i18n'
@@ -25,6 +28,10 @@ import { DialogHost } from './ui/dialogs'
 import { MenuHost } from './ui/Menu'
 
 export default function App() {
+  const layout = useUi((state) => state.layout)
+  const theme = useUi((state) => state.theme)
+  const leftWidth = panelWidth('left', layout)
+  const rightWidth = panelWidth('right', layout)
   useT()
   const view = useShell((state) => state.view)
   const page = useShell((state) => state.page)
@@ -33,6 +40,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    void loadUiState()
     api.startup().then(
       ({ view: first, ...state }) => {
         setLanguage(state.language)
@@ -89,9 +97,12 @@ export default function App() {
       <div className="flex min-h-0 flex-1">
         <SideRail />
         {view === 'workspace' && (
-          <aside className="w-[310px] shrink-0 border-r border-border bg-panel">
-            {page === 'texts' ? <TextsPage /> : page === 'elements' ? <ElementTree /> : <FilesPanel />}
-          </aside>
+          <>
+            <aside className="shrink-0 bg-panel" style={{ width: leftWidth }} data-testid="left-panel">
+              {page === 'texts' ? <TextsPage /> : page === 'elements' ? <ElementTree /> : <FilesPanel />}
+            </aside>
+            <ResizeHandle side="left" />
+          </>
         )}
         <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
           {view === 'workspace' && <Banners />}
@@ -109,9 +120,12 @@ export default function App() {
           </div>
         </main>
         {view === 'workspace' && shell.open_path && (
-          <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-border bg-panel">
-            <PropertiesPanel />
-          </aside>
+          <>
+            <ResizeHandle side="right" />
+            <aside className="shrink-0 overflow-y-auto bg-panel" style={{ width: rightWidth }} data-testid="right-panel">
+              <PropertiesPanel />
+            </aside>
+          </>
         )}
       </div>
       <StatusBar />
@@ -119,6 +133,7 @@ export default function App() {
       <MenuHost />
       <DialogHost />
       <ProgressOverlay />
+      <Toaster theme={theme === 'light' ? 'light' : 'dark'} position="bottom-right" offset={40} toastOptions={{ className: "gf-toast" }} />
     </div>
   )
 }

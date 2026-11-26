@@ -127,7 +127,7 @@ export function Modal({
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px] animate-[fade_120ms_ease-out]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] p-4 backdrop-blur-[2px] animate-[fade_120ms_ease-out]">
       <div
         role="dialog"
         aria-modal="true"

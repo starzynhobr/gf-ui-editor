@@ -2,7 +2,10 @@
 // salvas, como a clássica), filtro e lista virtualizada (com ícones são ~18 mil arquivos).
 import { atlasModule } from '../shell/atlas'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { api, type FileListData, type SectionKind } from '../api'
 import { useT } from '../i18n'
 import { showStatus, useShell } from '../store'
@@ -65,7 +68,22 @@ export default function FilesPanel() {
       items: needle ? section.items.filter((index) => data.files[index].toLowerCase().includes(needle)) : section.items,
     }))
   }, [data, needle])
-  const visible = sections.filter((section) => section.kind === 'all' || section.items.length > 0)
+  const [pendingOrder, setPendingOrder] = useState<SectionKind[] | null>(null)
+  useEffect(() => setPendingOrder(null), [data])
+  const ordered = pendingOrder ? pendingOrder.map((kind) => sections.find((section) => section.kind === kind)!).filter(Boolean) : sections
+  const visible = ordered.filter((section) => section.kind === 'all' || section.items.length > 0)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
+    if (!over || dragged.id === over.id) return
+    const kinds = visible.map((section) => section.kind)
+    const nextVisible = arrayMove(kinds, kinds.indexOf(dragged.id as SectionKind), kinds.indexOf(over.id as SectionKind))
+    // Seções escondidas (vazias) ficam no lugar delas; as visíveis ocupam as próprias vagas na nova ordem.
+    const full = ordered.map((section) => section.kind)
+    let slot = 0
+    const merged = full.map((kind) => (kinds.includes(kind) ? nextVisible[slot++] : kind))
+    setPendingOrder(merged)
+    void api.setSectionOrder(merged).then(() => useShell.setState((state) => ({ revision: state.revision + 1 })))
+  }
   const visibleKinds = visible.map((section) => section.kind)
 
   const activate = useCallback(
@@ -195,20 +213,24 @@ export default function FilesPanel() {
           )}
         </div>
       )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={visible.map((section) => section.kind)} strategy={verticalListSortingStrategy}>
       <div className="flex min-h-0 flex-1 flex-col">
         {data &&
           visible.map((section) => {
             const isAll = section.kind === 'all'
             const height = heights[section.kind] ?? defaultHeight(section.items.length)
             return (
-              <div
+              <SortableSection
                 key={section.kind}
+                id={section.kind}
                 className={`flex min-h-0 flex-col ${isAll ? 'flex-1' : 'shrink-0'}`}
                 style={isAll ? undefined : { height }}
-                data-section={section.kind}
-              >
+                header={(handle) => (
                 <div
-                  className="group flex h-7 shrink-0 items-center gap-1 border-t border-border px-3"
+                  {...handle}
+                  className="group flex h-7 shrink-0 cursor-grab items-center gap-1 border-t border-border px-3 active:cursor-grabbing"
+                  title={t('Arraste para mudar a seção de lugar')}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     sectionMenu(section.kind, event.clientX, event.clientY)
@@ -226,6 +248,8 @@ export default function FilesPanel() {
                     <Icon name="dots" size={14} />
                   </button>
                 </div>
+                )}
+              >
                 <FileRows
                   files={data.files}
                   items={section.items}
@@ -245,10 +269,12 @@ export default function FilesPanel() {
                     onMouseDown={(event) => startResize(section.kind, event)}
                   />
                 )}
-              </div>
+              </SortableSection>
             )
           })}
       </div>
+      </SortableContext>
+      </DndContext>
     </div>
   )
 }
@@ -356,6 +382,34 @@ function FileRows({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/** Seção da lista que muda de lugar arrastando o título (dnd-kit, com animação dos vizinhos). */
+function SortableSection({
+  id,
+  className,
+  style,
+  header,
+  children,
+}: {
+  id: SectionKind
+  className: string
+  style?: React.CSSProperties
+  header: (handle: Record<string, unknown>) => ReactNode
+  children: ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      data-section={id}
+      className={`${className} ${isDragging ? 'gf-section-dragging' : ''}`}
+      style={{ ...style, transform: CSS.Translate.toString(transform), transition, zIndex: isDragging ? 20 : undefined }}
+    >
+      {header({ ...attributes, ...listeners })}
+      {children}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 // Puxar arquivos para o projeto (PullDialog da clássica): origem (UI ou UICustom), lista com a
 // origem de cada arquivo, nada marcado de início e "Trazer para o projeto (N)". Também mostra as
 // cópias que o F5 guardou de arquivos editados fora (lista fixa, sem escolha de origem).
+import { Select } from '../ui/Select'
 import { useEffect, useState } from 'react'
 import { t, useT } from '../i18n'
 import { Modal, openDialog } from '../ui/dialogs'
@@ -99,13 +100,14 @@ function Pull({ root, name, sources, fixed, intro, onPull, onClose }: Props) {
         {sources && sources.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="text-muted">{t('Comparar com:')}</span>
-            <select className="field h-7 flex-1" name="pull-source" value={source} onChange={(event) => setSource(event.target.value)}>
-              {sources.map((item) => (
-                <option key={item.path} value={item.path}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <Select
+              size="sm"
+              className="flex-1"
+              name="pull-source"
+              value={source}
+              onChange={setSource}
+              options={sources.map((item) => ({ value: item.path, label: item.label }))}
+            />
           </label>
         )}
         {loading ? (

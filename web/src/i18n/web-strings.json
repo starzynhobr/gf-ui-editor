@@ -68,5 +68,30 @@
     "en_US": "Got it",
     "es_ES": "Entendido",
     "fr_FR": "Compris"
+  },
+  "Arraste para mudar a seção de lugar": {
+    "en_US": "Drag to move the section",
+    "es_ES": "Arrastra para cambiar la sección de lugar",
+    "fr_FR": "Faites glisser pour déplacer la section"
+  },
+  "Tema": {
+    "en_US": "Theme",
+    "es_ES": "Tema",
+    "fr_FR": "Thème"
+  },
+  "Escuro": {
+    "en_US": "Dark",
+    "es_ES": "Oscuro",
+    "fr_FR": "Sombre"
+  },
+  "Meia-noite": {
+    "en_US": "Midnight",
+    "es_ES": "Medianoche",
+    "fr_FR": "Minuit"
+  },
+  "Claro": {
+    "en_US": "Light",
+    "es_ES": "Claro",
+    "fr_FR": "Clair"
   }
 }

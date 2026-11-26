@@ -1,6 +1,7 @@
 // "Novo projeto de UI": nome, pasta do jogo, origem (UI do jogo, UICustom, outra pasta ou
 // .zip), pasta de envio, ícones e XMLs soltos. Mesmas regras do NewProjectDialog da clássica
 // (calculadas no Python: new_project.py).
+import { Select } from '../ui/Select'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, errorText, type NewProjectForm, type PublishTarget, type ShellState } from '../api'
 import { t, useT } from '../i18n'
@@ -176,38 +177,34 @@ function NewProjectDialog({
         )}
         <div className={row}>
           <span className="text-muted">{t('Começar a partir de')}</span>
-          <select
+          <Select
             name="project-source"
-            className="field"
             value={source || PICK_FOLDER}
-            onChange={(event) => void chooseSource(event.target.value)}
-          >
-            {!source && <option value="">—</option>}
-            {options.map((option) => (
-              <option key={option.path} value={option.path}>
-                {option.label === 'UI' ? t('UI em uso no jogo (pasta UI)') : option.label}
-              </option>
-            ))}
-            <option value={PICK_FOLDER}>{t('Outra pasta…')}</option>
-            <option value={PICK_ZIP}>{t('Arquivo .zip…')}</option>
-          </select>
+            onChange={(value) => void chooseSource(value)}
+            options={[
+              ...(!source ? [{ value: '', label: '—' }] : []),
+              ...options.map((option) => ({
+                value: option.path,
+                label: option.label === 'UI' ? t('UI em uso no jogo (pasta UI)') : option.label,
+              })),
+              { value: PICK_FOLDER, label: t('Outra pasta…') },
+              { value: PICK_ZIP, label: t('Arquivo .zip…') },
+            ]}
+          />
         </div>
         <div className={row}>
           <span className="text-muted">{t('Enviar para')}</span>
-          <select
-            className="field"
+          <Select
             value={target}
             title={t('Pasta de UICustom que Enviar para o jogo atualiza; é a UI que você escolhe no launcher.')}
-            onChange={(event) => setTarget(event.target.value)}
-          >
-            {targets.map((item) => (
-              <option key={item.value || '-own'} value={item.value}>
-                {item.value
-                  ? t('UICustom/{name} (atualiza a UI de origem)', { name: item.folder })
-                  : t('UICustom/{name} (pasta própria do projeto)', { name: item.folder || t('nome do projeto') })}
-              </option>
-            ))}
-          </select>
+            onChange={setTarget}
+            options={targets.map((item) => ({
+              value: item.value,
+              label: item.value
+                ? t('UICustom/{name} (atualiza a UI de origem)', { name: item.folder })
+                : t('UICustom/{name} (pasta própria do projeto)', { name: item.folder || t('nome do projeto') }),
+            }))}
+          />
         </div>
         {warningText && <div className="ml-[162px] hint-warning">{warningText}</div>}
         <label

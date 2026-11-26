@@ -1,5 +1,6 @@
 // Barrinha da esquerda: Arquivos XML, Texturas, Elementos, Textos (Ctrl+1..4) e, embaixo,
 // a engrenagem com as configurações (idioma, interface, novidades).
+import { THEMES, setTheme, useUi } from './uiState'
 import { api } from '../api'
 import { LANGUAGES, setLanguage, useT } from '../i18n'
 import { setShell, useShell, type SidePage } from '../store'
@@ -47,6 +48,15 @@ export default function SideRail() {
             { label: t('Clássica'), checked: shell?.ui_mode !== 'web', onClick: () => void setUiMode('classic') },
             { label: t('Nova (beta)'), checked: shell?.ui_mode === 'web', onClick: () => void setUiMode('web') },
           ],
+        },
+        {
+          label: t('Tema'),
+          icon: 'sparkles',
+          submenu: THEMES.map((theme) => ({
+            label: { dark: t('Escuro'), midnight: t('Meia-noite'), light: t('Claro') }[theme],
+            checked: useUi.getState().theme === theme,
+            onClick: () => setTheme(theme),
+          })),
         },
         { separator: true },
         { label: t('Novidades desta versão'), icon: 'sparkles', onClick: openWhatsNew },

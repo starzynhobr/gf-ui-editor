@@ -13,12 +13,23 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@radix-ui/react-checkbox": "^1.4.1",
+    "@radix-ui/react-select": "^2.4.1",
+    "@radix-ui/react-switch": "^1.4.1",
+    "@radix-ui/react-tooltip": "^1.4.1",
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-virtual": "^3.14.28",
     "konva": "^10.11.0",
+    "motion": "^14.14.0",
     "react": "^19.3.1",
+    "react-colorful": "^5.8.2",
     "react-dom": "^19.3.1",
     "react-konva": "^19.3.2",
+    "react-resizable-panels": "^4.24.3",
+    "sonner": "^2.0.8",
     "tailwindcss": "^4.3.5",
     "zustand": "^5.1.0"
   },

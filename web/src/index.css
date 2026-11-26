@@ -32,6 +32,9 @@
   --color-warning-border: #5c4a1a;
   --color-danger: #f87171;
   --color-success: #5eead4;
+  --color-scrollbar: #2a2f3b;
+  --color-scrollbar-hover: #3a4050;
+  --color-overlay: rgb(0 0 0 / 0.55);
   --font-sans: "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, monospace;
 }
@@ -66,7 +69,26 @@ a {
   -webkit-user-drag: none;
 }
 
-button {
+/* Mãozinha em tudo que é clicável (pedido da 0.7.0); desabilitado volta à seta. */
+button,
+select,
+summary,
+label:has(> input[type="checkbox"]),
+input[type="checkbox"],
+input[type="color"],
+[role="button"],
+[role="menuitem"],
+[role="menuitemcheckbox"],
+[role="option"],
+[role="tab"],
+[role="switch"],
+[role="checkbox"],
+[data-clickable] {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled="true"],
+[data-disabled] {
   cursor: default;
 }
 
@@ -75,13 +97,13 @@ button {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2f3b;
+  background: var(--color-scrollbar);
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3a4050;
+  background-color: var(--color-scrollbar-hover);
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
@@ -144,10 +166,48 @@ select.field option {
   background: var(--color-menu);
 }
 
+/* Checkbox próprio (o nativo parecia de formulário web). Continua sendo <input>: teclado,
+   label e testes funcionam igual. */
 input[type="checkbox"] {
-  accent-color: var(--color-accent);
-  width: 14px;
-  height: 14px;
+  appearance: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 5px;
+  background: var(--color-input) center / 11px 11px no-repeat;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease;
+}
+input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--color-accent-border);
+}
+input[type="checkbox"]:active:not(:disabled) {
+  transform: scale(0.88);
+}
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+input[type="checkbox"]:checked {
+  border-color: var(--color-accent-border);
+  background-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  animation: check-pop 180ms ease-out;
+}
+input[type="checkbox"]:disabled {
+  opacity: 0.45;
+}
+@keyframes check-pop {
+  0% {
+    transform: scale(0.75);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes slide {
@@ -157,4 +217,353 @@ input[type="checkbox"] {
   100% {
     transform: translateX(300%);
   }
+}
+
+[data-file],
+[data-testid="home-project-row"] {
+  cursor: pointer;
+}
+
+/* ---- Select (ui/Select.tsx, Radix) ---- */
+.gf-select-native {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.gf-select-trigger[data-state="open"] {
+  border-color: color-mix(in srgb, var(--color-accent-border) 70%, transparent);
+}
+.gf-select-trigger[data-state="open"] .gf-select-chevron {
+  transform: rotate(180deg);
+}
+.gf-select-chevron {
+  transition: transform 160ms ease;
+}
+.gf-select-content {
+  z-index: 80;
+  min-width: var(--radix-select-trigger-width);
+  max-height: min(360px, var(--radix-select-content-available-height));
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-menu);
+  box-shadow: 0 14px 40px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3);
+  transform-origin: var(--radix-select-content-transform-origin);
+  animation: pop-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.gf-select-viewport {
+  padding: 4px;
+}
+.gf-select-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 28px 4px 10px;
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  user-select: none;
+}
+.gf-select-item[data-highlighted] {
+  background: var(--color-hover);
+  color: var(--color-bright);
+}
+.gf-select-item[data-state="checked"] {
+  color: var(--color-accent-text);
+}
+.gf-select-item[data-disabled] {
+  opacity: 0.4;
+}
+.gf-select-check {
+  position: absolute;
+  right: 8px;
+  display: inline-flex;
+}
+.gf-select-scroll {
+  display: flex;
+  justify-content: center;
+  padding: 2px;
+  color: var(--color-muted);
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+/* ---- Divisor dos painéis laterais (ui/ResizeHandle.tsx) ---- */
+.gf-resize {
+  position: relative;
+  flex: none;
+  width: 1px;
+  background: var(--color-border);
+  cursor: col-resize;
+  z-index: 5;
+}
+.gf-resize::before {
+  /* Área de pegar mais larga que a linha. */
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+.gf-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0 -1px;
+  background: var(--color-accent);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.gf-resize:hover::after {
+  opacity: 0.55;
+}
+.gf-resize.is-dragging::after {
+  opacity: 1;
+}
+body:has(.gf-resize.is-dragging) {
+  cursor: col-resize;
+}
+
+/* Troca de tema suave: só durante a troca (setTheme). */
+.theme-switching,
+.theme-switching * {
+  transition: background-color 280ms ease, border-color 280ms ease, color 280ms ease, fill 280ms ease !important;
+}
+
+/* Seção sendo arrastada na lista de arquivos. */
+.gf-section-dragging {
+  background: var(--color-panel);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45), 0 0 0 1px var(--color-accent-border);
+  border-radius: 6px;
+  opacity: 0.96;
+}
+
+/* ---- Pílula e cartão STZ Labs (shell/StzPill.tsx) ---- */
+.gf-stz-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-panel) 80%, transparent);
+  color: var(--color-bright);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+.gf-stz-pill:hover,
+.gf-stz-pill[aria-expanded="true"] {
+  border-color: var(--color-accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.gf-stz-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 70;
+  width: 380px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  background: var(--color-menu);
+  box-shadow: 0 22px 60px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.35);
+  transform-origin: top center;
+}
+.gf-stz-header {
+  padding: 16px 18px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--color-accent) 28%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--color-card), var(--color-menu));
+}
+.gf-stz-person {
+  padding: 10px 12px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 10px;
+  background: var(--color-card);
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.gf-stz-person:hover {
+  border-color: color-mix(in srgb, var(--color-accent-border) 55%, transparent);
+  transform: translateY(-1px);
+}
+.gf-stz-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 700;
+}
+.gf-stz-tag {
+  display: inline-flex;
+  height: 18px;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.gf-discord:hover {
+  border-color: #5865f2 !important;
+  color: #c9cdfb;
+}
+
+/* ---- "Juice": entradas animadas e resposta ao toque ---- */
+[role="dialog"]:not(dialog) {
+  animation: dialog-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+[role="menu"] {
+  transform-origin: top left;
+  animation: pop-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+[data-testid$="-banner"] {
+  animation: banner-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.btn,
+.icon-button,
+.chip {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 110ms ease, box-shadow 160ms ease;
+}
+.btn:active:not(:disabled),
+.icon-button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.card {
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+[data-testid="home-project-row"] {
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+[data-testid="home-project-row"]:hover {
+  transform: translateX(2px);
+}
+[data-file],
+[data-testid="tree-row"] {
+  transition: background-color 110ms ease;
+}
+.status-flash {
+  animation: status-in 260ms ease-out;
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+@keyframes status-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---- Temas (shell/uiState.ts: data-theme no <html>, salvo em web_theme) ----
+   O tema escuro é o padrão do @theme. Um tema novo só redefine as mesmas variáveis. */
+:root[data-theme="midnight"] {
+  --color-window: #0a0d14;
+  --color-chrome: #070910;
+  --color-panel: #0e1220;
+  --color-card: #121829;
+  --color-card-border: #1d2640;
+  --color-input: #0a0e19;
+  --color-menu: #111729;
+  --color-chip: #111729;
+  --color-text: #d4dcf0;
+  --color-bright: #f0f4ff;
+  --color-muted: #8390b0;
+  --color-icon: #a9b5d4;
+  --color-disabled: #46506b;
+  --color-border: #182036;
+  --color-border-input: #1f2944;
+  --color-border-strong: #26314f;
+  --color-hover: #151c31;
+  --color-pressed: #1b2440;
+  --color-selected: #1c2350;
+  --color-accent: #4f7cff;
+  --color-accent-hover: #6a90ff;
+  --color-accent-border: #86a5ff;
+  --color-accent-soft: #18224a;
+  --color-accent-text: #b3c6ff;
+  --color-scrollbar: #26314f;
+  --color-scrollbar-hover: #34416a;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-window: #eef0f4;
+  --color-chrome: #ffffff;
+  --color-panel: #f7f8fa;
+  --color-card: #ffffff;
+  --color-card-border: #dfe3ea;
+  --color-input: #ffffff;
+  --color-menu: #ffffff;
+  --color-chip: #eef0f4;
+  --color-text: #2a2f3a;
+  --color-bright: #11141a;
+  --color-muted: #6a7385;
+  --color-icon: #535b6c;
+  --color-disabled: #a7aebb;
+  --color-border: #e1e4ea;
+  --color-border-input: #d2d7e0;
+  --color-border-strong: #c3c9d4;
+  --color-hover: #eceff4;
+  --color-pressed: #e2e6ee;
+  --color-selected: #e9e1fb;
+  --color-accent: #7c4ce0;
+  --color-accent-hover: #6b3bd0;
+  --color-accent-border: #9b74ec;
+  --color-accent-soft: #efe8fd;
+  --color-accent-text: #5b2fc2;
+  --color-warning: #8a5a00;
+  --color-warning-bg: #fff4d6;
+  --color-warning-border: #f0d48a;
+  --color-danger: #c62828;
+  --color-success: #0f8a72;
+  --color-scrollbar: #c3c9d4;
+  --color-scrollbar-hover: #a7aebb;
+  --color-overlay: rgb(20 24 32 / 0.35);
+}
+:root[data-theme="light"] .gf-stz-card,
+:root[data-theme="light"] .gf-select-content,
+:root[data-theme="light"] [role="menu"] {
+  box-shadow: 0 16px 44px rgb(20 24 32 / 0.16), 0 2px 6px rgb(20 24 32 / 0.08);
+}
+
+/* Toasts (sonner) no tema */
+.gf-toast {
+  border: 1px solid var(--color-border-strong) !important;
+  background: var(--color-menu) !important;
+  color: var(--color-text) !important;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 0.35) !important;
 }

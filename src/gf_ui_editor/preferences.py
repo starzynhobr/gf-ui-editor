@@ -75,6 +75,8 @@ KEYS: dict[str, Key] = {
     "files_section_order": Key("str", ""),  # "layers,changed,all"; vazio = ordem padrão
     "files_section_heights": Key("str", "{}"),  # JSON {"layers": 150}; lido por file_list
     "brand_seen": Key("bool", False),
+    "web_layout": Key("json", {}),  # interface nova: larguras dos painéis etc. {"left": 310, "right": 320}
+    "web_theme": Key("str", "dark"),  # interface nova: tema (data-theme)
     # Projeto e jogo
     "last_project": Key("str", ""),
     "game_dir": Key("str", ""),

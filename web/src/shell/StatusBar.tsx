@@ -17,7 +17,7 @@ export default function StatusBar() {
       {pending > 0 && (
         <span className="chip chip-warning">{t('{count} arquivo(s) ainda não publicados no jogo · F5', { count: pending })}</span>
       )}
-      <span className="selectable ml-1.5 min-w-0 flex-1 truncate text-[12px] text-muted" data-testid="status-message" title={status?.text}>
+      <span key={status?.id} className="status-flash selectable ml-1.5 min-w-0 flex-1 truncate text-[12px] text-muted" data-testid="status-message" title={status?.text}>
         {status?.text}
       </span>
       {showOfficial && (

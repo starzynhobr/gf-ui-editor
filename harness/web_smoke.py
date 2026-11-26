@@ -162,6 +162,37 @@ def shot(name: str) -> None:
 
 
 # ---- roteiro ----------------------------------------------------------------------------
+
+def _theme(label: str) -> None:
+    js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
+    wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
+    js("__smoke.clickText('Tema', '[role=menu]')")
+    wait("__smoke.all('[role=menu]').length > 1", 5, "submenu tema")
+    js(
+        "(() => { const menus = __smoke.all('[role=menu]'); const items = menus[menus.length - 1].querySelectorAll('[role=menuitem]');"
+        f" const item = Array.from(items).find((b) => b.innerText.includes('{label}')); if (item) item.click(); return !!item }})()"
+    )
+
+
+def polish() -> None:
+    check("divisores dos painéis", bool(js("!!__smoke.q('[data-testid=resize-left]')")))
+    js("__smoke.click('[data-testid=stz-pill]')")
+    card = wait("__smoke.text('[data-testid=stz-card]')", 5, "cartão STZ") or ""
+    time.sleep(0.6)  # animação de entrada
+    check("cartão STZ Labs com quem ajudou", "QUEM AJUDOU A CONSTRUIR" in card.upper() and "Discord" in card, card=card[:160])
+    shot("15b-stz-labs")
+    js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
+    check("cartão STZ fecha ao clicar fora", bool(wait("!__smoke.q('[data-testid=stz-card]')", 3, "fecha cartão")))
+    for label, key in (("Claro", "light"), ("Meia-noite", "midnight")):
+        _theme(label)
+        changed = wait(f"document.documentElement.dataset.theme === '{key}'", 5, f"tema {key}")
+        time.sleep(0.5)
+        check(f"tema {label}", bool(changed))
+        shot(f"15c-tema-{key}")
+    check("tema salvo nas preferências", app_module.prefs.get("web_theme") == "midnight")
+    _theme("Escuro")
+    wait("document.documentElement.dataset.theme === 'dark'", 5, "tema escuro")
+
 def scenario() -> None:
     project_root = project_module.PROJECTS_ROOT / "Smoke-Test"
 
@@ -316,6 +347,9 @@ def scenario() -> None:
 
     # 10c. Textos (Ctrl+4): buscar, abrir, editar, salvar e enviar com F5.
     texts_flow(project_root)
+
+    # 10d. Polimento: pílula STZ Labs, temas, divisores dos painéis.
+    polish()
 
     # 11. Idioma: inglês pelas configurações.
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
