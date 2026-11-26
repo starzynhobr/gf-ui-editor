@@ -11,6 +11,7 @@ import { select, useDoc } from '../doc/store'
 import { kindLabel } from '../elements/kinds'
 import { LANGUAGES, setLanguage, t, useT } from '../i18n'
 import { openSettings } from '../settings/SettingsScreen'
+import { openHowTo } from '../home/HowToDialog'
 import { atlasAvailable, atlasModule } from '../shell/atlas'
 import { redo, undo } from '../shell/doc'
 import { saveDocument } from '../shell/saving'
@@ -181,6 +182,9 @@ function Palette() {
               </Item>
               <Item value="cmd:settings" keywords={[t('Configurações…')]} icon="settings" onSelect={() => run(() => openSettings())}>
                 {t('Configurações…')}
+              </Item>
+              <Item value="cmd:how-to" keywords={[t('Como usar'), t('Ajuda'), 'F1']} icon="help" hint="F1" onSelect={() => run(() => openHowTo())}>
+                {t('Como usar')}
               </Item>
               {THEMES.map((name) => (
                 <Item key={name} value={`cmd:theme:${name}`} keywords={[t('Tema'), themeNames[name]]} icon="sparkles"

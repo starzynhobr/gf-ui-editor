@@ -14,6 +14,7 @@ import { showStatus, useShell } from '../store'
 import { openXml } from '../actions'
 import { projectFileItems } from './fileActions'
 import { Icon } from '../ui/Icon'
+import { EmptyState } from '../ui/EmptyState'
 import { openMenu, type MenuItem } from '../ui/Menu'
 
 const ROW_HEIGHT = 24
@@ -185,6 +186,7 @@ export default function FilesPanel() {
   const listBox = useRef<HTMLDivElement>(null)
   const startResize = (upper: SectionKind, lower: SectionKind, event: React.MouseEvent) => {
     event.preventDefault()
+    const handle = event.currentTarget as HTMLElement
     const box = listBox.current
     const measure = (kind: SectionKind) =>
       box?.querySelector<HTMLElement>(`[data-section="${kind}"]`)?.getBoundingClientRect().height ?? 0
@@ -214,9 +216,11 @@ export default function FilesPanel() {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
       document.body.classList.remove('is-row-resizing')
+      handle.classList.remove('is-dragging')
       if (Object.keys(latest).length) void api.setSectionHeights(latest)
     }
     document.body.classList.add('is-row-resizing')
+    handle.classList.add('is-dragging')
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
   }
@@ -243,14 +247,20 @@ export default function FilesPanel() {
           onChange={(event) => setFilter(event.target.value)}
         />
       </div>
-      {data && !data.in_project && (
+      {data && !data.in_project && data.directory && (
         <div className="mx-3 mb-2 rounded-md border border-border bg-card px-2.5 py-2 text-[12px] leading-snug text-muted">
-          {data.directory
-            ? t(
-                'Arquivos soltos: o jogo só vê estas mudanças se você copiar os arquivos para a pasta da UI escolhida no launcher. Com um projeto, Enviar para o jogo faz isso por você.',
-              )
-            : t('Crie um projeto para editar fora da pasta do jogo e testar com F5.')}
+          {t(
+            'Arquivos soltos: o jogo só vê estas mudanças se você copiar os arquivos para a pasta da UI escolhida no launcher. Com um projeto, Enviar para o jogo faz isso por você.',
+          )}
         </div>
+      )}
+      {data && !data.in_project && !data.directory && (
+        <EmptyState
+          icon="folder-plus"
+          title={t('Sem projeto')}
+          text={t('Crie um projeto para editar fora da pasta do jogo e testar com F5.')}
+          testId="files-empty"
+        />
       )}
       {data && data.shared_publish.length > 0 && shell?.project && (
         <div className="mx-3 mb-2 hint-warning">
@@ -264,6 +274,7 @@ export default function FilesPanel() {
       <SortableContext items={visible.map((section) => section.kind)} strategy={verticalListSortingStrategy}>
       <div ref={listBox} className="flex min-h-0 flex-1 flex-col">
         {data &&
+          (data.in_project || data.directory) &&
           visible.map((section, position) => {
             const next = visible[position + 1]
             const isAll = section.kind === 'all'

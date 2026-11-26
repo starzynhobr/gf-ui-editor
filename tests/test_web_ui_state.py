@@ -21,6 +21,9 @@ def test_about_info_lists_contributors_with_links() -> None:
     info = api.about_info()
     assert info["discord"].startswith("https://discord.com/") and info["site"] == "https://stzlabs.com"
     assert info["contributors"] and all(person["name"] and person["items"] for person in info["contributors"])
+    assert info["how_to_url"].endswith("/en/projects/gf-ui-editor")  # vídeo do "Como usar" (F1)
+    api._language = "pt_BR"
+    assert api.about_info()["how_to_url"].endswith("/pt/projects/gf-ui-editor")
 
 
 def test_open_texture_file_opens_existing_dds_only(tmp_path: Path, monkeypatch) -> None:

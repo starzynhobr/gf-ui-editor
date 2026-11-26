@@ -116,6 +116,7 @@ export function Modal({
   width?: number
   footer?: ReactNode
 }) {
+  const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -126,9 +127,19 @@ export function Modal({
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
+  // Teclado: o foco entra no diálogo (o Tab começa nele) e volta para onde estava ao fechar.
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (box.current && !box.current.contains(document.activeElement)) box.current.focus({ preventScroll: true })
+    return () => {
+      if (previous?.isConnected && !document.querySelector('[role="dialog"]')) previous.focus({ preventScroll: true })
+    }
+  }, [])
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] p-4 backdrop-blur-[2px] animate-[fade_120ms_ease-out]">
       <div
+        ref={box}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}

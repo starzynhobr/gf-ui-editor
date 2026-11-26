@@ -10,7 +10,7 @@
   flex-direction: column;
   background: var(--color-window);
   border-left: 1px solid var(--color-border-strong);
-  box-shadow: -12px 0 32px color-mix(in srgb, var(--color-chrome) 45%, transparent);
+  box-shadow: var(--shadow-side);
 }
 .gf-source-header {
   display: flex;

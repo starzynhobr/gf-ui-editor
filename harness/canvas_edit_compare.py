@@ -238,6 +238,25 @@ def web(out, page, project, expected):
         cdp("Input.dispatchMouseEvent", type="mouseReleased", x=x + dx, y=y + dy,
             button=button, buttons=0, clickCount=clicks, modifiers=modifiers)
 
+    def stable(expression, frames=3):
+        """Value of `expression` once it stays the same for `frames` animation frames.
+
+        The atlas view settles after mounting (ResizeObserver -> fit) and React paints a pan on a
+        later frame than the pointer event, so a single read can see a view that is still moving.
+        """
+        return async_js(f"""new Promise((resolve, reject) => {{
+            let last = null, same = 0, count = 0
+            const tick = () => {{
+                const value = JSON.stringify({expression})
+                same = value === last ? same + 1 : 0
+                last = value
+                if (same >= {frames}) return resolve(JSON.parse(value))
+                if (++count > 600) return reject(new Error('still moving: ' + value))
+                requestAnimationFrame(tick)
+            }}
+            requestAnimationFrame(tick)
+        }})""")
+
     def gesture(x, y, dx=0, dy=0, *, modifiers=0, clicks=1):
         x, y = js(f"canvasEdit.point({x},{y})")
         drag_at(x, y, dx, dy, modifiers=modifiers, clicks=clicks)
@@ -280,10 +299,11 @@ def web(out, page, project, expected):
             js(f"canvasEdit.previewTexture({json.dumps(str(project.ui_dir / 'main.dds'))}); true")
             wait("!!document.querySelector('.gf-atlas-surface > canvas[style]') && document.querySelector('.gf-atlas-surface > canvas').offsetTop > 0", "texture preview without XML")
             assert not js("!!document.querySelector('[data-testid=atlas-edit], .gf-atlas-fields')")
-            x, y = js("canvasEdit.atlasPoint(512, 512)")
+            x, y = stable("canvasEdit.atlasPoint(512, 512)")
             drag_at(x, y, 22, 17, button="middle")
-            pan_x, pan_y = js("canvasEdit.atlasPoint(512, 512)")
-            assert (round(pan_x - x), round(pan_y - y)) == (22, 17)
+            wait(f"JSON.stringify(canvasEdit.atlasPoint(512, 512)) !== JSON.stringify({json.dumps([x, y])})", "atlas pan")
+            pan_x, pan_y = stable("canvasEdit.atlasPoint(512, 512)")
+            assert (round(pan_x - x), round(pan_y - y)) == (22, 17), (x, y, pan_x, pan_y)
             scale = js("canvasEdit.atlasPoint(513, 512)[0] - canvasEdit.atlasPoint(512, 512)[0]")
             cdp("Input.dispatchMouseEvent", type="mouseWheel", x=pan_x, y=pan_y, deltaX=0, deltaY=-120)
             wait(f"canvasEdit.atlasPoint(513, 512)[0] - canvasEdit.atlasPoint(512, 512)[0] > {scale}", "atlas zoom")

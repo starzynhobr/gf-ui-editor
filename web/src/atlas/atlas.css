@@ -10,10 +10,10 @@
   background: var(--color-panel);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  box-shadow: 0 24px 80px color-mix(in srgb, var(--color-chrome) 55%, transparent);
+  box-shadow: var(--shadow-float);
 }
 
-.gf-atlas-dialog::backdrop { background: color-mix(in srgb, var(--color-chrome) 77%, transparent); }
+.gf-atlas-dialog::backdrop { background: var(--color-overlay); backdrop-filter: blur(2px); }
 .gf-atlas-dialog, .gf-atlas-dialog * { box-sizing: border-box; }
 .gf-atlas-dialog[open] { display: flex; }
 .gf-atlas-dialog :is(button, input):focus-visible { outline: 2px solid var(--color-accent-border); outline-offset: 2px; }
