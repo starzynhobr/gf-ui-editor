@@ -214,7 +214,8 @@ def test_open_in_text_editor_launches_without_waiting(tmp_path: Path) -> None:
 def test_web_services_do_not_import_qt() -> None:
     code = (
         "import sys; import gf_ui_editor.webview_runtime, gf_ui_editor.new_project, gf_ui_editor.desktop, "
-        "gf_ui_editor.home, gf_ui_editor.file_list, gf_ui_editor.web_api.projects; "
+        "gf_ui_editor.home, gf_ui_editor.file_list, gf_ui_editor.element_tree, gf_ui_editor.textures, "
+        "gf_ui_editor.web_api.projects; "
         "assert not any(name.startswith('PySide6') for name in sys.modules), "
         "sorted(n for n in sys.modules if 'PySide6' in n)"
     )

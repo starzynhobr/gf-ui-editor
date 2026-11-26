@@ -15,7 +15,7 @@ import time
 from typing import Any, Callable
 import zipfile
 
-from .. import __version__, desktop, file_list, home, new_project, publishing, release_notes, remote_manifest, storage
+from .. import __version__, desktop, element_tree, file_list, home, new_project, publishing, release_notes, remote_manifest, storage, textures
 from ..preferences import UI_LANGUAGES, UI_MODES, MemoryStore, Preferences
 from ..project import (
     CHANGES_TTL,
@@ -54,6 +54,20 @@ class ProjectsApi:
         self._manifest = remote_manifest.Manifest()
         # Diálogos nativos: por padrão os do pywebview; os testes trocam por respostas prontas.
         self._dialogs = dialogs
+        # XML com alterações não salvas (o front avisa): fechar a janela pergunta antes.
+        self._unsaved = False
+        self._force_close = False
+
+    def _attach_projects(self, window: Any) -> None:
+        """Fechar a janela com alterações não salvas: cancela e pede ao front para perguntar."""
+        window.events.closing += self._on_closing
+
+    def _on_closing(self) -> bool:
+        if self._unsaved and not self._force_close:
+            # Fora da thread da janela: o evaluate_js esperaria por ela e travaria.
+            threading.Thread(target=self._emit, args=("close_requested",), daemon=True).start()
+            return False
+        return True
 
     def _emit(self, event: str, payload: Any = None) -> None:  # o WebApi sobrescreve
         pass
@@ -154,6 +168,7 @@ class ProjectsApi:
             "loose_dir": str(self._loose_dir) if self._loose_dir is not None else None,
             "pending": self._pending(),
             "publish_confirmed": self._prefs.publish_confirmed,
+            "publish_on_save": self._prefs.publish_on_save,
         }
 
     def startup(self) -> dict:
@@ -543,3 +558,125 @@ class ProjectsApi:
             return {"empty": True}
         count, skipped = getattr(project, "last_export", (0, 0))
         return {"path": str(path), "count": count, "skipped": skipped}
+
+    # ---- documento aberto: avisos da casca --------------------------------------------------
+    def set_unsaved(self, unsaved: bool) -> None:
+        """O front avisa quando o XML aberto passa a ter (ou deixa de ter) alterações."""
+        self._unsaved = bool(unsaved)
+
+    def close_window(self) -> None:
+        """Fecha de verdade (o usuário já respondeu salvar/descartar)."""
+        self._force_close = True
+        window = getattr(self, "_window", None)
+        if window is not None:
+            window.destroy()
+
+    # ---- árvore de elementos ---------------------------------------------------------------
+    def element_tree(self, path: str, kinds: list[str]) -> list[dict]:
+        """Rótulo do jogo, WindowText e texto do filtro de cada elemento do XML."""
+        return element_tree.tree_rows(Path(path), list(kinds))
+
+    def tree_columns(self) -> list[str]:
+        return element_tree.hidden_columns(self._prefs.tree_hidden_columns)
+
+    def set_tree_columns(self, hidden: list[str]) -> list[str]:
+        columns = element_tree.hidden_columns([str(column) for column in hidden])
+        self._prefs.tree_hidden_columns = columns
+        return columns
+
+    # ---- trocar a textura do controle ---------------------------------------------------------
+    def texture_names(self, xml_path: str) -> list[str]:
+        """Texturas da pasta da UI do XML ("Usar outro .dds desta UI…")."""
+        return textures.ui_texture_names(Path(xml_path).parent)
+
+    def texture_copy_info(self, xml_path: str, current: str) -> dict:
+        folder = Path(xml_path).parent
+        return {"exists": textures.find_texture(folder, current) is not None, "suggestion": textures.copy_suggestion(current)}
+
+    def copy_texture(self, xml_path: str, current: str, name: str) -> dict:
+        """Cópia editável de `current`. {"error": "exists"} se o nome já existe."""
+        try:
+            target = textures.copy_for_edit(Path(xml_path).parent, current, name)
+        except FileExistsError as exc:
+            return {"error": "exists", "name": str(exc.args[0])}
+        self._refresh_project_files()
+        return {"name": target.name}
+
+    def pick_texture(self, xml_path: str) -> dict | None:
+        """Trazer .dds de outra pasta: o arquivo escolhido e se substitui um da UI."""
+        chosen = self._ask_path("open", None, ("Texturas (*.dds;*.tga)",))
+        if chosen is None:
+            return None
+        target, replacing = textures.bring_target(Path(xml_path).parent, chosen)
+        return {"path": str(chosen), "name": target.name, "replacing": replacing}
+
+    def bring_texture(self, xml_path: str, source: str) -> dict:
+        project = self._project if self._project is not None and self._project.contains(Path(xml_path)) else None
+        target = textures.bring_texture(project, Path(xml_path).parent, Path(source))
+        self._refresh_project_files()
+        return {"name": target.name}
+
+    def _refresh_project_files(self) -> None:
+        if self._project is not None:
+            self._project.files(refresh=True)
+
+    # ---- menu de contexto da lista de arquivos ---------------------------------------------
+    def file_history(self, path: str) -> dict:
+        """Backups (mais recente primeiro, com a data do nome) e o original, se houver."""
+        backups, original = file_list.history_entries(self._project, Path(path))
+        entries = []
+        for backup in backups:
+            stamp = file_list.backup_stamp(backup)
+            entries.append({"path": str(backup), "name": backup.name, "stamp": stamp.isoformat() if stamp else None})
+        folder = backups[0].parent if backups else (original.parent if original is not None else None)
+        return {
+            "backups": entries,
+            "original": str(original) if original is not None else None,
+            "folder": str(folder) if folder is not None else None,
+            "in_project": self._project is not None and self._project.contains(Path(path)),
+        }
+
+    def rename_check(self, path: str, name: str) -> dict:
+        """Antes de renomear: nome inválido, destino, se substitui outro e quantos XMLs usam a textura."""
+        if file_list.has_invalid_chars(name):
+            return {"invalid": True}
+        source = Path(path)
+        target, replacing = file_list.rename_target(source, name.strip())
+        users = len(file_list.xml_using_texture(self._require_project(), source.name)) if file_list.is_texture(source) else 0
+        return {"target": str(target), "name": target.name, "replacing": replacing, "texture_users": users}
+
+    def rename_file(self, path: str, name: str) -> dict:
+        project = self._require_project()
+        target, _replacing = file_list.rename_target(Path(path), name.strip())
+        new_path, _backup = project.rename_file(Path(path), target.name)
+        project.files(refresh=True)
+        if self._open_path is not None and home.is_same_root(self._open_path, Path(path)):
+            self._open_path = None
+        return {"path": str(new_path), "name": new_path.name}
+
+    def retarget_texture(self, old: str, new: str) -> int:
+        """Troca BGmap="old" por "new" nos XMLs do projeto que ainda usam o nome antigo."""
+        project = self._require_project()
+        users = file_list.xml_using_texture(project, old)
+        file_list.retarget_texture(project, users, old, new)
+        return len(users)
+
+    def delete_file_info(self, path: str) -> dict:
+        warning = file_list.delete_warning(self._require_project(), Path(path))
+        return {"official": warning.official, "texture_users": warning.texture_users}
+
+    def delete_file(self, path: str) -> None:
+        project = self._require_project()
+        project.delete_file(Path(path))
+        project.files(refresh=True)
+        if self._open_path is not None and home.is_same_root(self._open_path, Path(path)):
+            self._open_path = None
+
+    def restore_preview(self, path: str, source: str, current_label: str, restored_label: str) -> str:
+        """Diff entre o arquivo e a versão a restaurar ('' se iguais). Os rótulos vêm traduzidos."""
+        return file_list.restore_diff(Path(path), Path(source), current_label, restored_label)
+
+    def restore_file(self, path: str, source: str) -> None:
+        file_list.restore_file(self._project, Path(path), Path(source))
+        if self._project is not None:
+            self._project.invalidate_changes()
