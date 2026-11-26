@@ -4,6 +4,7 @@ import { t } from './i18n'
 import { setShell, showStatus, useShell, type SidePage } from './store'
 import { ask, confirm, message, prompt } from './ui/dialogs'
 import { openNewProjectDialog } from './home/NewProjectDialog'
+import { confirmDiscard, saveBeforeProjectAction } from './shell/saving'
 
 /** Roda `work` com a barra de progresso (o Python manda os passos pelo evento "progress"). */
 export async function withProgress<T>(label: string, work: () => Promise<T>): Promise<T> {
@@ -26,7 +27,7 @@ function enterWorkspace(shell: ShellState): void {
 }
 
 export async function goHome(): Promise<void> {
-  // O canvas só lê neste bloco: não há alterações para perguntar antes de fechar o XML.
+  if (!(await confirmDiscard())) return
   setShell(await api.goHome(), { view: 'home' })
 }
 
@@ -37,6 +38,9 @@ export function showPage(page: SidePage): void {
 }
 
 export async function openProject(root: string): Promise<void> {
+  const current = useShell.getState().shell
+  const switching = current?.project?.root.toLowerCase() !== root.toLowerCase() || !current?.open_path
+  if (switching && !(await confirmDiscard())) return
   try {
     const shell = await api.openProject(root)
     setShell(shell, { view: 'workspace', page: 'xml' })
@@ -51,6 +55,7 @@ export async function continueProject(): Promise<void> {
 }
 
 export async function browseProject(): Promise<void> {
+  if (!(await confirmDiscard())) return
   const result = await api.browseProject()
   if (result == null) return
   if ('error' in result) {
@@ -61,6 +66,7 @@ export async function browseProject(): Promise<void> {
 }
 
 export async function newProject(looseDir?: string | null, focus?: string | null): Promise<void> {
+  if (!(await confirmDiscard())) return
   const created = await openNewProjectDialog(looseDir ?? null, focus ?? null)
   if (!created) return
   enterWorkspace(created.state)
@@ -69,6 +75,7 @@ export async function newProject(looseDir?: string | null, focus?: string | null
 }
 
 export async function openLooseXml(): Promise<void> {
+  if (!(await confirmDiscard())) return
   const picked = await api.pickXml()
   if (!picked) return
   if (picked.offer_project) {
@@ -98,6 +105,8 @@ export async function openLooseXml(): Promise<void> {
 }
 
 export async function openXml(path: string): Promise<void> {
+  const open = useShell.getState().shell?.open_path
+  if (open?.toLowerCase() !== path.toLowerCase() && !(await confirmDiscard())) return
   try {
     setShell(await api.openXml(path), { view: 'workspace' })
   } catch (error) {
@@ -186,11 +195,13 @@ export async function deleteProjects(roots: string[]): Promise<boolean> {
 // ---- Enviar para o jogo (F5) e exportar ----------------------------------------------------
 let publishing = false
 
-export async function publishToGame(): Promise<void> {
+/** F5. `quiet`: envio automático depois de salvar (não pergunta se salva antes). */
+export async function publishToGame(quiet = false): Promise<void> {
   const shell = useShell.getState().shell
   if (!shell?.project?.game_dir || publishing || useShell.getState().progress) return
   publishing = true
   try {
+    if (!quiet && !(await saveBeforeProjectAction())) return
     const info = await api.publishInfo()
     if (!info.confirmed) {
       const yes = await confirm(
@@ -258,6 +269,7 @@ export async function publishToGame(): Promise<void> {
 
 export async function exportZip(): Promise<void> {
   if (!useShell.getState().shell?.project) return
+  if (!(await saveBeforeProjectAction())) return
   const target = await api.pickExportTarget()
   if (!target) return
   let result

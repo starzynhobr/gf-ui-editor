@@ -49,6 +49,7 @@ class WebApi(ProjectsApi, CanvasApi, DocumentApi):
         """Liga a janela: cada área prepara o que precisa dela (ex.: pastas mapeadas do canvas)."""
         self._window = window
         self._attach_canvas_assets()
+        self._attach_projects(window)
 
     def _emit(self, event: str, payload: Any = None) -> None:
         if self._window is not None:

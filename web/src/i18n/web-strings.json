@@ -1,8 +1,8 @@
 {
-  "A árvore de elementos chega junto com o canvas editável. Enquanto isso, ela está na interface clássica.": {
-    "en_US": "The element tree arrives with the editable canvas. Meanwhile, it is in the classic interface.",
-    "es_ES": "El árbol de elementos llega junto con el lienzo editable. Mientras tanto, está en la interfaz clásica.",
-    "fr_FR": "L'arborescence des éléments arrive avec le canevas modifiable. En attendant, elle est dans l'interface classique."
+  "As alterações foram salvas.": {
+    "en_US": "The changes were saved.",
+    "es_ES": "Los cambios se guardaron.",
+    "fr_FR": "Les modifications ont été enregistrées."
   },
   "Busca e edição de textos chegam num próximo bloco. Enquanto isso, estão na interface clássica.": {
     "en_US": "Text search and editing arrive in an upcoming block. Meanwhile, they are in the classic interface.",
@@ -14,6 +14,16 @@
     "es_ES": "Configuración",
     "fr_FR": "Paramètres"
   },
+  "Descartar": {
+    "en_US": "Discard",
+    "es_ES": "Descartar",
+    "fr_FR": "Ignorer"
+  },
+  "Edição indisponível: o canvas editável ainda não chegou nesta versão.": {
+    "en_US": "Editing unavailable: the editable canvas has not arrived in this version yet.",
+    "es_ES": "Edición no disponible: el lienzo editable aún no llegó en esta versión.",
+    "fr_FR": "Modification indisponible : le canevas modifiable n’est pas encore arrivé dans cette version."
+  },
   "Em breve": {
     "en_US": "Coming soon",
     "es_ES": "Próximamente",
@@ -23,6 +33,11 @@
     "en_US": "No",
     "es_ES": "No",
     "fr_FR": "Non"
+  },
+  "Não foi possível editar": {
+    "en_US": "Could not edit",
+    "es_ES": "No se pudo editar",
+    "fr_FR": "Impossible de modifier"
   },
   "OK": {
     "en_US": "OK",
