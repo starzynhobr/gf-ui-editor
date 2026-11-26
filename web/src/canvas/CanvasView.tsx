@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from 'react'
+import type { KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import { Group, Layer, Shape, Stage } from 'react-konva/lib/ReactKonvaCore.js'
 import {
   call, canvasAssetBase, canvasBackgroundBase, on,
@@ -26,6 +26,18 @@ export interface CanvasViewProps {
   language?: string
   resolution?: CanvasPoint
   onSelect?: (element: CanvasElement | null) => void
+  /** Controle sob o mouse parado (sem gesto em andamento); null ao sair, arrastar, rolar ou editar.
+   * `rect` é o retângulo do controle na janela (px de clientX/clientY); `box`, na cena. */
+  onHover?: (hover: CanvasHover | null) => void
+  /** Botões extras na barra flutuante (antes dos avisos). */
+  toolbarExtra?: ReactNode
+}
+
+export interface CanvasHover {
+  element: CanvasElement
+  box: CanvasRect
+  rect: CanvasRect
+  pointer: CanvasPoint
 }
 
 const labels = {
@@ -173,7 +185,7 @@ function ReferenceLayer({ layer, cache, screen, options }: {
   return <Shape sceneFunc={(context) => drawReferenceLayer(context._context, layer.scene, images, screen, options)} />
 }
 
-export default function CanvasView({ path, language, resolution, onSelect }: CanvasViewProps) {
+export default function CanvasView({ path, language, resolution, onSelect, onHover, toolbarExtra }: CanvasViewProps) {
   const locale = (language ?? document.documentElement.lang).slice(0, 2).toLowerCase()
   const t = labels[locale as keyof typeof labels] ?? labels.pt
   const editText = editLabels[locale as keyof typeof editLabels] ?? editLabels.pt
@@ -199,6 +211,13 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   const [draft, setDraft] = useState<GeometryEdit[]>([])
   const [marquee, setMarquee] = useState<CanvasRect | null>(null)
   const [cursor, setCursor] = useState('default')
+  const hoverListener = useRef(onHover)
+  hoverListener.current = onHover
+  const hovering = useRef<number | null>(null)
+  const clearHover = () => {
+    hovering.current = null
+    hoverListener.current?.(null)
+  }
   const { path: openPath, doc, selection, hidden, locked, isolated, error: documentError } = useDoc()
   const [resolutionWidth, resolutionHeight] = resolution ?? []
   const current = loaded?.path === path ? loaded : undefined
@@ -277,6 +296,10 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   useEffect(() => {
     setButtonState(undefined)
   }, [selected])
+
+  // A dica do mouse usa o retângulo na tela: zoom, pan ou edição o deixam velho.
+  useEffect(() => clearHover(), [view, rows])
+  useEffect(() => clearHover, [])
 
   useEffect(() => {
     onSelect?.(selected === null ? null : scene?.elements[selected] ?? null)
@@ -374,6 +397,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
       const rect = node.getBoundingClientRect()
       const x = event.clientX - rect.left
       const y = event.clientY - rect.top
+      clearHover()
       if (!drag.current) setView((old) => zoomAt(old, old.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), [x, y]))
     }
     node.addEventListener('wheel', wheel, { passive: false })
@@ -456,6 +480,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!scene || drag.current || committing.current || ![0, 1, 2].includes(event.button)) return
     event.preventDefault()
+    clearHover()
     event.currentTarget.focus({ preventScroll: true })
     event.currentTarget.setPointerCapture(event.pointerId)
     const point = scenePoint(event)
@@ -494,6 +519,20 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
         setCursor(!x ? 'ns-resize' : !y ? 'ew-resize' : x === y ? 'nwse-resize' : 'nesw-resize')
       } else {
         setCursor(space.current ? 'grab' : rows.some(({ box }) => contains(box, point)) ? 'move' : 'default')
+      }
+      const hit = space.current ? undefined : rows.findLast(({ box }) => contains(box, point))
+      if (!hit) {
+        if (hovering.current !== null) clearHover()
+      } else if (hoverListener.current) {
+        const area = event.currentTarget.getBoundingClientRect()
+        const [x, y, width, height] = hit.box
+        hovering.current = hit.element.index
+        hoverListener.current({
+          element: hit.element,
+          box: hit.box,
+          rect: [area.left + view.x + x * view.scale, area.top + view.y + y * view.scale, width * view.scale, height * view.scale],
+          pointer: [event.clientX, event.clientY],
+        })
       }
       return
     }
@@ -542,6 +581,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
   }
 
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
+    clearHover()
     if (event.code === 'Space') {
       event.preventDefault()
       space.current = true
@@ -583,6 +623,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
         })}
         onButtonState={setButtonState}
         onZoom={zoom} onResetZoom={() => zoom()} onFit={() => { if (bounds) setView(fit(bounds, size)) }}>
+        {toolbarExtra}
         {!!missing.length && <output title={missing.join(', ')}>{t[4]} ({missing.length})</output>}
         {(preferenceError || documentError || gameText.error) && <output role="alert">{preferenceError || documentError || gameText.error}</output>}
       </CanvasToolbar>}
@@ -590,6 +631,7 @@ export default function CanvasView({ path, language, resolution, onSelect }: Can
       <div ref={viewport} className="gf-canvas-viewport" tabIndex={0} style={{ cursor }}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onDoubleClick={doubleClick}
         onLostPointerCapture={() => { if (drag.current) cancelGesture() }} onPointerCancel={cancelGesture}
+        onPointerLeave={clearHover}
         onKeyDown={keyDown}
         onKeyUp={(event) => { if (event.code === 'Space') { space.current = false; setCursor('default') } }}
         onBlur={() => { space.current = false }}

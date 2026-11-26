@@ -1013,5 +1013,205 @@
     "en_US": "Removes it from the bar until the next version. What's new stays in the gear menu.",
     "es_ES": "La quita de la barra hasta la próxima versión. Las Novedades siguen en el engranaje.",
     "fr_FR": "La retire de la barre jusqu’à la prochaine version. Les Nouveautés restent dans l’engrenage."
+  },
+  "1 XML": {
+    "en_US": "1 XML",
+    "es_ES": "1 XML",
+    "fr_FR": "1 XML"
+  },
+  "{count} XMLs": {
+    "en_US": "{count} XMLs",
+    "es_ES": "{count} XML",
+    "fr_FR": "{count} XML"
+  },
+  "Só arquivos .xml abrem no editor.": {
+    "en_US": "Only .xml files open in the editor.",
+    "es_ES": "Solo los archivos .xml se abren en el editor.",
+    "fr_FR": "Seuls les fichiers .xml s'ouvrent dans l'éditeur."
+  },
+  "Solte para abrir": {
+    "en_US": "Drop to open",
+    "es_ES": "Suelta para abrir",
+    "fr_FR": "Déposez pour ouvrir"
+  },
+  "{count} ignorado(s): não são .xml": {
+    "en_US": "{count} skipped: not .xml",
+    "es_ES": "{count} ignorado(s): no son .xml",
+    "fr_FR": "{count} ignoré(s) : pas des .xml"
+  },
+  "Abre sem mexer no projeto; depois você escolhe salvar no lugar ou importar.": {
+    "en_US": "Opens without touching the project; then you choose to save in place or import.",
+    "es_ES": "Se abre sin tocar el proyecto; después eliges guardar en su sitio o importar.",
+    "fr_FR": "S'ouvre sans toucher au projet ; ensuite vous choisissez d'enregistrer sur place ou d'importer."
+  },
+  "Abre como arquivo avulso; depois você escolhe salvar no lugar ou importar para um projeto.": {
+    "en_US": "Opens as a standalone file; then you choose to save in place or import into a project.",
+    "es_ES": "Se abre como archivo suelto; después eliges guardar en su sitio o importar a un proyecto.",
+    "fr_FR": "S'ouvre comme fichier isolé ; ensuite vous choisissez d'enregistrer sur place ou d'importer dans un projet."
+  },
+  "Só arquivos .xml": {
+    "en_US": "Only .xml files",
+    "es_ES": "Solo archivos .xml",
+    "fr_FR": "Fichiers .xml uniquement"
+  },
+  "Arraste os XMLs da interface do jogo (ex.: WorldMap2.xml).": {
+    "en_US": "Drag the game's interface XMLs (e.g. WorldMap2.xml).",
+    "es_ES": "Arrastra los XML de la interfaz del juego (p. ej., WorldMap2.xml).",
+    "fr_FR": "Faites glisser les XML de l'interface du jeu (ex. : WorldMap2.xml)."
+  },
+  "O que mudou fora do editor": {
+    "en_US": "What changed outside the editor",
+    "es_ES": "Lo que cambió fuera del editor",
+    "fr_FR": "Ce qui a changé hors de l'éditeur"
+  },
+  "O arquivo mudou fora do editor": {
+    "en_US": "The file changed outside the editor",
+    "es_ES": "El archivo cambió fuera del editor",
+    "fr_FR": "Le fichier a changé hors de l'éditeur"
+  },
+  "O arquivo foi apagado ou renomeado fora do editor": {
+    "en_US": "The file was deleted or renamed outside the editor",
+    "es_ES": "El archivo se eliminó o se renombró fuera del editor",
+    "fr_FR": "Le fichier a été supprimé ou renommé hors de l'éditeur"
+  },
+  "{name} não está mais no disco. O que está aberto continua aqui até você fechar.": {
+    "en_US": "{name} is no longer on disk. What is open stays here until you close it.",
+    "es_ES": "{name} ya no está en el disco. Lo que está abierto sigue aquí hasta que lo cierres.",
+    "fr_FR": "{name} n'est plus sur le disque. Ce qui est ouvert reste ici jusqu'à ce que vous le fermiez."
+  },
+  "Outro programa salvou {name}. As suas alterações ainda não salvas continuam aqui.": {
+    "en_US": "Another program saved {name}. Your unsaved changes are still here.",
+    "es_ES": "Otro programa guardó {name}. Tus cambios sin guardar siguen aquí.",
+    "fr_FR": "Un autre programme a enregistré {name}. Vos modifications non enregistrées sont toujours là."
+  },
+  "Recarregar": {
+    "en_US": "Reload",
+    "es_ES": "Recargar",
+    "fr_FR": "Recharger"
+  },
+  "Manter as minhas": {
+    "en_US": "Keep mine",
+    "es_ES": "Mantener los míos",
+    "fr_FR": "Garder les miennes"
+  },
+  "Importado para o projeto": {
+    "en_US": "Imported into the project",
+    "es_ES": "Importado al proyecto",
+    "fr_FR": "Importé dans le projet"
+  },
+  "Importado para o projeto · 1 textura copiada": {
+    "en_US": "Imported into the project · 1 texture copied",
+    "es_ES": "Importado al proyecto · 1 textura copiada",
+    "fr_FR": "Importé dans le projet · 1 texture copiée"
+  },
+  "Importado para o projeto · {count} texturas copiadas": {
+    "en_US": "Imported into the project · {count} textures copied",
+    "es_ES": "Importado al proyecto · {count} texturas copiadas",
+    "fr_FR": "Importé dans le projet · {count} textures copiées"
+  },
+  "Grava no próprio arquivo e deixa uma cópia de antes ao lado dele.": {
+    "en_US": "Writes to the file itself and leaves a copy of the previous version next to it.",
+    "es_ES": "Guarda en el propio archivo y deja una copia de antes junto a él.",
+    "fr_FR": "Écrit dans le fichier lui-même et laisse une copie de l'ancienne version à côté."
+  },
+  "Copia para o projeto, com as texturas que faltarem. O original fica como está.": {
+    "en_US": "Copies it into the project, with any missing textures. The original stays as it is.",
+    "es_ES": "Lo copia al proyecto, con las texturas que falten. El original queda como está.",
+    "fr_FR": "Le copie dans le projet, avec les textures manquantes. L'original reste tel quel."
+  },
+  "Escolhe um projeto e copia para ele. O original fica como está.": {
+    "en_US": "Pick a project and copy it there. The original stays as it is.",
+    "es_ES": "Eliges un proyecto y lo copias ahí. El original queda como está.",
+    "fr_FR": "Choisissez un projet et copiez-le dedans. L'original reste tel quel."
+  },
+  "Mostra o que muda em relação ao do projeto ou ao oficial.": {
+    "en_US": "Shows what differs from the project's copy or the official one.",
+    "es_ES": "Muestra lo que cambia respecto al del proyecto o al oficial.",
+    "fr_FR": "Montre ce qui diffère de celui du projet ou de l'officiel."
+  },
+  "Você está vendo um arquivo de fora do projeto": {
+    "en_US": "You are viewing a file from outside the project",
+    "es_ES": "Estás viendo un archivo de fuera del proyecto",
+    "fr_FR": "Vous consultez un fichier hors du projet"
+  },
+  "{name} em {folder} · nada muda no projeto até você importar.": {
+    "en_US": "{name} in {folder} · nothing changes in the project until you import.",
+    "es_ES": "{name} en {folder} · nada cambia en el proyecto hasta que importes.",
+    "fr_FR": "{name} dans {folder} · rien ne change dans le projet tant que vous n'importez pas."
+  },
+  "Dá para editar à vontade.": {
+    "en_US": "Edit freely.",
+    "es_ES": "Puedes editar libremente.",
+    "fr_FR": "Modifiez librement."
+  },
+  "Quando terminar, salve no próprio arquivo, traga para o projeto (para enviar com F5) ou compare antes de decidir.": {
+    "en_US": "When you're done, save to the file itself, bring it into the project (to send with F5) or compare before deciding.",
+    "es_ES": "Al terminar, guarda en el propio archivo, tráelo al proyecto (para enviarlo con F5) o compara antes de decidir.",
+    "fr_FR": "Une fois terminé, enregistrez dans le fichier lui-même, ramenez-le dans le projet (pour l'envoyer avec F5) ou comparez avant de décider."
+  },
+  "ARQUIVOS AVULSOS · {count}": {
+    "en_US": "STANDALONE FILES · {count}",
+    "es_ES": "ARCHIVOS SUELTOS · {count}",
+    "fr_FR": "FICHIERS ISOLÉS · {count}"
+  },
+  "Fechar o avulso (o arquivo continua no disco)": {
+    "en_US": "Close the standalone file (it stays on disk)",
+    "es_ES": "Cerrar el archivo suelto (sigue en el disco)",
+    "fr_FR": "Fermer le fichier isolé (il reste sur le disque)"
+  },
+  "Fechar {name}": {
+    "en_US": "Close {name}",
+    "es_ES": "Cerrar {name}",
+    "fr_FR": "Fermer {name}"
+  },
+  "Depois de limpar: {size}": {
+    "en_US": "After cleaning: {size}",
+    "es_ES": "Después de limpiar: {size}",
+    "fr_FR": "Après le nettoyage : {size}"
+  },
+  "Guarda {count} item(ns) de resolução (resolutions.json e arquivos só de uma resolução).": {
+    "en_US": "Keeps {count} resolution item(s) (resolutions.json and files for a single resolution).",
+    "es_ES": "Guarda {count} elemento(s) de resolución (resolutions.json y archivos de una sola resolución).",
+    "fr_FR": "Conserve {count} élément(s) de résolution (resolutions.json et fichiers propres à une résolution)."
+  },
+  "inclui ajustes de resolução": {
+    "en_US": "includes resolution adjustments",
+    "es_ES": "incluye ajustes de resolución",
+    "fr_FR": "inclut des ajustements de résolution"
+  },
+  "Dica ao passar o mouse no canvas": {
+    "en_US": "Hover tip on the canvas",
+    "es_ES": "Pista al pasar el ratón en el lienzo",
+    "fr_FR": "Infobulle au survol du canevas"
+  },
+  "Mostra o WindowID, o tipo, o texto e a posição do controle sob o mouse parado.": {
+    "en_US": "Shows the WindowID, type, text and position of the control under the resting mouse.",
+    "es_ES": "Muestra el WindowID, el tipo, el texto y la posición del control bajo el ratón quieto.",
+    "fr_FR": "Affiche le WindowID, le type, le texte et la position du contrôle sous la souris immobile."
+  },
+  "Dica ao passar o mouse": {
+    "en_US": "Hover tip",
+    "es_ES": "Pista al pasar el ratón",
+    "fr_FR": "Infobulle au survol"
+  },
+  "(sem WindowID)": {
+    "en_US": "(no WindowID)",
+    "es_ES": "(sin WindowID)",
+    "fr_FR": "(sans WindowID)"
+  },
+  "Avulso — {path}": {
+    "en_US": "Standalone — {path}",
+    "es_ES": "Suelto — {path}",
+    "fr_FR": "Isolé — {path}"
+  },
+  "Arquivo avulso, de fora do projeto: {path}": {
+    "en_US": "Standalone file, outside the project: {path}",
+    "es_ES": "Archivo suelto, fuera del proyecto: {path}",
+    "fr_FR": "Fichier isolé, hors du projet : {path}"
+  },
+  "Avulso": {
+    "en_US": "Standalone",
+    "es_ES": "Suelto",
+    "fr_FR": "Isolé"
   }
 }

@@ -151,6 +151,7 @@ class MaintenanceApi:
             "name": project.name,
             "days": cleanup.OLD_DAYS,
             "total": home.human_size(ui_size + history_size + versions_size),
+            "total_bytes": ui_size + history_size + versions_size,
             "ui": home.human_size(ui_size),
             "history": home.human_size(history_size),
             "versions": home.human_size(versions_size),

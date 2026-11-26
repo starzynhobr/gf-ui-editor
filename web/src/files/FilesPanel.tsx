@@ -265,6 +265,7 @@ export default function FilesPanel() {
           onChange={(event) => setFilter(event.target.value)}
         />
       </div>
+      {mode === 'xml' && <StandaloneFiles filter={needle} />}
       {data && !data.in_project && data.directory && (
         <div className="mx-3 mb-2 rounded-md border border-border bg-card px-2.5 py-2 text-[12px] leading-snug text-muted">
           {t(
@@ -272,7 +273,6 @@ export default function FilesPanel() {
           )}
         </div>
       )}
-      {mode === 'xml' && <StandaloneFiles filter={needle} />}
       {data && !data.in_project && !data.directory && !shell?.standalone_paths?.length && (
         <EmptyState
           icon="folder-plus"

@@ -28,14 +28,17 @@ class UiStateApi:
     def ui_state(self) -> dict:
         prefs = getattr(self, "_prefs", None)
         if prefs is None:
-            return {"layout": {}, "theme": "dark", "font": "system"}
+            return {"layout": {}, "theme": "dark", "font": "system", "flags": {}}
         layout = prefs.get("web_layout")
+        flags = prefs.get("web_flags")
         theme = prefs.get("web_theme")
         font = prefs.get("web_font")
         return {
             "layout": layout if isinstance(layout, dict) else {},
             "theme": theme if theme in THEMES else "dark",
             "font": font if font in FONTS else "system",
+            # Liga/desliga e "já vi" da interface nova (dica do canvas, destaque do avulso…).
+            "flags": {str(k): v for k, v in flags.items() if isinstance(v, bool)} if isinstance(flags, dict) else {},
         }
 
     def ui_set_layout(self, layout: dict) -> None:
@@ -43,6 +46,15 @@ class UiStateApi:
         if prefs is not None and isinstance(layout, dict):
             clean = {str(key): value for key, value in layout.items() if isinstance(value, (int, float, str, bool))}
             prefs.set("web_layout", clean)
+
+    def ui_set_flag(self, name: str, value: bool) -> None:
+        prefs = getattr(self, "_prefs", None)
+        if prefs is None or not isinstance(name, str) or not name or not isinstance(value, bool):
+            return
+        flags = prefs.get("web_flags")
+        flags = dict(flags) if isinstance(flags, dict) else {}
+        flags[name] = value
+        prefs.set("web_flags", flags)
 
     def ui_set_theme(self, theme: str) -> None:
         prefs = getattr(self, "_prefs", None)

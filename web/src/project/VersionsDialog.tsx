@@ -70,7 +70,18 @@ function Versions({ root, name, onClose }: { root: string; name: string; onClose
                 onClick={() => setSelected(version.path)}
                 onDoubleClick={async () => (await restoreProjectVersion(root, name, version.path)) && void fill()}
               >
-                <span className="truncate">{version.title}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{version.title}</span>
+                  {!!version.resolutions && (
+                    <span
+                      className="shrink-0 rounded-full bg-accent-soft px-2 py-px text-[11px] text-accent-text"
+                      title={t('Guarda {count} item(ns) de resolução (resolutions.json e arquivos só de uma resolução).', { count: version.resolutions })}
+                      data-testid="version-resolutions"
+                    >
+                      {t('inclui ajustes de resolução')}
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono text-[12px] text-muted">{version.files}</span>
                 <span className="font-mono text-[12px] text-muted">{version.size}</span>
               </div>

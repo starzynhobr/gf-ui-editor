@@ -44,13 +44,13 @@ def test_whats_new_close_and_dismiss_across_sessions_and_versions(monkeypatch):
 def test_layout_and_theme_are_saved_in_preferences() -> None:
     api = UiStateApi()
     api._prefs = Preferences(MemoryStore())
-    assert api.ui_state() == {"layout": {}, "theme": "dark", "font": "system"}
+    assert api.ui_state() == {"layout": {}, "theme": "dark", "font": "system", "flags": {}}
     api.ui_set_layout({"left": 420, "bad": [1], "right": 300})
     api.ui_set_theme("light")
     api.ui_set_theme("neon")  # tema desconhecido: ignorado
     api.ui_set_font("geist")
     api.ui_set_font("comic-sans")  # fonte desconhecida: ignorada
-    assert api.ui_state() == {"layout": {"left": 420, "right": 300}, "theme": "light", "font": "geist"}
+    assert api.ui_state() == {"layout": {"left": 420, "right": 300}, "theme": "light", "font": "geist", "flags": {}}
     assert api._prefs.get("web_font") == "geist"
 
 
@@ -97,3 +97,16 @@ def test_open_texture_file_opens_existing_dds_only(tmp_path: Path, monkeypatch) 
 
     monkeypatch.setattr(desktop, "open_path", fail)
     assert api.open_texture_file(str(xml), "main.dds") == "failed"
+
+
+def test_flags_keep_only_booleans_and_survive_sessions() -> None:
+    store = MemoryStore()
+    api = UiStateApi()
+    api._prefs = Preferences(store)
+    api.ui_set_flag("canvas_hover_tip", False)
+    api.ui_set_flag("standalone_coach_seen", True)
+    api.ui_set_flag("bad", "yes")  # type: ignore[arg-type]
+    api.ui_set_flag("", True)
+    again = UiStateApi()
+    again._prefs = Preferences(store)
+    assert again.ui_state()["flags"] == {"canvas_hover_tip": False, "standalone_coach_seen": True}

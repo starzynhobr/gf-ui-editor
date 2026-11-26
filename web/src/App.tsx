@@ -34,8 +34,12 @@ import { openExternalXml, openProject } from './actions'
 import { call, on } from './bridge'
 import { MenuHost } from './ui/Menu'
 import SourcePanel from './source/SourcePanel'
+import './doc/standalone.css'
 import StandaloneBar from './doc/StandaloneBar'
-import ExternalChangeBar from './doc/ExternalChangeBar'
+import DropOverlay from './doc/DropOverlay'
+import ExternalChangeBand from './doc/ExternalChangeBand'
+import CanvasHoverTip, { CanvasHoverToggle } from './shell/CanvasHoverTip'
+import { setCanvasHover } from './shell/canvasHover'
 import CommandPalette from './palette/CommandPalette'
 
 export default function App() {
@@ -134,8 +138,8 @@ export default function App() {
         )}
         <main className="flex min-w-0 flex-1 flex-col bg-window" data-testid="center">
           {view === 'workspace' && !notesHold && <Banners />}
+          {view === 'workspace' && <ExternalChangeBand />}
           {view === 'workspace' && <StandaloneBar />}
-          {view === 'workspace' && <ExternalChangeBar />}
           <div className="relative min-h-0 flex-1">
           {view === 'home' ? (
             <HomeScreen />
@@ -147,6 +151,8 @@ export default function App() {
               language={shell.language}
               // Antes do store do canvas, o clique no canvas seleciona pelo modo só leitura.
               onSelect={storeReady ? undefined : (element) => selectElements(element ? [element.index] : [])}
+              onHover={setCanvasHover}
+              toolbarExtra={<CanvasHoverToggle />}
             />
           )}
           {view === 'workspace' && <SourcePanel />}
@@ -167,6 +173,8 @@ export default function App() {
       <CommandPalette />
       <SettingsHost />
       <DialogHost />
+      {view === 'workspace' && <CanvasHoverTip />}
+      <DropOverlay />
       <ProgressOverlay />
       <TooltipHost />
       <Toaster theme={isLightTheme(theme) ? 'light' : 'dark'} position="bottom-right" offset={40} toastOptions={{ className: "gf-toast" }} />

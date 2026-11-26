@@ -3,6 +3,7 @@ import { useT } from '../i18n'
 import { openOfficialReference } from '../project/flows'
 import { useOfficial } from '../project/official'
 import { useShell } from '../store'
+import { isStandalone, shortPath } from '../doc/standalone'
 
 export default function StatusBar() {
   const t = useT()
@@ -14,6 +15,11 @@ export default function StatusBar() {
   return (
     <footer className="flex h-7 shrink-0 items-center gap-1 border-t border-border bg-chrome px-2" data-testid="statusbar">
       {shell?.project && <span className="chip">{t('{name} → UICustom', { name: shell.project.custom_name })}</span>}
+      {isStandalone(shell) && (
+        <span className="chip chip-standalone" title={shell?.open_path ?? ''} data-testid="standalone-status">
+          {t('Avulso — {path}', { path: shortPath(shell!.open_path!) })}
+        </span>
+      )}
       {pending > 0 && (
         <span className="chip chip-warning">{t('{count} arquivo(s) ainda não publicados no jogo · F5', { count: pending })}</span>
       )}

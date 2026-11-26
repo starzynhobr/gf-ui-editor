@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { t, useT } from '../i18n'
 import { confirm, Modal, openDialog } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
+import { AnimatedSize, withNodes } from '../ui/AnimatedSize'
 import { humanSize, type CleanupScan } from './toolsApi'
 
 export interface CleanupChoice {
@@ -11,6 +12,12 @@ export interface CleanupChoice {
   icons: boolean
   maps: boolean
   custom: boolean
+}
+
+/** Quanto o projeto ocupa depois de limpar (a cópia no jogo não conta no total do projeto). */
+export function sizeAfter(plan: CleanupScan, choice: CleanupChoice): number | null {
+  if (typeof plan.total_bytes !== 'number') return null
+  return Math.max(0, plan.total_bytes - chosenSize(plan, { ...choice, custom: false }))
 }
 
 export function chosenSize(plan: CleanupScan, choice: CleanupChoice): number {
@@ -25,6 +32,7 @@ function Cleanup({ plan, onDone }: { plan: CleanupScan; onDone: (choice: Cleanup
   useT()
   const [choice, setChoice] = useState<CleanupChoice>({ history: null, icons: false, maps: false, custom: false })
   const size = chosenSize(plan, choice)
+  const after = sizeAfter(plan, choice)
   const anything = Boolean(choice.history || choice.icons || choice.maps || choice.custom)
   const nothing = !(plan.history_all.count || plan.icons.count || plan.maps.count || plan.custom.count)
   const set = (patch: Partial<CleanupChoice>) => setChoice((current) => ({ ...current, ...patch }))
@@ -51,7 +59,7 @@ function Cleanup({ plan, onDone }: { plan: CleanupScan; onDone: (choice: Cleanup
         <>
           <button className="btn btn-danger" disabled={!anything} onClick={() => void clean()} data-testid="cleanup-confirm">
             <Icon name="trash" size={15} />
-            {t('Limpar ({size})', { size: humanSize(size) })}
+            <span>{withNodes(t('Limpar ({size})'), { size: <AnimatedSize value={size} testId="cleanup-size" /> })}</span>
           </button>
           <button className="btn" onClick={() => onDone(null)}>
             {t('Fechar')}
@@ -61,13 +69,20 @@ function Cleanup({ plan, onDone }: { plan: CleanupScan; onDone: (choice: Cleanup
     >
       <div className="space-y-3 text-[12.5px]" data-testid="cleanup-dialog">
         <p className="text-text">
-          {t('O projeto ocupa {total}: arquivos da UI {ui} · histórico {history} · versões {versions}.', {
-            total: plan.total,
-            ui: plan.ui,
-            history: plan.history,
-            versions: plan.versions,
-          })}
+          {withNodes(
+            t('O projeto ocupa {total}: arquivos da UI {ui} · histórico {history} · versões {versions}.', {
+              ui: plan.ui,
+              history: plan.history,
+              versions: plan.versions,
+            }),
+            { total: <AnimatedSize value={plan.total} countUp className="font-semibold text-bright" testId="cleanup-total" /> },
+          )}
         </p>
+        {after !== null && (
+          <p className={`text-[12px] transition-opacity duration-200 ${anything ? 'text-accent-text' : 'opacity-0'}`} aria-hidden={!anything} data-testid="cleanup-after">
+            {withNodes(t('Depois de limpar: {size}'), { size: <AnimatedSize value={after} className="font-semibold" testId="cleanup-after-size" /> })}
+          </p>
+        )}
         <p className="text-muted">{t('Os XMLs e as texturas que o editor desenha ficam. O que é apagado aqui não dá para desfazer.')}</p>
         <div className="space-y-1.5 pt-1">
           <div className="text-text">{t('Histórico (cópias de antes de cada salvamento)')}</div>
