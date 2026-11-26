@@ -282,7 +282,7 @@ class Project:
     def load_document(self, path: Path):
         from .xml_document import UIDocument
 
-        return UIDocument.load(path, source=self.read_path(path))
+        return UIDocument.load(path, source=self.read_path(path), xml_encoding=True)
 
     def base_files_in(self, folder: Path) -> Iterable[Path]:
         """Visible base names in a single logical folder."""

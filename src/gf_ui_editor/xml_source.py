@@ -31,7 +31,8 @@ def replace_source(document: UIDocument, text: str) -> UIDocument:
     except UnicodeEncodeError as exc:
         codepoint = ord(text[exc.start])
         raise SourceError(
-            f"Caractere U+{codepoint:04X} não pode ser gravado em Big5.", *_location(text, exc.start),
+            f"Caractere U+{codepoint:04X} não pode ser gravado em {'Big5' if document.encoding == 'big5' else document.encoding.upper()}.",
+            *_location(text, exc.start),
         ) from exc
     try:
         return document.with_text(text)

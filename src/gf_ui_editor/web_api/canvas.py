@@ -36,6 +36,9 @@ class CanvasApi:
         project = getattr(self, "_project", None)
         if project is not None and project.contains(path):
             return self._canvas_assets.base(path.parent, watch=True, project=project)
+        standalone = self._standalone_textures(path)
+        if standalone is not None:
+            return self._canvas_assets.base(path.parent, watch=True, standalone=standalone)
         return self._canvas_assets.base(path.parent, watch=True)
 
     def canvas_background_base(self) -> str:
@@ -168,6 +171,11 @@ class CanvasApi:
         size = tuple(resolution) if resolution is not None else None
         project = getattr(self, "_project", None)
         target = Path(path)
+        if (project is not None and project.contains(target)) or self._standalone_textures(target) is not None:
+            from ..xml_document import UIDocument
+
+            document = UIDocument.load(target, source=project.read_path(target) if project is not None else None, xml_encoding=True)
+            return describe_scene(document, PreviewContext.load(target, size, saved_positions=saved_positions))
         return describe_document(
             target, size, saved_positions=saved_positions,
             source=project.read_path(target) if project is not None else None,

@@ -10,6 +10,7 @@ from threading import RLock
 from . import atlas, game_layout, window_geometry
 from .canvas_document import PreviewContext, describe_scene, project_ui_root
 from .project import Project
+from . import standalone_document
 from .xml_document import DocumentError, UIDocument, UVRect
 from .xml_source import SourceError, replace_source, source_view
 
@@ -165,6 +166,7 @@ class DocumentSession:
         self._resolution: tuple[int, int] | None = None
         self._saved_positions = True
         self._project: Project | None = None
+        self._standalone = False
         self._source_past: list[UIDocument] = []
         self._source_future: list[UIDocument] = []
 
@@ -179,20 +181,22 @@ class DocumentSession:
 
     def open(
         self, path: str | Path | None, resolution: tuple[int, int] | None = None, *,
-        saved_positions: bool = True, project: Project | None = None,
+        saved_positions: bool = True, project: Project | None = None, standalone: bool = False,
     ) -> dict | None:
         with self._lock:
             if path is None:
                 self._document = self._context = self._resolution = None
                 self._project = None
+                self._standalone = False
                 self._reset_source_history()
                 return None
-            document = project.load_document(Path(path)) if project is not None else UIDocument.load(Path(path))
+            document = project.load_document(Path(path)) if project is not None else UIDocument.load(Path(path), xml_encoding=standalone)
             context = PreviewContext.load(document.path, resolution, saved_positions=saved_positions)
             scene = describe_scene(document, context)
             self._document, self._context, self._resolution = document, context, resolution
             self._saved_positions = saved_positions
             self._project = project
+            self._standalone = standalone
             self._reset_source_history()
             return scene
 
@@ -264,6 +268,24 @@ class DocumentSession:
             document, _ = self._require()
             return document.unified_diff()
 
+    def _require_standalone(self, path: Path) -> UIDocument:
+        document, _ = self._require()
+        if not self._standalone or path != document.path:
+            raise ValueError("O arquivo avulso ativo mudou.")
+        return document
+
+    def compare_standalone(self, path: Path, project: Project | None, game: Path | None, source: str) -> str | None:
+        with self._lock:
+            document = self._require_standalone(path)
+            return standalone_document.compare(document, standalone_document.StandaloneTextures(path.parent, project, game), source)
+
+    def import_standalone(self, path: Path, project: Project, game: Path | None, **options) -> dict:
+        with self._lock:
+            result = standalone_document.import_document(self._require_standalone(path), project, game, **options)
+            if not result["conflict"]:
+                result["doc"] = self.open(result["path"], self._resolution, saved_positions=self._saved_positions, project=project)
+            return result
+
     def plan_atlas(self, path: str, index: int, before: dict, after: dict, resize: bool) -> list[dict]:
         with self._lock:
             document, _ = self._require()
@@ -292,14 +314,15 @@ class DocumentSession:
     def save(self, project: Project | None) -> dict:
         with self._lock:
             document, context = self._require()
-            save_document(document, project)
+            save_document(document, None if self._standalone else project)
             self._reset_source_history()
             return describe_scene(document, context)
 
     def revert(self) -> dict:
         with self._lock:
             document, _ = self._require()
-            scene = self.open(document.path, self._resolution, saved_positions=self._saved_positions, project=self._project)
+            scene = self.open(document.path, self._resolution, saved_positions=self._saved_positions,
+                              project=self._project, standalone=self._standalone)
             assert scene is not None
             return scene
 

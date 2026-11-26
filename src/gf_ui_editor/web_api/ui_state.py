@@ -72,6 +72,21 @@ class TextureFileApi:
         from .. import desktop, textures
 
         xml = Path(xml_path)
+        resolver = getattr(self, "_standalone_textures", None)
+        standalone = resolver(xml) if resolver is not None else None
+        if standalone is not None:
+            path = standalone.resolve(texture)
+            if path is None:
+                return "missing"
+            try:
+                relative = Path(texture.replace("\\", "/"))
+                if standalone.local_texture(relative) is None:
+                    # Open an editable local copy, including when the fallback is an immutable CRC blob.
+                    path = standalone.copy_texture(path, relative)
+                desktop.open_path(path.resolve())
+            except (OSError, ValueError):
+                return "failed"
+            return "ok"
         project = getattr(self, "_project", None)
         if project is not None and not project.contains(xml):
             project = None
