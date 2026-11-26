@@ -8,6 +8,7 @@ import { useT } from '../i18n'
 import { useShell } from '../store'
 import { selectElements, setHidden, setIsolated, setLocked, useDocState } from '../shell/doc'
 import { Icon } from '../ui/Icon'
+import { EmptyState } from '../ui/EmptyState'
 import { openMenu } from '../ui/Menu'
 import { kindLabel } from './kinds'
 import { editGameText } from '../shell/gameText'
@@ -210,7 +211,7 @@ export default function ElementTree() {
         />
       </div>
       {!doc ? (
-        <div className="px-3 py-2 text-muted">{t('Selecione um item no canvas ou na lista para editar sua geometria.')}</div>
+        <EmptyState icon="layers" title={t('Nenhum XML aberto')} text={t('Abra um na lista de Arquivos XML (Ctrl+1).')} testId="tree-empty" />
       ) : (
         <>
           <div

@@ -78,6 +78,16 @@ const page = () =>
   )
 
 describe('tela de Textos', () => {
+  it('sem pasta do jogo mostra o estado vazio em vez da lista', async () => {
+    fake.search.mockResolvedValue({ ...rows, rows: [], summary: 'no_game', values: {}, updates: 0 })
+    useShell.setState({ shell: { project: { root: 'C:\\p', name: 'P', custom_name: 'P', ui_dir: 'C:\\p\\ui', game_dir: null, publish_dir: null } } as never })
+    page()
+    const empty = await screen.findByTestId('texts-empty')
+    expect(empty.textContent).toContain('Defina a pasta do jogo no projeto para ver os textos.')
+    expect(screen.queryByTestId('texts-summary')).toBeNull()
+    expect(screen.queryByText('Arquivo')).toBeNull()
+  })
+
   it('mostra os marcadores, os tooltips e o resumo como a clássica', async () => {
     page()
     await waitFor(() => expect(screen.getAllByTestId('text-row')).toHaveLength(4))

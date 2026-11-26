@@ -8,6 +8,7 @@ import { t, useT } from '../i18n'
 import { useShell } from '../store'
 import { ask, message } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
+import { EmptyState } from '../ui/EmptyState'
 import { editTextRecord, textsChanged } from './editRecord'
 import { oneLine, textsApi, type TextResults, type TextRow } from './textsApi'
 
@@ -175,44 +176,57 @@ export default function TextsPage() {
           {t('Importar textos…')}
         </button>
       </div>
-      <div className="px-3 pb-2 text-[12px] leading-snug text-muted" data-testid="texts-summary">
-        {summaryText(results)}
-      </div>
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_96px_52px] gap-2 border-y border-border px-3 py-1.5 section-label">
-        <span>{t('Texto')}</span>
-        <span>{t('Arquivo')}</span>
-        <span>ID</span>
-      </div>
-      <div ref={parent} className="min-h-0 flex-1 overflow-y-auto">
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualizer.getVirtualItems().map((item) => {
-            const row = rows[item.index]
-            const [mark, color] = MARK[row.state] ?? ['', 'text-text']
-            const key = `${row.name}/${row.id}`
-            return (
-              <div
-                key={key}
-                data-testid="text-row"
-                data-id={row.id}
-                data-state={row.state}
-                title={rowTooltip(row)}
-                className={`absolute inset-x-0 grid grid-cols-[minmax(0,1fr)_96px_52px] items-center gap-2 px-3 ${
-                  selected === key ? 'bg-selected' : 'hover:bg-hover'
-                }`}
-                style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
-                onClick={(event) => void open(row, { x: event.clientX, y: event.clientY })}
-              >
-                <span className={`truncate text-[12.5px] ${color}`}>
-                  {mark && `${mark} `}
-                  {oneLine(row.fields.join(' | '))}
-                </span>
-                <span className="truncate font-mono text-[11.5px] text-muted">{row.name}</span>
-                <span className="truncate font-mono text-[11.5px] text-muted">{row.id}</span>
-              </div>
-            )
-          })}
+      {available && (
+        <div className="px-3 pb-2 text-[12px] leading-snug text-muted" data-testid="texts-summary">
+          {summaryText(results)}
         </div>
-      </div>
+      )}
+      {!available ? (
+        <EmptyState
+          icon="type"
+          title={project ? t('Pasta do jogo') : t('Sem projeto')}
+          text={project ? t('Defina a pasta do jogo no projeto para ver os textos.') : t('Abra um projeto com a pasta do jogo para editar os textos.')}
+          testId="texts-empty"
+        />
+      ) : (
+        <>
+          <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_96px_52px] gap-2 border-y border-border px-3 py-1.5 section-label">
+            <span>{t('Texto')}</span>
+            <span>{t('Arquivo')}</span>
+            <span>ID</span>
+          </div>
+          <div ref={parent} className="min-h-0 flex-1 overflow-y-auto">
+            <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+              {virtualizer.getVirtualItems().map((item) => {
+                const row = rows[item.index]
+                const [mark, color] = MARK[row.state] ?? ['', 'text-text']
+                const key = `${row.name}/${row.id}`
+                return (
+                  <div
+                    key={key}
+                    data-testid="text-row"
+                    data-id={row.id}
+                    data-state={row.state}
+                    title={rowTooltip(row)}
+                    className={`absolute inset-x-0 grid grid-cols-[minmax(0,1fr)_96px_52px] items-center gap-2 px-3 ${
+                      selected === key ? 'bg-selected' : 'hover:bg-hover'
+                    }`}
+                    style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
+                    onClick={(event) => void open(row, { x: event.clientX, y: event.clientY })}
+                  >
+                    <span className={`truncate text-[12.5px] ${color}`}>
+                      {mark && `${mark} `}
+                      {oneLine(row.fields.join(' | '))}
+                    </span>
+                    <span className="truncate font-mono text-[11.5px] text-muted">{row.name}</span>
+                    <span className="truncate font-mono text-[11.5px] text-muted">{row.id}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

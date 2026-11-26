@@ -403,5 +403,15 @@
     "en_US": "Loading…",
     "es_ES": "Cargando…",
     "fr_FR": "Chargement…"
+  },
+  "Nenhum XML aberto": {
+    "en_US": "No XML open",
+    "es_ES": "Ningún XML abierto",
+    "fr_FR": "Aucun XML ouvert"
+  },
+  "Abra um na lista de Arquivos XML (Ctrl+1).": {
+    "en_US": "Open one from the XML Files list (Ctrl+1).",
+    "es_ES": "Abre uno en la lista de Archivos XML (Ctrl+1).",
+    "fr_FR": "Ouvrez-en un dans la liste Fichiers XML (Ctrl+1)."
   }
 }
