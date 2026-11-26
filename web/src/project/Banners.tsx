@@ -8,6 +8,7 @@ import { dismissOfficialBanner, openOfficialCompare, openOfficialReference, show
 import { officialKey, useOfficial } from './official'
 import { acknowledgeTextUpdates, useTextUpdates } from './textUpdates'
 import { publishToGame } from '../actions'
+import { useListAnimation } from '../ui/animate'
 
 function Banner({ children, action, onAction, onDismiss, testId }: { children: ReactNode; action: string; onAction: () => void; onDismiss: () => void; testId: string }) {
   const t = useT()
@@ -26,6 +27,7 @@ function Banner({ children, action, onAction, onDismiss, testId }: { children: R
 }
 
 export default function Banners() {
+  const animate = useListAnimation()
   const t = useT()
   const shell = useShell((state) => state.shell)
   const { status, diffs, dismissed, referenceDismissed, gameBackups } = useOfficial()
@@ -50,7 +52,7 @@ export default function Banners() {
       : '',
   ].filter(Boolean)
   return (
-    <>
+    <div ref={animate}>
       {showTexts && (
         <Banner
           testId="text-updates-banner"
@@ -86,6 +88,6 @@ export default function Banners() {
           })}
         </Banner>
       )}
-    </>
+    </div>
   )
 }

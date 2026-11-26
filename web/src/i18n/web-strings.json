@@ -268,5 +268,140 @@
     "en_US": "Colors used by the game",
     "es_ES": "Colores usados por el juego",
     "fr_FR": "Couleurs utilisées par le jeu"
+  },
+  "Paleta de comandos": {
+    "en_US": "Command palette",
+    "es_ES": "Paleta de comandos",
+    "fr_FR": "Palette de commandes"
+  },
+  "Digite um comando, o nome de um XML ou um WindowID…": {
+    "en_US": "Type a command, an XML name or a WindowID…",
+    "es_ES": "Escribe un comando, el nombre de un XML o un WindowID…",
+    "fr_FR": "Tapez une commande, le nom d’un XML ou un WindowID…"
+  },
+  "Nenhum resultado.": {
+    "en_US": "No results.",
+    "es_ES": "Sin resultados.",
+    "fr_FR": "Aucun résultat."
+  },
+  "Comandos": {
+    "en_US": "Commands",
+    "es_ES": "Comandos",
+    "fr_FR": "Commandes"
+  },
+  "Ver código XML": {
+    "en_US": "View XML code",
+    "es_ES": "Ver código XML",
+    "fr_FR": "Voir le code XML"
+  },
+  "Abrir atlas do elemento": {
+    "en_US": "Open the element's atlas",
+    "es_ES": "Abrir el atlas del elemento",
+    "fr_FR": "Ouvrir l’atlas de l’élément"
+  },
+  "atual": {
+    "en_US": "current",
+    "es_ES": "actual",
+    "fr_FR": "actuel"
+  },
+  "navegar": {
+    "en_US": "navigate",
+    "es_ES": "navegar",
+    "fr_FR": "naviguer"
+  },
+  "executar": {
+    "en_US": "run",
+    "es_ES": "ejecutar",
+    "fr_FR": "exécuter"
+  },
+  "Procurar": {
+    "en_US": "Find",
+    "es_ES": "Buscar",
+    "fr_FR": "Rechercher"
+  },
+  "próximo": {
+    "en_US": "next",
+    "es_ES": "siguiente",
+    "fr_FR": "suivant"
+  },
+  "anterior": {
+    "en_US": "previous",
+    "es_ES": "anterior",
+    "fr_FR": "précédent"
+  },
+  "todos": {
+    "en_US": "all",
+    "es_ES": "todos",
+    "fr_FR": "tous"
+  },
+  "diferenciar maiúsculas": {
+    "en_US": "match case",
+    "es_ES": "distinguir mayúsculas",
+    "fr_FR": "respecter la casse"
+  },
+  "expressão regular": {
+    "en_US": "regexp",
+    "es_ES": "expresión regular",
+    "fr_FR": "expression régulière"
+  },
+  "palavra inteira": {
+    "en_US": "by word",
+    "es_ES": "palabra completa",
+    "fr_FR": "mot entier"
+  },
+  "Ir para a linha": {
+    "en_US": "Go to line",
+    "es_ES": "Ir a la línea",
+    "fr_FR": "Aller à la ligne"
+  },
+  "ir": {
+    "en_US": "go",
+    "es_ES": "ir",
+    "fr_FR": "aller"
+  },
+  "Linhas recolhidas": {
+    "en_US": "Folded lines",
+    "es_ES": "Líneas plegadas",
+    "fr_FR": "Lignes repliées"
+  },
+  "Linhas expandidas": {
+    "en_US": "Unfolded lines",
+    "es_ES": "Líneas desplegadas",
+    "fr_FR": "Lignes dépliées"
+  },
+  "Recolher bloco": {
+    "en_US": "Fold block",
+    "es_ES": "Plegar bloque",
+    "fr_FR": "Replier le bloc"
+  },
+  "Expandir bloco": {
+    "en_US": "Unfold block",
+    "es_ES": "Desplegar bloque",
+    "fr_FR": "Déplier le bloc"
+  },
+  "Código XML": {
+    "en_US": "XML code",
+    "es_ES": "Código XML",
+    "fr_FR": "Code XML"
+  },
+  "só leitura": {
+    "en_US": "read-only",
+    "es_ES": "solo lectura",
+    "fr_FR": "lecture seule"
+  },
+  "com alterações não salvas": {
+    "en_US": "with unsaved changes",
+    "es_ES": "con cambios sin guardar",
+    "fr_FR": "avec des modifications non enregistrées"
+  },
+  "Buscar": {
+    "en_US": "Search",
+    "es_ES": "Buscar",
+    "fr_FR": "Rechercher"
+  },
+  "Carregando…": {
+    "en_US": "Loading…",
+    "es_ES": "Cargando…",
+    "fr_FR": "Chargement…"
   }
 }

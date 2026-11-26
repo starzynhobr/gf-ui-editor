@@ -6,6 +6,7 @@ import { t, useT } from '../i18n'
 import { Modal, openDialog } from '../ui/dialogs'
 import { refreshOfficialStatus } from './official'
 import { toolsApi, type OfficialControls, type OfficialStatus } from './toolsApi'
+import { useListAnimation } from '../ui/animate'
 
 const LAUNCHER_NAME = 'UI Padrão'
 
@@ -106,6 +107,7 @@ function Controls({
   onDone: (ids: string[] | null) => void
 }) {
   useT()
+  const animate = useListAnimation()
   const newIds = useMemo(() => controls.new_ids ?? [], [controls])
   const otherIds = useMemo(() => controls.other_ids ?? [], [controls])
   const [checked, setChecked] = useState<Set<string>>(() => new Set(focusId != null ? [focusId] : newIds))
@@ -148,7 +150,7 @@ function Controls({
           <span>{t('TEXTURA DO OFICIAL')}</span>
           <span>{t('POSIÇÃO')}</span>
         </div>
-        <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
+        <div ref={animate} className="max-h-[320px] space-y-1.5 overflow-y-auto">
           {sections.map(([heading, ids]) => {
             const shown = ids.filter((id) => !search.trim() || id.startsWith(search.trim()))
             if (!shown.length) return null

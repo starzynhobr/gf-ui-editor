@@ -1,9 +1,9 @@
 // Barrinha da esquerda: Arquivos XML, Texturas, Elementos, Textos (Ctrl+1..4) e, embaixo,
-// a engrenagem: Configurações…, atalhos de idioma e tema, atualizações e novidades.
-import { THEMES, setTheme, useUi } from './uiState'
-import { api } from '../api'
-import { LANGUAGES, setLanguage, useT } from '../i18n'
-import { setShell, useShell, type SidePage } from '../store'
+// a engrenagem enxuta: Configurações… (idioma, tema e interface ficam lá), Novidades,
+// Verificar atualizações e Sobre. Idioma e tema também saem pela paleta (Ctrl+K).
+import { useT } from '../i18n'
+import { useShell, type SidePage } from '../store'
+import { openAbout } from './StzPill'
 import { showPage } from '../actions'
 import { openSettings } from '../settings/SettingsScreen'
 import { checkForUpdates } from '../settings/updates'
@@ -15,7 +15,6 @@ export default function SideRail() {
   const t = useT()
   const page = useShell((state) => state.page)
   const view = useShell((state) => state.view)
-  const shell = useShell((state) => state.shell)
   const workspace = view === 'workspace'
   const buttons: [SidePage, string, string][] = [
     ['xml', 'file', t('Arquivos XML')],
@@ -32,31 +31,10 @@ export default function SideRail() {
       items: [
         { label: t('Configurações…'), icon: 'settings', onClick: () => openSettings() },
         { separator: true },
-        {
-          label: t('Idioma'),
-          icon: 'language',
-          submenu: LANGUAGES.map(([code, label]) => ({
-            label,
-            checked: shell?.language === code,
-            onClick: async () => {
-              const state = await api.setLanguage(code)
-              setLanguage(code)
-              setShell(state)
-            },
-          })),
-        },
-        {
-          label: t('Tema'),
-          icon: 'sparkles',
-          submenu: THEMES.map((theme) => ({
-            label: { dark: t('Escuro'), midnight: t('Meia-noite'), light: t('Claro') }[theme],
-            checked: useUi.getState().theme === theme,
-            onClick: () => setTheme(theme),
-          })),
-        },
-        { separator: true },
-        { label: t('Verificar atualizações…'), icon: 'sparkles', onClick: () => void checkForUpdates(true) },
         { label: t('Novidades desta versão'), icon: 'info', onClick: openWhatsNew },
+        { label: t('Verificar atualizações…'), icon: 'sparkles', onClick: () => void checkForUpdates(true) },
+        { separator: true },
+        { label: t('Sobre o {name}…', { name: 'STZ GF UI' }), icon: 'info', onClick: openAbout },
       ],
     })
   }

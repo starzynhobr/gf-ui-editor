@@ -195,14 +195,12 @@ def shot(name: str) -> None:
 # ---- roteiro ----------------------------------------------------------------------------
 
 def _theme(label: str) -> None:
-    js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
-    wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
-    js("__smoke.clickText('Tema', '[role=menu]')")
-    wait("__smoke.all('[role=menu]').length > 1", 5, "submenu tema")
-    js(
-        "(() => { const menus = __smoke.all('[role=menu]'); const items = menus[menus.length - 1].querySelectorAll('[role=menuitem]');"
-        f" const item = Array.from(items).find((b) => b.innerText.includes('{label}')); if (item) item.click(); return !!item }})()"
-    )
+    # Engrenagem enxuta: o tema fica em Configurações → Geral.
+    key = {"Escuro": "dark", "Meia-noite": "midnight", "Claro": "light"}[label]
+    _open_settings()
+    wait("!!__smoke.q('[data-setting=web_theme]')", 5, "seção Geral carregada")
+    js(f"__smoke.click('[data-setting=web_theme] [data-value={key}]')")
+    _close_settings()
 
 
 def polish() -> None:
@@ -418,15 +416,19 @@ def scenario() -> None:
     updates_flow()
     manifest_flow()
 
-    # 11. Idioma: inglês pelas configurações.
+    # 11. Idioma: inglês pela tela de Configurações (a engrenagem só tem Configurações,
+    # Novidades, Verificar atualizações e Sobre).
     js("__smoke.click('[data-testid=side-rail] button[aria-label=\"Configurações\"]')")
     wait("!!__smoke.q('[role=menu]')", 5, "menu configurações")
-    js("__smoke.clickText('Idioma', '[role=menu]')")
-    wait("__smoke.all('[role=menu]').length > 1", 5, "submenu idioma")
-    js(
-        "(() => { const menus = __smoke.all('[role=menu]'); const items = menus[menus.length - 1].querySelectorAll('[role=menuitem]');"
-        " const item = Array.from(items).find((b) => b.innerText.includes('English')); if (item) item.click(); return !!item })()"
-    )
+    gear = js("__smoke.all('[role=menu] [role=menuitem]').map((b) => b.innerText.trim())") or []
+    check("engrenagem enxuta", len(gear) == 4 and gear[0] == "Configurações…"
+          and not any("Idioma" in item or "Tema" in item for item in gear), items=gear)
+    js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
+    wait("!__smoke.q('[role=menu]')", 3, "fecha engrenagem")
+    _open_settings()
+    js("__smoke.setValue('select[name=language]', 'en_US')")
+    wait("(__smoke.text('[data-testid=topbar]') || '').includes('Send to game')", 5, "inglês")
+    _close_settings()
     check("idioma trocado para inglês", bool(wait("(__smoke.text('[data-testid=topbar]') || '').includes('Send to game')", 5, "inglês")))
     check("idioma salvo nas preferências", app_module.prefs.language == "en_US")
     shot("10-ingles")
@@ -617,13 +619,23 @@ def block2(project_root: Path) -> None:
             try {
                 html.dataset.theme = 'smoke';
                 return getComputedStyle(__smoke.q('.gf-atlas-dialog')).backgroundColor === 'rgb(21, 43, 65)' &&
-                    getComputedStyle(__smoke.q('.gf-atlas-tools button')).cursor === 'pointer';
+                    getComputedStyle(__smoke.q('.gf-atlas-side .btn')).cursor === 'pointer';
             } finally {
                 if (previous === null) html.removeAttribute('data-theme');
                 else html.setAttribute('data-theme', previous);
                 theme.remove();
             }
         })()"""))
+        order = js("""(() => {
+            const side = __smoke.q('[data-testid=atlas-side]');
+            if (!side) return null;
+            const top = (s) => { const e = side.querySelector(s); return e ? e.getBoundingClientRect().top : null };
+            return [top('[data-testid=atlas-size]'), top('[data-testid=atlas-edit]'), top('[data-testid=atlas-uv-card]'),
+                    top('[data-testid=atlas-open-dds]'), top('[data-testid=atlas-cursor]'), top('.gf-atlas-close')] })()""") or []
+        # O cartão do recorte só aparece com NorUV editável; o resto sempre, nesta ordem.
+        present = [value for index, value in enumerate(order) if not (index == 2 and value is None)]
+        check("atlas com o Abrir .dds na lateral, abaixo do recorte",
+              len(present) >= 5 and None not in present and present == sorted(present), order=order)
         js("__smoke.click('.gf-atlas-close')")  # <dialog> nativo: Esc sintético não fecha
         check("atlas fecha pelo ×", bool(wait("!__smoke.q('[data-testid=atlas-surface]')", 5, "fecha atlas")))
     js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")
@@ -688,6 +700,7 @@ def edit_and_save(xml: Path, child) -> None:
     check("Ctrl+Z desfaz", bool(wait("!__smoke.q('[data-testid=dirty-marker]')", 5, "desfeito")))
     js("__smoke.key('y', { ctrlKey: true })")
     check("Ctrl+Y refaz", bool(wait("!!__smoke.q('[data-testid=dirty-marker]')", 5, "refeito")))
+    palette_and_source(xml, child, new_x, before)
     js("__smoke.key('s', { ctrlKey: true })")
     diff = wait("__smoke.text('[data-testid=diff]')", 8, "diff antes de salvar") or ""
     check("Ctrl+S mostra o diff antes de gravar", "WindowLeft" in diff and xml.read_bytes() == before, diff=diff[:300])
@@ -713,6 +726,57 @@ def edit_and_save(xml: Path, child) -> None:
     check("Descartar vai para a tela inicial sem gravar", bool(wait("!!__smoke.q('[data-testid=home]')", 5, "home")) and xml.read_bytes() == saved)
     js("__smoke.clickText('Continuar', '[data-testid=home]')")
     wait("__smoke.text('[data-testid=breadcrumb]')", 8, "volta ao XML")
+
+
+CLICK_OTHER_LINE = r"""(() => {
+    const lines = Array.from(document.querySelectorAll('[data-testid=source-editor] .cm-line'));
+    const line = lines.find((l) => /<BaseWndProperty\b/.test(l.textContent) && !l.classList.contains('gf-source-marked'));
+    if (!line) return null;
+    const box = line.getBoundingClientRect();
+    const opts = { bubbles: true, cancelable: true, clientX: box.left + 24, clientY: box.top + box.height / 2, button: 0, buttons: 1, view: window };
+    line.dispatchEvent(new MouseEvent('mousedown', opts));
+    line.dispatchEvent(new MouseEvent('mouseup', Object.assign({}, opts, { buttons: 0 })));
+    line.dispatchEvent(new MouseEvent('click', Object.assign({}, opts, { buttons: 0 })));
+    return (line.textContent.match(/WindowID="([^"]*)"/) || [])[1] || null })()"""
+
+
+def palette_and_source(xml: Path, child, new_x: int, before: bytes) -> None:
+    """Ctrl+K (paleta) abre "Ver código XML", que mostra o XML com a edição ainda não salva."""
+    js("__smoke.key('k', { ctrlKey: true })")
+    check("Ctrl+K abre a paleta de comandos", bool(wait("!!__smoke.q('[data-testid=command-palette] [data-testid=command-input]')", 5, "paleta")))
+    time.sleep(0.3)
+    shot("13a-paleta")
+    js("__smoke.setValue('[data-testid=command-input]', 'código XML')")
+    wait("((__smoke.q('[cmdk-item][data-selected=true]') || {}).innerText || '').includes('Ver código XML')", 5, "comando filtrado")
+    js("__smoke.q('[data-testid=command-input]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))")
+    check("comando da paleta abre Ver código XML", bool(wait(
+        "!__smoke.q('[data-testid=command-palette]') && !!__smoke.q('[data-testid=source-panel]')", 5, "código pela paleta")))
+    text = wait(
+        "(() => { const c = __smoke.q('[data-testid=source-editor] .cm-content'); return c && c.innerText.includes('WindowLeft') ? c.innerText : null })()",
+        8, "texto do XML",
+    ) or ""
+    check("Ver código mostra o XML com a edição não salva", f'WindowLeft="{new_x}"' in text and xml.read_bytes() == before)
+    marked = wait("(__smoke.q('.gf-source-marked') || {}).innerText", 5, "linha do elemento") or ""
+    check("Ver código leva à linha do elemento selecionado", f'WindowID="{child.window_id}"' in marked, line=marked[:120])
+    check("Ver código com números de linha e dobrar blocos", bool(js(
+        "!!__smoke.q('[data-testid=source-panel] .cm-foldGutter') && !!__smoke.q('[data-testid=source-panel] .cm-lineNumbers')")))
+    js("(() => { const c = __smoke.q('[data-testid=source-editor] .cm-content'); c.focus();"
+       " c.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', code: 'KeyF', keyCode: 70, ctrlKey: true, bubbles: true, cancelable: true })); return true })()")
+    check("Ctrl+F abre a busca do código", bool(wait("!!__smoke.q('[data-testid=source-panel] .cm-search')", 3, "busca")))
+    shot("13b-codigo-xml")
+    picked = js(CLICK_OTHER_LINE)
+    selected = wait(
+        f"(() => {{ const r = __smoke.q('[data-testid=tree-row][aria-selected=true]'); return r && r.dataset.index !== '{child.index}' ? r.innerText : null }})()",
+        5, "seleção pela linha",
+    ) or ""
+    marked_now = js("(__smoke.q('.gf-source-marked') || {}).textContent || null")
+    rows = js("__smoke.all('[data-testid=tree-row][aria-selected=true]').map((r) => r.dataset.index + ':' + r.innerText.slice(0, 20))")
+    check("clicar numa linha com WindowID seleciona o elemento", bool(picked) and picked in selected, picked=picked, row=selected[:60],
+          marked=(marked_now or "")[:80], rows=rows)
+    js(f"__smoke.click('[data-testid=tree-row][data-index=\"{child.index}\"]')")
+    wait(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"]').getAttribute('aria-selected') === 'true'", 3, "volta ao elemento")
+    js("__smoke.key('u', { ctrlKey: true })")
+    check("Ctrl+U fecha o código", bool(wait("!__smoke.q('[data-testid=source-panel]')", 3, "fecha código")))
 
 
 def _pick_text_record():

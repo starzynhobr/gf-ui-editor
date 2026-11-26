@@ -8,9 +8,11 @@ import { Modal, openDialog } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
 import { toolsApi, type VersionInfo } from './toolsApi'
 import { projectFromVersion, restoreProjectVersion, saveProjectVersion } from './flows'
+import { useListAnimation } from '../ui/animate'
 
 function Versions({ root, name, onClose }: { root: string; name: string; onClose: () => void }) {
   useT()
+  const animate = useListAnimation()
   const [list, setList] = useState<VersionInfo[] | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
 
@@ -52,7 +54,7 @@ function Versions({ root, name, onClose }: { root: string; name: string; onClose
             {t('Nenhuma versão ainda. Salve uma antes de testar uma ideia nova.')}
           </div>
         ) : (
-          <div className="max-h-[300px] overflow-y-auto rounded-md border border-border bg-input">
+          <div ref={animate} className="max-h-[300px] overflow-y-auto rounded-md border border-border bg-input">
             <div className="section-label sticky top-0 grid grid-cols-[minmax(0,1fr)_80px_80px] gap-2 bg-input px-3 py-1.5">
               <span>{t('Versão')}</span>
               <span>{t('Arquivos')}</span>

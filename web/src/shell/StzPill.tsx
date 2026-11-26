@@ -25,6 +25,12 @@ interface AboutInfo {
   contributors: Contributor[]
 }
 
+/** Engrenagem → "Sobre o STZ GF UI…": abre o cartão da pílula. */
+export function openAbout(): void {
+  // Depois do clique que fechou o menu (o cartão fecha com mousedown fora dele).
+  window.setTimeout(() => window.dispatchEvent(new CustomEvent('gf:open-about')), 0)
+}
+
 const SHOWN = 3 // contribuições à vista por pessoa; o resto abre no "+N"
 
 export default function StzPill() {
@@ -32,6 +38,12 @@ export default function StzPill() {
   const [open, setOpen] = useState(false)
   const [info, setInfo] = useState<AboutInfo | null>(null)
   const box = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const show = () => setOpen(true)
+    window.addEventListener('gf:open-about', show)
+    return () => window.removeEventListener('gf:open-about', show)
+  }, [])
 
   useEffect(() => {
     if (!open) return

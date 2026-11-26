@@ -1,0 +1,49 @@
+/* Painel "Ver código XML": flutua à direita do centro, sem mudar o layout da casca. */
+.gf-source-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: min(560px, 62%);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-window);
+  border-left: 1px solid var(--color-border-strong);
+  box-shadow: -12px 0 32px color-mix(in srgb, var(--color-chrome) 45%, transparent);
+}
+.gf-source-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+}
+.gf-source-editor { min-height: 0; flex: 1; }
+.gf-source-editor .cm-editor { height: 100%; }
+.gf-source-editor .cm-editor.cm-focused { outline: none; }
+.gf-source-marked { background-color: color-mix(in srgb, var(--color-gold) 16%, transparent); box-shadow: inset 3px 0 0 var(--color-gold); }
+.gf-source-panel .cm-panel.cm-search { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; font-size: 12px; }
+.gf-source-panel .cm-panel.cm-search input.cm-textfield {
+  height: 26px;
+  padding: 0 8px;
+  color: var(--color-text);
+  background: var(--color-input);
+  border: 1px solid var(--color-border-input);
+  border-radius: 5px;
+}
+.gf-source-panel .cm-panel.cm-search input.cm-textfield:focus { outline: none; border-color: var(--color-accent-border); }
+.gf-source-panel .cm-panel.cm-search button {
+  height: 26px;
+  padding: 0 9px;
+  color: var(--color-text);
+  background: var(--color-panel);
+  background-image: none;
+  border: 1px solid var(--color-border-input);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.gf-source-panel .cm-panel.cm-search button:hover { background: var(--color-hover); }
+.gf-source-panel .cm-panel.cm-search label { display: inline-flex; align-items: center; gap: 4px; color: var(--color-muted); }
+.gf-source-panel .cm-panel.cm-search button[name="close"] { border: 0; background: transparent; font-size: 16px; padding: 0 6px; }
