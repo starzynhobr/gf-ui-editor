@@ -83,6 +83,10 @@ KEYS: dict[str, Key] = {
     "game_resolution": Key("str", "game"),  # "game", "off" ou "1920x1080"
     "game_background": Key("str", ""),
     "background_mode": Key("str", "builtin"),  # o app passa "custom" como padrão se há fundo próprio
+    "canvas_saved_positions": Key("bool", True),
+    "canvas_character": Key("bool", True),
+    "canvas_outlines": Key("bool", True),
+    "canvas_ids": Key("bool", False),
     # Confirmações e envio
     "publish_on_save": Key("flag", False),
     "publish_confirmed": Key("flag", False),
@@ -198,6 +202,10 @@ class Preferences:
     game_resolution: _Field[str] = _Field("game_resolution")
     game_background: _Field[str] = _Field("game_background")
     background_mode: _Field[str] = _Field("background_mode")
+    canvas_saved_positions: _Field[bool] = _Field("canvas_saved_positions")
+    canvas_character: _Field[bool] = _Field("canvas_character")
+    canvas_outlines: _Field[bool] = _Field("canvas_outlines")
+    canvas_ids: _Field[bool] = _Field("canvas_ids")
     publish_on_save: _Field[bool] = _Field("publish_on_save")
     publish_confirmed: _Field[bool] = _Field("publish_confirmed")
     offer_project_on_open: _Field[bool] = _Field("offer_project_on_open")

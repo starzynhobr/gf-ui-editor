@@ -6,14 +6,14 @@
   margin: auto;
   padding: 0;
   overflow: hidden;
-  color: var(--color-text, #e5e9ed);
-  background: var(--color-panel, #1b222c);
-  border: 1px solid var(--color-border, #3e4854);
+  color: var(--color-text);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  box-shadow: 0 24px 80px #0008;
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--color-chrome) 55%, transparent);
 }
 
-.gf-atlas-dialog::backdrop { background: #0b111ac4; }
+.gf-atlas-dialog::backdrop { background: color-mix(in srgb, var(--color-chrome) 77%, transparent); }
 .gf-atlas-dialog, .gf-atlas-dialog * { box-sizing: border-box; }
 .gf-atlas-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .gf-atlas-dialog header {
@@ -21,26 +21,26 @@
   align-items: baseline;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border, #3e4854);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .gf-atlas-dialog h2 { font-size: 16px; font-weight: 650; margin: 0; overflow-wrap: anywhere; }
-.gf-atlas-dialog header span { color: var(--color-muted, #a9b4bf); font-size: 12px; }
+.gf-atlas-dialog header span { color: var(--color-muted); font-size: 12px; }
 .gf-atlas-dialog h2 span { margin-left: 8px; }
 .gf-atlas-dialog header > span { margin-left: auto; white-space: nowrap; }
 .gf-atlas-dialog button {
   padding: 5px 9px;
-  background: var(--color-window, #222a34);
+  background: var(--color-window);
   color: inherit;
-  border: 1px solid var(--color-border, #3e4854);
+  border: 1px solid var(--color-border);
   border-radius: 5px;
   cursor: pointer;
 }
 
-.gf-atlas-dialog button:not(:disabled):hover { border-color: #d8b66a; }
-.gf-atlas-dialog button[aria-pressed="true"] { border-color: #e2b95d; box-shadow: inset 0 0 0 1px #e2b95d; }
-.gf-atlas-dialog :is(button, input):focus-visible { outline: 2px solid #e2b95d; outline-offset: 2px; }
-.gf-atlas-dialog button:disabled { opacity: .52; cursor: default; }
+.gf-atlas-dialog button:not(:disabled):hover { border-color: var(--color-accent-hover); }
+.gf-atlas-dialog button[aria-pressed="true"] { border-color: var(--color-accent-border); box-shadow: inset 0 0 0 1px var(--color-accent-border); }
+.gf-atlas-dialog :is(button, input):focus-visible { outline: 2px solid var(--color-accent-border); outline-offset: 2px; }
+.gf-atlas-dialog button:disabled { opacity: .52; }
 .gf-atlas-dialog .gf-atlas-close { margin-left: auto; padding: 0 8px; font-size: 18px; }
 .gf-atlas-dialog header > span + .gf-atlas-close { margin-left: 0; }
 
@@ -48,11 +48,11 @@
 .gf-atlas-view { min-width: 0; flex: 1; display: flex; flex-direction: column; }
 .gf-atlas-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
 .gf-atlas-tools button[aria-label] { min-width: 30px; }
-.gf-atlas-hint { padding: 8px 12px; margin: 0; font-size: 12px; color: var(--color-muted, #a9b4bf); }
+.gf-atlas-hint { padding: 8px 12px; margin: 0; font-size: 12px; color: var(--color-muted); }
 
 .gf-atlas-checker {
-  background-color: #252c35;
-  background-image: conic-gradient(#333d48 25%, transparent 0 50%, #333d48 0 75%, transparent 0);
+  background-color: var(--color-window);
+  background-image: conic-gradient(var(--color-hover) 25%, transparent 0 50%, var(--color-hover) 0 75%, transparent 0);
   background-size: 16px 16px;
 }
 .gf-atlas-surface { flex: 1; position: relative; overflow: hidden; touch-action: none; cursor: grab; }
@@ -60,9 +60,9 @@
 .gf-atlas-surface > canvas { position: absolute; image-rendering: pixelated; pointer-events: none; }
 .gf-atlas-cut {
   position: absolute;
-  outline: 1px solid #f7ce74;
-  box-shadow: 0 0 0 2px #17120bbf;
-  background-color: #ffcb6225;
+  outline: 1px solid var(--color-gold);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-chrome) 75%, transparent);
+  background-color: color-mix(in srgb, var(--color-gold) 15%, transparent);
   pointer-events: none;
 }
 .gf-atlas-surface[data-editing="true"] .gf-atlas-cut { pointer-events: auto; cursor: move; }
@@ -70,8 +70,8 @@
   position: absolute;
   width: 8px;
   height: 8px;
-  background: #f7ce74;
-  border: 1px solid #2d240c;
+  background: var(--color-gold);
+  border: 1px solid var(--color-chrome);
   transform: translate(-50%, -50%);
 }
 .gf-atlas-cut > :is([data-edge="nw"], [data-edge="w"], [data-edge="sw"]) { left: 0; }
@@ -90,12 +90,12 @@
   bottom: 10px;
   padding: 3px 8px;
   border-radius: 4px;
-  color: #eef2f7;
-  background: #10141be0;
+  color: var(--color-bright);
+  background: color-mix(in srgb, var(--color-window) 88%, transparent);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
-.gf-atlas-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #eef2f7; }
+.gf-atlas-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-bright); }
 
 .gf-atlas-controls {
   width: min(280px, 42%);
@@ -105,7 +105,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  border-left: 1px solid var(--color-border, #3e4854);
+  border-left: 1px solid var(--color-border);
 }
 .gf-atlas-states, .gf-atlas-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .gf-atlas-states button { font-size: 12px; display: grid; justify-items: center; gap: 4px; }
@@ -119,11 +119,11 @@
   min-width: 0;
   padding: 4px 6px;
   color: inherit;
-  background: var(--color-window, #222a34);
-  border: 1px solid var(--color-border, #3e4854);
+  background: var(--color-window);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
 }
 .gf-atlas-resize { display: flex; align-items: baseline; gap: 7px; font-size: 13px; }
 .gf-atlas-controls p { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
-.gf-atlas-controls p[role="alert"] { color: var(--color-danger, #fb9999); }
-.gf-atlas-dialog .gf-atlas-apply { margin-top: auto; color: #211708; background: #e7ba63; border-color: #e7ba63; font-weight: 650; }
+.gf-atlas-controls p[role="alert"] { color: var(--color-danger); }
+.gf-atlas-dialog .gf-atlas-apply { margin-top: auto; color: var(--color-warning-bg); background: var(--color-gold); border-color: var(--color-gold); font-weight: 650; }

@@ -1,4 +1,14 @@
 {
+  "Tela": {
+    "en_US": "Screen",
+    "es_ES": "Pantalla",
+    "fr_FR": "Écran"
+  },
+  "Foco": {
+    "en_US": "Focused",
+    "es_ES": "En foco",
+    "fr_FR": "Survol"
+  },
   "As alterações foram salvas.": {
     "en_US": "The changes were saved.",
     "es_ES": "Los cambios se guardaron.",

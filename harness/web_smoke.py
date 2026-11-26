@@ -252,6 +252,7 @@ def scenario() -> None:
     check("último XML lembrado", app_module.prefs.last_file("Smoke-Test") == "BasicChar.xml")
     js("__smoke.setValue('[data-testid=files-panel] input', '')")
     shot("04-xml-aberto")
+    canvas_toolbar()
 
     # 4. Ctrl+2 (Texturas) e Ctrl+3 (Elementos: em breve), depois volta ao XML.
     js("__smoke.key('2', { ctrlKey: true })")
@@ -412,6 +413,22 @@ def block2(project_root: Path) -> None:
         check("Abrir atlas DDS pelo painel", bool(wait("!!__smoke.q('[data-testid=atlas-surface]')", 10, "atlas")))
         time.sleep(1.0)
         shot("11b-atlas")
+        check("Atlas acompanha a troca de tema e usa mãozinha", js("""(() => {
+            const html = document.documentElement;
+            const theme = document.createElement('style');
+            theme.textContent = 'html[data-theme="smoke"] { --color-panel: rgb(21, 43, 65); }';
+            const previous = html.getAttribute('data-theme');
+            document.head.append(theme);
+            try {
+                html.dataset.theme = 'smoke';
+                return getComputedStyle(__smoke.q('.gf-atlas-dialog')).backgroundColor === 'rgb(21, 43, 65)' &&
+                    getComputedStyle(__smoke.q('.gf-atlas-tools button')).cursor === 'pointer';
+            } finally {
+                if (previous === null) html.removeAttribute('data-theme');
+                else html.setAttribute('data-theme', previous);
+                theme.remove();
+            }
+        })()"""))
         js("__smoke.click('.gf-atlas-close')")  # <dialog> nativo: Esc sintético não fecha
         check("atlas fecha pelo ×", bool(wait("!__smoke.q('[data-testid=atlas-surface]')", 5, "fecha atlas")))
     js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")
@@ -557,6 +574,96 @@ def texts_flow(project_root: Path) -> None:
     check("data/Translate da cópia do jogo com o texto novo", sent == new_text, sent=sent)
     shot("17-textos-enviados")
     js("__smoke.key('1', { ctrlKey: true })")
+
+
+def canvas_toolbar() -> None:
+    def choose(label: str, value: str) -> None:
+        selector = json.dumps(f'.gf-canvas-toolbar select[aria-label="{label}"]')
+        js(f"__smoke.setValue({selector}, {json.dumps(value)})")
+
+    toolbar = ".gf-canvas-toolbar"
+    js(f"__smoke.clickText('Contornos', '{toolbar}')")
+    check("Contornos desliga o tracejado", bool(wait(
+        f"__smoke.q('{toolbar} button').getAttribute('aria-pressed') === 'false'", 5, "contornos desligados",
+    )))
+    js(f"__smoke.clickText('Contornos', '{toolbar}')")
+    wait(f"__smoke.q('{toolbar} button').getAttribute('aria-pressed') === 'true'", 5, "contornos restaurados")
+    js(f"__smoke.clickText('IDs', '{toolbar}')")
+    check("IDs liga os rótulos", bool(wait(
+        f"__smoke.q('{toolbar} button:nth-child(2)').getAttribute('aria-pressed') === 'true'", 5, "IDs ligados",
+    )))
+    choose("Tela", "custom")
+    wait(f"!!__smoke.q('{toolbar} form input')", 5, "resolução personalizada")
+    js(f"__smoke.setValue('{toolbar} form input', '1367x769'); __smoke.q('{toolbar} form').requestSubmit()")
+    check("Tela aceita e salva resolução personalizada", bool(wait(
+        f"(__smoke.text('{toolbar}') || '').includes('Tela 1367 × 769')", 5, "resolução personalizada aplicada",
+    )) and app_module.prefs.game_resolution == "1367x769")
+    choose("Tela", "game")
+    wait(f"(__smoke.text('{toolbar}') || '').includes('· jogo')", 5, "seguir client.ini")
+
+    zoom = "[data-testid=canvas-zoom-reset]"
+    js(f"__smoke.click('{zoom}')")
+    check("Porcentagem volta a 100%", bool(wait(f"__smoke.text('{zoom}') === '100%'", 5, "zoom 100%")))
+    js(f"__smoke.click('{toolbar} button[aria-label=\"Diminuir zoom\"]')")
+    wait(f"__smoke.text('{zoom}') !== '100%'", 5, "reduzir zoom")
+    js("__smoke.key('0', { ctrlKey: true })")
+    check("Ctrl+0 volta a 100%", bool(wait(f"__smoke.text('{zoom}') === '100%'", 5, "Ctrl+0")))
+    js("__smoke.click('[data-testid=canvas-fit]')")
+    check("Enquadrar ajusta a tela", bool(wait(f"__smoke.text('{zoom}') !== '100%'", 5, "enquadrar")))
+
+    js(f"__smoke.clickText('User.ini', '{toolbar}')")
+    wait(f"!__smoke.q('{toolbar} button[title*=User]').disabled", 5, "User.ini desligado")
+    check("User.ini salva o estado", not app_module.prefs.canvas_saved_positions)
+    js(f"__smoke.clickText('User.ini', '{toolbar}')")
+    wait(f"__smoke.q('{toolbar} button[title*=User]').getAttribute('aria-pressed') === 'true'", 5, "User.ini restaurado")
+    js(f"__smoke.clickText('Personagem', '{toolbar}')")
+    wait(f"!__smoke.all('{toolbar} button').find(b => b.textContent === 'Personagem').disabled", 5, "Personagem desligado")
+    check("Personagem salva o estado", not app_module.prefs.canvas_character)
+    choose("Texto", "game")
+    check("Texto salva o modo Jogo", bool(wait(
+        "__smoke.q('select[aria-label=Texto]').value === 'game' && !__smoke.q('select[aria-label=Texto]').disabled",
+        5, "textos do jogo",
+    )) and app_module.prefs.text_mode == "game")
+
+    from PIL import Image
+
+    capture = OUT / "captura-canvas.png"
+    Image.new("RGB", (64, 64), (111, 22, 144)).save(capture)
+    ANSWERS.append(capture)
+    choose("Fundo", "choose")
+    check("Fundo carrega a captura própria", bool(wait(
+        """(() => {
+          if (__smoke.q('select[aria-label=Fundo]').value !== 'custom') return false;
+          const c = __smoke.all('.gf-canvas-viewport canvas').at(-1);
+          return c?.getContext('2d').getImageData(c.width / 2, c.height / 2, 1, 1).data.join(',') === '111,22,144,255';
+        })()""", 8, "captura própria desenhada",
+    )) and app_module.prefs.game_background == str(capture))
+    choose("Fundo", "builtin")
+    wait("__smoke.q('select[aria-label=Fundo]').value === 'builtin' && !__smoke.q('select[aria-label=Fundo]').disabled", 5, "fundo embutido")
+    choose("Camadas", "default")
+    check("Camadas monta o HUD na lista Arquivos", bool(wait(
+        "!!__smoke.q('[data-section=layers] [data-file]') && __smoke.q('select[aria-label=Camadas]').dataset.active === 'true'",
+        8, "camadas do HUD",
+    )))
+    shot("04b-canvas-camadas-e-ids")
+    window.resize(1024, 680)
+    check("Barra do canvas cabe na largura mínima", bool(wait(
+        f"window.innerWidth <= 1024 && __smoke.q('{toolbar}').scrollWidth <= __smoke.q('{toolbar}').clientWidth",
+        5, "barra estreita",
+    )))
+    shot("04c-canvas-janela-estreita")
+    window.resize(1440, 900)
+    wait("window.innerWidth > 1280", 5, "restaurar largura")
+    choose("Camadas", "clear")
+    check("Camadas limpa o HUD e a lista", bool(wait(
+        "!__smoke.q('[data-section=layers]') && __smoke.q('select[aria-label=Camadas]').dataset.active === 'false'",
+        8, "camadas limpas",
+    )))
+    choose("Texto", "off")
+    wait("__smoke.q('select[aria-label=Texto]').value === 'off' && !__smoke.q('select[aria-label=Texto]').disabled", 5, "texto desligado")
+    js(f"__smoke.clickText('Personagem', '{toolbar}')")
+    wait(f"__smoke.all('{toolbar} button').find(b => b.textContent === 'Personagem').getAttribute('aria-pressed') === 'true'", 5, "Personagem restaurado")
+    js(f"__smoke.clickText('IDs', '{toolbar}')")
 
 
 def driver() -> None:

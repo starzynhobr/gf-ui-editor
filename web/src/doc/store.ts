@@ -6,7 +6,7 @@
 // passa por applyEdits -> Python (doc_edit) e volta como documento atualizado; desfazer e
 // refazer reaplicam o lote inverso pelo mesmo caminho. Salvar grava pelo Python.
 import { create } from 'zustand'
-import { call, type CanvasDocument, type CanvasPoint, type CanvasRect } from '../bridge'
+import { call, type CanvasDocument, type CanvasPoint, type CanvasPreference, type CanvasPreferences, type CanvasRect } from '../bridge'
 
 export type Edit =
   | { index: number; field: 'geometry'; before: CanvasRect; after: CanvasRect }
@@ -195,6 +195,16 @@ export function ensureDoc(path: string | null, resolution?: CanvasPoint): Promis
   if (opening?.path === path) return opening.done
   if (!opening && state().path === path && !resolution) return Promise.resolve()
   return load(path, resolution)
+}
+
+export function applyCanvasPreference(path: string, key: CanvasPreference, value: string | boolean, gameSize?: CanvasPoint) {
+  return run(async () => {
+    const result = await call<{ preferences: CanvasPreferences; doc: CanvasDocument | null }>(
+      'canvas_set_preference', path, key, value, gameSize ?? null,
+    )
+    if (result.doc && state().path === path) received(result.doc)
+    return result.preferences
+  })
 }
 
 type GeometryEdit = Extract<Edit, { field: 'geometry' }>

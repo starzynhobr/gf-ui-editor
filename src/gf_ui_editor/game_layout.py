@@ -24,6 +24,12 @@ import struct
 
 Rect = tuple[int, int, int, int]
 
+# Janelas sempre visíveis no jogo.
+DEFAULT_HUD = (
+    "BasicChar.xml", "Target.xml", "Radar.xml", "TinyClock.xml", "QuestTraceWnd.xml",
+    "Channel.xml", "ShortcutBar.xml", "Menu.xml",
+)
+
 
 def menu_shortcut_preview_y(
     filename: str, window_id: str, root_y: int, *, alternate_layout: bool = False

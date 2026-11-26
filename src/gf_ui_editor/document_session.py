@@ -157,21 +157,38 @@ class DocumentSession:
         self._document: UIDocument | None = None
         self._context: PreviewContext | None = None
         self._resolution: tuple[int, int] | None = None
+        self._saved_positions = True
 
     def _require(self) -> tuple[UIDocument, PreviewContext]:
         if self._document is None or self._context is None:
             raise ValueError("Nenhum XML aberto.")
         return self._document, self._context
 
-    def open(self, path: str | Path | None, resolution: tuple[int, int] | None = None) -> dict | None:
+    def open(
+        self, path: str | Path | None, resolution: tuple[int, int] | None = None, *, saved_positions: bool = True,
+    ) -> dict | None:
         with self._lock:
             if path is None:
                 self._document = self._context = self._resolution = None
                 return None
             document = UIDocument.load(Path(path))
-            context = PreviewContext.load(document.path, resolution)
+            context = PreviewContext.load(document.path, resolution, saved_positions=saved_positions)
             scene = describe_scene(document, context)
             self._document, self._context, self._resolution = document, context, resolution
+            self._saved_positions = saved_positions
+            return scene
+
+    def configure_preview(
+        self, path: str, resolution: tuple[int, int] | None, saved_positions: bool, *, keep_position_override: bool = False,
+    ) -> dict | None:
+        with self._lock:
+            if self._document is None or self._document.path != Path(path).resolve():
+                return None
+            document, previous = self._require()
+            effective = saved_positions and (previous.saved_positions if keep_position_override else True)
+            context = PreviewContext.load(document.path, resolution, saved_positions=effective)
+            scene = describe_scene(document, context)
+            self._context, self._resolution, self._saved_positions = context, resolution, saved_positions
             return scene
 
     def edit(self, edits: list[dict]) -> dict:
@@ -189,6 +206,7 @@ class DocumentSession:
             _apply_edits(document, edits)
             if not show_saved:
                 context.saved = None
+                context.saved_positions = False
             return {"doc": describe_scene(document, context), "edits": edits}
 
     def diff(self) -> str:
@@ -230,7 +248,7 @@ class DocumentSession:
     def revert(self) -> dict:
         with self._lock:
             document, _ = self._require()
-            scene = self.open(document.path, self._resolution)
+            scene = self.open(document.path, self._resolution, saved_positions=self._saved_positions)
             assert scene is not None
             return scene
 

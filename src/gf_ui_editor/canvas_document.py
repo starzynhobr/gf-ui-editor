@@ -73,6 +73,7 @@ class PreviewContext:
     mode: str
     labels: dict[str, str]
     saved: window_geometry.Rect | None
+    saved_positions: bool
 
     def refresh_labels(self, path: Path) -> None:
         game_dir, _, overrides = _preview_context(path)
@@ -89,7 +90,10 @@ class PreviewContext:
             raise ValueError("Invalid canvas resolution")
         section = game_layout.saved_section_for(path.name)
         saved = game_layout.load_user_positions(game_dir / "User.ini").get(section) if saved_positions and game_dir and section else None
-        return cls(path.name, resolution, game_dir, mode, game_texts.labels_for(path.name, game_dir, overrides), saved)
+        return cls(
+            path.name, resolution, game_dir, mode,
+            game_texts.labels_for(path.name, game_dir, overrides), saved, saved_positions,
+        )
 
     def screen_for(self, rect: window_geometry.Rect) -> tuple[int, int]:
         return game_layout.root_screen_position(
@@ -143,6 +147,7 @@ def describe_scene(document: UIDocument, context: PreviewContext) -> dict:
         "preview": {
             "screen": (x, y, *resolution),
             "root_on_screen": (screen_x, screen_y),
+            "saved_positions": context.saved_positions,
             "offsets": offsets,
             "frame": root_rect if content is not None else None,
             "content": content,

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { call, type AtlasCuts, type AtlasElement, type CanvasRect } from '../bridge'
 import { applyEdits, useDoc, type Edit } from '../doc/store'
+import { AtlasResizeCheckbox } from '../canvas/CanvasToolbar'
 import { closeAtlas, useAtlasRequest } from './index'
 import { AtlasSurface, type Frame } from './AtlasSurface'
 import { clamp } from './geometry'
@@ -147,8 +148,7 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
                 }} />
             ))}
           </fieldset>}
-          <label className="gf-atlas-resize"><input type="checkbox" checked={resize} disabled={!enabled || state !== normal}
-            onChange={(event) => setResize(event.target.checked)} />{t.resize}</label>
+          <AtlasResizeCheckbox label={t.resize} checked={resize} disabled={!enabled || state !== normal} onChange={setResize} />
           {locked && <p role="status">{t.locked}</p>}
           {error && <p role="alert">{error}</p>}
           <button className="gf-atlas-apply" type="button" disabled={!enabled} onClick={() => void apply()}>{t.apply}</button>
