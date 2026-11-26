@@ -12,6 +12,8 @@ import { kindLabel } from '../elements/kinds'
 import { LANGUAGES, setLanguage, t, useT } from '../i18n'
 import { openSettings } from '../settings/SettingsScreen'
 import { openHowTo } from '../home/HowToDialog'
+import { openWhatsNew } from '../home/WhatsNewDialog'
+import { backToClassic } from '../settings/interfaceSwitch'
 import { atlasAvailable, atlasModule } from '../shell/atlas'
 import { redo, undo } from '../shell/doc'
 import { saveDocument } from '../shell/saving'
@@ -194,6 +196,14 @@ function Palette() {
               </Item>
               <Item value="cmd:how-to" keywords={[t('Como usar'), t('Ajuda'), 'F1']} icon="help" hint="F1" onSelect={() => run(() => openHowTo())}>
                 {t('Como usar')}
+              </Item>
+              <Item value="cmd:whats-new" keywords={[t('Novidades desta versão'), t('Novidades')]} icon="info"
+                onSelect={() => run(() => openWhatsNew())}>
+                {t('Novidades desta versão')}
+              </Item>
+              <Item value="cmd:classic" keywords={[t('Voltar para a clássica'), t('Interface'), t('Clássica')]} icon="undo"
+                onSelect={() => run(() => backToClassic())}>
+                {t('Voltar para a clássica')}
               </Item>
               {THEMES.map((name) => (
                 <Item key={name} value={`cmd:theme:${name}`} keywords={[t('Tema'), themeNames[name]]} icon="sparkles"

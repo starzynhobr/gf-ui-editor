@@ -617,6 +617,19 @@ body:has(.gf-resize.is-dragging) * {
 .status-flash {
   animation: status-in 260ms ease-out;
 }
+/* Pílula "Novidades ×" da barra (shell/WhatsNewPill.tsx): o botão do Exportar com um ponto do acento. */
+.gf-whats-new-pill {
+  gap: 6px;
+  border-color: color-mix(in srgb, var(--color-accent-border) 45%, var(--color-border-input));
+}
+.gf-whats-new-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--color-accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
 @keyframes dialog-in {
   from {
     opacity: 0;

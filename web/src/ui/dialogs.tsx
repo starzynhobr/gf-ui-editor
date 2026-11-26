@@ -1,6 +1,6 @@
 // Diálogos da casca (pergunta, aviso, texto) chamados como funções: `await ask({...})`.
 // Equivalem aos QMessageBox/QInputDialog da clássica. Um host desenha a pilha.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { create } from 'zustand'
 import { t, useT } from '../i18n'
 import { Icon } from './Icon'
@@ -109,14 +109,23 @@ export function Modal({
   onClose,
   width = 460,
   footer,
+  boxRef,
+  overlayRef,
+  animated = true,
 }: {
   title: string
   children: ReactNode
   onClose: () => void
   width?: number
   footer?: ReactNode
+  /** Para quem anima o diálogo por conta própria (Novidades indo para a pílula da barra). */
+  boxRef?: RefObject<HTMLDivElement | null>
+  overlayRef?: RefObject<HTMLDivElement | null>
+  /** false: sem a entrada padrão (dialog-in), quando a entrada é feita por quem abriu. */
+  animated?: boolean
 }) {
-  const box = useRef<HTMLDivElement>(null)
+  const ownBox = useRef<HTMLDivElement>(null)
+  const box = boxRef ?? ownBox
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -136,7 +145,10 @@ export function Modal({
     }
   }, [])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] p-4 backdrop-blur-[2px] animate-[fade_120ms_ease-out]">
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] p-4 backdrop-blur-[2px] animate-[fade_120ms_ease-out]"
+    >
       <div
         ref={box}
         tabIndex={-1}
@@ -144,7 +156,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className="flex max-h-full flex-col rounded-xl border border-border-strong bg-panel shadow-2xl shadow-black/50"
-        style={{ width }}
+        style={animated ? { width } : { width, animation: 'none' }}
       >
         <div className="flex items-center gap-2 border-b border-border px-5 py-3">
           <div className="flex-1 text-[14px] font-semibold text-bright">{title}</div>

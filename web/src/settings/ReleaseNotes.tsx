@@ -14,6 +14,8 @@ export interface Release {
   version: string
   date: string
   sections: ReleaseSections
+  /** Cartão de destaque acima dos outros (dado da nota): "new_interface" = a interface nova virou padrão. */
+  spotlight?: string
 }
 
 type Section = keyof ReleaseSections
@@ -63,6 +65,7 @@ interface Entry {
 
 interface Prepared {
   release: Release
+  spotlight: boolean
   highlights: Entry[]
   rest: Entry[]
 }
@@ -77,13 +80,19 @@ function prepare(releases: Release[]): Prepared[] {
     const useHighlights = entries.length > HIGHLIGHTS && highlights.length >= 3
     return {
       release,
+      spotlight: release.spotlight === 'new_interface',
       highlights: useHighlights ? highlights : [],
       rest: useHighlights ? entries.filter((entry) => !highlights.includes(entry)) : entries,
     }
   })
 }
 
-export function ReleaseNotes({ releases, showVersion = true }: { releases: Release[]; showVersion?: boolean }) {
+export function ReleaseNotes({ releases, showVersion = true, onBackToClassic }: {
+  releases: Release[]
+  showVersion?: boolean
+  /** Mostra "Voltar para a clássica" no cartão da interface nova (só nas Novidades instaladas). */
+  onBackToClassic?: () => void
+}) {
   useT()
   const prepared = useMemo(() => prepare(releases), [releases])
   const [filter, setFilter] = useState<Filter>('all')
@@ -102,10 +111,11 @@ export function ReleaseNotes({ releases, showVersion = true }: { releases: Relea
   const visible = prepared
     .map((item) => ({
       ...item,
+      spotlight: item.spotlight && (filter === 'all' || filter === 'new'),
       highlights: filter === 'all' || filter === 'new' ? item.highlights : [],
       rest: item.rest.filter((entry) => filter === 'all' || entry.section === filter),
     }))
-    .filter((item) => item.highlights.length + item.rest.length > 0)
+    .filter((item) => item.spotlight || item.highlights.length + item.rest.length > 0)
   const listed = visible.flatMap((item) => item.rest)
   const allOpen = listed.length > 0 && listed.every((entry) => open.has(entry.key))
 
@@ -213,6 +223,7 @@ export function ReleaseNotes({ releases, showVersion = true }: { releases: Relea
               showVersion={showVersion || timeline}
               open={open}
               toggle={toggle}
+              onBackToClassic={onBackToClassic}
             />
           ))}
         </div>
@@ -221,15 +232,16 @@ export function ReleaseNotes({ releases, showVersion = true }: { releases: Relea
   )
 }
 
-function ReleaseBlock({ item, index, showVersion, open, toggle }: {
+function ReleaseBlock({ item, index, showVersion, open, toggle, onBackToClassic }: {
   item: Prepared
   index: number
   showVersion: boolean
   open: Set<string>
   toggle: (key: string) => void
+  onBackToClassic?: () => void
 }) {
   const list = useListAnimation<HTMLDivElement>()
-  const { release, highlights, rest } = item
+  const { release, spotlight, highlights, rest } = item
   return (
     <section className="gf-notes-release" data-release={release.version}>
       {showVersion && (
@@ -238,6 +250,7 @@ function ReleaseBlock({ item, index, showVersion, open, toggle }: {
           {release.date && <span className="text-[12px] text-muted">{release.date}</span>}
         </div>
       )}
+      {spotlight && <NewInterfaceCard onBackToClassic={onBackToClassic} />}
       {highlights.length > 0 && (
         <div className="gf-notes-highlights" data-testid="notes-highlights">
           {highlights.map((entry, position) => (
@@ -294,5 +307,41 @@ function ReleaseBlock({ item, index, showVersion, open, toggle }: {
         })}
       </div>
     </section>
+  )
+}
+
+/** Destaque da versão em que a interface nova virou padrão, acima dos outros destaques. */
+function NewInterfaceCard({ onBackToClassic }: { onBackToClassic?: () => void }) {
+  return (
+    <motion.div
+      className="gf-notes-spotlight"
+      data-testid="notes-spotlight"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: 'easeOut' }}
+    >
+      <div className="flex gap-3">
+        <span className="gf-notes-spotlight-icon">
+          <Icon name="sparkles" size={18} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold text-bright">{t('Interface nova')}</div>
+          <div className="mt-1 leading-snug text-text">
+            {t('O STZ GF UI ganhou uma interface nova: mais rápida, com temas, prévias de textura, busca com Ctrl+K e o código do XML lado a lado. Tudo continua no mesmo lugar.')}
+          </div>
+        </div>
+      </div>
+      {onBackToClassic && (
+        <div className="gf-notes-spotlight-back" data-testid="notes-back-classic">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="min-w-0 flex-1 text-text">{t('Prefere a clássica? Você pode voltar por enquanto.')}</span>
+            <button className="btn h-7 shrink-0" data-testid="back-to-classic" onClick={onBackToClassic}>
+              {t('Voltar para a clássica')}
+            </button>
+          </div>
+          <div className="mt-1 text-[11.5px] text-muted">{t('Dá para trocar a qualquer momento em Configurações → Interface.')}</div>
+        </div>
+      )}
+    </motion.div>
   )
 }

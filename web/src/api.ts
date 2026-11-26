@@ -112,6 +112,35 @@ export interface FileHistory {
   in_project: boolean
 }
 
+export interface ReleaseNote {
+  version: string
+  date: string
+  sections: Record<'new' | 'improved' | 'fixed', [string, string][]>
+  /** Cartão de destaque no topo das notas (dado da nota; ex.: "new_interface" na versão em que a nova virou padrão). */
+  spotlight?: string
+}
+
+/** Novidades depois de atualizar (ponte whats_new_*): abrir sozinha uma vez e a pílula da barra. */
+export interface WhatsNewState {
+  version: string
+  auto_open: boolean
+  pill: boolean
+}
+
+/** Python ainda sem o método (ponte nova): sem abertura automática e sem pílula. */
+function missingMethod(error: unknown): boolean {
+  return error instanceof Error && /não existe/.test(error.message)
+}
+
+async function optional<T>(method: string, fallback: T): Promise<T> {
+  try {
+    return await call<T>(method)
+  } catch (error) {
+    if (missingMethod(error)) return fallback
+    throw error
+  }
+}
+
 export const api = {
   startup: () => call<ShellState & { view: 'home' | 'workspace' }>('startup'),
   shellState: () => call<ShellState>('shell_state'),
@@ -119,8 +148,12 @@ export const api = {
   openFolder: (path: string) => call<void>('open_folder', path),
   openUrl: (url: string) => call<void>('open_url', url),
   homeData: () => call<HomeData>('home_data'),
-  whatsNew: () =>
-    call<{ version: string; date: string; sections: Record<'new' | 'improved' | 'fixed', [string, string][]> }>('whats_new'),
+  whatsNew: () => call<ReleaseNote>('whats_new'),
+  whatsNewState: () => optional<WhatsNewState>('whats_new_state', { version: '', auto_open: false, pill: false }),
+  /** Fechou as notas abertas sozinhas ou pela pílula: grava a versão vista e liga a pílula. */
+  whatsNewClosed: () => optional<void>('whats_new_closed', undefined),
+  /** × da pílula: ela some até a próxima versão. */
+  whatsNewPillDismissed: () => optional<void>('whats_new_pill_dismissed', undefined),
   goHome: () => call<ShellState>('go_home'),
   openProject: (root: string) => call<ShellState>('open_project', root),
   browseProject: () => call<ShellState | { error: 'not_a_project' } | null>('browse_project'),

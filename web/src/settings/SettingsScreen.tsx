@@ -10,13 +10,13 @@ import { refreshShell } from '../actions'
 import { applyCanvasPreference } from '../doc/store'
 import { openWhatsNew } from '../home/WhatsNewDialog'
 import { LANGUAGES, setLanguage, t, useT } from '../i18n'
-import { closeRequested } from '../shell/saving'
 import { FONTS, FONT_LABELS, THEMES, loadUiState, setFont, setTheme, useUi, type FontName, type ThemeName } from '../shell/uiState'
 import { setShell, showStatus, useShell } from '../store'
-import { confirm, message } from '../ui/dialogs'
+import { message } from '../ui/dialogs'
 import { Icon } from '../ui/Icon'
 import { Select } from '../ui/Select'
 import { checkForUpdates } from './updates'
+import { offerRestart, type UiMode } from './interfaceSwitch'
 import { settingsApi, type SettingName, type SettingsState, type SettingsValues } from './settingsApi'
 import './settings.css'
 
@@ -239,13 +239,7 @@ function SettingsPanel() {
       announce(name, value)
       if (name === 'ui_mode') {
         await refreshShell()
-        const name = value === 'web' ? t('Nova (beta)') : t('Clássica')
-        if (await confirm(t('Interface'), t('Reiniciar agora para usar a interface {name}?', { name }), {
-          no: t('Depois'),
-          yes: t('Reiniciar agora'),
-        })) {
-          await closeRequested(true)
-        }
+        await offerRestart(value as UiMode)
       }
       if (name === 'publish_on_save' || name === 'publish_confirmed') await refreshShell()
       if (name === 'beta_updates' && value === true) void checkForUpdates(true) // como a clássica ao entrar no canal
@@ -508,7 +502,7 @@ function SettingsPanel() {
                 {state.beta_build ? ' · beta' : ''}
               </div>
             </div>
-            <button className="btn" onClick={openWhatsNew}>
+            <button className="btn" onClick={() => void openWhatsNew()}>
               {t('Novidades desta versão')}
             </button>
             <button className="btn btn-primary" data-testid="settings-check-updates" onClick={() => void checkForUpdates(true)}>
