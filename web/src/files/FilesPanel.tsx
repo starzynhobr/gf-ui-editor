@@ -169,7 +169,7 @@ export default function FilesPanel() {
         icon: 'type',
         onClick: async () => {
           const label = await api.openInTextEditor(path)
-          showStatus(t('Aberto no {program}. Depois de salvar lá, aperte Ctrl+R aqui para ver a mudança.', { program: label }), 10)
+          showStatus(t('Aberto no {program}. Ao salvar lá, o editor mostra a mudança sozinho.', { program: label }), 10)
         },
       })
     }

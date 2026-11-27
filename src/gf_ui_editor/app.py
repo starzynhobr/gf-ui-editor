@@ -157,7 +157,7 @@ from .project import (
     safe_name,
 )
 from .atlas import atlas_edits, atlas_states
-from .atlas_dialog import AtlasDialog, TexturePreviewDialog
+from .atlas_dialog import AtlasDialog, AtlasView, TexturePreviewDialog
 from .texture_cache import TextureCache
 from . import textures
 from .theme import COLORS, stylesheet
@@ -2701,6 +2701,7 @@ class EditorWindow(QMainWindow):
         if saved_style not in EditorView.NAVIGATION_STYLES:
             saved_style = "corel"
         self.view.navigation_style = saved_style
+        AtlasView.navigation_style = saved_style
         for style, label, tip in (
             ("corel", self.tr("Estilo CorelDRAW"), self.tr("Roda: zoom · botão do meio ou Espaço+arrastar: mover")),
             ("paintnet", self.tr("Estilo Paint.NET"), self.tr("Roda: rolar · Shift+roda: para os lados · Ctrl+roda: zoom")),
@@ -3606,6 +3607,7 @@ class EditorWindow(QMainWindow):
 
     def set_navigation_style(self, style: str) -> None:
         self.view.navigation_style = style
+        AtlasView.navigation_style = style
         prefs.navigation_style = style
 
     def _confirm_utf8_conversion(self, path: Path) -> bool:

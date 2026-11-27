@@ -224,3 +224,24 @@ def test_restore_file_in_project_goes_through_its_history(tmp_path: Path) -> Non
     backups, _original = file_list.history_entries(project, radar)
     assert [backup.read_bytes() for backup in backups] == [b'<a BGmap="Main.dds"/>']
     assert not list(radar.parent.glob("Radar.before-gf-ui-editor-*"))
+
+
+def test_folder_stamp_changes_when_files_come_go_or_change(tmp_path) -> None:
+    from gf_ui_editor.file_list import folder_stamp
+
+    assert folder_stamp(None) == "" and folder_stamp(tmp_path / "missing") == ""
+    (tmp_path / "A.xml").write_text("<a/>", encoding="utf-8")
+    first = folder_stamp(tmp_path)
+    assert first and folder_stamp(tmp_path) == first
+    (tmp_path / "sub").mkdir()
+    assert folder_stamp(tmp_path) == first  # subpastas não contam
+    (tmp_path / "B.dds").write_bytes(b"dds")
+    added = folder_stamp(tmp_path)
+    assert added != first
+    (tmp_path / "B.dds").rename(tmp_path / "C.dds")
+    renamed = folder_stamp(tmp_path)
+    assert renamed != added
+    (tmp_path / "A.xml").write_text("<a x='1'/>", encoding="utf-8")
+    assert folder_stamp(tmp_path) != renamed
+    (tmp_path / "C.dds").unlink()
+    assert folder_stamp(tmp_path) not in (added, renamed)

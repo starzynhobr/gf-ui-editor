@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 from .game_text_raster import game_color, game_font, paint_text, text_flags
 from .theme import qcolor
 from .i18n import kind_label
+from .navigation import wheel_action
 from .xml_document import UIElement
 
 
@@ -1104,12 +1105,7 @@ class EditorView(QGraphicsView):
         ctrl = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
         shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
         alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
-        if self.navigation_style == "paintnet":
-            action = "zoom" if ctrl else "horizontal" if shift else "vertical"
-        elif self.navigation_style == "photoshop":
-            action = "zoom" if alt else "horizontal" if ctrl or shift else "vertical"
-        else:
-            action = "zoom"
+        action = wheel_action(self.navigation_style, ctrl=ctrl, shift=shift, alt=alt)
         if action == "zoom":
             self.zoom_by(1.15 if delta > 0 else 1 / 1.15)
         else:

@@ -1,42 +1,96 @@
 {
-  "version": "0.8.0-beta.2",
+  "version": "0.8.0-beta.3",
   "date": "2026-11-27",
   "spotlight": "new_interface",
   "notes": {
     "pt_BR": {
-      "fixed": [
+      "improved": [
         [
-          "Estilos de navegação na interface nova.",
-          "Os estilos Paint.NET e Photoshop voltaram a funcionar no canvas da interface nova: a roda rola a tela e o zoom fica no Ctrl+roda (Paint.NET) ou Alt+roda (Photoshop). Antes, a roda sempre dava zoom, como no CorelDRAW."
+          "Lista de arquivos se atualiza sozinha.",
+          "Criou, apagou, renomeou ou salvou um XML ou .dds fora do editor (no Explorer, por exemplo)? A lista mostra a mudança em poucos segundos, sem botão Atualizar."
+        ],
+        [
+          "Atlas DDS segue o estilo de navegação.",
+          "Na janela do atlas, a roda do mouse agora segue o estilo escolhido em Configurações (CorelDRAW, Paint.NET ou Photoshop), como no canvas. A dica no rodapé mostra o que a roda faz."
         ]
       ]
     },
     "en_US": {
-      "fixed": [
+      "improved": [
         [
-          "Navigation styles in the new interface.",
-          "The Paint.NET and Photoshop styles work again on the new interface's canvas: the wheel scrolls, and zoom is on Ctrl+wheel (Paint.NET) or Alt+wheel (Photoshop). Before, the wheel always zoomed, like in CorelDRAW."
+          "The file list updates on its own.",
+          "Created, deleted, renamed or saved an XML or .dds outside the editor (in Explorer, for example)? The list shows the change within a few seconds, with no Refresh button."
+        ],
+        [
+          "The DDS atlas follows the navigation style.",
+          "In the atlas window, the mouse wheel now follows the style chosen in Settings (CorelDRAW, Paint.NET or Photoshop), like the canvas. The hint at the bottom shows what the wheel does."
         ]
       ]
     },
     "es_ES": {
-      "fixed": [
+      "improved": [
         [
-          "Estilos de navegación en la interfaz nueva.",
-          "Los estilos Paint.NET y Photoshop vuelven a funcionar en el lienzo de la interfaz nueva: la rueda desplaza la vista y el zoom queda en Ctrl+rueda (Paint.NET) o Alt+rueda (Photoshop). Antes, la rueda siempre hacía zoom, como en CorelDRAW."
+          "La lista de archivos se actualiza sola.",
+          "¿Creaste, borraste, renombraste o guardaste un XML o .dds fuera del editor (en el Explorador, por ejemplo)? La lista muestra el cambio en pocos segundos, sin botón Actualizar."
+        ],
+        [
+          "El atlas DDS sigue el estilo de navegación.",
+          "En la ventana del atlas, la rueda del ratón ahora sigue el estilo elegido en Configuración (CorelDRAW, Paint.NET o Photoshop), como el lienzo. La ayuda de abajo muestra lo que hace la rueda."
         ]
       ]
     },
     "fr_FR": {
-      "fixed": [
+      "improved": [
         [
-          "Styles de navigation dans la nouvelle interface.",
-          "Les styles Paint.NET et Photoshop fonctionnent de nouveau sur le canevas de la nouvelle interface : la molette fait défiler, et le zoom passe par Ctrl+molette (Paint.NET) ou Alt+molette (Photoshop). Avant, la molette zoomait toujours, comme dans CorelDRAW."
+          "La liste des fichiers se met à jour toute seule.",
+          "Vous avez créé, supprimé, renommé ou enregistré un XML ou un .dds hors de l'éditeur (dans l'Explorateur, par exemple) ? La liste affiche le changement en quelques secondes, sans bouton Actualiser."
+        ],
+        [
+          "L'atlas DDS suit le style de navigation.",
+          "Dans la fenêtre de l'atlas, la molette suit maintenant le style choisi dans les Paramètres (CorelDRAW, Paint.NET ou Photoshop), comme le canevas. L'astuce en bas indique ce que fait la molette."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.8.0-beta.2",
+      "date": "2026-11-27",
+      "notes": {
+        "pt_BR": {
+          "fixed": [
+            [
+              "Estilos de navegação na interface nova.",
+              "Os estilos Paint.NET e Photoshop voltaram a funcionar no canvas da interface nova: a roda rola a tela e o zoom fica no Ctrl+roda (Paint.NET) ou Alt+roda (Photoshop). Antes, a roda sempre dava zoom, como no CorelDRAW."
+            ]
+          ]
+        },
+        "en_US": {
+          "fixed": [
+            [
+              "Navigation styles in the new interface.",
+              "The Paint.NET and Photoshop styles work again on the new interface's canvas: the wheel scrolls, and zoom is on Ctrl+wheel (Paint.NET) or Alt+wheel (Photoshop). Before, the wheel always zoomed, like in CorelDRAW."
+            ]
+          ]
+        },
+        "es_ES": {
+          "fixed": [
+            [
+              "Estilos de navegación en la interfaz nueva.",
+              "Los estilos Paint.NET y Photoshop vuelven a funcionar en el lienzo de la interfaz nueva: la rueda desplaza la vista y el zoom queda en Ctrl+rueda (Paint.NET) o Alt+rueda (Photoshop). Antes, la rueda siempre hacía zoom, como en CorelDRAW."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "fixed": [
+            [
+              "Styles de navigation dans la nouvelle interface.",
+              "Les styles Paint.NET et Photoshop fonctionnent de nouveau sur le canevas de la nouvelle interface : la molette fait défiler, et le zoom passe par Ctrl+molette (Paint.NET) ou Alt+molette (Photoshop). Avant, la molette zoomait toujours, comme dans CorelDRAW."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.8.0-beta.1",
       "date": "2026-11-26",

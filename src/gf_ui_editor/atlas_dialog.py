@@ -4,7 +4,7 @@ from collections.abc import Callable
 import math
 from pathlib import Path
 
-from PySide6.QtCore import QFileSystemWatcher, QPoint, QPointF, QRectF, Qt, QSignalBlocker, QTimer, Signal, QUrl
+from PySide6.QtCore import QCoreApplication, QFileSystemWatcher, QPoint, QPointF, QRectF, Qt, QSignalBlocker, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -33,6 +33,7 @@ from .icons import icon
 
 from .theme import qcolor
 from .interaction import install_pointer_cursors
+from .navigation import wheel_action
 from .xml_document import UVRect
 
 
@@ -40,6 +41,8 @@ class AtlasView(QGraphicsView):
     selection_changed = Signal(object)
     offset_changed = Signal(int, int)
     cursor_moved = Signal(int, int)
+    # Vale para todos os atlas abertos; a janela troca junto com o estilo do canvas.
+    navigation_style = "corel"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -431,8 +434,31 @@ class AtlasView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
-        self.scale(factor, factor)
+        delta = event.angleDelta().y() or event.angleDelta().x()
+        if not delta:
+            return
+        modifiers = event.modifiers()
+        action = wheel_action(
+            AtlasView.navigation_style,
+            ctrl=bool(modifiers & Qt.KeyboardModifier.ControlModifier),
+            shift=bool(modifiers & Qt.KeyboardModifier.ShiftModifier),
+            alt=bool(modifiers & Qt.KeyboardModifier.AltModifier),
+        )
+        if action == "zoom":
+            factor = 1.15 if delta > 0 else 1 / 1.15
+            self.scale(factor, factor)
+        else:
+            bar = self.horizontalScrollBar() if action == "horizontal" else self.verticalScrollBar()
+            bar.setValue(bar.value() - delta)
+        event.accept()
+
+
+def wheel_hint() -> str:
+    """O que a roda faz no estilo atual, para as dicas do atlas."""
+    return {
+        "paintnet": QCoreApplication.translate("AtlasView", "roda rola · Ctrl+roda = zoom"),
+        "photoshop": QCoreApplication.translate("AtlasView", "roda rola · Alt+roda = zoom"),
+    }.get(AtlasView.navigation_style, QCoreApplication.translate("AtlasView", "roda = zoom"))
 
 
 class AtlasDialog(QDialog):
@@ -592,8 +618,8 @@ class AtlasDialog(QDialog):
         self.full_atlas_button.setText(self.tr("Atlas inteiro"))
         self.title.setText(texture_name)
         self.explanation = explanation
-        self.view_hint = self.tr("Arraste para mover a vista · roda = zoom · Editar posição libera o recorte")
-        self.edit_hint = self.tr("Arraste para marcar · arraste por dentro para mover · cantos e bordas ajustam · botão do meio navega · roda = zoom")
+        self.view_hint = self.tr("Arraste para mover a vista · {wheel} · Editar posição libera o recorte").format(wheel=wheel_hint())
+        self.edit_hint = self.tr("Arraste para marcar · arraste por dentro para mover · cantos e bordas ajustam · botão do meio navega · {wheel}").format(wheel=wheel_hint())
 
         self.uv_heading = QLabel(self.tr("RECORTE NORMAL (NorUV)"))
         uv_card = self._card(
@@ -900,7 +926,7 @@ class TexturePreviewDialog(QDialog):
         open_button.setAutoDefault(False)
         open_button.setToolTip(self.tr("Abre no programa padrão do Windows para .dds (Paint.NET, por exemplo)"))
         open_button.clicked.connect(self._open_dds)
-        hint = QLabel(self.tr("Arraste para mover · roda = zoom · a imagem se atualiza ao salvar no editor"))
+        hint = QLabel(self.tr("Arraste para mover · {wheel} · a imagem se atualiza ao salvar no editor").format(wheel=wheel_hint()))
         hint.setWordWrap(True)
         hint.setObjectName("panelSubtitle")
         close_button = QPushButton(self.tr("Fechar"))

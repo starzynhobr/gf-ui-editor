@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 import difflib
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -61,6 +62,27 @@ def loose_listing(directory: Path | None) -> FileListing:
         key=lambda item: item.as_posix().lower(),
     )
     return FileListing(xml)
+
+
+def folder_stamp(directory: Path | None) -> str:
+    """Assinatura dos arquivos da pasta (nome, tamanho, data): muda quando um arquivo
+    entra, sai, é renomeado ou salvo. Barata o bastante para a casca consultar a cada
+    poucos segundos e reler a lista só quando algo mudou."""
+    if directory is None:
+        return ""
+    entries = []
+    try:
+        with os.scandir(directory) as scan:
+            for entry in scan:
+                try:
+                    if entry.is_file():
+                        stat = entry.stat()
+                        entries.append(f"{entry.name.lower()}:{stat.st_size}:{stat.st_mtime_ns}")
+                except OSError:
+                    continue
+    except OSError:
+        return ""
+    return hashlib.blake2b("\n".join(sorted(entries)).encode("utf-8"), digest_size=8).hexdigest()
 
 
 def file_groups(files: list[Path], modified: set[str], layers: set[str]) -> dict[str, list[Path]]:

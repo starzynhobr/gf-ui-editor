@@ -737,6 +737,16 @@ def scenario() -> None:
     check("seção TODOS com o total de XMLs", f"TODOS · {count}" in all_title.upper(), title=all_title[:40], xml=count)
     shot("03-projeto-aberto")
 
+    # Arquivo criado e apagado fora do editor (Explorer): a lista acompanha sem botão Atualizar.
+    external = project_root / "ui" / "ZZ_SmokeExterno.xml"
+    js("__smoke.setValue('[data-testid=files-panel] input', 'zz_smoke')")  # a lista é virtualizada
+    shutil.copyfile(project_root / "ui" / "BasicChar.xml", external)
+    row = "__smoke.q('[data-section=all] [data-file=\"ZZ_SmokeExterno.xml\"]')"
+    check("XML criado fora aparece sozinho na lista", bool(wait(f"!!{row}", 10, "arquivo externo")))
+    external.unlink()
+    check("XML apagado fora some sozinho da lista", bool(wait(f"!{row}", 10, "arquivo externo apagado")))
+    js("__smoke.setValue('[data-testid=files-panel] input', '')")
+
     # 3. Filtrar e abrir um XML (o caminho vai para o CanvasView).
     js("__smoke.setValue('[data-testid=files-panel] input', 'basicchar')")
     filtered = wait(
@@ -1435,24 +1445,37 @@ def release_notes_flow() -> None:
     time.sleep(0.6)
     chips = js(f"__smoke.all('{WHATS_NEW} [data-filter]').map((c) => [c.dataset.filter, c.innerText.trim()])") or []
     check("chips de categoria com contagem", len(chips) >= 2 and chips[0][0] == "all", chips=chips)
-    check("destaques no topo", (js(f"__smoke.all('{WHATS_NEW} .gf-notes-highlight').length") or 0) >= 3)
+    # As notas mudam a cada versão (uma beta pode ter um item só): o que se espera depende delas.
+    items = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item').length") or 0
+    news = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item.is-new').length") or 0
+    highlights = js(f"__smoke.all('{WHATS_NEW} .gf-notes-highlight').length") or 0
+    check("destaques no topo", highlights >= 3 if news >= 4 else highlights <= news, highlights=highlights, news=news)
     closed = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item-head[aria-expanded=false]').length") or 0
-    check("lista recolhida (só títulos)", closed > 3 and not js(f"!!__smoke.q('{WHATS_NEW} .gf-notes-item-text')"), closed=closed)
+    check("lista recolhida (só títulos)", closed == items > 0 and not js(f"!!__smoke.q('{WHATS_NEW} .gf-notes-item-text')"), closed=closed)
     js(f"__smoke.q('{WHATS_NEW} .gf-notes-item-head').click()")
     check("clicar no título abre a descrição", bool(wait(f"!!__smoke.q('{WHATS_NEW} .gf-notes-item-text')", 3, "item aberto")))
     time.sleep(0.4)
     shot("22a-novidades-acordeao")
+    js(f"__smoke.q('{WHATS_NEW} .gf-notes-item-head').click()")  # fecha de novo: o botão volta a ser Expandir tudo
+    time.sleep(0.3)
     js(f"__smoke.click('{WHATS_NEW} [data-testid=notes-toggle-all]')")
     time.sleep(0.5)
     opened = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item-head[aria-expanded=true]').length") or 0
     check("Expandir tudo", opened == closed, opened=opened, total=closed)
     js(f"__smoke.click('{WHATS_NEW} [data-testid=notes-toggle-all]')")
     time.sleep(0.3)
-    js(f"__smoke.click('{WHATS_NEW} [data-filter=improved]')")
-    time.sleep(0.5)
-    kinds = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item').map((e) => e.classList.contains('is-improved'))") or []
-    check("filtro Melhorado mostra só melhorias", bool(kinds) and all(kinds)
-          and not js(f"!!__smoke.q('{WHATS_NEW} .gf-notes-highlight')"), count=len(kinds))
+    if js(f"!!__smoke.q('{WHATS_NEW} [data-filter=improved]')"):
+        js(f"__smoke.click('{WHATS_NEW} [data-filter=improved]')")
+        time.sleep(0.5)
+        kinds = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item').map((e) => e.classList.contains('is-improved'))") or []
+        check("filtro Melhorado mostra só melhorias", bool(kinds) and all(kinds)
+              and not js(f"!!__smoke.q('{WHATS_NEW} .gf-notes-highlight')"), count=len(kinds))
+    else:
+        last = chips[-1][0] if chips else "all"
+        js(f"__smoke.click('{WHATS_NEW} [data-filter={last}]')")
+        time.sleep(0.5)
+        kinds = js(f"__smoke.all('{WHATS_NEW} .gf-notes-item').map((e) => e.classList.contains('is-{last}'))") or []
+        check(f"filtro {last} mostra só os itens dele", bool(kinds) and all(kinds), count=len(kinds))
     shot("22b-novidades-filtro")
     js(f"__smoke.click('{WHATS_NEW} [data-filter=all]')")
     if js("!!__smoke.q('[data-testid=whats-new-all]')"):
@@ -1732,6 +1755,31 @@ def block2(project_root: Path) -> None:
         present = [value for index, value in enumerate(order) if not (index == 2 and value is None)]
         check("atlas com o Abrir .dds na lateral, abaixo do recorte",
               len(present) >= 5 and None not in present and present == sorted(present), order=order)
+        for style, keys, kind, hint in (
+            ("paintnet", "", "down", "Ctrl+roda = zoom"), ("paintnet", "ctrlKey: true", "zoom", "Ctrl+roda = zoom"),
+            ("photoshop", "ctrlKey: true", "side", "Alt+roda = zoom"), ("corel", "", "zoom", "roda = zoom"),
+        ):
+            js(f"window.dispatchEvent(new CustomEvent('gf:settings-changed', {{ detail: {{ name: 'navigation_style', value: '{style}' }} }}))")
+            time.sleep(0.15)
+            js(f"""(() => {{
+              const node = __smoke.q('[data-testid=atlas-surface]');
+              window.__atlasBefore = node.dataset.view;
+              const box = node.getBoundingClientRect();
+              node.dispatchEvent(new WheelEvent('wheel', {{ deltaY: 100, clientX: box.left + box.width / 2,
+                clientY: box.top + box.height / 2, cancelable: true, bubbles: true, {keys} }}));
+            }})()""")
+            wait("__smoke.q('[data-testid=atlas-surface]').dataset.view !== window.__atlasBefore", 2, "roda no atlas")
+            result = js("""(() => {
+              const before = window.__atlasBefore.split(',').map(Number);
+              const after = __smoke.q('[data-testid=atlas-surface]').dataset.view.split(',').map(Number);
+              return { x: after[0] - before[0], y: after[1] - before[1], zoom: after[2] !== before[2],
+                       hint: __smoke.text('.gf-atlas-hint') };
+            })()""") or {}
+            ok = {"zoom": result.get("zoom") is True,
+                  "down": result.get("zoom") is False and result.get("x") == 0 and result.get("y") == -100,
+                  "side": result.get("zoom") is False and result.get("x") == -100 and result.get("y") == 0}[kind]
+            check(f"atlas: roda no estilo {style} {keys or 'sem tecla'}: {kind}, dica certa",
+                  ok and hint in (result.get("hint") or ""), result=result)
         js("__smoke.click('.gf-atlas-close')")  # <dialog> nativo: Esc sintético não fecha
         check("atlas fecha pelo ×", bool(wait("!__smoke.q('[data-testid=atlas-surface]')", 5, "fecha atlas")))
     js(f"__smoke.q('[data-testid=tree-row][data-index=\"{child.index}\"] [data-state=locked]').click()")

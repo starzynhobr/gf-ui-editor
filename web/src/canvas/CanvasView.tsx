@@ -16,7 +16,8 @@ import {
   between, contains, draftScene, intersects, moves, resizeHandles, resizes, visibleRows,
   type Axis, type GeometryEdit, type Handle,
 } from './geometry'
-import { type NavigationStyle, wheelAction } from './wheel'
+import { wheelAction } from './wheel'
+import { useNavigationStyle } from './navigationStyle'
 import { useGameTextMasks } from './gameText'
 import { TextureCache } from './dds/cache'
 import { useCanvasPalette } from './palette'
@@ -226,17 +227,7 @@ export default function CanvasView({ path, language, resolution, onSelect, onHov
   const preview = !!preferences && preferences.resolution !== 'off'
   const sample = preferences?.character ?? true
   const text = preferences?.text ?? 'off'
-  const [navigationChoice, setNavigationChoice] = useState<NavigationStyle>()
-  const navigation = navigationChoice ?? preferences?.navigation ?? 'corel'
-  useEffect(() => {
-    // The Settings screen changes the wheel style while the canvas stays mounted.
-    const changed = (event: Event) => {
-      const { name, value } = (event as CustomEvent<{ name: string; value: unknown }>).detail ?? {}
-      if (name === 'navigation_style') setNavigationChoice(value as NavigationStyle)
-    }
-    window.addEventListener('gf:settings-changed', changed)
-    return () => window.removeEventListener('gf:settings-changed', changed)
-  }, [])
+  const navigation = useNavigationStyle()
   const short = t[2], long = t[3]
   useEffect(() => {
     let active = true

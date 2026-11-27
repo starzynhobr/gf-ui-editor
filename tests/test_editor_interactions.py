@@ -1061,6 +1061,48 @@ def test_navigation_styles_map_wheel_to_zoom_or_scroll() -> None:
     view.close()
 
 
+def test_atlas_follows_the_navigation_style(monkeypatch) -> None:
+    from PySide6.QtGui import QPixmap, QWheelEvent
+    from gf_ui_editor import atlas_dialog
+
+    application = QApplication.instance() or QApplication([])
+    view = AtlasView()
+    pixmap = QPixmap(4000, 4000)
+    pixmap.fill(Qt.GlobalColor.gray)
+    view.set_pixmap(pixmap)
+    view.resize(400, 300)
+    view.show()
+    view.resetTransform()
+    view.scale(2, 2)
+    application.processEvents()
+
+    def wheel(modifiers=Qt.KeyboardModifier.NoModifier) -> None:
+        view.wheelEvent(QWheelEvent(
+            QPointF(200, 150), QPointF(200, 150), QPoint(), QPoint(0, -120),
+            Qt.MouseButton.NoButton, modifiers, Qt.ScrollPhase.NoScrollPhase, False,
+        ))
+
+    monkeypatch.setattr(AtlasView, "navigation_style", "corel")
+    assert atlas_dialog.wheel_hint() == "roda = zoom"
+    zoom = view.transform().m11()
+    wheel()
+    assert view.transform().m11() < zoom
+
+    monkeypatch.setattr(AtlasView, "navigation_style", "paintnet")
+    assert atlas_dialog.wheel_hint() == "roda rola · Ctrl+roda = zoom"
+    zoom, top = view.transform().m11(), view.verticalScrollBar().value()
+    wheel()
+    assert view.transform().m11() == zoom and view.verticalScrollBar().value() > top
+    wheel(Qt.KeyboardModifier.ControlModifier)
+    assert view.transform().m11() < zoom
+
+    monkeypatch.setattr(AtlasView, "navigation_style", "photoshop")
+    left = view.horizontalScrollBar().value()
+    wheel(Qt.KeyboardModifier.ControlModifier)
+    assert view.horizontalScrollBar().value() > left
+    view.close()
+
+
 def test_loose_xml_outside_the_game_uses_the_configured_game_folder(tmp_path: Path) -> None:
     from PySide6.QtCore import QSettings
 

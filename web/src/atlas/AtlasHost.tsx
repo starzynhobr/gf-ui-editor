@@ -8,6 +8,7 @@ import { AtlasResizeCheckbox } from '../canvas/CanvasToolbar'
 import { closeAtlas, useAtlasRequest } from './index'
 import { AtlasSurface, type Frame } from './AtlasSurface'
 import { clamp } from './geometry'
+import { useNavigationStyle } from '../canvas/navigationStyle'
 import { atlasStrings } from './strings'
 import { useAtlasTexture } from './texture'
 import { Icon } from '../ui/Icon'
@@ -56,6 +57,7 @@ function Coordinate({ label, tip, value, min, max, disabled, onChange }: {
 
 function AtlasDialog({ request, language, element }: { request: Request; language: string; element?: AtlasElement }) {
   const t = atlasStrings(language)
+  const navigation = useNavigationStyle()
   const dialog = useRef<HTMLDialogElement>(null)
   const submitting = useRef(false)
   const [baseline, setBaseline] = useState(() => element?.atlas_uvs ?? emptyCuts)
@@ -115,11 +117,16 @@ function AtlasDialog({ request, language, element }: { request: Request; languag
     DisableUV: shellT('Desativado'), ThumbUV: shellT('Cursor do slider'),
   })[option]
   const heading = state === normal ? shellT('RECORTE NORMAL (NorUV)') : `${stateLabel(state)} (${state})`
+  const wheel = {
+    corel: shellT('roda = zoom'),
+    paintnet: shellT('roda rola · Ctrl+roda = zoom'),
+    photoshop: shellT('roda rola · Alt+roda = zoom'),
+  }[navigation]
   const hint = preview
-    ? shellT('Arraste para mover · roda = zoom · a imagem se atualiza ao salvar no editor')
+    ? shellT('Arraste para mover · {wheel} · a imagem se atualiza ao salvar no editor', { wheel })
     : enabled
-      ? shellT('Arraste para marcar · arraste por dentro para mover · cantos e bordas ajustam · botão do meio navega · roda = zoom')
-      : shellT('Arraste para mover a vista · roda = zoom · Editar posição libera o recorte')
+      ? shellT('Arraste para marcar · arraste por dentro para mover · cantos e bordas ajustam · botão do meio navega · {wheel}', { wheel })
+      : shellT('Arraste para mover a vista · {wheel} · Editar posição libera o recorte', { wheel })
   const openDds = () => {
     // Edição: a textura fica ao lado do XML; prévia: o caminho já é o da textura.
     const slash = Math.max(request.path.lastIndexOf('/'), request.path.lastIndexOf(String.fromCharCode(92)))

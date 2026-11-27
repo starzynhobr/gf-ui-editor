@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import type { CanvasPoint, CanvasRect } from '../bridge'
 import { clamp, cropBetween, handles, moveCrop, resizeCrop, type Handle } from './geometry'
+import { useNavigationStyle } from '../canvas/navigationStyle'
+import { wheelAction } from '../canvas/wheel'
 
 type View = { x: number; y: number; scale: number }
 type Gesture = { id: number; start: CanvasPoint; origin: CanvasPoint; crop?: CanvasRect; handle?: Handle; pan: boolean }
@@ -35,6 +37,7 @@ export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop, onCur
   const [draft, setDraft] = useState<CanvasRect>()
   const [size, setSize] = useState<CanvasPoint>([0, 0])
   const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 })
+  const navigation = useNavigationStyle()
   const width = bitmap?.width ?? 0
   const height = bitmap?.height ?? 0
 
@@ -50,17 +53,25 @@ export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop, onCur
     const node = viewport.current!
     const observer = new ResizeObserver(() => setSize([node.clientWidth, node.clientHeight]))
     observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const node = viewport.current!
     const wheel = (event: WheelEvent) => {
       event.preventDefault()
+      const action = wheelAction(navigation, event)
+      if (!action) return
       const rect = node.getBoundingClientRect()
-      setView((old) => zoom(old, [event.clientX - rect.left, event.clientY - rect.top], event.deltaY < 0 ? 1.2 : 1 / 1.2))
+      if (action.kind === 'zoom') {
+        setView((old) => zoom(old, [event.clientX - rect.left, event.clientY - rect.top], action.zoomIn ? 1.2 : 1 / 1.2))
+      } else {
+        setView((old) => ({ ...old, x: old.x + action.dx, y: old.y + action.dy }))
+      }
     }
     node.addEventListener('wheel', wheel, { passive: false })
-    return () => {
-      observer.disconnect()
-      node.removeEventListener('wheel', wheel)
-    }
-  }, [])
+    return () => node.removeEventListener('wheel', wheel)
+  }, [navigation])
 
   useEffect(() => {
     if (!width || !height || !size[0] || !size[1]) return
@@ -133,7 +144,8 @@ export function AtlasSurface({ bitmap, label, cut, editing, frame, onCrop, onCur
   const activeCut = draft ?? cut
   return (
     <div ref={viewport} className="gf-atlas-surface gf-atlas-checker" data-testid="atlas-surface"
-      data-editing={editing} onPointerDown={start} onPointerMove={move}
+      data-editing={editing} data-view={`${Math.round(view.x)},${Math.round(view.y)},${view.scale.toFixed(4)}`}
+      onPointerDown={start} onPointerMove={move}
       onPointerUp={(event) => finish(event, true)}
       onPointerCancel={(event) => finish(event, false)} onLostPointerCapture={(event) => finish(event, false)}
       onPointerLeave={() => onCursor?.(null)}

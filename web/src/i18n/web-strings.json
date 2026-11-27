@@ -1213,5 +1213,10 @@
     "en_US": "Anonymous",
     "es_ES": "Anónimo",
     "fr_FR": "Anonyme"
+  },
+  "Aberto no {program}. Ao salvar lá, o editor mostra a mudança sozinho.": {
+    "en_US": "Opened in {program}. When you save there, the editor shows the change on its own.",
+    "es_ES": "Abierto en {program}. Al guardar allí, el editor muestra el cambio solo.",
+    "fr_FR": "Ouvert dans {program}. Quand vous enregistrez là-bas, l’éditeur affiche la modification tout seul."
   }
 }

@@ -20,6 +20,8 @@ export interface ShellState {
   loose_dir: string | null
   standalone_paths?: string[]
   pending: number
+  /** Muda quando um arquivo da pasta entra, sai ou é salvo: a lista relê sozinha. */
+  files_stamp?: string
   publish_confirmed: boolean
   publish_on_save: boolean
 }

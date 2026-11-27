@@ -196,8 +196,18 @@ class ProjectsApi:
         return {"backup": str(backup) if backup is not None else None, "state": self.shell_state()}
 
     # ---- casca ---------------------------------------------------------------------------
+    def _check_folder(self) -> str:
+        """Assinatura da pasta; se mudou desde a última vez, o projeto relê a lista de arquivos."""
+        stamp = file_list.folder_stamp(self._files_directory())
+        if stamp != getattr(self, "_folder_stamp", None):
+            if getattr(self, "_folder_stamp", None) is not None and self._project is not None:
+                self._project.files(refresh=True)
+            self._folder_stamp = stamp
+        return stamp
+
     def shell_state(self) -> dict:
         """Projeto e XML abertos, contador do F5 e preferências que a casca usa."""
+        files_stamp = self._check_folder()
         return {
             "version": __version__,
             "language": self._prefs.language if self._prefs.language in UI_LANGUAGES else "pt_BR",
@@ -207,6 +217,8 @@ class ProjectsApi:
             "loose_dir": str(self._loose_dir) if self._loose_dir is not None else None,
             "standalone_paths": [str(path) for path in self._standalone_paths.copy() if self._project_for_path(path) is None],
             "pending": self._pending(),
+            # Arquivo novo, apagado ou salvo fora na pasta: a lista relê sem botão Atualizar.
+            "files_stamp": files_stamp,
             "publish_confirmed": self._prefs.publish_confirmed,
             "publish_on_save": self._prefs.publish_on_save,
         }

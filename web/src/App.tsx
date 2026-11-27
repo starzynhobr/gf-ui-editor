@@ -96,17 +96,18 @@ export default function App() {
     if (projectRoot) void checkTextUpdates()
   }, [projectRoot])
 
-  // O contador do F5 e a lista mudam quando o XML é salvo fora (Notepad++): relê ao voltar
-  // para a janela e, com um projeto aberto, a cada poucos segundos.
+  // O contador do F5 e a lista mudam quando um arquivo é salvo, criado ou apagado fora
+  // (Notepad++, Explorer): relê ao voltar para a janela e, com uma pasta aberta, a cada
+  // poucos segundos. setShell faz a lista de arquivos reler.
   useEffect(() => {
     const refresh = () => {
       const current = useShell.getState().shell
-      if (!current?.project) return
+      if (!current?.project && !current?.loose_dir) return
       void api.shellState().then((state) => {
         const before = useShell.getState().shell
-        if (state.pending !== before?.pending) setShell(state)
+        if (state.pending !== before?.pending || state.files_stamp !== before?.files_stamp) setShell(state)
         else useShell.setState({ shell: state })
-      })
+      }).catch(() => undefined)
     }
     window.addEventListener('focus', refresh)
     const timer = window.setInterval(refresh, 4000)
