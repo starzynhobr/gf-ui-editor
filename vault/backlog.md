@@ -9,7 +9,8 @@ kanban-plugin: board
 - [x] `map` fora dos projetos novos + Limpar mapas + textos do F5/criação (validado) [[roadmap]]
 - [x] 0.7.0 estável publicada (25/11/2026, direto, sem beta.4) [[release]]
 - [x] 0.8.0-beta.1 publicada (26/11/2026): interface nova como padrão, projetos leves, várias resoluções, recarga do XML editado fora [[release]] [[migracao-web]]
-- [ ] Validar a 0.8.0-beta.1 e lançar a 0.8.0 estável (com "spotlight": "new_interface" nas notas) [[release]]
+- [x] 0.8.0-beta.2 publicada (27/11/2026): estilos de navegação Paint.NET e Photoshop no canvas da interface nova (aviso do Harlem) [[release]]
+- [ ] Validar a 0.8.0-beta.2 e lançar a 0.8.0 estável (com "spotlight": "new_interface" nas notas) [[release]]
 - [x] Versões do projeto (validado) [[roadmap]]
 
 
