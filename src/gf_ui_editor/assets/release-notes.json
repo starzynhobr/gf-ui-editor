@@ -1,258 +1,296 @@
 {
-  "version": "0.8.0-beta.1",
-  "date": "2026-11-26",
+  "version": "0.8.0-beta.2",
+  "date": "2026-11-27",
   "spotlight": "new_interface",
   "notes": {
     "pt_BR": {
-      "new": [
+      "fixed": [
         [
-          "Interface nova.",
-          "O editor agora abre numa interface nova, mais rápida, com tudo no mesmo lugar de antes. Se preferir, volte para a clássica em Configurações → Interface; dá para trocar a qualquer momento."
-        ],
-        [
-          "Temas e fontes.",
-          "Cinco temas (Escuro, Meia-noite, Claro, Cappuccino e Rosa) e quatro fontes (Segoe UI, IBM Plex Sans, Inter e Geist), em Configurações. Cada fonte aparece escrita nela mesma para você escolher."
-        ],
-        [
-          "Busca rápida (Ctrl+K).",
-          "Abra um XML, ache um elemento, rode um comando ou volte a um projeto recente digitando o nome."
-        ],
-        [
-          "Código do XML ao lado (Ctrl+U).",
-          "Veja e edite o código do XML ao lado do canvas. A seleção acompanha, as mudanças podem ser desfeitas com Ctrl+Z e a largura do painel fica guardada."
-        ],
-        [
-          "Recarrega sozinho o XML editado fora.",
-          "Salvou o XML no Notepad++ (ou em outro programa)? O editor mostra a mudança na hora, sem Ctrl+R. Se você tiver alterações não salvas, ele pergunta: Recarregar, Manter as minhas ou Comparar."
-        ],
-        [
-          "Abrir um XML arrastando.",
-          "Arraste um .xml para a janela para ver só aquele arquivo, sem mexer no projeto. Depois dá para salvar no lugar (com backup), importar para o projeto ou comparar."
-        ],
-        [
-          "Projetos leves.",
-          "O projeto guarda só os arquivos que você mudou; o resto vem da UI oficial, guardada uma vez só. Projeto → Converter em projeto leve salva uma versão antes de converter."
-        ],
-        [
-          "Exportar para várias resoluções.",
-          "Em Exportar, escolha as resoluções (1366, 1600, 1920…): o editor reposiciona as janelas que o jogo ancora na tela e mostra tudo lado a lado. Onde ficou errado, é só arrastar. Os ajustes entram nas Versões do projeto."
-        ],
-        [
-          "Dica ao passar o mouse no canvas.",
-          "Pare o mouse sobre um controle para ver o ID, o tipo, o texto e a posição. Liga e desliga no botão (i) da barra do canvas."
-        ],
-        [
-          "Prévia das texturas.",
-          "Na lista de Texturas, passar o mouse mostra a textura numa janelinha flutuante."
-        ],
-        [
-          "Novidades depois de atualizar.",
-          "As novidades abrem uma vez depois de cada atualização. Fechou sem querer? Elas ficam no botão Novidades da barra até a próxima versão."
-        ],
-        [
-          "Como usar (F1).",
-          "O guia rápido da clássica, agora também na interface nova."
-        ]
-      ],
-      "improved": [
-        [
-          "Limpar projeto mais claro.",
-          "Mostra com quanto o projeto fica depois de limpar, e separa o que sai da cópia na pasta do jogo, que não conta no tamanho do projeto. Os tamanhos andam até o novo valor ao escolher."
-        ],
-        [
-          "Texto do jogo no canvas.",
-          "O texto é desenhado no tamanho real do jogo, mais fiel ao que aparece na tela."
+          "Estilos de navegação na interface nova.",
+          "Os estilos Paint.NET e Photoshop voltaram a funcionar no canvas da interface nova: a roda rola a tela e o zoom fica no Ctrl+roda (Paint.NET) ou Alt+roda (Photoshop). Antes, a roda sempre dava zoom, como no CorelDRAW."
         ]
       ]
     },
     "en_US": {
-      "new": [
+      "fixed": [
         [
-          "New interface.",
-          "The editor now opens in a new, faster interface, with everything where it used to be. If you prefer, switch back to the classic one in Settings → Interface; you can change it at any time."
-        ],
-        [
-          "Themes and fonts.",
-          "Five themes (Dark, Midnight, Light, Cappuccino and Pink) and four fonts (Segoe UI, IBM Plex Sans, Inter and Geist), in Settings. Each font is shown in its own typeface so you can pick."
-        ],
-        [
-          "Quick search (Ctrl+K).",
-          "Open an XML, find an element, run a command or go back to a recent project by typing its name."
-        ],
-        [
-          "XML code side by side (Ctrl+U).",
-          "View and edit the XML code next to the canvas. The selection follows along, changes can be undone with Ctrl+Z and the panel width is remembered."
-        ],
-        [
-          "Externally edited XML reloads by itself.",
-          "Saved the XML in Notepad++ (or another program)? The editor shows the change right away, no Ctrl+R needed. If you have unsaved changes, it asks: Reload, Keep mine or Compare."
-        ],
-        [
-          "Open an XML by dragging it.",
-          "Drag an .xml onto the window to view just that file without touching the project. Then you can save it in place (with a backup), import it into the project or compare."
-        ],
-        [
-          "Lightweight projects.",
-          "The project keeps only the files you changed; the rest comes from the official UI, stored only once. Project → Convert to lightweight project saves a version before converting."
-        ],
-        [
-          "Export for several resolutions.",
-          "In Export, pick the resolutions (1366, 1600, 1920…): the editor repositions the windows the game anchors to the screen and shows them side by side. Where something is off, just drag it. The adjustments are included in the project Versions."
-        ],
-        [
-          "Hover tip on the canvas.",
-          "Rest the mouse on a control to see its ID, type, text and position. Toggle it with the (i) button in the canvas bar."
-        ],
-        [
-          "Texture preview.",
-          "In the Textures list, hovering shows the texture in a small floating window."
-        ],
-        [
-          "What's new after updating.",
-          "The release notes open once after each update. Closed them by accident? They stay in the What's new button in the top bar until the next version."
-        ],
-        [
-          "How to use (F1).",
-          "The classic quick guide, now in the new interface too."
-        ]
-      ],
-      "improved": [
-        [
-          "Clearer Clean up project.",
-          "Shows how big the project will be after cleaning up, and lists separately what leaves the copy in the game folder, which is not counted in the project size. Sizes move to the new value as you choose."
-        ],
-        [
-          "Game text on the canvas.",
-          "Text is drawn at the game's real size, closer to what you see on screen."
+          "Navigation styles in the new interface.",
+          "The Paint.NET and Photoshop styles work again on the new interface's canvas: the wheel scrolls, and zoom is on Ctrl+wheel (Paint.NET) or Alt+wheel (Photoshop). Before, the wheel always zoomed, like in CorelDRAW."
         ]
       ]
     },
     "es_ES": {
-      "new": [
+      "fixed": [
         [
-          "Interfaz nueva.",
-          "El editor ahora abre en una interfaz nueva, más rápida, con todo en el mismo lugar de antes. Si lo prefieres, vuelve a la clásica en Configuración → Interfaz; puedes cambiarla en cualquier momento."
-        ],
-        [
-          "Temas y fuentes.",
-          "Cinco temas (Oscuro, Medianoche, Claro, Cappuccino y Rosa) y cuatro fuentes (Segoe UI, IBM Plex Sans, Inter y Geist), en Configuración. Cada fuente aparece escrita en sí misma para que elijas."
-        ],
-        [
-          "Búsqueda rápida (Ctrl+K).",
-          "Abre un XML, encuentra un elemento, ejecuta un comando o vuelve a un proyecto reciente escribiendo su nombre."
-        ],
-        [
-          "Código del XML al lado (Ctrl+U).",
-          "Mira y edita el código del XML junto al lienzo. La selección lo acompaña, los cambios se deshacen con Ctrl+Z y el ancho del panel se guarda."
-        ],
-        [
-          "El XML editado fuera se recarga solo.",
-          "¿Guardaste el XML en Notepad++ (u otro programa)? El editor muestra el cambio al instante, sin Ctrl+R. Si tienes cambios sin guardar, pregunta: Recargar, Mantener los míos o Comparar."
-        ],
-        [
-          "Abrir un XML arrastrándolo.",
-          "Arrastra un .xml a la ventana para ver solo ese archivo, sin tocar el proyecto. Después puedes guardarlo en su lugar (con copia de seguridad), importarlo al proyecto o compararlo."
-        ],
-        [
-          "Proyectos ligeros.",
-          "El proyecto guarda solo los archivos que cambiaste; el resto viene de la UI oficial, guardada una sola vez. Proyecto → Convertir en proyecto ligero guarda una versión antes de convertir."
-        ],
-        [
-          "Exportar para varias resoluciones.",
-          "En Exportar, elige las resoluciones (1366, 1600, 1920…): el editor recoloca las ventanas que el juego ancla a la pantalla y las muestra lado a lado. Donde quede mal, solo arrástrala. Los ajustes entran en las Versiones del proyecto."
-        ],
-        [
-          "Pista al pasar el ratón por el lienzo.",
-          "Deja el ratón sobre un control para ver su ID, tipo, texto y posición. Se activa y desactiva con el botón (i) de la barra del lienzo."
-        ],
-        [
-          "Vista previa de texturas.",
-          "En la lista de Texturas, al pasar el ratón la textura aparece en una ventanita flotante."
-        ],
-        [
-          "Novedades después de actualizar.",
-          "Las novedades se abren una vez después de cada actualización. ¿Las cerraste sin querer? Quedan en el botón Novedades de la barra hasta la próxima versión."
-        ],
-        [
-          "Cómo usar (F1).",
-          "La guía rápida de la clásica, ahora también en la interfaz nueva."
-        ]
-      ],
-      "improved": [
-        [
-          "Limpiar proyecto más claro.",
-          "Muestra cuánto ocupará el proyecto después de limpiar y separa lo que sale de la copia en la carpeta del juego, que no cuenta en el tamaño del proyecto. Los tamaños avanzan hasta el nuevo valor al elegir."
-        ],
-        [
-          "Texto del juego en el lienzo.",
-          "El texto se dibuja al tamaño real del juego, más fiel a lo que se ve en pantalla."
+          "Estilos de navegación en la interfaz nueva.",
+          "Los estilos Paint.NET y Photoshop vuelven a funcionar en el lienzo de la interfaz nueva: la rueda desplaza la vista y el zoom queda en Ctrl+rueda (Paint.NET) o Alt+rueda (Photoshop). Antes, la rueda siempre hacía zoom, como en CorelDRAW."
         ]
       ]
     },
     "fr_FR": {
-      "new": [
+      "fixed": [
         [
-          "Nouvelle interface.",
-          "L'éditeur s'ouvre désormais dans une nouvelle interface, plus rapide, avec tout à la même place qu'avant. Si vous préférez, revenez à l'interface classique dans Paramètres → Interface ; vous pouvez changer à tout moment."
-        ],
-        [
-          "Thèmes et polices.",
-          "Cinq thèmes (Sombre, Minuit, Clair, Cappuccino et Rose) et quatre polices (Segoe UI, IBM Plex Sans, Inter et Geist), dans Paramètres. Chaque police s'affiche dans son propre style pour vous aider à choisir."
-        ],
-        [
-          "Recherche rapide (Ctrl+K).",
-          "Ouvrez un XML, trouvez un élément, lancez une commande ou revenez à un projet récent en tapant son nom."
-        ],
-        [
-          "Code XML côte à côte (Ctrl+U).",
-          "Affichez et modifiez le code XML à côté du canevas. La sélection suit, les modifications s'annulent avec Ctrl+Z et la largeur du panneau est mémorisée."
-        ],
-        [
-          "Le XML modifié ailleurs se recharge tout seul.",
-          "Vous avez enregistré le XML dans Notepad++ (ou un autre programme) ? L'éditeur affiche la modification tout de suite, sans Ctrl+R. Si vous avez des modifications non enregistrées, il demande : Recharger, Garder les miennes ou Comparer."
-        ],
-        [
-          "Ouvrir un XML en le faisant glisser.",
-          "Faites glisser un .xml sur la fenêtre pour voir seulement ce fichier, sans toucher au projet. Vous pouvez ensuite l'enregistrer sur place (avec une sauvegarde), l'importer dans le projet ou comparer."
-        ],
-        [
-          "Projets légers.",
-          "Le projet ne garde que les fichiers que vous avez modifiés ; le reste vient de l'UI officielle, stockée une seule fois. Projet → Convertir en projet léger enregistre une version avant la conversion."
-        ],
-        [
-          "Exporter pour plusieurs résolutions.",
-          "Dans Exporter, choisissez les résolutions (1366, 1600, 1920…) : l'éditeur replace les fenêtres que le jeu ancre à l'écran et les montre côte à côte. Si quelque chose est mal placé, faites-le glisser. Les ajustements sont inclus dans les Versions du projet."
-        ],
-        [
-          "Infobulle au survol du canevas.",
-          "Laissez la souris sur un contrôle pour voir son ID, son type, son texte et sa position. Activez-la ou désactivez-la avec le bouton (i) de la barre du canevas."
-        ],
-        [
-          "Aperçu des textures.",
-          "Dans la liste des Textures, le survol affiche la texture dans une petite fenêtre flottante."
-        ],
-        [
-          "Nouveautés après la mise à jour.",
-          "Les nouveautés s'ouvrent une fois après chaque mise à jour. Fermées par erreur ? Elles restent dans le bouton Nouveautés de la barre jusqu'à la prochaine version."
-        ],
-        [
-          "Mode d'emploi (F1).",
-          "Le guide rapide de l'interface classique, maintenant aussi dans la nouvelle interface."
-        ]
-      ],
-      "improved": [
-        [
-          "Nettoyer le projet plus clair.",
-          "Indique la taille du projet après le nettoyage et sépare ce qui sort de la copie dans le dossier du jeu, qui ne compte pas dans la taille du projet. Les tailles défilent jusqu'à la nouvelle valeur quand vous choisissez."
-        ],
-        [
-          "Texte du jeu sur le canevas.",
-          "Le texte est dessiné à la taille réelle du jeu, plus fidèle à ce qui s'affiche à l'écran."
+          "Styles de navigation dans la nouvelle interface.",
+          "Les styles Paint.NET et Photoshop fonctionnent de nouveau sur le canevas de la nouvelle interface : la molette fait défiler, et le zoom passe par Ctrl+molette (Paint.NET) ou Alt+molette (Photoshop). Avant, la molette zoomait toujours, comme dans CorelDRAW."
         ]
       ]
     }
   },
   "history": [
+    {
+      "version": "0.8.0-beta.1",
+      "date": "2026-11-26",
+      "notes": {
+        "pt_BR": {
+          "new": [
+            [
+              "Interface nova.",
+              "O editor agora abre numa interface nova, mais rápida, com tudo no mesmo lugar de antes. Se preferir, volte para a clássica em Configurações → Interface; dá para trocar a qualquer momento."
+            ],
+            [
+              "Temas e fontes.",
+              "Cinco temas (Escuro, Meia-noite, Claro, Cappuccino e Rosa) e quatro fontes (Segoe UI, IBM Plex Sans, Inter e Geist), em Configurações. Cada fonte aparece escrita nela mesma para você escolher."
+            ],
+            [
+              "Busca rápida (Ctrl+K).",
+              "Abra um XML, ache um elemento, rode um comando ou volte a um projeto recente digitando o nome."
+            ],
+            [
+              "Código do XML ao lado (Ctrl+U).",
+              "Veja e edite o código do XML ao lado do canvas. A seleção acompanha, as mudanças podem ser desfeitas com Ctrl+Z e a largura do painel fica guardada."
+            ],
+            [
+              "Recarrega sozinho o XML editado fora.",
+              "Salvou o XML no Notepad++ (ou em outro programa)? O editor mostra a mudança na hora, sem Ctrl+R. Se você tiver alterações não salvas, ele pergunta: Recarregar, Manter as minhas ou Comparar."
+            ],
+            [
+              "Abrir um XML arrastando.",
+              "Arraste um .xml para a janela para ver só aquele arquivo, sem mexer no projeto. Depois dá para salvar no lugar (com backup), importar para o projeto ou comparar."
+            ],
+            [
+              "Projetos leves.",
+              "O projeto guarda só os arquivos que você mudou; o resto vem da UI oficial, guardada uma vez só. Projeto → Converter em projeto leve salva uma versão antes de converter."
+            ],
+            [
+              "Exportar para várias resoluções.",
+              "Em Exportar, escolha as resoluções (1366, 1600, 1920…): o editor reposiciona as janelas que o jogo ancora na tela e mostra tudo lado a lado. Onde ficou errado, é só arrastar. Os ajustes entram nas Versões do projeto."
+            ],
+            [
+              "Dica ao passar o mouse no canvas.",
+              "Pare o mouse sobre um controle para ver o ID, o tipo, o texto e a posição. Liga e desliga no botão (i) da barra do canvas."
+            ],
+            [
+              "Prévia das texturas.",
+              "Na lista de Texturas, passar o mouse mostra a textura numa janelinha flutuante."
+            ],
+            [
+              "Novidades depois de atualizar.",
+              "As novidades abrem uma vez depois de cada atualização. Fechou sem querer? Elas ficam no botão Novidades da barra até a próxima versão."
+            ],
+            [
+              "Como usar (F1).",
+              "O guia rápido da clássica, agora também na interface nova."
+            ]
+          ],
+          "improved": [
+            [
+              "Limpar projeto mais claro.",
+              "Mostra com quanto o projeto fica depois de limpar, e separa o que sai da cópia na pasta do jogo, que não conta no tamanho do projeto. Os tamanhos andam até o novo valor ao escolher."
+            ],
+            [
+              "Texto do jogo no canvas.",
+              "O texto é desenhado no tamanho real do jogo, mais fiel ao que aparece na tela."
+            ]
+          ]
+        },
+        "en_US": {
+          "new": [
+            [
+              "New interface.",
+              "The editor now opens in a new, faster interface, with everything where it used to be. If you prefer, switch back to the classic one in Settings → Interface; you can change it at any time."
+            ],
+            [
+              "Themes and fonts.",
+              "Five themes (Dark, Midnight, Light, Cappuccino and Pink) and four fonts (Segoe UI, IBM Plex Sans, Inter and Geist), in Settings. Each font is shown in its own typeface so you can pick."
+            ],
+            [
+              "Quick search (Ctrl+K).",
+              "Open an XML, find an element, run a command or go back to a recent project by typing its name."
+            ],
+            [
+              "XML code side by side (Ctrl+U).",
+              "View and edit the XML code next to the canvas. The selection follows along, changes can be undone with Ctrl+Z and the panel width is remembered."
+            ],
+            [
+              "Externally edited XML reloads by itself.",
+              "Saved the XML in Notepad++ (or another program)? The editor shows the change right away, no Ctrl+R needed. If you have unsaved changes, it asks: Reload, Keep mine or Compare."
+            ],
+            [
+              "Open an XML by dragging it.",
+              "Drag an .xml onto the window to view just that file without touching the project. Then you can save it in place (with a backup), import it into the project or compare."
+            ],
+            [
+              "Lightweight projects.",
+              "The project keeps only the files you changed; the rest comes from the official UI, stored only once. Project → Convert to lightweight project saves a version before converting."
+            ],
+            [
+              "Export for several resolutions.",
+              "In Export, pick the resolutions (1366, 1600, 1920…): the editor repositions the windows the game anchors to the screen and shows them side by side. Where something is off, just drag it. The adjustments are included in the project Versions."
+            ],
+            [
+              "Hover tip on the canvas.",
+              "Rest the mouse on a control to see its ID, type, text and position. Toggle it with the (i) button in the canvas bar."
+            ],
+            [
+              "Texture preview.",
+              "In the Textures list, hovering shows the texture in a small floating window."
+            ],
+            [
+              "What's new after updating.",
+              "The release notes open once after each update. Closed them by accident? They stay in the What's new button in the top bar until the next version."
+            ],
+            [
+              "How to use (F1).",
+              "The classic quick guide, now in the new interface too."
+            ]
+          ],
+          "improved": [
+            [
+              "Clearer Clean up project.",
+              "Shows how big the project will be after cleaning up, and lists separately what leaves the copy in the game folder, which is not counted in the project size. Sizes move to the new value as you choose."
+            ],
+            [
+              "Game text on the canvas.",
+              "Text is drawn at the game's real size, closer to what you see on screen."
+            ]
+          ]
+        },
+        "es_ES": {
+          "new": [
+            [
+              "Interfaz nueva.",
+              "El editor ahora abre en una interfaz nueva, más rápida, con todo en el mismo lugar de antes. Si lo prefieres, vuelve a la clásica en Configuración → Interfaz; puedes cambiarla en cualquier momento."
+            ],
+            [
+              "Temas y fuentes.",
+              "Cinco temas (Oscuro, Medianoche, Claro, Cappuccino y Rosa) y cuatro fuentes (Segoe UI, IBM Plex Sans, Inter y Geist), en Configuración. Cada fuente aparece escrita en sí misma para que elijas."
+            ],
+            [
+              "Búsqueda rápida (Ctrl+K).",
+              "Abre un XML, encuentra un elemento, ejecuta un comando o vuelve a un proyecto reciente escribiendo su nombre."
+            ],
+            [
+              "Código del XML al lado (Ctrl+U).",
+              "Mira y edita el código del XML junto al lienzo. La selección lo acompaña, los cambios se deshacen con Ctrl+Z y el ancho del panel se guarda."
+            ],
+            [
+              "El XML editado fuera se recarga solo.",
+              "¿Guardaste el XML en Notepad++ (u otro programa)? El editor muestra el cambio al instante, sin Ctrl+R. Si tienes cambios sin guardar, pregunta: Recargar, Mantener los míos o Comparar."
+            ],
+            [
+              "Abrir un XML arrastrándolo.",
+              "Arrastra un .xml a la ventana para ver solo ese archivo, sin tocar el proyecto. Después puedes guardarlo en su lugar (con copia de seguridad), importarlo al proyecto o compararlo."
+            ],
+            [
+              "Proyectos ligeros.",
+              "El proyecto guarda solo los archivos que cambiaste; el resto viene de la UI oficial, guardada una sola vez. Proyecto → Convertir en proyecto ligero guarda una versión antes de convertir."
+            ],
+            [
+              "Exportar para varias resoluciones.",
+              "En Exportar, elige las resoluciones (1366, 1600, 1920…): el editor recoloca las ventanas que el juego ancla a la pantalla y las muestra lado a lado. Donde quede mal, solo arrástrala. Los ajustes entran en las Versiones del proyecto."
+            ],
+            [
+              "Pista al pasar el ratón por el lienzo.",
+              "Deja el ratón sobre un control para ver su ID, tipo, texto y posición. Se activa y desactiva con el botón (i) de la barra del lienzo."
+            ],
+            [
+              "Vista previa de texturas.",
+              "En la lista de Texturas, al pasar el ratón la textura aparece en una ventanita flotante."
+            ],
+            [
+              "Novedades después de actualizar.",
+              "Las novedades se abren una vez después de cada actualización. ¿Las cerraste sin querer? Quedan en el botón Novedades de la barra hasta la próxima versión."
+            ],
+            [
+              "Cómo usar (F1).",
+              "La guía rápida de la clásica, ahora también en la interfaz nueva."
+            ]
+          ],
+          "improved": [
+            [
+              "Limpiar proyecto más claro.",
+              "Muestra cuánto ocupará el proyecto después de limpiar y separa lo que sale de la copia en la carpeta del juego, que no cuenta en el tamaño del proyecto. Los tamaños avanzan hasta el nuevo valor al elegir."
+            ],
+            [
+              "Texto del juego en el lienzo.",
+              "El texto se dibuja al tamaño real del juego, más fiel a lo que se ve en pantalla."
+            ]
+          ]
+        },
+        "fr_FR": {
+          "new": [
+            [
+              "Nouvelle interface.",
+              "L'éditeur s'ouvre désormais dans une nouvelle interface, plus rapide, avec tout à la même place qu'avant. Si vous préférez, revenez à l'interface classique dans Paramètres → Interface ; vous pouvez changer à tout moment."
+            ],
+            [
+              "Thèmes et polices.",
+              "Cinq thèmes (Sombre, Minuit, Clair, Cappuccino et Rose) et quatre polices (Segoe UI, IBM Plex Sans, Inter et Geist), dans Paramètres. Chaque police s'affiche dans son propre style pour vous aider à choisir."
+            ],
+            [
+              "Recherche rapide (Ctrl+K).",
+              "Ouvrez un XML, trouvez un élément, lancez une commande ou revenez à un projet récent en tapant son nom."
+            ],
+            [
+              "Code XML côte à côte (Ctrl+U).",
+              "Affichez et modifiez le code XML à côté du canevas. La sélection suit, les modifications s'annulent avec Ctrl+Z et la largeur du panneau est mémorisée."
+            ],
+            [
+              "Le XML modifié ailleurs se recharge tout seul.",
+              "Vous avez enregistré le XML dans Notepad++ (ou un autre programme) ? L'éditeur affiche la modification tout de suite, sans Ctrl+R. Si vous avez des modifications non enregistrées, il demande : Recharger, Garder les miennes ou Comparer."
+            ],
+            [
+              "Ouvrir un XML en le faisant glisser.",
+              "Faites glisser un .xml sur la fenêtre pour voir seulement ce fichier, sans toucher au projet. Vous pouvez ensuite l'enregistrer sur place (avec une sauvegarde), l'importer dans le projet ou comparer."
+            ],
+            [
+              "Projets légers.",
+              "Le projet ne garde que les fichiers que vous avez modifiés ; le reste vient de l'UI officielle, stockée une seule fois. Projet → Convertir en projet léger enregistre une version avant la conversion."
+            ],
+            [
+              "Exporter pour plusieurs résolutions.",
+              "Dans Exporter, choisissez les résolutions (1366, 1600, 1920…) : l'éditeur replace les fenêtres que le jeu ancre à l'écran et les montre côte à côte. Si quelque chose est mal placé, faites-le glisser. Les ajustements sont inclus dans les Versions du projet."
+            ],
+            [
+              "Infobulle au survol du canevas.",
+              "Laissez la souris sur un contrôle pour voir son ID, son type, son texte et sa position. Activez-la ou désactivez-la avec le bouton (i) de la barre du canevas."
+            ],
+            [
+              "Aperçu des textures.",
+              "Dans la liste des Textures, le survol affiche la texture dans une petite fenêtre flottante."
+            ],
+            [
+              "Nouveautés après la mise à jour.",
+              "Les nouveautés s'ouvrent une fois après chaque mise à jour. Fermées par erreur ? Elles restent dans le bouton Nouveautés de la barre jusqu'à la prochaine version."
+            ],
+            [
+              "Mode d'emploi (F1).",
+              "Le guide rapide de l'interface classique, maintenant aussi dans la nouvelle interface."
+            ]
+          ],
+          "improved": [
+            [
+              "Nettoyer le projet plus clair.",
+              "Indique la taille du projet après le nettoyage et sépare ce qui sort de la copie dans le dossier du jeu, qui ne compte pas dans la taille du projet. Les tailles défilent jusqu'à la nouvelle valeur quand vous choisissez."
+            ],
+            [
+              "Texte du jeu sur le canevas.",
+              "Le texte est dessiné à la taille réelle du jeu, plus fidèle à ce qui s'affiche à l'écran."
+            ]
+          ]
+        }
+      }
+    },
     {
       "version": "0.7.0",
       "date": "2026-11-25",

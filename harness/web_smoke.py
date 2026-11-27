@@ -2066,6 +2066,41 @@ def canvas_toolbar() -> None:
     check("Ctrl+0 volta a 100%", bool(wait(f"__smoke.text('{zoom}') === '100%'", 5, "Ctrl+0")))
     js("__smoke.click('[data-testid=canvas-fit]')")
     check("Enquadrar ajusta a tela", bool(wait(f"__smoke.text('{zoom}') !== '100%'", 5, "enquadrar")))
+
+    def wheel_moves(style: str, keys: str) -> dict:
+        """Roda no canvas com o estilo escolhido: o que mudou em x, y e zoom."""
+        js(f"window.dispatchEvent(new CustomEvent('gf:settings-changed', {{ detail: {{ name: 'navigation_style', value: '{style}' }} }}))")
+        time.sleep(0.15)
+        js(f"""(() => {{
+          const node = __smoke.q('.gf-canvas-viewport');
+          window.__wheelBefore = node.dataset.view;
+          const box = node.getBoundingClientRect();
+          node.dispatchEvent(new WheelEvent('wheel', {{ deltaY: 100, clientX: box.left + box.width / 2,
+            clientY: box.top + box.height / 2, cancelable: true, bubbles: true, {keys} }}));
+        }})()""")
+        wait("__smoke.q('.gf-canvas-viewport').dataset.view !== window.__wheelBefore", 2, "roda mexeu")
+        return js("""(() => {
+          const before = window.__wheelBefore.split(',').map(Number);
+          const after = __smoke.q('.gf-canvas-viewport').dataset.view.split(',').map(Number);
+          return { x: after[0] - before[0], y: after[1] - before[1], zoom: after[2] !== before[2] };
+        })()""")
+
+    def moved(result: dict, kind: str) -> bool:
+        if not isinstance(result, dict):
+            return False
+        return {"zoom": result["zoom"] and True,
+                "down": not result["zoom"] and result["x"] == 0 and result["y"] == -100,
+                "side": not result["zoom"] and result["x"] == -100 and result["y"] == 0}[kind]
+
+    for style, keys, kind in (
+        ("corel", "", "zoom"), ("corel", "shiftKey: true", "zoom"),
+        ("paintnet", "", "down"), ("paintnet", "shiftKey: true", "side"), ("paintnet", "ctrlKey: true", "zoom"),
+        ("photoshop", "", "down"), ("photoshop", "ctrlKey: true", "side"), ("photoshop", "altKey: true", "zoom"),
+    ):
+        result = wheel_moves(style, keys)
+        check(f"roda no estilo {style} {keys or 'sem tecla'}: {kind}", moved(result, kind), result=result)
+    js("window.dispatchEvent(new CustomEvent('gf:settings-changed', { detail: { name: 'navigation_style', value: 'corel' } }))")
+    js("__smoke.click('[data-testid=canvas-fit]')")
     check("Pílulas flutuam sobre o canvas e recebem os próprios cliques", bool(js("""(() => {
       const viewport = __smoke.q('.gf-canvas-viewport').getBoundingClientRect();
       const bars = __smoke.all('.gf-canvas-toolbar, .gf-canvas-zoom');

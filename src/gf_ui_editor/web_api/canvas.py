@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import RLock
 
 from ..about import GAME_RESOLUTIONS, parse_resolution
+from ..app_settings import NAVIGATION_STYLES
 from ..backgrounds import BACKGROUNDS_DIRECTORY
 from ..canvas_document import TEXT_MODES, PreviewContext, describe_document, describe_scene
 from ..game_layout import DEFAULT_HUD
@@ -66,6 +67,7 @@ class CanvasApi:
             "outlines": prefs.canvas_outlines,
             "ids": prefs.canvas_ids,
             "text": prefs.text_mode if prefs.text_mode in TEXT_MODES else "off",
+            "navigation": prefs.navigation_style if prefs.navigation_style in NAVIGATION_STYLES else "corel",
         }
 
     def canvas_set_preference(

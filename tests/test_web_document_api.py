@@ -72,6 +72,9 @@ def test_canvas_preview_preferences_keep_the_dirty_document(api, tmp_path):
     reopened_api = WebApi("pt_BR", False, Preferences(api._prefs.store))
     assert not reopened_api.canvas_preferences()["outlines"]
     assert reopened_api.canvas_preferences()["ids"]
+    assert reopened_api.canvas_preferences()["navigation"] == "corel"
+    reopened_api._prefs.navigation_style = "paintnet"
+    assert reopened_api.canvas_preferences()["navigation"] == "paintnet"
     reopened = reopened_api.doc_open(path)
     assert reopened["preview"]["screen"][2:] == (1367, 769)
     assert not reopened["preview"]["saved_positions"]

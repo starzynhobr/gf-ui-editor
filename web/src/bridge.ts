@@ -59,6 +59,7 @@ export interface CanvasPreferences {
   outlines: boolean
   ids: boolean
   text: CanvasTextMode
+  navigation: 'corel' | 'paintnet' | 'photoshop'
 }
 
 export type CanvasPreference = 'resolution' | 'background' | 'savedPositions' | 'character' | 'text' | 'outlines' | 'ids'

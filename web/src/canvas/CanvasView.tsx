@@ -16,6 +16,7 @@ import {
   between, contains, draftScene, intersects, moves, resizeHandles, resizes, visibleRows,
   type Axis, type GeometryEdit, type Handle,
 } from './geometry'
+import { type NavigationStyle, wheelAction } from './wheel'
 import { useGameTextMasks } from './gameText'
 import { TextureCache } from './dds/cache'
 import { useCanvasPalette } from './palette'
@@ -225,6 +226,17 @@ export default function CanvasView({ path, language, resolution, onSelect, onHov
   const preview = !!preferences && preferences.resolution !== 'off'
   const sample = preferences?.character ?? true
   const text = preferences?.text ?? 'off'
+  const [navigationChoice, setNavigationChoice] = useState<NavigationStyle>()
+  const navigation = navigationChoice ?? preferences?.navigation ?? 'corel'
+  useEffect(() => {
+    // The Settings screen changes the wheel style while the canvas stays mounted.
+    const changed = (event: Event) => {
+      const { name, value } = (event as CustomEvent<{ name: string; value: unknown }>).detail ?? {}
+      if (name === 'navigation_style') setNavigationChoice(value as NavigationStyle)
+    }
+    window.addEventListener('gf:settings-changed', changed)
+    return () => window.removeEventListener('gf:settings-changed', changed)
+  }, [])
   const short = t[2], long = t[3]
   useEffect(() => {
     let active = true
@@ -398,11 +410,14 @@ export default function CanvasView({ path, language, resolution, onSelect, onHov
       const x = event.clientX - rect.left
       const y = event.clientY - rect.top
       clearHover()
-      if (!drag.current) setView((old) => zoomAt(old, old.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), [x, y]))
+      const action = wheelAction(navigation, event)
+      if (!action || drag.current) return
+      if (action.kind === 'zoom') setView((old) => zoomAt(old, old.scale * (action.zoomIn ? 1.15 : 1 / 1.15), [x, y]))
+      else setView((old) => ({ ...old, x: old.x + action.dx, y: old.y + action.dy }))
     }
     node.addEventListener('wheel', wheel, { passive: false })
     return () => node.removeEventListener('wheel', wheel)
-  }, [scene])
+  }, [scene, navigation])
 
   useEffect(() => {
     if (!scene) return
@@ -629,6 +644,7 @@ export default function CanvasView({ path, language, resolution, onSelect, onHov
       </CanvasToolbar>}
       {scene && !preferences && preferenceError && <output role="alert">{preferenceError}</output>}
       <div ref={viewport} className="gf-canvas-viewport" tabIndex={0} style={{ cursor }}
+        data-view={`${Math.round(view.x)},${Math.round(view.y)},${view.scale.toFixed(3)}`}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onDoubleClick={doubleClick}
         onLostPointerCapture={() => { if (drag.current) cancelGesture() }} onPointerCancel={cancelGesture}
         onPointerLeave={clearHover}
